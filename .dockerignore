@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs (will be rebuilt in Docker)
+build/
+dist/
+*/build/
+*/dist/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Test files
+coverage/
+*.test.ts
+**/*.test.ts
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Competition reference (don't include in Docker)
+competition_mcp_server_code_ref/
+
+# Development files
+.prettierrc
+.eslintrc*
+vitest.config.ts
+tsconfig.json

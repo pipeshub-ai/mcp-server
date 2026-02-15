@@ -1,0 +1,31 @@
+speakeasyVersion: 1.717.0
+sources:
+    PipesHub API:
+        sourceNamespace: pipes-hub-api
+        sourceRevisionDigest: sha256:d5d713bec8c10bda6178d050dcd75ff9b061cea20515e208b33c1b08b601efea
+        sourceBlobDigest: sha256:1ce6f7426da4aa713e5132a86bee9dfa8cae449f1416afb83e8653447ec810f4
+        tags:
+            - latest
+            - 1.0.0
+targets:
+    pipeshub:
+        source: PipesHub API
+        sourceNamespace: pipes-hub-api
+        sourceRevisionDigest: sha256:d5d713bec8c10bda6178d050dcd75ff9b061cea20515e208b33c1b08b601efea
+        sourceBlobDigest: sha256:1ce6f7426da4aa713e5132a86bee9dfa8cae449f1416afb83e8653447ec810f4
+workflow:
+    workflowVersion: 1.0.0
+    speakeasyVersion: latest
+    sources:
+        PipesHub API:
+            inputs:
+                - location: ../../open-api/source_specs/pipeshub-openapi.yaml
+            overlays:
+                - location: .speakeasy/speakeasy-modifications-overlay.yaml
+            output: .speakeasy/out.openapi.yaml
+            registry:
+                location: registry.speakeasyapi.dev/pipeshub/test/pipes-hub-api
+    targets:
+        pipeshub:
+            target: mcp-typescript
+            source: PipesHub API
