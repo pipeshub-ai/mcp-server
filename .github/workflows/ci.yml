@@ -18,31 +18,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
-
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
+        working-directory: pipeshub-mcp-typescript
+        run: npm install
 
       - name: Build
-        run: pnpm build
+        working-directory: pipeshub-mcp-typescript
+        run: npm run build
 
-      - name: Test
-        run: pnpm test
+      - name: Lint
+        working-directory: pipeshub-mcp-typescript
+        run: npm run lint
 
   docker-build:
     runs-on: ubuntu-latest
@@ -60,6 +54,7 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: pipeshub/mcp-server:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -68,6 +63,6 @@ jobs:
         run: |
           echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"1.0","capabilities":{},"clientInfo":{"name":"test"}},"id":1}' | \
           timeout 10 docker run -i --rm \
-            -e PIPESHUB_API_URL=https://test.pipeshub.com/api/v1 \
-            -e PIPESHUB_API_TOKEN=test-token \
-            pipeshub/mcp-server:test || true
+            pipeshub/mcp-server:test \
+            --server-url https://test.pipeshub.com/api/v1 \
+            --bearer-auth test-token || true

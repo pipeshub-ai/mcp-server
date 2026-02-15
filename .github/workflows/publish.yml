@@ -12,26 +12,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: pnpm install
+        working-directory: pipeshub-mcp-typescript
+        run: npm install
 
       - name: Build
-        run: pnpm build
+        working-directory: pipeshub-mcp-typescript
+        run: npm run build
 
       - name: Publish to npm
-        run: pnpm -r publish --access public --no-git-checks
+        working-directory: pipeshub-mcp-typescript
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
