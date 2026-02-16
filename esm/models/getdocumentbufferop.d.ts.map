@@ -1,0 +1,1 @@
+{"version":3,"file":"getdocumentbufferop.d.ts","sourceRoot":"","sources":["../../src/models/getdocumentbufferop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB,MAAM,MAAM,wBAAwB,GAAG;IACrC,UAAU,EAAE,MAAM,CAAC;IACnB,OAAO,CAAC,EAAE,MAAM,GAAG,SAAS,CAAC;CAC9B,CAAC;AAEF,eAAO,MAAM,kCAAkC,EAAE,CAAC,CAAC,OAAO,CACxD,wBAAwB,CAOxB,CAAC"}

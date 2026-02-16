@@ -1,0 +1,1 @@
+{"version":3,"file":"getuploadlimitsop.d.ts","sourceRoot":"","sources":["../../src/models/getuploadlimitsop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,uBAAuB,GAAG;IACpC,kBAAkB,CAAC,EAAE,MAAM,GAAG,SAAS,CAAC;IACxC,gBAAgB,CAAC,EAAE,MAAM,GAAG,SAAS,CAAC;CACvC,CAAC;AAEF,eAAO,MAAM,iCAAiC,EAAE,CAAC,CAAC,OAAO,CACvD,uBAAuB,CAIa,CAAC"}

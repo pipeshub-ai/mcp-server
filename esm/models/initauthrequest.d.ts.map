@@ -1,0 +1,1 @@
+{"version":3,"file":"initauthrequest.d.ts","sourceRoot":"","sources":["../../src/models/initauthrequest.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,eAAe,GAAG;IAAE,KAAK,EAAE,MAAM,CAAA;CAAE,CAAC;AAEhD,eAAO,MAAM,yBAAyB,EAAE,CAAC,CAAC,OAAO,CAAC,eAAe,CAEN,CAAC"}

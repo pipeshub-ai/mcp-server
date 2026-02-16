@@ -1,0 +1,1 @@
+{"version":3,"file":"deletefolderop.js","sourceRoot":"","sources":["../../src/models/deletefolderop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAIzB,MAAM,CAAC,MAAM,6BAA6B,GAAmC,CAAC;KAC3E,MAAM,CAAC;IACN,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;IACpB,IAAI,EAAE,CAAC,CAAC,MAAM,EAAE;CACjB,CAAC,CAAC"}

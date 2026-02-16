@@ -1,0 +1,1 @@
+{"version":3,"file":"streamrecordbufferop.d.ts","sourceRoot":"","sources":["../../src/models/streamrecordbufferop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB,MAAM,MAAM,yBAAyB,GAAG;IACtC,QAAQ,EAAE,MAAM,CAAC;IACjB,SAAS,CAAC,EAAE,MAAM,GAAG,SAAS,CAAC;CAChC,CAAC;AAEF,eAAO,MAAM,mCAAmC,EAAE,CAAC,CAAC,OAAO,CACzD,yBAAyB,CAIzB,CAAC"}

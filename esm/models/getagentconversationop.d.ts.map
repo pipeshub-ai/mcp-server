@@ -1,0 +1,1 @@
+{"version":3,"file":"getagentconversationop.d.ts","sourceRoot":"","sources":["../../src/models/getagentconversationop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB,MAAM,MAAM,2BAA2B,GAAG;IACxC,QAAQ,EAAE,MAAM,CAAC;IACjB,cAAc,EAAE,MAAM,CAAC;CACxB,CAAC;AAEF,eAAO,MAAM,qCAAqC,EAAE,CAAC,CAAC,OAAO,CAC3D,2BAA2B,CAI3B,CAAC"}

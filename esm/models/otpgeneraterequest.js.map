@@ -1,0 +1,1 @@
+{"version":3,"file":"otpgeneraterequest.js","sourceRoot":"","sources":["../../src/models/otpgeneraterequest.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAUzB,MAAM,CAAC,MAAM,4BAA4B,GAAkC,CAAC;KACzE,MAAM,CAAC;IACN,mBAAmB,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,QAAQ,EAAE;IAC1C,KAAK,EAAE,CAAC,CAAC,MAAM,EAAE;CAClB,CAAC,CAAC,QAAQ,CAAC,kCAAkC,CAAC,CAAC"}

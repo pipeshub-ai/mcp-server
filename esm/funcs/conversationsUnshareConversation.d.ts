@@ -1,0 +1,21 @@
+import { PipeshubCore } from "../core.js";
+import { RequestOptions } from "../lib/sdks.js";
+import { APIError } from "../models/errors/apierror.js";
+import { ConnectionError, InvalidRequestError, RequestAbortedError, RequestTimeoutError, UnexpectedClientError } from "../models/errors/httpclienterrors.js";
+import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
+import { UnshareConversationRequest } from "../models/unshareconversationop.js";
+import { APIPromise } from "../types/async.js";
+import { Result } from "../types/fp.js";
+/**
+ * Revoke conversation access
+ *
+ * @remarks
+ * Remove sharing access from users.<br><br>
+ * <b>Overview:</b><br>
+ * Removes specified users from the conversation's sharedWith list.
+ * Those users will no longer be able to access the conversation.<br><br>
+ * <b>Permissions:</b><br>
+ * Only the conversation owner can revoke access.
+ */
+export declare function conversationsUnshareConversation(client$: PipeshubCore, request: UnshareConversationRequest, options?: RequestOptions): APIPromise<Result<Response, APIError | SDKValidationError | UnexpectedClientError | InvalidRequestError | RequestAbortedError | RequestTimeoutError | ConnectionError>>;
+//# sourceMappingURL=conversationsUnshareConversation.d.ts.map

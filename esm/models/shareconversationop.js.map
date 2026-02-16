@@ -1,0 +1,1 @@
+{"version":3,"file":"shareconversationop.js","sourceRoot":"","sources":["../../src/models/shareconversationop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EAAgB,sBAAsB,EAAE,MAAM,mBAAmB,CAAC;AAOzE,MAAM,CAAC,MAAM,kCAAkC,GAE3C,CAAC,CAAC,MAAM,CAAC;IACX,IAAI,EAAE,sBAAsB;IAC5B,cAAc,EAAE,CAAC,CAAC,MAAM,EAAE;CAC3B,CAAC,CAAC"}

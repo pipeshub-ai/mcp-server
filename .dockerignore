@@ -47,4 +47,3 @@ competition_mcp_server_code_ref/
 .prettierrc
 .eslintrc*
 vitest.config.ts
-tsconfig.json

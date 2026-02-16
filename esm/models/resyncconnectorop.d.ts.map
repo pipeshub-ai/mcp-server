@@ -1,0 +1,1 @@
+{"version":3,"file":"resyncconnectorop.d.ts","sourceRoot":"","sources":["../../src/models/resyncconnectorop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,sBAAsB,GAAG;IACnC,aAAa,EAAE,MAAM,CAAC;IACtB,WAAW,EAAE,MAAM,CAAC;CACrB,CAAC;AAEF,eAAO,MAAM,gCAAgC,EAAE,CAAC,CAAC,OAAO,CACtD,sBAAsB,CAIwB,CAAC"}

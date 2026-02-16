@@ -1,0 +1,1 @@
+{"version":3,"file":"deleteallsearchhistoryop.js","sourceRoot":"","sources":["../../src/models/deleteallsearchhistoryop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAOzB,MAAM,CAAC,MAAM,wCAAwC,GAEjD,CAAC,CAAC,MAAM,CAAC;IACX,OAAO,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,QAAQ,EAAE;CAC/B,CAAC,CAAC,QAAQ,CAAC,wBAAwB,CAAC,CAAC"}

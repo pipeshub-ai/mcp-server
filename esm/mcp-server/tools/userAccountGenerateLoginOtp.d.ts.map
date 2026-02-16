@@ -1,0 +1,1 @@
+{"version":3,"file":"userAccountGenerateLoginOtp.d.ts","sourceRoot":"","sources":["../../../src/mcp-server/tools/userAccountGenerateLoginOtp.ts"],"names":[],"mappings":"AAMA,OAAO,EAAgB,cAAc,EAAE,MAAM,aAAa,CAAC;AAE3D,QAAA,MAAM,IAAI;;CAET,CAAC;AAEF,eAAO,MAAM,gCAAgC,EAAE,cAAc,CAAC,OAAO,IAAI,CA2CxE,CAAC"}

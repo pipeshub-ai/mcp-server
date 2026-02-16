@@ -2,10 +2,10 @@ FROM oven/bun:1 AS builder
 
 WORKDIR /app
 
-COPY pipeshub-mcp-typescript/package.json ./
+COPY package.json ./
 RUN bun install
 
-COPY pipeshub-mcp-typescript/ .
+COPY . .
 RUN bun run build
 
 FROM node:20-slim
