@@ -1,0 +1,1 @@
+{"version":3,"file":"connectorOAuthConfigurationSetAtlassianConfig.d.ts","sourceRoot":"","sources":["../../../src/mcp-server/tools/connectorOAuthConfigurationSetAtlassianConfig.ts"],"names":[],"mappings":"AAMA,OAAO,EAAgB,cAAc,EAAE,MAAM,aAAa,CAAC;AAE3D,QAAA,MAAM,IAAI;;CAET,CAAC;AAEF,eAAO,MAAM,kDAAkD,EAAE,cAAc,CAC7E,OAAO,IAAI,CA8BZ,CAAC"}

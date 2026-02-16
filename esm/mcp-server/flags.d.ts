@@ -1,0 +1,13 @@
+import { SDKOptions } from "../lib/config.js";
+/**
+ * Base flags interface for MCP server configuration.
+ * Used by both CLI start command and Gram deployment wrapper.
+ */
+export interface MCPServerFlags {
+    readonly tool?: string[];
+    readonly mode?: "dynamic" | undefined;
+    readonly "bearer-auth"?: string | undefined;
+    readonly "server-url": string;
+    readonly "server-index"?: SDKOptions["serverIdx"];
+}
+//# sourceMappingURL=flags.d.ts.map

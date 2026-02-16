@@ -1,0 +1,1 @@
+{"version":3,"file":"atlassianconfig.js","sourceRoot":"","sources":["../../src/models/atlassianconfig.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAOzB,MAAM,CAAC,MAAM,yBAAyB,GAA+B,CAAC,CAAC,MAAM,CAAC;IAC5E,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;IACpB,YAAY,EAAE,CAAC,CAAC,MAAM,EAAE;CACzB,CAAC,CAAC,QAAQ,CAAC,iDAAiD,CAAC,CAAC"}

@@ -22,15 +22,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        working-directory: pipeshub-mcp-typescript
         run: npm install
 
       - name: Build
-        working-directory: pipeshub-mcp-typescript
         run: npm run build
 
       - name: Publish to npm
-        working-directory: pipeshub-mcp-typescript
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

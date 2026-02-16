@@ -1,0 +1,1 @@
+{"version":3,"file":"setdefaultaimodelop.js","sourceRoot":"","sources":["../../src/models/setdefaultaimodelop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EAAa,mBAAmB,EAAE,MAAM,gBAAgB,CAAC;AAOhE,MAAM,CAAC,MAAM,kCAAkC,GAE3C,CAAC,CAAC,MAAM,CAAC;IACX,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;IACpB,SAAS,EAAE,mBAAmB;CAC/B,CAAC,CAAC"}

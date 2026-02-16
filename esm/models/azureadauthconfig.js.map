@@ -1,0 +1,1 @@
+{"version":3,"file":"azureadauthconfig.js","sourceRoot":"","sources":["../../src/models/azureadauthconfig.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAUzB,MAAM,CAAC,MAAM,2BAA2B,GAAiC,CAAC;KACvE,MAAM,CAAC;IACN,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;IACpB,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,OAAO,CAAC,QAAQ,CAAC;CACvC,CAAC,CAAC,QAAQ,CAAC,qDAAqD,CAAC,CAAC"}

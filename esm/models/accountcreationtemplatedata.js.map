@@ -1,0 +1,1 @@
+{"version":3,"file":"accountcreationtemplatedata.js","sourceRoot":"","sources":["../../src/models/accountcreationtemplatedata.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAOzB,MAAM,CAAC,MAAM,qCAAqC,GAE9C,CAAC,CAAC,MAAM,CAAC;IACX,IAAI,EAAE,CAAC,CAAC,MAAM,EAAE;IAChB,OAAO,EAAE,CAAC,CAAC,MAAM,EAAE;CACpB,CAAC,CAAC,QAAQ,CAAC,+DAA+D,CAAC,CAAC"}

@@ -1,0 +1,37 @@
+import { PipeshubCore } from "../core.js";
+import { RequestOptions } from "../lib/sdks.js";
+import { APIError } from "../models/errors/apierror.js";
+import { ConnectionError, InvalidRequestError, RequestAbortedError, RequestTimeoutError, UnexpectedClientError } from "../models/errors/httpclienterrors.js";
+import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
+import { UpdateDocumentBufferRequest } from "../models/updatedocumentbufferop.js";
+import { APIPromise } from "../types/async.js";
+import { Result } from "../types/fp.js";
+/**
+ * Update document buffer
+ *
+ * @remarks
+ * Replace the document's file content with a new file. Updates the current version without creating version history.<br><br>
+ * <b>Overview:</b><br>
+ * This endpoint replaces the document's content in storage. Use this for quick updates that don't need version tracking.<br><br>
+ * <b>When to Use:</b><br>
+ * <ul>
+ * <li>Updating draft documents</li>
+ * <li>Replacing temporary files</li>
+ * <li>Quick fixes without version history</li>
+ * </ul>
+ * <b>For Version Tracking:</b><br>
+ * Use <code>/uploadNextVersion</code> instead if you need to maintain version history.<br><br>
+ * <b>File Constraints:</b><br>
+ * <ul>
+ * <li>Maximum size: 100MB</li>
+ * <li>File extension must match original document</li>
+ * </ul>
+ * <b>Side Effects:</b><br>
+ * <ul>
+ * <li>Increments <code>mutationCount</code></li>
+ * <li>Updates <code>sizeInBytes</code></li>
+ * <li>Updates <code>updatedAt</code> timestamp</li>
+ * </ul>
+ */
+export declare function documentBufferUpdate(client$: PipeshubCore, request: UpdateDocumentBufferRequest, options?: RequestOptions): APIPromise<Result<Response, APIError | SDKValidationError | UnexpectedClientError | InvalidRequestError | RequestAbortedError | RequestTimeoutError | ConnectionError>>;
+//# sourceMappingURL=documentBufferUpdate.d.ts.map

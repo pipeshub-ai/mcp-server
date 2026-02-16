@@ -1,0 +1,1 @@
+{"version":3,"file":"sharesearchop.js","sourceRoot":"","sources":["../../src/models/sharesearchop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EAAgB,sBAAsB,EAAE,MAAM,mBAAmB,CAAC;AAIzE,MAAM,CAAC,MAAM,4BAA4B,GAAkC,CAAC;KACzE,MAAM,CAAC;IACN,IAAI,EAAE,sBAAsB;IAC5B,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;CACrB,CAAC,CAAC"}
