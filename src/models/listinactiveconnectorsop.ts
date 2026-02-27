@@ -7,6 +7,20 @@ import {
   ConnectorInstance,
   ConnectorInstance$zodSchema,
 } from "./connectorinstance.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type ListInactiveConnectorsSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const ListInactiveConnectorsSecurity$zodSchema: z.ZodType<
+  ListInactiveConnectorsSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Inactive connectors retrieved

@@ -9,6 +9,20 @@ import {
 } from "./connectorpagination.js";
 import { ConnectorScope, ConnectorScope$zodSchema } from "./connectorscope.js";
 import { ConnectorType, ConnectorType$zodSchema } from "./connectortype.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type GetConnectorRegistrySecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const GetConnectorRegistrySecurity$zodSchema: z.ZodType<
+  GetConnectorRegistrySecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type GetConnectorRegistryRequest = {
   scope?: ConnectorScope | undefined;

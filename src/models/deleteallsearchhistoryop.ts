@@ -3,6 +3,20 @@
  */
 
 import * as z from "zod";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type DeleteAllSearchHistorySecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const DeleteAllSearchHistorySecurity$zodSchema: z.ZodType<
+  DeleteAllSearchHistorySecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Search history cleared

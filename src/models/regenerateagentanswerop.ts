@@ -4,6 +4,20 @@
 
 import * as z from "zod";
 import { Filters, Filters$zodSchema } from "./filters.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type RegenerateAgentAnswerSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const RegenerateAgentAnswerSecurity$zodSchema: z.ZodType<
+  RegenerateAgentAnswerSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Request payload

@@ -7,6 +7,20 @@ import {
   CreateConversationRequest,
   CreateConversationRequest$zodSchema,
 } from "./createconversationrequest.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type CreateAgentConversationSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const CreateAgentConversationSecurity$zodSchema: z.ZodType<
+  CreateAgentConversationSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type CreateAgentConversationRequest = {
   agentKey: string;

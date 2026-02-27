@@ -4,7 +4,21 @@
 
 import * as z from "zod";
 import { Address, Address$zodSchema } from "./address.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 import { User, User$zodSchema } from "./user.js";
+
+export type UpdateUserSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const UpdateUserSecurity$zodSchema: z.ZodType<UpdateUserSecurity> = z
+  .object({
+    bearerAuth: z.string().describe(
+      "JWT Bearer token for authenticated requests",
+    ).optional(),
+    oauth2: SchemeOauth2$zodSchema.optional(),
+  });
 
 /**
  * Request payload

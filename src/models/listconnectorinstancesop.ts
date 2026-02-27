@@ -12,6 +12,20 @@ import {
   ConnectorPagination$zodSchema,
 } from "./connectorpagination.js";
 import { ConnectorScope, ConnectorScope$zodSchema } from "./connectorscope.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type ListConnectorInstancesSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const ListConnectorInstancesSecurity$zodSchema: z.ZodType<
+  ListConnectorInstancesSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type ListConnectorInstancesRequest = {
   scope?: ConnectorScope | undefined;

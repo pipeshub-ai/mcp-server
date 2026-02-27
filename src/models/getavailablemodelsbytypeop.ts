@@ -4,6 +4,20 @@
 
 import * as z from "zod";
 import { ModelType, ModelType$zodSchema } from "./modeltype.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type GetAvailableModelsByTypeSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const GetAvailableModelsByTypeSecurity$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type GetAvailableModelsByTypeRequest = { modelType: ModelType };
 
