@@ -4,7 +4,21 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 import { Team, Team$zodSchema } from "./team.js";
+
+export type GetUserTeamsSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const GetUserTeamsSecurity$zodSchema: z.ZodType<GetUserTeamsSecurity> = z
+  .object({
+    bearerAuth: z.string().describe(
+      "JWT Bearer token for authenticated requests",
+    ).optional(),
+    oauth2: SchemeOauth2$zodSchema.optional(),
+  });
 
 export type GetUserTeamsRequest = {
   page?: number | undefined;

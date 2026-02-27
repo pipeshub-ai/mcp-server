@@ -3,7 +3,21 @@
  */
 
 import * as z from "zod";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 import { ShareRequest, ShareRequest$zodSchema } from "./sharerequest.js";
+
+export type ShareAgentSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const ShareAgentSecurity$zodSchema: z.ZodType<ShareAgentSecurity> = z
+  .object({
+    bearerAuth: z.string().describe(
+      "JWT Bearer token for authenticated requests",
+    ).optional(),
+    oauth2: SchemeOauth2$zodSchema.optional(),
+  });
 
 export type ShareAgentRequest = { agentKey: string; body: ShareRequest };
 

@@ -4,7 +4,21 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 import { User, User$zodSchema } from "./user.js";
+
+export type ListUsersGraphSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const ListUsersGraphSecurity$zodSchema: z.ZodType<
+  ListUsersGraphSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Field to sort by

@@ -7,6 +7,20 @@ import {
   MessageFeedback,
   MessageFeedback$zodSchema,
 } from "./messagefeedback.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type UpdateMessageFeedbackSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const UpdateMessageFeedbackSecurity$zodSchema: z.ZodType<
+  UpdateMessageFeedbackSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type UpdateMessageFeedbackRequest = {
   conversationId: string;

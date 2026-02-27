@@ -7,6 +7,20 @@ import {
   AddMessageRequest,
   AddMessageRequest$zodSchema,
 } from "./addmessagerequest.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type AddAgentMessageSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const AddAgentMessageSecurity$zodSchema: z.ZodType<
+  AddAgentMessageSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type AddAgentMessageRequest = {
   agentKey: string;

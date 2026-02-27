@@ -4,6 +4,20 @@
 
 import * as z from "zod";
 import { Organization, Organization$zodSchema } from "./organization.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type GetCurrentOrganizationSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const GetCurrentOrganizationSecurity$zodSchema: z.ZodType<
+  GetCurrentOrganizationSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Organization details retrieved successfully

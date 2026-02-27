@@ -4,6 +4,20 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type DeleteOrganizationSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const DeleteOrganizationSecurity$zodSchema: z.ZodType<
+  DeleteOrganizationSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Must be "DELETE" to confirm deletion
