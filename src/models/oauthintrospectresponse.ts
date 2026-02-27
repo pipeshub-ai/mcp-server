@@ -19,7 +19,7 @@ export type OAuthIntrospectResponse = {
   exp?: number | undefined;
   iat?: number | undefined;
   nbf?: number | undefined;
-  sub?: string | undefined;
+  user_id?: string | undefined;
   aud?: string | undefined;
   iss?: string | undefined;
   jti?: string | undefined;
@@ -37,8 +37,8 @@ export const OAuthIntrospectResponse$zodSchema: z.ZodType<
   jti: z.string().optional(),
   nbf: z.int().optional(),
   scope: z.string().optional(),
-  sub: z.string().optional(),
   token_type: z.string().optional(),
+  user_id: z.string().optional(),
   username: z.string().optional(),
 }).describe(
   "OAuth 2.0 Token Introspection Response (RFC 7662).\nContains token metadata if active, or just `active: false` if not.\n",

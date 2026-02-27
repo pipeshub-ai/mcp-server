@@ -11,7 +11,7 @@ import * as z from "zod";
  * Contains claims about the authenticated user.
  */
 export type OAuthUserInfoResponse = {
-  sub: string;
+  user_id: string;
   name?: string | undefined;
   given_name?: string | undefined;
   family_name?: string | undefined;
@@ -29,8 +29,8 @@ export const OAuthUserInfoResponse$zodSchema: z.ZodType<OAuthUserInfoResponse> =
     given_name: z.string().optional(),
     name: z.string().optional(),
     picture: z.string().optional(),
-    sub: z.string(),
     updated_at: z.int().optional(),
+    user_id: z.string(),
   }).describe(
     "OpenID Connect UserInfo Response.\nContains claims about the authenticated user.\n",
   );

@@ -4,6 +4,20 @@
 
 import * as z from "zod";
 import * as b64$ from "../lib/base64.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type UploadOrganizationLogoSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const UploadOrganizationLogoSecurity$zodSchema: z.ZodType<
+  UploadOrganizationLogoSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type Logo = { fileName: string; content: Uint8Array | string };
 

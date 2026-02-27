@@ -4,10 +4,24 @@
 
 import * as z from "zod";
 import { ModelType, ModelType$zodSchema } from "./modeltype.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 import {
   UpdateAIModelProviderRequest,
   UpdateAIModelProviderRequest$zodSchema,
 } from "./updateaimodelproviderrequest.js";
+
+export type UpdateAIModelProviderSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const UpdateAIModelProviderSecurity$zodSchema: z.ZodType<
+  UpdateAIModelProviderSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type UpdateAIModelProviderRequestRequest = {
   modelType: ModelType;
