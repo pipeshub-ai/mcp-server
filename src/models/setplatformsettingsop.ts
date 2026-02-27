@@ -3,6 +3,20 @@
  */
 
 import * as z from "zod";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type SetPlatformSettingsSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const SetPlatformSettingsSecurity$zodSchema: z.ZodType<
+  SetPlatformSettingsSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Request body for Update platform settings

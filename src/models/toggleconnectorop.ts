@@ -11,6 +11,20 @@ import {
   ConnectorToggleRequest,
   ConnectorToggleRequest$zodSchema,
 } from "./connectortogglerequest.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type ToggleConnectorSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const ToggleConnectorSecurity$zodSchema: z.ZodType<
+  ToggleConnectorSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type ToggleConnectorRequest = {
   connectorId: string;

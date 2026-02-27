@@ -7,10 +7,24 @@ import {
   ConnectorConfig,
   ConnectorConfig$zodSchema,
 } from "./connectorconfig.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 import {
   UpdateConnectorFiltersSyncRequest,
   UpdateConnectorFiltersSyncRequest$zodSchema,
 } from "./updateconnectorfilterssyncrequest.js";
+
+export type UpdateConnectorFiltersSyncConfigSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const UpdateConnectorFiltersSyncConfigSecurity$zodSchema: z.ZodType<
+  UpdateConnectorFiltersSyncConfigSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type UpdateConnectorFiltersSyncConfigRequest = {
   connectorId: string;

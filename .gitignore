@@ -1,35 +1,37 @@
+**/.speakeasy/logs/
+**/.speakeasy/reports/
+**/.speakeasy/temp/
+/.eslintcache
+/.tsbuildinfo
+/bin
+/esm
+/node_modules
+bun.lock
+*.mcpb
 # Dependencies
 node_modules/
 .DS_Store
-
 # Build outputs
 build/
 dist/
-
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-
 # OS
 .DS_Store
 Thumbs.db
-
 # Logs
 *.log
 logs/
-
 # Environment
 .env
 .env.local
 .env.*.local
-
 # Test coverage
 coverage/
-
 # pnpm
 .pnpm-debug.log
-
 # TypeScript
 *.tsbuildinfo
