@@ -6,6 +6,20 @@ import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
 import { KnowledgeBase, KnowledgeBase$zodSchema } from "./knowledgebase.js";
 import { PaginationInfo, PaginationInfo$zodSchema } from "./paginationinfo.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type ListKnowledgeBasesSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const ListKnowledgeBasesSecurity$zodSchema: z.ZodType<
+  ListKnowledgeBasesSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 /**
  * Field to sort by

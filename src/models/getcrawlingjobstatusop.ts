@@ -4,6 +4,20 @@
 
 import * as z from "zod";
 import { JobStatus, JobStatus$zodSchema } from "./jobstatus.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type GetCrawlingJobStatusSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const GetCrawlingJobStatusSecurity$zodSchema: z.ZodType<
+  GetCrawlingJobStatusSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type GetCrawlingJobStatusRequest = {
   connector: string;

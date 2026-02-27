@@ -1,11 +1,10 @@
 {
-  "name": "pipeshub",
-  "version": "0.1.0",
+  "name": "mcp",
+  "version": "0.0.1",
   "author": "Speakeasy",
   "type": "module",
   "sideEffects": false,
   "bin": {
-    "pipeshub": "bin/mcp-server.js",
     "mcp": "bin/mcp-server.js"
   },
   "scripts": {

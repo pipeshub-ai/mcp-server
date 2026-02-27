@@ -7,6 +7,20 @@ import {
   ConnectorSchema,
   ConnectorSchema$zodSchema,
 } from "./connectorschema.js";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
+
+export type GetConnectorSchemaSecurity = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
+
+export const GetConnectorSchemaSecurity$zodSchema: z.ZodType<
+  GetConnectorSchemaSecurity
+> = z.object({
+  bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
+    .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
+});
 
 export type GetConnectorSchemaRequest = { connectorType: string };
 
