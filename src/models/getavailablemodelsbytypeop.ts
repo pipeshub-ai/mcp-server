@@ -31,11 +31,15 @@ export const Model$zodSchema: z.ZodType<Model> = z.object({
  * Available models retrieved
  */
 export type GetAvailableModelsByTypeResponse = {
+  status?: string | undefined;
+  message?: string | undefined;
   models?: Array<Model> | undefined;
 };
 
 export const GetAvailableModelsByTypeResponse$zodSchema: z.ZodType<
   GetAvailableModelsByTypeResponse
 > = z.object({
+  message: z.string().optional(),
   models: z.array(z.lazy(() => Model$zodSchema)).optional(),
+  status: z.string().optional(),
 }).describe("Available models retrieved");

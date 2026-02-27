@@ -14,8 +14,9 @@ import {
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod";
-import { PipeshubCore } from "../core.js";
+import { SDKCore } from "../core.js";
 import { ConsoleLogger } from "./console-logger.js";
+import { MCPServerFlags } from "./flags.js";
 import { MCPScope, mcpScopes } from "./scopes.js";
 import { valueToBase64 } from "./shared.js";
 
@@ -34,7 +35,7 @@ export type ToolDefinition<
       readOnlyHint: boolean;
     };
     tool: (
-      client: PipeshubCore,
+      client: SDKCore,
       args: ShapeOutput<Args>,
       extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => CallToolResult | Promise<CallToolResult>;
@@ -52,7 +53,7 @@ export type ToolDefinition<
       readOnlyHint: boolean;
     };
     tool: (
-      client: PipeshubCore,
+      client: SDKCore,
       extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => CallToolResult | Promise<CallToolResult>;
   };
@@ -85,7 +86,7 @@ export async function formatResult(
 export function createRegisterTool(
   logger: ConsoleLogger,
   server: McpServer,
-  getSDK: () => PipeshubCore,
+  getSDK: () => SDKCore,
   allowedScopes: Set<MCPScope>,
   allowedTools?: Set<string>,
   dynamic?: boolean,
@@ -186,7 +187,7 @@ function matchesSearchTerms(
 export function registerDynamicTools(
   logger: ConsoleLogger,
   server: McpServer,
-  getSDK: () => PipeshubCore,
+  getSDK: () => SDKCore,
   toolMap: Map<string, ToolDefinition<ZodRawShapeCompat | undefined>>,
   allowedScopes: Set<MCPScope>,
 ): void {
@@ -375,4 +376,79 @@ export function registerDynamicTools(
     });
     logger.debug("Registered dynamic meta-tool", { name: "list_scopes" });
   }
+}
+function resolveHeader<T>(
+  headers: Headers,
+  headerName: string,
+  schema: z.ZodType<T>,
+  cliFlagValue: T | undefined,
+  disableStaticAuth: boolean,
+): T | undefined {
+  const val = headers.get(headerName);
+  if (val != null) {
+    return schema.parse(val);
+  }
+  return disableStaticAuth ? undefined : schema.parse(cliFlagValue);
+}
+
+export function buildSDK(
+  headers: Headers,
+  cliFlags: MCPServerFlags,
+  disableStaticAuth: boolean,
+  logger: { level: string },
+) {
+  const flags = {
+    ...cliFlags,
+    "bearer-auth": resolveHeader(
+      headers,
+      "bearerAuth",
+      z.string(),
+      cliFlags["bearer-auth"],
+      disableStaticAuth,
+    ),
+    "client-id": resolveHeader(
+      headers,
+      "clientID",
+      z.string(),
+      cliFlags["client-id"],
+      disableStaticAuth,
+    ),
+    "client-secret": resolveHeader(
+      headers,
+      "clientSecret",
+      z.string(),
+      cliFlags["client-secret"],
+      disableStaticAuth,
+    ),
+    "token-url": resolveHeader(
+      headers,
+      "tokenURL",
+      z.string().default("/api/v1/oauth/token"),
+      cliFlags["token-url"],
+      disableStaticAuth,
+    ),
+  };
+
+  return new SDKCore({
+    security: {
+      bearerAuth: flags["bearer-auth"] ?? "",
+      oauth2: flags["client-id"] != null && flags["client-secret"] != null
+        ? {
+          clientID: flags["client-id"] || "",
+          clientSecret: flags["client-secret"] || "",
+          tokenURL: flags["token-url"] || "",
+        }
+        : undefined,
+    },
+    serverURL: cliFlags["server-url"],
+    serverIdx: cliFlags["server-index"],
+    server_url: cliFlags["server-url"],
+    debugLogger: logger.level === "debug"
+      ? {
+        log: (...args) => console.log(...args),
+        group: (...args) => console.group(...args),
+        groupEnd: (...args) => console.groupEnd(...args),
+      }
+      : undefined,
+  });
 }

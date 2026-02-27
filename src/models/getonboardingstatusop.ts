@@ -3,50 +3,38 @@
  */
 
 import * as z from "zod";
+import { ClosedEnum } from "../types/enums.js";
 
-export type Step = {
-  id?: string | undefined;
-  name?: string | undefined;
-  isCompleted?: boolean | undefined;
-  isRequired?: boolean | undefined;
-};
+/**
+ * Current onboarding status
+ */
+export const GetOnboardingStatusStatus = {
+  Configured: "configured",
+  NotConfigured: "notConfigured",
+  Skipped: "skipped",
+} as const;
+/**
+ * Current onboarding status
+ */
+export type GetOnboardingStatusStatus = ClosedEnum<
+  typeof GetOnboardingStatusStatus
+>;
 
-export const Step$zodSchema: z.ZodType<Step> = z.object({
-  id: z.string().optional(),
-  isCompleted: z.boolean().optional(),
-  isRequired: z.boolean().optional(),
-  name: z.string().optional(),
-});
-
-export type GetOnboardingStatusData = {
-  isCompleted?: boolean | undefined;
-  currentStep?: string | undefined;
-  completedSteps?: Array<string> | undefined;
-  completionPercentage?: number | undefined;
-  steps?: Array<Step> | undefined;
-};
-
-export const GetOnboardingStatusData$zodSchema: z.ZodType<
-  GetOnboardingStatusData
-> = z.object({
-  completedSteps: z.array(z.string()).optional(),
-  completionPercentage: z.int().optional(),
-  currentStep: z.string().optional(),
-  isCompleted: z.boolean().optional(),
-  steps: z.array(z.lazy(() => Step$zodSchema)).optional(),
-});
+export const GetOnboardingStatusStatus$zodSchema = z.enum([
+  "configured",
+  "notConfigured",
+  "skipped",
+]).describe("Current onboarding status");
 
 /**
  * Onboarding status retrieved successfully
  */
 export type GetOnboardingStatusResponse = {
-  success?: boolean | undefined;
-  data?: GetOnboardingStatusData | undefined;
+  status?: GetOnboardingStatusStatus | undefined;
 };
 
 export const GetOnboardingStatusResponse$zodSchema: z.ZodType<
   GetOnboardingStatusResponse
 > = z.object({
-  data: z.lazy(() => GetOnboardingStatusData$zodSchema).optional(),
-  success: z.boolean().optional(),
+  status: GetOnboardingStatusStatus$zodSchema.optional(),
 }).describe("Onboarding status retrieved successfully");

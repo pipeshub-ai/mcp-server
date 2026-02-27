@@ -73,12 +73,12 @@ export const OauthAuthorizeRequest$zodSchema: z.ZodType<OauthAuthorizeRequest> =
 
 export type OauthAuthorizeResponse = {
   Headers: { [k: string]: Array<string> };
-  Result: OAuthErrorResponse;
+  Result?: OAuthErrorResponse | undefined;
 };
 
 export const OauthAuthorizeResponse$zodSchema: z.ZodType<
   OauthAuthorizeResponse
 > = z.object({
   Headers: z.record(z.string(), z.array(z.string())).default({}),
-  Result: OAuthErrorResponse$zodSchema,
+  Result: OAuthErrorResponse$zodSchema.optional(),
 });

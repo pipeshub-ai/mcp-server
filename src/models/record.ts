@@ -83,6 +83,7 @@ export const Origin$zodSchema = z.enum([
  * Name of the source connector
  */
 export const ConnectorName = {
+  Kb: "KB",
   Onedrive: "ONEDRIVE",
   GoogleDrive: "GOOGLE_DRIVE",
   Confluence: "CONFLUENCE",
@@ -102,6 +103,7 @@ export const ConnectorName = {
 export type ConnectorName = ClosedEnum<typeof ConnectorName>;
 
 export const ConnectorName$zodSchema = z.enum([
+  "KB",
   "ONEDRIVE",
   "GOOGLE_DRIVE",
   "CONFLUENCE",
@@ -176,14 +178,56 @@ export const IndexingStatus$zodSchema = z.enum([
 );
 
 /**
+ * File-specific metadata (present when recordType is FILE)
+ */
+export type FileRecord = {
+  id?: string | undefined;
+  name?: string | undefined;
+  extension?: string | undefined;
+  mimeType?: string | undefined;
+  sizeInBytes?: number | undefined;
+  webUrl?: string | undefined;
+  path?: string | null | undefined;
+  isFile?: boolean | undefined;
+};
+
+export const FileRecord$zodSchema: z.ZodType<FileRecord> = z.object({
+  extension: z.string().optional(),
+  id: z.string().optional(),
+  isFile: z.boolean().optional(),
+  mimeType: z.string().optional(),
+  name: z.string().optional(),
+  path: z.string().nullable().optional(),
+  sizeInBytes: z.int().optional(),
+  webUrl: z.string().optional(),
+}).describe("File-specific metadata (present when recordType is FILE)");
+
+/**
+ * Email-specific metadata (present when recordType is EMAIL)
+ */
+export type MailRecord = {};
+
+export const MailRecord$zodSchema: z.ZodType<MailRecord> = z.object({})
+  .describe("Email-specific metadata (present when recordType is EMAIL)");
+
+/**
+ * Ticket-specific metadata (present when recordType is TICKET)
+ */
+export type TicketRecord = {};
+
+export const TicketRecord$zodSchema: z.ZodType<TicketRecord> = z.object({})
+  .describe("Ticket-specific metadata (present when recordType is TICKET)");
+
+/**
  * A record represents a single document, file, or content item within a knowledge base.
  *
  * @remarks
  * Records can originate from file uploads or external connectors (Google Drive, OneDrive, etc.).
  */
 export type RecordT = {
-  _key?: string | undefined;
+  id?: string | undefined;
   recordName: string;
+  name?: string | undefined;
   externalRecordId?: string | undefined;
   recordType: RecordType;
   origin: Origin;
@@ -191,10 +235,13 @@ export type RecordT = {
   connectorName?: ConnectorName | undefined;
   orgId: string;
   kbId?: string | undefined;
-  folderId?: string | undefined;
+  folderId?: string | null | undefined;
   version?: number | undefined;
+  isLatestVersion?: boolean | undefined;
   createdAtTimestamp?: number | undefined;
   updatedAtTimestamp?: number | undefined;
+  sourceCreatedAtTimestamp?: number | undefined;
+  sourceLastModifiedTimestamp?: number | undefined;
   indexingStatus?: IndexingStatus | undefined;
   isDeleted?: boolean | undefined;
   isArchived?: boolean | undefined;
@@ -203,27 +250,39 @@ export type RecordT = {
   sizeInBytes?: number | undefined;
   extension?: string | undefined;
   sha256Hash?: string | undefined;
+  type?: string | undefined;
+  fileRecord?: FileRecord | null | undefined;
+  mailRecord?: MailRecord | null | undefined;
+  ticketRecord?: TicketRecord | null | undefined;
 };
 
 export const RecordT$zodSchema: z.ZodType<RecordT> = z.object({
-  _key: z.string().optional(),
   connectorId: z.string().optional(),
   connectorName: ConnectorName$zodSchema.optional(),
   createdAtTimestamp: z.int().optional(),
   extension: z.string().optional(),
   externalRecordId: z.string().optional(),
-  folderId: z.string().optional(),
+  fileRecord: z.lazy(() => FileRecord$zodSchema).nullable().optional(),
+  folderId: z.string().nullable().optional(),
+  id: z.string().optional(),
   indexingStatus: IndexingStatus$zodSchema.optional(),
   isArchived: z.boolean().default(false),
   isDeleted: z.boolean().default(false),
+  isLatestVersion: z.boolean().optional(),
   kbId: z.string().optional(),
+  mailRecord: z.lazy(() => MailRecord$zodSchema).nullable().optional(),
   mimeType: z.string().optional(),
+  name: z.string().optional(),
   orgId: z.string(),
   origin: Origin$zodSchema,
   recordName: z.string(),
   recordType: RecordType$zodSchema,
   sha256Hash: z.string().optional(),
   sizeInBytes: z.int().optional(),
+  sourceCreatedAtTimestamp: z.int().optional(),
+  sourceLastModifiedTimestamp: z.int().optional(),
+  ticketRecord: z.lazy(() => TicketRecord$zodSchema).nullable().optional(),
+  type: z.string().optional(),
   updatedAtTimestamp: z.int().optional(),
   version: z.int().default(0),
   webUrl: z.string().optional(),

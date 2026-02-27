@@ -14,7 +14,7 @@ import {
 import { ConnectorScope, ConnectorScope$zodSchema } from "./connectorscope.js";
 
 export type ListConnectorInstancesRequest = {
-  scope?: ConnectorScope | undefined;
+  scope: ConnectorScope;
   page?: number | undefined;
   limit?: number | undefined;
   search?: string | undefined;
@@ -25,7 +25,7 @@ export const ListConnectorInstancesRequest$zodSchema: z.ZodType<
 > = z.object({
   limit: z.int().default(20),
   page: z.int().default(1),
-  scope: ConnectorScope$zodSchema.optional(),
+  scope: ConnectorScope$zodSchema,
   search: z.string().describe("Search by instance name").optional(),
 });
 

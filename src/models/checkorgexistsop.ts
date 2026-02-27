@@ -7,14 +7,10 @@ import * as z from "zod";
 /**
  * Organization existence check completed
  */
-export type CheckOrgExistsResponse = {
-  success?: boolean | undefined;
-  exists?: boolean | undefined;
-};
+export type CheckOrgExistsResponse = { exists?: boolean | undefined };
 
 export const CheckOrgExistsResponse$zodSchema: z.ZodType<
   CheckOrgExistsResponse
 > = z.object({
   exists: z.boolean().optional(),
-  success: z.boolean().optional(),
 }).describe("Organization existence check completed");
