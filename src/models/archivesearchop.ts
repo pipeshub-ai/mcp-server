@@ -8,5 +8,15 @@ export type ArchiveSearchRequest = { searchId: string };
 
 export const ArchiveSearchRequest$zodSchema: z.ZodType<ArchiveSearchRequest> = z
   .object({
-    searchId: z.string(),
+    searchId: z.string().describe("Unique search identifier"),
   });
+
+/**
+ * Search archived successfully
+ */
+export type ArchiveSearchResponse = { message?: string | undefined };
+
+export const ArchiveSearchResponse$zodSchema: z.ZodType<ArchiveSearchResponse> =
+  z.object({
+    message: z.string().optional(),
+  }).describe("Search archived successfully");

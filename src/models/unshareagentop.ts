@@ -5,15 +5,19 @@
 import * as z from "zod";
 
 /**
- * Request body for Revoke agent access
+ * Request payload
  */
-export type UnshareAgentRequestBody = { userIds: Array<string> };
+export type UnshareAgentRequestBody = {
+  userIds?: Array<string> | undefined;
+  teamIds?: Array<string> | undefined;
+};
 
 export const UnshareAgentRequestBody$zodSchema: z.ZodType<
   UnshareAgentRequestBody
 > = z.object({
-  userIds: z.array(z.string()),
-}).describe("Request body for Revoke agent access");
+  teamIds: z.array(z.string()).optional(),
+  userIds: z.array(z.string()).optional(),
+}).describe("Request payload");
 
 export type UnshareAgentRequest = {
   agentKey: string;
@@ -25,3 +29,13 @@ export const UnshareAgentRequest$zodSchema: z.ZodType<UnshareAgentRequest> = z
     agentKey: z.string(),
     body: z.lazy(() => UnshareAgentRequestBody$zodSchema),
   });
+
+/**
+ * Agent unshared successfully
+ */
+export type UnshareAgentResponse = { message?: string | undefined };
+
+export const UnshareAgentResponse$zodSchema: z.ZodType<UnshareAgentResponse> = z
+  .object({
+    message: z.string().optional(),
+  }).describe("Agent unshared successfully");

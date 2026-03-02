@@ -10,7 +10,6 @@ import { JobStatus, JobStatus$zodSchema } from "./jobstatus.js";
  */
 export type GetAllCrawlingJobStatusResponse = {
   success?: boolean | undefined;
-  message?: string | undefined;
   data?: Array<JobStatus> | undefined;
 };
 
@@ -18,6 +17,5 @@ export const GetAllCrawlingJobStatusResponse$zodSchema: z.ZodType<
   GetAllCrawlingJobStatusResponse
 > = z.object({
   data: z.array(JobStatus$zodSchema).optional(),
-  message: z.string().optional(),
   success: z.boolean().optional(),
 }).describe("All job statuses retrieved successfully");

@@ -3,26 +3,19 @@
  */
 
 import { usersUpdateFirstName } from "../../funcs/usersUpdateFirstName.js";
-import { UpdateUserFirstNameRequest$zodSchema } from "../../models/updateuserfirstnameop.js";
+import { UpdateFirstNameRequest$zodSchema } from "../../models/updatefirstnameop.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: UpdateUserFirstNameRequest$zodSchema,
+  request: UpdateFirstNameRequest$zodSchema,
 };
 
 export const tool$usersUpdateFirstName: ToolDefinition<typeof args> = {
   name: "users-update-first-name",
   description: `Update user first name
 
-Update only the first name of a user without affecting other profile fields.<br><br>
-<b>Overview:</b><br>
-This targeted endpoint updates just the firstName field. Useful when you need fine-grained control over name components rather than updating the full name.<br><br>
-<b>Authorization:</b><br>
-<ul>
-<li><b>Self-update:</b> Users can update their own first name</li>
-<li><b>Admin-update:</b> Admins can update any user's first name</li>
-</ul>
-<b>Note:</b> This does NOT automatically update the fullName field. Use <code>/users/{id}/fullname</code> if you need to update the complete display name.
+<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
+Update the first name of a user.
 `,
   annotations: {
     "title": "",

@@ -3,7 +3,6 @@
  */
 
 import * as z from "zod";
-import { User, User$zodSchema } from "./user.js";
 
 export type GetAllUsersRequest = {
   page?: number | undefined;
@@ -17,34 +16,3 @@ export const GetAllUsersRequest$zodSchema: z.ZodType<GetAllUsersRequest> = z
     page: z.int().default(1).describe("Page number for pagination (1-based)"),
     search: z.string().describe("Search users by name or email").optional(),
   });
-
-export type GetAllUsersPagination = {
-  page?: number | undefined;
-  limit?: number | undefined;
-  total?: number | undefined;
-  totalPages?: number | undefined;
-};
-
-export const GetAllUsersPagination$zodSchema: z.ZodType<GetAllUsersPagination> =
-  z.object({
-    limit: z.int().optional(),
-    page: z.int().optional(),
-    total: z.int().optional(),
-    totalPages: z.int().optional(),
-  });
-
-/**
- * List of users retrieved successfully
- */
-export type GetAllUsersResponse = {
-  success?: boolean | undefined;
-  data?: Array<User> | undefined;
-  pagination?: GetAllUsersPagination | undefined;
-};
-
-export const GetAllUsersResponse$zodSchema: z.ZodType<GetAllUsersResponse> = z
-  .object({
-    data: z.array(User$zodSchema).optional(),
-    pagination: z.lazy(() => GetAllUsersPagination$zodSchema).optional(),
-    success: z.boolean().optional(),
-  }).describe("List of users retrieved successfully");

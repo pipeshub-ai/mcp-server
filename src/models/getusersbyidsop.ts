@@ -3,32 +3,32 @@
  */
 
 import * as z from "zod";
-import { User, User$zodSchema } from "./user.js";
 
 /**
  * Request payload
  */
-export type GetUsersByIdsRequest = { userIds: Array<string> };
+export type GetUsersByIdsRequest = { ids?: Array<string> | undefined };
 
 export const GetUsersByIdsRequest$zodSchema: z.ZodType<GetUsersByIdsRequest> = z
   .object({
-    userIds: z.array(z.string()),
+    ids: z.array(z.string()).optional(),
   }).describe("Request payload");
+
+export type GetUsersByIdsData = {};
+
+export const GetUsersByIdsData$zodSchema: z.ZodType<GetUsersByIdsData> = z
+  .object({});
 
 /**
  * Users retrieved successfully
  */
 export type GetUsersByIdsResponse = {
   success?: boolean | undefined;
-  data?: Array<User> | undefined;
-  requestedCount?: number | undefined;
-  foundCount?: number | undefined;
+  data?: Array<GetUsersByIdsData> | undefined;
 };
 
 export const GetUsersByIdsResponse$zodSchema: z.ZodType<GetUsersByIdsResponse> =
   z.object({
-    data: z.array(User$zodSchema).optional(),
-    foundCount: z.int().optional(),
-    requestedCount: z.int().optional(),
+    data: z.array(z.lazy(() => GetUsersByIdsData$zodSchema)).optional(),
     success: z.boolean().optional(),
   }).describe("Users retrieved successfully");

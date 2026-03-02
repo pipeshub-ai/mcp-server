@@ -4,6 +4,7 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { Folder, Folder$zodSchema } from "./folder.js";
 
 /**
  * User's role in this knowledge base
@@ -31,21 +32,23 @@ export const UserRoleEnum$zodSchema = z.enum([
 ]).describe("User's role in this knowledge base");
 
 export type KnowledgeBase = {
-  _key?: string | undefined;
+  id?: string | undefined;
   name: string;
-  orgId: string;
+  connectorId?: string | null | undefined;
   createdAtTimestamp?: number | undefined;
   updatedAtTimestamp?: number | undefined;
+  createdBy?: string | undefined;
   userRole?: UserRoleEnum | undefined;
-  isDeleted?: boolean | undefined;
+  folders?: Array<Folder> | undefined;
 };
 
 export const KnowledgeBase$zodSchema: z.ZodType<KnowledgeBase> = z.object({
-  _key: z.string().optional(),
+  connectorId: z.string().nullable().optional(),
   createdAtTimestamp: z.int().optional(),
-  isDeleted: z.boolean().default(false),
+  createdBy: z.string().optional(),
+  folders: z.array(Folder$zodSchema).optional(),
+  id: z.string().optional(),
   name: z.string(),
-  orgId: z.string(),
   updatedAtTimestamp: z.int().optional(),
   userRole: UserRoleEnum$zodSchema.optional(),
 });

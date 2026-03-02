@@ -4,17 +4,10 @@
 
 import * as z from "zod";
 
-export type GetDocumentBufferRequest = {
-  documentId: string;
-  version?: number | undefined;
-};
+export type GetDocumentBufferRequest = { documentId: string };
 
 export const GetDocumentBufferRequest$zodSchema: z.ZodType<
   GetDocumentBufferRequest
 > = z.object({
-  documentId: z.string().describe(
-    "Document ID (24-character MongoDB ObjectId)",
-  ),
-  version: z.int().describe("Version number to retrieve (0-indexed)")
-    .optional(),
+  documentId: z.string(),
 });

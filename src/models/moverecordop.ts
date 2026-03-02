@@ -5,14 +5,12 @@
 import * as z from "zod";
 
 /**
- * Target parent folder for the record
+ * Request payload
  */
-export type MoveRecordRequestBody = { newParentId: string | null };
+export type MoveRecordRequestBody = {};
 
 export const MoveRecordRequestBody$zodSchema: z.ZodType<MoveRecordRequestBody> =
-  z.object({
-    newParentId: z.string().nullable(),
-  }).describe("Target parent folder for the record");
+  z.object({}).describe("Request payload");
 
 export type MoveRecordRequest = {
   kbId: string;
@@ -23,6 +21,16 @@ export type MoveRecordRequest = {
 export const MoveRecordRequest$zodSchema: z.ZodType<MoveRecordRequest> = z
   .object({
     body: z.lazy(() => MoveRecordRequestBody$zodSchema),
-    kbId: z.string().describe("Knowledge base ID"),
-    recordId: z.string().describe("Record ID to move"),
+    kbId: z.string(),
+    recordId: z.string(),
   });
+
+/**
+ * Record moved successfully
+ */
+export type MoveRecordResponse = { message?: string | undefined };
+
+export const MoveRecordResponse$zodSchema: z.ZodType<MoveRecordResponse> = z
+  .object({
+    message: z.string().optional(),
+  }).describe("Record moved successfully");

@@ -3,26 +3,19 @@
  */
 
 import { usersUpdateLastName } from "../../funcs/usersUpdateLastName.js";
-import { UpdateUserLastNameRequest$zodSchema } from "../../models/updateuserlastnameop.js";
+import { UpdateLastNameRequest$zodSchema } from "../../models/updatelastnameop.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: UpdateUserLastNameRequest$zodSchema,
+  request: UpdateLastNameRequest$zodSchema,
 };
 
 export const tool$usersUpdateLastName: ToolDefinition<typeof args> = {
   name: "users-update-last-name",
   description: `Update user last name
 
-Update only the last name of a user without affecting other profile fields.<br><br>
-<b>Overview:</b><br>
-This targeted endpoint updates just the lastName field. Useful for fine-grained control over name components.<br><br>
-<b>Authorization:</b><br>
-<ul>
-<li><b>Self-update:</b> Users can update their own last name</li>
-<li><b>Admin-update:</b> Admins can update any user's last name</li>
-</ul>
-<b>Note:</b> This does NOT automatically update the fullName field. Use <code>/users/{id}/fullname</code> if you need to update the complete display name.
+<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
+Update the last name of a user.
 `,
   annotations: {
     "title": "",

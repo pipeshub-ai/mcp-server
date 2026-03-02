@@ -13,20 +13,24 @@ const args = {
 export const tool$connectorOAuthGetTokenFromCode: ToolDefinition<typeof args> =
   {
     name: "connector-O-auth-get-token-from-code",
-    description: `Exchange authorization code for tokens (legacy)
+    description: `Exchange Google authorization code for tokens
 
-Exchange a Google Workspace authorization code for access and refresh tokens.<br><br>
-<b>Note:</b> This is a legacy endpoint specific to Google Workspace connectors.
-For new integrations, use the standard OAuth flow via
-<code>/connectors/{connectorId}/oauth/authorize</code> and the callback.<br><br>
-<b>Flow:</b><br>
+<b>⚠️ Deprecated:</b> Legacy Google Workspace token exchange endpoint. Use the generic
+OAuth flow via <code>/connectors/{connectorId}/oauth/authorize</code> instead.<br><br>
+<b>Overview:</b><br>
+Exchanges a Google OAuth authorization code for access and refresh tokens,
+stores the credentials, and enables the Google Workspace connector.<br><br>
+<b>What Happens:</b><br>
 <ol>
-<li>User completes Google Workspace OAuth consent in the browser</li>
-<li>Browser receives authorization code</li>
-<li>Frontend sends the code to this endpoint</li>
-<li>Backend exchanges code for tokens and stores them</li>
+<li>Retrieves Google Workspace OAuth config (client ID/secret)</li>
+<li>Exchanges the authorization code for tokens via Google's token endpoint</li>
+<li>Verifies the ID token</li>
+<li>Stores access and refresh tokens in configuration manager</li>
+<li>Creates or enables the Google Workspace connector</li>
+<li>Publishes an AppEnabledEvent for the sync service</li>
 </ol>
-<b>Admin Only:</b> Requires admin privileges.
+<b>Admin Only:</b><br>
+Requires organization admin privileges.
 `,
     annotations: {
       "title": "",

@@ -9,5 +9,16 @@ export type UnarchiveSearchRequest = { searchId: string };
 export const UnarchiveSearchRequest$zodSchema: z.ZodType<
   UnarchiveSearchRequest
 > = z.object({
-  searchId: z.string(),
+  searchId: z.string().describe("Unique search identifier"),
 });
+
+/**
+ * Search unarchived successfully
+ */
+export type UnarchiveSearchResponse = { message?: string | undefined };
+
+export const UnarchiveSearchResponse$zodSchema: z.ZodType<
+  UnarchiveSearchResponse
+> = z.object({
+  message: z.string().optional(),
+}).describe("Search unarchived successfully");

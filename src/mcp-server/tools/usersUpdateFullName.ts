@@ -3,38 +3,19 @@
  */
 
 import { usersUpdateFullName } from "../../funcs/usersUpdateFullName.js";
-import { UpdateUserFullNameRequest$zodSchema } from "../../models/updateuserfullnameop.js";
+import { UpdateFullNameRequest$zodSchema } from "../../models/updatefullnameop.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: UpdateUserFullNameRequest$zodSchema,
+  request: UpdateFullNameRequest$zodSchema,
 };
 
 export const tool$usersUpdateFullName: ToolDefinition<typeof args> = {
   name: "users-update-full-name",
   description: `Update user full name
 
-Update the full name of a user. This is a targeted update endpoint for changing only the display name without affecting other profile fields.<br><br>
-<b>Overview:</b><br>
-This endpoint updates a user's fullName field, which is their primary display name throughout the application. The firstName and lastName fields may also be updated based on name parsing logic.<br><br>
-<b>Authorization:</b><br>
-<ul>
-<li><b>Self-update:</b> Users can update their own full name</li>
-<li><b>Admin-update:</b> Admins can update any user's name</li>
-</ul>
-<b>Side Effects:</b><br>
-<ul>
-<li>Updates fullName field</li>
-<li>May parse and update firstName/lastName</li>
-<li>User update event published</li>
-<li>Cached user data invalidated</li>
-</ul>
-<b>Use Cases:</b><br>
-<ul>
-<li>User profile name change</li>
-<li>Name correction by admin</li>
-<li>Legal name update</li>
-</ul>
+<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
+Update the full name of a user.
 `,
   annotations: {
     "title": "",

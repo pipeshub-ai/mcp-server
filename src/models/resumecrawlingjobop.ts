@@ -12,38 +12,17 @@ export type ResumeCrawlingJobRequest = {
 export const ResumeCrawlingJobRequest$zodSchema: z.ZodType<
   ResumeCrawlingJobRequest
 > = z.object({
-  connector: z.string().describe("Connector type identifier"),
-  connectorId: z.string().describe(
-    "Unique identifier of the connector instance",
-  ),
+  connector: z.string(),
+  connectorId: z.string(),
 });
 
-export type ResumeCrawlingJobData = {
-  connector?: string | undefined;
-  orgId?: string | undefined;
-  resumedAt?: string | undefined;
-};
-
-export const ResumeCrawlingJobData$zodSchema: z.ZodType<ResumeCrawlingJobData> =
-  z.object({
-    connector: z.string().optional(),
-    orgId: z.string().optional(),
-    resumedAt: z.iso.datetime({ offset: true }).optional(),
-  });
-
 /**
- * Crawling job resumed successfully
+ * Crawling job resumed
  */
-export type ResumeCrawlingJobResponse = {
-  success?: boolean | undefined;
-  message?: string | undefined;
-  data?: ResumeCrawlingJobData | undefined;
-};
+export type ResumeCrawlingJobResponse = { message?: string | undefined };
 
 export const ResumeCrawlingJobResponse$zodSchema: z.ZodType<
   ResumeCrawlingJobResponse
 > = z.object({
-  data: z.lazy(() => ResumeCrawlingJobData$zodSchema).optional(),
   message: z.string().optional(),
-  success: z.boolean().optional(),
-}).describe("Crawling job resumed successfully");
+}).describe("Crawling job resumed");

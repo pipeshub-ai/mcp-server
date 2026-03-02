@@ -8,16 +8,16 @@ import * as z from "zod";
  * Platform-wide configuration settings for file uploads and feature toggles
  */
 export type PlatformSettings = {
-  fileUploadMaxSizeBytes: number;
-  featureFlags: { [k: string]: boolean };
-  updatedAt?: string | undefined;
+  fileUploadMaxSizeBytes?: number | undefined;
+  featureFlags?: { [k: string]: boolean } | undefined;
+  updatedAt?: string | null | undefined;
 };
 
 export const PlatformSettings$zodSchema: z.ZodType<PlatformSettings> = z.object(
   {
-    featureFlags: z.record(z.string(), z.boolean()),
-    fileUploadMaxSizeBytes: z.int(),
-    updatedAt: z.iso.datetime({ offset: true }).optional(),
+    featureFlags: z.record(z.string(), z.boolean()).optional(),
+    fileUploadMaxSizeBytes: z.int().optional(),
+    updatedAt: z.iso.datetime({ offset: true }).nullable().optional(),
   },
 ).describe(
   "Platform-wide configuration settings for file uploads and feature toggles",
