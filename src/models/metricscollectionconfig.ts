@@ -11,11 +11,10 @@ import * as z from "zod";
  * Metrics are collected anonymously and pushed to a remote server for analytics.
  */
 export type MetricsCollectionConfig = {
-  enableMetricCollection?: boolean | undefined;
-  pushIntervalMs?: number | undefined;
+  enableMetricCollection?: string | undefined;
+  pushIntervalMs?: string | undefined;
   serverUrl?: string | undefined;
   apiKey?: string | undefined;
-  instanceId?: string | undefined;
   appVersion?: string | undefined;
 };
 
@@ -24,9 +23,8 @@ export const MetricsCollectionConfig$zodSchema: z.ZodType<
 > = z.object({
   apiKey: z.string().optional(),
   appVersion: z.string().optional(),
-  enableMetricCollection: z.boolean().optional(),
-  instanceId: z.string().optional(),
-  pushIntervalMs: z.int().default(60000),
+  enableMetricCollection: z.string().optional(),
+  pushIntervalMs: z.string().optional(),
   serverUrl: z.string().optional(),
 }).describe(
   "Configuration for application telemetry and metrics collection.\nMetrics are collected anonymously and pushed to a remote server for analytics.\n",

@@ -3,47 +3,16 @@
  */
 
 import * as z from "zod";
-import { ClosedEnum } from "../types/enums.js";
-
-/**
- * Role to assign to the user
- */
-export const AddUsersToTeamRole = {
-  Admin: "admin",
-  Member: "member",
-  Viewer: "viewer",
-} as const;
-/**
- * Role to assign to the user
- */
-export type AddUsersToTeamRole = ClosedEnum<typeof AddUsersToTeamRole>;
-
-export const AddUsersToTeamRole$zodSchema = z.enum([
-  "admin",
-  "member",
-  "viewer",
-]).describe("Role to assign to the user");
-
-export type AddUsersToTeamUser = {
-  userId: string;
-  role?: AddUsersToTeamRole | undefined;
-};
-
-export const AddUsersToTeamUser$zodSchema: z.ZodType<AddUsersToTeamUser> = z
-  .object({
-    role: AddUsersToTeamRole$zodSchema.default("member"),
-    userId: z.string(),
-  });
 
 /**
  * Request payload
  */
-export type AddUsersToTeamRequestBody = { users: Array<AddUsersToTeamUser> };
+export type AddUsersToTeamRequestBody = { userIds?: Array<string> | undefined };
 
 export const AddUsersToTeamRequestBody$zodSchema: z.ZodType<
   AddUsersToTeamRequestBody
 > = z.object({
-  users: z.array(z.lazy(() => AddUsersToTeamUser$zodSchema)),
+  userIds: z.array(z.string()).optional(),
 }).describe("Request payload");
 
 export type AddUsersToTeamRequest = {
@@ -54,24 +23,16 @@ export type AddUsersToTeamRequest = {
 export const AddUsersToTeamRequest$zodSchema: z.ZodType<AddUsersToTeamRequest> =
   z.object({
     body: z.lazy(() => AddUsersToTeamRequestBody$zodSchema),
-    teamId: z.string().describe("Unique identifier of the team"),
+    teamId: z.string(),
   });
 
 /**
  * Users added to team successfully
  */
-export type AddUsersToTeamResponse = {
-  success?: boolean | undefined;
-  message?: string | undefined;
-  addedCount?: number | undefined;
-  skippedCount?: number | undefined;
-};
+export type AddUsersToTeamResponse = { message?: string | undefined };
 
 export const AddUsersToTeamResponse$zodSchema: z.ZodType<
   AddUsersToTeamResponse
 > = z.object({
-  addedCount: z.int().optional(),
   message: z.string().optional(),
-  skippedCount: z.int().optional(),
-  success: z.boolean().optional(),
 }).describe("Users added to team successfully");

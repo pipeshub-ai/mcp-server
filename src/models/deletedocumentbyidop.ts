@@ -9,38 +9,16 @@ export type DeleteDocumentByIdRequest = { documentId: string };
 export const DeleteDocumentByIdRequest$zodSchema: z.ZodType<
   DeleteDocumentByIdRequest
 > = z.object({
-  documentId: z.string().describe(
-    "Document ID (24-character MongoDB ObjectId)",
-  ),
-});
-
-export type DeleteDocumentByIdData = {
-  _id?: string | undefined;
-  isDeleted?: boolean | undefined;
-  deletedByUserId?: string | undefined;
-};
-
-export const DeleteDocumentByIdData$zodSchema: z.ZodType<
-  DeleteDocumentByIdData
-> = z.object({
-  _id: z.string().optional(),
-  deletedByUserId: z.string().optional(),
-  isDeleted: z.boolean().optional(),
+  documentId: z.string(),
 });
 
 /**
  * Document deleted successfully
  */
-export type DeleteDocumentByIdResponse = {
-  success?: boolean | undefined;
-  message?: string | undefined;
-  data?: DeleteDocumentByIdData | undefined;
-};
+export type DeleteDocumentByIdResponse = { message?: string | undefined };
 
 export const DeleteDocumentByIdResponse$zodSchema: z.ZodType<
   DeleteDocumentByIdResponse
 > = z.object({
-  data: z.lazy(() => DeleteDocumentByIdData$zodSchema).optional(),
   message: z.string().optional(),
-  success: z.boolean().optional(),
 }).describe("Document deleted successfully");

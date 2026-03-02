@@ -3,12 +3,35 @@
  */
 
 import * as z from "zod";
-import { ShareRequest, ShareRequest$zodSchema } from "./sharerequest.js";
 
-export type ShareSearchRequest = { searchId: string; body: ShareRequest };
+/**
+ * Request payload
+ */
+export type ShareSearchRequestBody = { userIds?: Array<string> | undefined };
+
+export const ShareSearchRequestBody$zodSchema: z.ZodType<
+  ShareSearchRequestBody
+> = z.object({
+  userIds: z.array(z.string()).optional(),
+}).describe("Request payload");
+
+export type ShareSearchRequest = {
+  searchId: string;
+  body: ShareSearchRequestBody;
+};
 
 export const ShareSearchRequest$zodSchema: z.ZodType<ShareSearchRequest> = z
   .object({
-    body: ShareRequest$zodSchema,
-    searchId: z.string(),
+    body: z.lazy(() => ShareSearchRequestBody$zodSchema),
+    searchId: z.string().describe("Unique search identifier"),
   });
+
+/**
+ * Search shared successfully
+ */
+export type ShareSearchResponse = { message?: string | undefined };
+
+export const ShareSearchResponse$zodSchema: z.ZodType<ShareSearchResponse> = z
+  .object({
+    message: z.string().optional(),
+  }).describe("Search shared successfully");

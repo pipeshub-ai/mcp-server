@@ -5,15 +5,15 @@
 import * as z from "zod";
 
 /**
- * Request body for Revoke search access
+ * Request payload
  */
-export type UnshareSearchRequestBody = { userIds: Array<string> };
+export type UnshareSearchRequestBody = { userIds?: Array<string> | undefined };
 
 export const UnshareSearchRequestBody$zodSchema: z.ZodType<
   UnshareSearchRequestBody
 > = z.object({
-  userIds: z.array(z.string()),
-}).describe("Request body for Revoke search access");
+  userIds: z.array(z.string()).optional(),
+}).describe("Request payload");
 
 export type UnshareSearchRequest = {
   searchId: string;
@@ -23,5 +23,15 @@ export type UnshareSearchRequest = {
 export const UnshareSearchRequest$zodSchema: z.ZodType<UnshareSearchRequest> = z
   .object({
     body: z.lazy(() => UnshareSearchRequestBody$zodSchema),
-    searchId: z.string(),
+    searchId: z.string().describe("Unique search identifier"),
   });
+
+/**
+ * Search unshared successfully
+ */
+export type UnshareSearchResponse = { message?: string | undefined };
+
+export const UnshareSearchResponse$zodSchema: z.ZodType<UnshareSearchResponse> =
+  z.object({
+    message: z.string().optional(),
+  }).describe("Search unshared successfully");

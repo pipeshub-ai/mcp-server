@@ -8,12 +8,12 @@ import * as z from "zod";
  * Azure Active Directory authentication configuration
  */
 export type AzureAdAuthConfig = {
-  clientId: string;
+  clientId?: string | undefined;
   tenantId?: string | undefined;
 };
 
 export const AzureAdAuthConfig$zodSchema: z.ZodType<AzureAdAuthConfig> = z
   .object({
-    clientId: z.string(),
+    clientId: z.string().optional(),
     tenantId: z.string().default("common"),
   }).describe("Azure Active Directory authentication configuration");

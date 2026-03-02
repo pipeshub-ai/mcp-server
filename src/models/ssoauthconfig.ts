@@ -8,13 +8,13 @@ import * as z from "zod";
  * SAML SSO authentication configuration
  */
 export type SSOAuthConfig = {
-  entryPoint: string;
-  certificate: string;
-  emailKey: string;
+  entryPoint?: string | undefined;
+  certificate?: string | undefined;
+  emailKey?: string | undefined;
 };
 
 export const SSOAuthConfig$zodSchema: z.ZodType<SSOAuthConfig> = z.object({
-  certificate: z.string(),
-  emailKey: z.string(),
-  entryPoint: z.string(),
+  certificate: z.string().optional(),
+  emailKey: z.string().optional(),
+  entryPoint: z.string().optional(),
 }).describe("SAML SSO authentication configuration");

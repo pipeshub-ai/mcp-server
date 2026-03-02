@@ -51,10 +51,34 @@ export const startCommand = buildCommand({
           return z.string().parse(value);
         },
       },
+      "client-id": {
+        kind: "parsed",
+        brief: "Sets the ClientID auth field for the API",
+        optional: true,
+        parse: (value) => {
+          return z.string().parse(value);
+        },
+      },
+      "client-secret": {
+        kind: "parsed",
+        brief: "Sets the ClientSecret auth field for the API",
+        optional: true,
+        parse: (value) => {
+          return z.string().parse(value);
+        },
+      },
+      "token-url": {
+        kind: "parsed",
+        brief: "Sets the TokenURL auth field for the API",
+        optional: true,
+        parse: (value) => {
+          return z.string().default("/api/v1/oauth2/token").parse(value);
+        },
+      },
       "server-url": {
         kind: "parsed",
         brief: "Overrides the default server URL used by the SDK",
-        optional: false,
+        optional: true,
         parse: (value) => new URL(value).toString(),
       },
       "server-index": {
@@ -62,6 +86,12 @@ export const startCommand = buildCommand({
         brief: "Selects a predefined server used by the SDK",
         optional: true,
         parse: numberParser,
+      },
+      "server-url": {
+        kind: "parsed",
+        brief: "Sets the server_url variable for url substitution",
+        optional: true,
+        parse: (value) => value,
       },
       "log-level": {
         kind: "enum",

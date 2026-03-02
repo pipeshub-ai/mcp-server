@@ -7,7 +7,7 @@ import { ClosedEnum } from "../types/enums.js";
 import {
   AIModelProviderConfig,
   AIModelProviderConfig$zodSchema,
-} from "./aimodelproviderconfiginput.js";
+} from "./aimodelproviderconfig.js";
 
 export const AIModelProviderResponseStatus = {
   Success: "success",

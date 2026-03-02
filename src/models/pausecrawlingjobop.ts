@@ -12,38 +12,17 @@ export type PauseCrawlingJobRequest = {
 export const PauseCrawlingJobRequest$zodSchema: z.ZodType<
   PauseCrawlingJobRequest
 > = z.object({
-  connector: z.string().describe("Connector type identifier"),
-  connectorId: z.string().describe(
-    "Unique identifier of the connector instance",
-  ),
+  connector: z.string(),
+  connectorId: z.string(),
 });
 
-export type PauseCrawlingJobData = {
-  connector?: string | undefined;
-  orgId?: string | undefined;
-  pausedAt?: string | undefined;
-};
-
-export const PauseCrawlingJobData$zodSchema: z.ZodType<PauseCrawlingJobData> = z
-  .object({
-    connector: z.string().optional(),
-    orgId: z.string().optional(),
-    pausedAt: z.iso.datetime({ offset: true }).optional(),
-  });
-
 /**
- * Crawling job paused successfully
+ * Crawling job paused
  */
-export type PauseCrawlingJobResponse = {
-  success?: boolean | undefined;
-  message?: string | undefined;
-  data?: PauseCrawlingJobData | undefined;
-};
+export type PauseCrawlingJobResponse = { message?: string | undefined };
 
 export const PauseCrawlingJobResponse$zodSchema: z.ZodType<
   PauseCrawlingJobResponse
 > = z.object({
-  data: z.lazy(() => PauseCrawlingJobData$zodSchema).optional(),
   message: z.string().optional(),
-  success: z.boolean().optional(),
-}).describe("Crawling job paused successfully");
+}).describe("Crawling job paused");

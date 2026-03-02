@@ -9,11 +9,11 @@ import { FeatureFlag, FeatureFlag$zodSchema } from "./featureflag.js";
  * Feature flags retrieved
  */
 export type GetAvailableFeatureFlagsResponse = {
-  featureFlags?: Array<FeatureFlag> | undefined;
+  flags?: Array<FeatureFlag> | undefined;
 };
 
 export const GetAvailableFeatureFlagsResponse$zodSchema: z.ZodType<
   GetAvailableFeatureFlagsResponse
 > = z.object({
-  featureFlags: z.array(FeatureFlag$zodSchema).optional(),
+  flags: z.array(FeatureFlag$zodSchema).optional(),
 }).describe("Feature flags retrieved");

@@ -26,12 +26,13 @@ All endpoints use the `/api/v1` prefix unless otherwise noted.
 <!-- Start Table of Contents [toc] -->
 ## Table of Contents
 <!-- $toc-max-depth=2 -->
-* [pipeshub](#pipeshub)
+* [Pipeshub](#pipeshub)
   * [Authentication](#authentication)
   * [Base URLs](#base-urls)
   * [Installation](#installation)
   * [Development](#development)
   * [Contributions](#contributions)
+  * [Progressive Discovery](#progressive-discovery)
 
 <!-- End Table of Contents [toc] -->
 
@@ -55,7 +56,7 @@ The MCP bundle package includes the MCP server and all necessary configuration. 
 <details>
 <summary>Cursor</summary>
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=Pipeshub&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJwaXBlc2h1YiIsInN0YXJ0IiwiLS1zZXJ2ZXItdXJsIiwiIiwiLS1iZWFyZXItYXV0aCIsIiJdfQ==)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=SDK&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJtY3AiLCJzdGFydCIsIi0tc2VydmVyLXVybCIsImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsIi0tYmVhcmVyLWF1dGgiLCIiLCItLWNsaWVudC1pZCIsIiIsIi0tY2xpZW50LXNlY3JldCIsIiIsIi0tdG9rZW4tdXJsIiwiL2FwaS92MS9vYXV0aDIvdG9rZW4iXX0=)
 
 Or manually:
 
@@ -68,12 +69,18 @@ Or manually:
 {
   "command": "npx",
   "args": [
-    "pipeshub",
+    "mcp",
     "start",
     "--server-url",
-    "",
+    "http://localhost:3000",
     "--bearer-auth",
-    ""
+    "",
+    "--client-id",
+    "",
+    "--client-secret",
+    "",
+    "--token-url",
+    "/api/v1/oauth2/token"
   ]
 }
 ```
@@ -84,7 +91,7 @@ Or manually:
 <summary>Claude Code CLI</summary>
 
 ```bash
-claude mcp add Pipeshub -- npx -y pipeshub start --server-url  --bearer-auth
+claude mcp add SDK -- npx -y mcp start --server-url http://localhost:3000 --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
 ```
 
 </details>
@@ -92,7 +99,7 @@ claude mcp add Pipeshub -- npx -y pipeshub start --server-url  --bearer-auth
 <summary>Gemini</summary>
 
 ```bash
-gemini mcp add Pipeshub -- npx -y pipeshub start --server-url  --bearer-auth
+gemini mcp add SDK -- npx -y mcp start --server-url http://localhost:3000 --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
 ```
 
 </details>
@@ -107,16 +114,22 @@ Refer to [Official Windsurf documentation](https://docs.windsurf.com/windsurf/ca
 4. Click on `View raw config` to open up the mcp configuration file.
 5. If the configuration file is empty paste the full json
 
-```json
+```bash
 {
   "command": "npx",
   "args": [
-    "pipeshub",
+    "mcp",
     "start",
     "--server-url",
-    "",
+    "http://localhost:3000",
     "--bearer-auth",
-    ""
+    "",
+    "--client-id",
+    "",
+    "--client-secret",
+    "",
+    "--token-url",
+    "/api/v1/oauth2/token"
   ]
 }
 ```
@@ -124,26 +137,32 @@ Refer to [Official Windsurf documentation](https://docs.windsurf.com/windsurf/ca
 <details>
 <summary>VS Code</summary>
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-VS_Code?style=flat-square&label=Install%20Pipeshub%20MCP&color=0098FF)](vscode://ms-vscode.vscode-mcp/install?name=Pipeshub&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJwaXBlc2h1YiIsInN0YXJ0IiwiLS1zZXJ2ZXItdXJsIiwiIiwiLS1iZWFyZXItYXV0aCIsIiJdfQ==)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-VS_Code?style=flat-square&label=Install%20SDK%20MCP&color=0098FF)](vscode://ms-vscode.vscode-mcp/install?name=SDK&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJtY3AiLCJzdGFydCIsIi0tc2VydmVyLXVybCIsImh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsIi0tYmVhcmVyLWF1dGgiLCIiLCItLWNsaWVudC1pZCIsIiIsIi0tY2xpZW50LXNlY3JldCIsIiIsIi0tdG9rZW4tdXJsIiwiL2FwaS92MS9vYXV0aDIvdG9rZW4iXX0=)
 
 Or manually:
 
 Refer to [Official VS Code documentation](https://code.visualstudio.com/api/extension-guides/ai/mcp) for latest information
 
 1. Open [Command Palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette)
-2. Search and open `MCP: Open User Configuration`. This should open mcp.json file
-3. If the configuration file is empty paste the full json
+1. Search and open `MCP: Open User Configuration`. This should open mcp.json file
+2. If the configuration file is empty paste the full json
 
-```json
+```bash
 {
   "command": "npx",
   "args": [
-    "pipeshub",
+    "mcp",
     "start",
     "--server-url",
-    "",
+    "http://localhost:3000",
     "--bearer-auth",
-    ""
+    "",
+    "--client-id",
+    "",
+    "--client-secret",
+    "",
+    "--token-url",
+    "/api/v1/oauth2/token"
   ]
 }
 ```
@@ -154,13 +173,13 @@ Refer to [Official VS Code documentation](https://code.visualstudio.com/api/exte
 To start the MCP server, run:
 
 ```bash
-npx pipeshub start --server-url  --bearer-auth
+npx mcp start --server-url http://localhost:3000 --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
 ```
 
 For a full list of server arguments, run:
 
 ```
-npx pipeshub --help
+npx mcp --help
 ```
 
 </details>
@@ -201,3 +220,33 @@ npx @modelcontextprotocol/inspector node ./bin/mcp-server.js start --server-url 
 
 While we value contributions to this MCP Server, the code is generated programmatically. Any manual changes added to internal files will be overwritten on the next generation.
 We look forward to hearing your feedback. Feel free to open a PR or an issue with a proof of concept and we'll do our best to include it in a future release.
+
+<!-- Start Progressive Discovery [dynamic-mode] -->
+## Progressive Discovery
+
+MCP servers with many tools can bloat LLM context windows, leading to increased token usage and tool confusion. Dynamic mode solves this by exposing only a small set of meta-tools that let agents progressively discover and invoke tools on demand.
+
+To enable dynamic mode, pass the `--mode dynamic` flag when starting your server:
+
+```jsonc
+{
+  "mcpServers": {
+    "SDK": {
+      "command": "npx",
+      "args": ["mcp", "start", "--mode", "dynamic"],
+      // ... other server arguments
+    }
+  }
+}
+```
+
+In dynamic mode, the server registers only the following meta-tools instead of every individual tool:
+
+- **`list_tools`**: Lists all available tools with their names and descriptions.
+- **`describe_tool`**: Returns the input schema for one or more tools by name.
+- **`execute_tool`**: Executes a tool by name with the provided input parameters.
+
+This approach significantly reduces the number of tokens sent to the LLM on each request, which is especially useful for servers with a large number of tools.
+<!-- End Progressive Discovery [dynamic-mode] -->
+
+<!-- Placeholder for Future Speakeasy SDK Sections -->

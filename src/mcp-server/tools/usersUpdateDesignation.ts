@@ -3,34 +3,19 @@
  */
 
 import { usersUpdateDesignation } from "../../funcs/usersUpdateDesignation.js";
-import { UpdateUserDesignationRequest$zodSchema } from "../../models/updateuserdesignationop.js";
+import { UpdateDesignationRequest$zodSchema } from "../../models/updatedesignationop.js";
 import { formatResult, ToolDefinition } from "../tools.js";
 
 const args = {
-  request: UpdateUserDesignationRequest$zodSchema,
+  request: UpdateDesignationRequest$zodSchema,
 };
 
 export const tool$usersUpdateDesignation: ToolDefinition<typeof args> = {
   name: "users-update-designation",
   description: `Update user designation
 
-Update the job title or designation of a user.<br><br>
-<b>Overview:</b><br>
-This endpoint updates the user's designation field, which typically represents their job title, role, or position within the organization.<br><br>
-<b>Authorization:</b><br>
-<ul>
-<li><b>Self-update:</b> Users can update their own designation</li>
-<li><b>Admin-update:</b> Admins can update any user's designation</li>
-</ul>
-<b>Common Values:</b><br>
-<ul>
-<li>Software Engineer</li>
-<li>Product Manager</li>
-<li>Team Lead</li>
-<li>Director of Engineering</li>
-</ul>
-<b>Display:</b><br>
-Designation is shown in user profiles, team views, and organizational charts.
+<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
+Update the designation/title of a user.
 `,
   annotations: {
     "title": "",

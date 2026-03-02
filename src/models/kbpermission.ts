@@ -5,9 +5,6 @@
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
 
-/**
- * Permission role
- */
 export const KBPermissionRole = {
   Owner: "OWNER",
   Organizer: "ORGANIZER",
@@ -16,9 +13,6 @@ export const KBPermissionRole = {
   Commenter: "COMMENTER",
   Reader: "READER",
 } as const;
-/**
- * Permission role
- */
 export type KBPermissionRole = ClosedEnum<typeof KBPermissionRole>;
 
 export const KBPermissionRole$zodSchema = z.enum([
@@ -28,22 +22,43 @@ export const KBPermissionRole$zodSchema = z.enum([
   "WRITER",
   "COMMENTER",
   "READER",
-]).describe("Permission role");
+]);
+
+/**
+ * Whether permission is for a user or team
+ */
+export const KBPermissionType = {
+  User: "USER",
+  Team: "TEAM",
+} as const;
+/**
+ * Whether permission is for a user or team
+ */
+export type KBPermissionType = ClosedEnum<typeof KBPermissionType>;
+
+export const KBPermissionType$zodSchema = z.enum([
+  "USER",
+  "TEAM",
+]).describe("Whether permission is for a user or team");
 
 export type KBPermission = {
+  id?: string | undefined;
   userId?: string | undefined;
-  teamId?: string | undefined;
+  email?: string | undefined;
+  name?: string | undefined;
   role?: KBPermissionRole | undefined;
-  kbId?: string | undefined;
-  grantedBy?: string | undefined;
-  grantedAt?: number | undefined;
+  type?: KBPermissionType | undefined;
+  createdAtTimestamp?: number | undefined;
+  updatedAtTimestamp?: number | undefined;
 };
 
 export const KBPermission$zodSchema: z.ZodType<KBPermission> = z.object({
-  grantedAt: z.int().optional(),
-  grantedBy: z.string().optional(),
-  kbId: z.string().optional(),
+  createdAtTimestamp: z.int().optional(),
+  email: z.string().optional(),
+  id: z.string().optional(),
+  name: z.string().optional(),
   role: KBPermissionRole$zodSchema.optional(),
-  teamId: z.string().optional(),
+  type: KBPermissionType$zodSchema.optional(),
+  updatedAtTimestamp: z.int().optional(),
   userId: z.string().optional(),
 });

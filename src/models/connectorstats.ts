@@ -4,25 +4,45 @@
 
 import * as z from "zod";
 
+export type Stats = {
+  total?: number | undefined;
+  indexingStatus?: { [k: string]: number } | undefined;
+};
+
+export const Stats$zodSchema: z.ZodType<Stats> = z.object({
+  indexingStatus: z.record(z.string(), z.int()).optional(),
+  total: z.int().optional(),
+});
+
+export type ByRecordType = {};
+
+export const ByRecordType$zodSchema: z.ZodType<ByRecordType> = z.object({});
+
+export type Data = {
+  orgId?: string | undefined;
+  connectorId?: string | undefined;
+  origin?: string | undefined;
+  stats?: Stats | undefined;
+  byRecordType?: Array<ByRecordType> | undefined;
+};
+
+export const Data$zodSchema: z.ZodType<Data> = z.object({
+  byRecordType: z.array(z.lazy(() => ByRecordType$zodSchema)).optional(),
+  connectorId: z.string().optional(),
+  orgId: z.string().optional(),
+  origin: z.string().optional(),
+  stats: z.lazy(() => Stats$zodSchema).optional(),
+});
+
 /**
  * Statistics for a connector's records
  */
 export type ConnectorStats = {
-  connectorId?: string | undefined;
-  totalRecords?: number | undefined;
-  indexedRecords?: number | undefined;
-  failedRecords?: number | undefined;
-  pendingRecords?: number | undefined;
-  lastSyncTime?: number | undefined;
-  statusBreakdown?: { [k: string]: number } | undefined;
+  success?: boolean | undefined;
+  data?: Data | undefined;
 };
 
 export const ConnectorStats$zodSchema: z.ZodType<ConnectorStats> = z.object({
-  connectorId: z.string().optional(),
-  failedRecords: z.int().optional(),
-  indexedRecords: z.int().optional(),
-  lastSyncTime: z.int().optional(),
-  pendingRecords: z.int().optional(),
-  statusBreakdown: z.record(z.string(), z.int()).optional(),
-  totalRecords: z.int().optional(),
+  data: z.lazy(() => Data$zodSchema).optional(),
+  success: z.boolean().optional(),
 }).describe("Statistics for a connector's records");

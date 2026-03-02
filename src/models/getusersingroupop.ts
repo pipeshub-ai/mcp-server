@@ -3,51 +3,31 @@
  */
 
 import * as z from "zod";
-import { User, User$zodSchema } from "./user.js";
 
-export type GetUsersInGroupRequest = {
-  groupId: string;
-  page?: number | undefined;
-  limit?: number | undefined;
-};
+export type GetUsersInGroupRequest = { groupId: string };
 
 export const GetUsersInGroupRequest$zodSchema: z.ZodType<
   GetUsersInGroupRequest
 > = z.object({
   groupId: z.string().describe("Unique identifier of the user group"),
-  limit: z.int().default(20).describe("Number of users per page"),
-  page: z.int().default(1).describe("Page number for pagination (1-based)"),
 });
 
-export type GetUsersInGroupPagination = {
-  page?: number | undefined;
-  limit?: number | undefined;
-  total?: number | undefined;
-  totalPages?: number | undefined;
-};
+export type GetUsersInGroupData = {};
 
-export const GetUsersInGroupPagination$zodSchema: z.ZodType<
-  GetUsersInGroupPagination
-> = z.object({
-  limit: z.int().optional(),
-  page: z.int().optional(),
-  total: z.int().optional(),
-  totalPages: z.int().optional(),
-});
+export const GetUsersInGroupData$zodSchema: z.ZodType<GetUsersInGroupData> = z
+  .object({});
 
 /**
  * Users in group retrieved successfully
  */
 export type GetUsersInGroupResponse = {
   success?: boolean | undefined;
-  data?: Array<User> | undefined;
-  pagination?: GetUsersInGroupPagination | undefined;
+  data?: Array<GetUsersInGroupData> | undefined;
 };
 
 export const GetUsersInGroupResponse$zodSchema: z.ZodType<
   GetUsersInGroupResponse
 > = z.object({
-  data: z.array(User$zodSchema).optional(),
-  pagination: z.lazy(() => GetUsersInGroupPagination$zodSchema).optional(),
+  data: z.array(z.lazy(() => GetUsersInGroupData$zodSchema)).optional(),
   success: z.boolean().optional(),
 }).describe("Users in group retrieved successfully");

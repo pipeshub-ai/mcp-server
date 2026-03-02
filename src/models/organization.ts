@@ -4,6 +4,7 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { Address, Address$zodSchema } from "./address.js";
 
 /**
  * Type of account
@@ -51,22 +52,26 @@ export type Organization = {
   domain: string;
   contactEmail: string;
   accountType: OrganizationAccountType;
+  permanentAddress?: Address | undefined;
   onBoardingStatus?: OnBoardingStatus | undefined;
   isDeleted?: boolean | undefined;
-  createdAt?: number | undefined;
-  updatedAt?: number | undefined;
+  _v?: number | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
 };
 
 export const Organization$zodSchema: z.ZodType<Organization> = z.object({
   _id: z.string().optional(),
+  _v: z.int().optional(),
   accountType: OrganizationAccountType$zodSchema,
   contactEmail: z.string(),
-  createdAt: z.int().optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
   domain: z.string(),
   isDeleted: z.boolean().default(false),
   onBoardingStatus: OnBoardingStatus$zodSchema.optional(),
+  permanentAddress: Address$zodSchema.optional(),
   registeredName: z.string().optional(),
   shortName: z.string().optional(),
   slug: z.string().optional(),
-  updatedAt: z.int().optional(),
+  updatedAt: z.iso.datetime({ offset: true }).optional(),
 });
