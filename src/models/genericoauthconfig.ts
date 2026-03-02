@@ -8,8 +8,8 @@ import * as z from "zod";
  * Generic OAuth 2.0 provider configuration
  */
 export type GenericOAuthConfig = {
-  providerName: string;
-  clientId: string;
+  providerName?: string | undefined;
+  clientId?: string | undefined;
   clientSecret?: string | undefined;
   authorizationUrl?: string | undefined;
   tokenEndpoint?: string | undefined;
@@ -21,9 +21,9 @@ export type GenericOAuthConfig = {
 export const GenericOAuthConfig$zodSchema: z.ZodType<GenericOAuthConfig> = z
   .object({
     authorizationUrl: z.string().optional(),
-    clientId: z.string(),
+    clientId: z.string().optional(),
     clientSecret: z.string().optional(),
-    providerName: z.string(),
+    providerName: z.string().optional(),
     redirectUri: z.string().optional(),
     scope: z.string().optional(),
     tokenEndpoint: z.string().optional(),

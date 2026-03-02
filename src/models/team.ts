@@ -11,16 +11,16 @@ export type Team = {
   description?: string | undefined;
   orgId?: string | undefined;
   userRoles?: Array<UserRole> | undefined;
-  createdAt?: number | undefined;
-  updatedAt?: number | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
 };
 
 export const Team$zodSchema: z.ZodType<Team> = z.object({
   _id: z.string().optional(),
-  createdAt: z.int().optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
   description: z.string().optional(),
   name: z.string(),
   orgId: z.string().optional(),
-  updatedAt: z.int().optional(),
+  updatedAt: z.iso.datetime({ offset: true }).optional(),
   userRoles: z.array(UserRole$zodSchema).optional(),
 });

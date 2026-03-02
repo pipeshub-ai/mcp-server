@@ -13,7 +13,7 @@ import {
   ServerNotification,
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
-import { PipeshubCore } from "../core.js";
+import { SDKCore } from "../core.js";
 import { ConsoleLogger } from "./console-logger.js";
 import { MCPScope } from "./scopes.js";
 
@@ -25,7 +25,7 @@ export type PromptDefinition<
     scopes?: MCPScope[];
     args: Args;
     prompt: (
-      client: PipeshubCore,
+      client: SDKCore,
       args: ShapeOutput<Args>,
       extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => GetPromptResult | Promise<GetPromptResult>;
@@ -36,7 +36,7 @@ export type PromptDefinition<
     scopes?: MCPScope[];
     args?: undefined;
     prompt: (
-      client: PipeshubCore,
+      client: SDKCore,
       extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => GetPromptResult | Promise<GetPromptResult>;
   };
@@ -59,7 +59,7 @@ export async function formatResult(value: string): Promise<GetPromptResult> {
 export function createRegisterPrompt(
   logger: ConsoleLogger,
   server: McpServer,
-  getSDK: () => PipeshubCore,
+  getSDK: () => SDKCore,
   allowedScopes: Set<MCPScope>,
 ): <A extends ZodRawShapeCompat | undefined>(
   prompt: PromptDefinition<A>,
