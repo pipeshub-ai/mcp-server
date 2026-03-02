@@ -3,6 +3,7 @@
  */
 
 import * as z from "zod";
+import { RecordT, RecordT$zodSchema } from "./record.js";
 
 export type GetRecordByIdRequest = {
   recordId: string;
@@ -15,3 +16,92 @@ export const GetRecordByIdRequest$zodSchema: z.ZodType<GetRecordByIdRequest> = z
       .optional(),
     recordId: z.string().describe("Record ID"),
   });
+
+export type GetRecordByIdKnowledgeBase = {
+  id?: string | undefined;
+  name?: string | undefined;
+  orgId?: string | undefined;
+};
+
+export const GetRecordByIdKnowledgeBase$zodSchema: z.ZodType<
+  GetRecordByIdKnowledgeBase
+> = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  orgId: z.string().optional(),
+});
+
+export type GetRecordByIdFolder = {};
+
+export const GetRecordByIdFolder$zodSchema: z.ZodType<GetRecordByIdFolder> = z
+  .object({});
+
+export type Department = {};
+
+export const Department$zodSchema: z.ZodType<Department> = z.object({});
+
+export type GetRecordByIdCategory = {};
+
+export const GetRecordByIdCategory$zodSchema: z.ZodType<GetRecordByIdCategory> =
+  z.object({});
+
+export type Topic = {};
+
+export const Topic$zodSchema: z.ZodType<Topic> = z.object({});
+
+export type Language = {};
+
+export const Language$zodSchema: z.ZodType<Language> = z.object({});
+
+export type GetRecordByIdMetadata = {
+  departments?: Array<Department> | undefined;
+  categories?: Array<GetRecordByIdCategory> | undefined;
+  topics?: Array<Topic> | undefined;
+  languages?: Array<Language> | undefined;
+};
+
+export const GetRecordByIdMetadata$zodSchema: z.ZodType<GetRecordByIdMetadata> =
+  z.object({
+    categories: z.array(z.lazy(() => GetRecordByIdCategory$zodSchema))
+      .optional(),
+    departments: z.array(z.lazy(() => Department$zodSchema)).optional(),
+    languages: z.array(z.lazy(() => Language$zodSchema)).optional(),
+    topics: z.array(z.lazy(() => Topic$zodSchema)).optional(),
+  });
+
+export type Permission = {
+  id?: string | undefined;
+  name?: string | undefined;
+  type?: string | undefined;
+  relationship?: string | undefined;
+  accessType?: string | undefined;
+};
+
+export const Permission$zodSchema: z.ZodType<Permission> = z.object({
+  accessType: z.string().optional(),
+  id: z.string().optional(),
+  name: z.string().optional(),
+  relationship: z.string().optional(),
+  type: z.string().optional(),
+});
+
+/**
+ * Successful operation
+ */
+export type GetRecordByIdResponse = {
+  record?: RecordT | undefined;
+  knowledgeBase?: GetRecordByIdKnowledgeBase | undefined;
+  folder?: GetRecordByIdFolder | null | undefined;
+  metadata?: GetRecordByIdMetadata | undefined;
+  permissions?: Array<Permission> | undefined;
+};
+
+export const GetRecordByIdResponse$zodSchema: z.ZodType<GetRecordByIdResponse> =
+  z.object({
+    folder: z.lazy(() => GetRecordByIdFolder$zodSchema).nullable().optional(),
+    knowledgeBase: z.lazy(() => GetRecordByIdKnowledgeBase$zodSchema)
+      .optional(),
+    metadata: z.lazy(() => GetRecordByIdMetadata$zodSchema).optional(),
+    permissions: z.array(z.lazy(() => Permission$zodSchema)).optional(),
+    record: RecordT$zodSchema.optional(),
+  }).describe("Successful operation");

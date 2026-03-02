@@ -15,7 +15,7 @@ export const ServerList = [
   /**
    * Base API URL
    */
-  "/api/v1",
+  "https://{server_url}/api/v1",
 ] as const;
 
 export type SDKOptions = {
@@ -30,9 +30,13 @@ export type SDKOptions = {
    */
   serverIdx?: number | undefined;
   /**
-   * Specifies the server URL to be used by the SDK
+   * Sets the server_url variable for url substitution
    */
-  serverURL: string;
+  server_url?: string | undefined;
+  /**
+   * Allows overriding the default server URL used by the SDK
+   */
+  serverURL?: string | undefined;
   /**
    * Allows overriding the default user agent used by the SDK
    */
@@ -48,7 +52,12 @@ export type SDKOptions = {
 export function serverURLFromOptions(options: SDKOptions): URL | null {
   let serverURL = options.serverURL;
 
-  const params: Params = {};
+  const serverParams: Params[] = [
+    {
+      "server_url": options.server_url ?? "http://localhost:3000",
+    },
+  ];
+  let params: Params = {};
 
   if (!serverURL) {
     const serverIdx = options.serverIdx ?? 0;
@@ -56,6 +65,7 @@ export function serverURLFromOptions(options: SDKOptions): URL | null {
       throw new Error(`Invalid server index ${serverIdx}`);
     }
     serverURL = ServerList[serverIdx] || "";
+    params = serverParams[serverIdx] || {};
   }
 
   const u = pathToFunc(serverURL)(params);
@@ -65,7 +75,7 @@ export function serverURLFromOptions(options: SDKOptions): URL | null {
 export const SDK_METADATA = {
   language: "typescript",
   openapiDocVersion: "1.0.0",
-  sdkVersion: "0.1.0",
-  genVersion: "2.824.1",
-  userAgent: "speakeasy-sdk/mcp-typescript 0.1.0 2.824.1 1.0.0 pipeshub",
+  sdkVersion: "0.0.1",
+  genVersion: "2.845.15",
+  userAgent: "speakeasy-sdk/mcp-typescript 0.0.1 2.845.15 1.0.0 mcp",
 } as const;

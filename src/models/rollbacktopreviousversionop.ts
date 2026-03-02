@@ -3,50 +3,38 @@
  */
 
 import * as z from "zod";
-import { Document, Document$zodSchema } from "./document.js";
 
-/**
- * Request payload
- */
 export type RollBackToPreviousVersionRequestBody = {
-  version: string;
-  note: string;
+  version?: number | undefined;
 };
 
 export const RollBackToPreviousVersionRequestBody$zodSchema: z.ZodType<
   RollBackToPreviousVersionRequestBody
 > = z.object({
-  note: z.string(),
-  version: z.string(),
-}).describe("Request payload");
+  version: z.int().optional(),
+});
 
 export type RollBackToPreviousVersionRequest = {
   documentId: string;
-  body: RollBackToPreviousVersionRequestBody;
+  body?: RollBackToPreviousVersionRequestBody | undefined;
 };
 
 export const RollBackToPreviousVersionRequest$zodSchema: z.ZodType<
   RollBackToPreviousVersionRequest
 > = z.object({
-  body: z.lazy(() => RollBackToPreviousVersionRequestBody$zodSchema),
-  documentId: z.string().describe(
-    "Document ID (24-character MongoDB ObjectId)",
-  ),
+  body: z.lazy(() => RollBackToPreviousVersionRequestBody$zodSchema).optional(),
+  documentId: z.string(),
 });
 
 /**
  * Document rolled back successfully
  */
 export type RollBackToPreviousVersionResponse = {
-  success?: boolean | undefined;
   message?: string | undefined;
-  data?: Document | undefined;
 };
 
 export const RollBackToPreviousVersionResponse$zodSchema: z.ZodType<
   RollBackToPreviousVersionResponse
 > = z.object({
-  data: Document$zodSchema.optional(),
   message: z.string().optional(),
-  success: z.boolean().optional(),
 }).describe("Document rolled back successfully");

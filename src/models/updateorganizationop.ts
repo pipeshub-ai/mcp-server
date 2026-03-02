@@ -29,7 +29,6 @@ export const UpdateOrganizationRequest$zodSchema: z.ZodType<
  * Organization updated successfully
  */
 export type UpdateOrganizationResponse = {
-  success?: boolean | undefined;
   message?: string | undefined;
   data?: Organization | undefined;
 };
@@ -39,5 +38,4 @@ export const UpdateOrganizationResponse$zodSchema: z.ZodType<
 > = z.object({
   data: Organization$zodSchema.optional(),
   message: z.string().optional(),
-  success: z.boolean().optional(),
 }).describe("Organization updated successfully");

@@ -3,16 +3,51 @@
  */
 
 import * as z from "zod";
-import { AuthError, AuthError$zodSchema } from "./autherror.js";
-import {
-  PasswordResetResponse,
-  PasswordResetResponse$zodSchema,
-} from "./passwordresetresponse.js";
 
-export type ResetPasswordResponse = PasswordResetResponse | AuthError;
+/**
+ * Request payload
+ */
+export type ResetPasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+};
+
+export const ResetPasswordRequest$zodSchema: z.ZodType<ResetPasswordRequest> = z
+  .object({
+    currentPassword: z.string(),
+    newPassword: z.string(),
+  }).describe("Request payload");
+
+/**
+ * Invalid current password or weak new password
+ */
+export type ResetPasswordBadRequestResponseBody = {
+  error?: string | undefined;
+};
+
+export const ResetPasswordBadRequestResponseBody$zodSchema: z.ZodType<
+  ResetPasswordBadRequestResponseBody
+> = z.object({
+  error: z.string().optional(),
+}).describe("Invalid current password or weak new password");
+
+/**
+ * Password reset successfully
+ */
+export type ResetPasswordResponseBody = { message?: string | undefined };
+
+export const ResetPasswordResponseBody$zodSchema: z.ZodType<
+  ResetPasswordResponseBody
+> = z.object({
+  message: z.string().optional(),
+}).describe("Password reset successfully");
+
+export type ResetPasswordResponse =
+  | ResetPasswordResponseBody
+  | ResetPasswordBadRequestResponseBody;
 
 export const ResetPasswordResponse$zodSchema: z.ZodType<ResetPasswordResponse> =
   z.union([
-    PasswordResetResponse$zodSchema,
-    AuthError$zodSchema,
+    z.lazy(() => ResetPasswordResponseBody$zodSchema),
+    z.lazy(() => ResetPasswordBadRequestResponseBody$zodSchema),
   ]);

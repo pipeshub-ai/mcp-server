@@ -4,11 +4,82 @@
 
 import * as z from "zod";
 
-export type UpdateAgentModelConfig = {};
+export type UpdateAgentModel = {
+  modelKey?: string | undefined;
+  modelName?: string | undefined;
+  provider?: string | undefined;
+  isReasoning?: boolean | undefined;
+};
 
-export const UpdateAgentModelConfig$zodSchema: z.ZodType<
-  UpdateAgentModelConfig
-> = z.object({});
+export const UpdateAgentModel$zodSchema: z.ZodType<UpdateAgentModel> = z.object(
+  {
+    isReasoning: z.boolean().optional(),
+    modelKey: z.string().optional(),
+    modelName: z.string().optional(),
+    provider: z.string().optional(),
+  },
+);
+
+export type UpdateAgentModelUnion = string | UpdateAgentModel;
+
+export const UpdateAgentModelUnion$zodSchema: z.ZodType<UpdateAgentModelUnion> =
+  z.union([
+    z.string(),
+    z.lazy(() => UpdateAgentModel$zodSchema),
+  ]);
+
+export type UpdateAgentTool = {
+  name?: string | undefined;
+  fullName?: string | undefined;
+  description?: string | undefined;
+};
+
+export const UpdateAgentTool$zodSchema: z.ZodType<UpdateAgentTool> = z.object({
+  description: z.string().optional(),
+  fullName: z.string().optional(),
+  name: z.string().optional(),
+});
+
+export type UpdateAgentToolset = {
+  name?: string | undefined;
+  displayName?: string | undefined;
+  type?: string | undefined;
+  instanceId?: string | undefined;
+  instanceName?: string | undefined;
+  tools?: Array<UpdateAgentTool> | undefined;
+};
+
+export const UpdateAgentToolset$zodSchema: z.ZodType<UpdateAgentToolset> = z
+  .object({
+    displayName: z.string().optional(),
+    instanceId: z.string().optional(),
+    instanceName: z.string().optional(),
+    name: z.string().optional(),
+    tools: z.array(z.lazy(() => UpdateAgentTool$zodSchema)).optional(),
+    type: z.string().optional(),
+  });
+
+export type UpdateAgentFilters = { [k: string]: any } | string;
+
+export const UpdateAgentFilters$zodSchema: z.ZodType<UpdateAgentFilters> = z
+  .union([
+    z.record(z.string(), z.any()),
+    z.string(),
+  ]);
+
+export type UpdateAgentKnowledge = {
+  connectorId?: string | undefined;
+  filters?: { [k: string]: any } | string | undefined;
+};
+
+export const UpdateAgentKnowledge$zodSchema: z.ZodType<UpdateAgentKnowledge> = z
+  .object({
+    connectorId: z.string().optional(),
+    filters: z.union([
+      z.record(z.string(), z.any()),
+      z.string(),
+    ]).optional(),
+  });
 
 /**
  * Request body for Update agent
@@ -17,22 +88,31 @@ export type UpdateAgentRequestBody = {
   name?: string | undefined;
   description?: string | undefined;
   systemPrompt?: string | undefined;
-  tools?: Array<string> | undefined;
-  knowledgeBases?: Array<string> | undefined;
-  modelConfig?: UpdateAgentModelConfig | undefined;
+  startMessage?: string | undefined;
+  instructions?: string | null | undefined;
+  models?: Array<string | UpdateAgentModel> | undefined;
+  toolsets?: Array<UpdateAgentToolset> | undefined;
+  knowledge?: Array<UpdateAgentKnowledge> | undefined;
   isPublic?: boolean | undefined;
+  shareWithOrg?: boolean | undefined;
 };
 
 export const UpdateAgentRequestBody$zodSchema: z.ZodType<
   UpdateAgentRequestBody
 > = z.object({
   description: z.string().optional(),
+  instructions: z.string().nullable().optional(),
   isPublic: z.boolean().optional(),
-  knowledgeBases: z.array(z.string()).optional(),
-  modelConfig: z.lazy(() => UpdateAgentModelConfig$zodSchema).optional(),
+  knowledge: z.array(z.lazy(() => UpdateAgentKnowledge$zodSchema)).optional(),
+  models: z.array(z.union([
+    z.string(),
+    z.lazy(() => UpdateAgentModel$zodSchema),
+  ])).optional(),
   name: z.string().optional(),
+  shareWithOrg: z.boolean().optional(),
+  startMessage: z.string().optional(),
   systemPrompt: z.string().optional(),
-  tools: z.array(z.string()).optional(),
+  toolsets: z.array(z.lazy(() => UpdateAgentToolset$zodSchema)).optional(),
 }).describe("Request body for Update agent");
 
 export type UpdateAgentRequest = {
