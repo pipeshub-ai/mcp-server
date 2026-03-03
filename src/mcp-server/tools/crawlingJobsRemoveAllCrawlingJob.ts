@@ -9,7 +9,6 @@ export const tool$crawlingJobsRemoveAllCrawlingJob: ToolDefinition = {
   name: "crawling-jobs-remove-all-crawling-job",
   description: `Remove all crawling jobs
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Remove all scheduled crawling jobs for the organization.
 `,
   annotations: {

@@ -29,10 +29,7 @@ import { Result } from "../types/fp.js";
  * Unshare a conversation
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Revoke sharing for a conversation, making it private again.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function conversationsUnshareConversationById(
   client$: SDKCore,

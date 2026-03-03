@@ -14,7 +14,6 @@ export const tool$userGroupsGetUsersInGroup: ToolDefinition<typeof args> = {
   name: "user-groups-get-users-in-group",
   description: `Get users in group
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve all users that belong to a specific user group.
 `,
   annotations: {

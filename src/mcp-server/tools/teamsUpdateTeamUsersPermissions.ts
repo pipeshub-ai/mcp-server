@@ -15,7 +15,6 @@ export const tool$teamsUpdateTeamUsersPermissions: ToolDefinition<typeof args> =
     name: "teams-update-team-users-permissions",
     description: `Update team users permissions
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Update permissions for users within a team.
 `,
     annotations: {

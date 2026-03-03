@@ -15,7 +15,6 @@ export const tool$semanticSearchDeleteSearchById: ToolDefinition<typeof args> =
     name: "semantic-search-delete-search-by-id",
     description: `Delete search by ID
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Delete a specific search result by its ID.
 `,
     annotations: {

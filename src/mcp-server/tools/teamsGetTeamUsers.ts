@@ -14,7 +14,6 @@ export const tool$teamsGetTeamUsers: ToolDefinition<typeof args> = {
   name: "teams-get-team-users",
   description: `Get users in team
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve all users that belong to a specific team.
 `,
   annotations: {

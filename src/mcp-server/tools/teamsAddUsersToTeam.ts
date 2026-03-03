@@ -14,7 +14,6 @@ export const tool$teamsAddUsersToTeam: ToolDefinition<typeof args> = {
   name: "teams-add-users-to-team",
   description: `Add users to team
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Add one or more users to a team.
 `,
   annotations: {

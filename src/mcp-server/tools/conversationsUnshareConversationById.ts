@@ -16,7 +16,6 @@ export const tool$conversationsUnshareConversationById: ToolDefinition<
   name: "conversations-unshare-conversation-by-id",
   description: `Unshare a conversation
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Revoke sharing for a conversation, making it private again.
 `,
   annotations: {

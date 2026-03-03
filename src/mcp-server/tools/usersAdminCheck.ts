@@ -14,7 +14,6 @@ export const tool$usersAdminCheck: ToolDefinition<typeof args> = {
   name: "users-admin-check",
   description: `Check if user is admin
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Check whether the specified user has admin privileges. Returns 200 OK if the user is an admin.
 `,
   annotations: {

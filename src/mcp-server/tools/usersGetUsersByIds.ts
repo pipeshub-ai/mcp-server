@@ -14,7 +14,6 @@ export const tool$usersGetUsersByIds: ToolDefinition<typeof args> = {
   name: "users-get-users-by-ids",
   description: `Get users by IDs
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve multiple users by their IDs in a single request.
 `,
   annotations: {

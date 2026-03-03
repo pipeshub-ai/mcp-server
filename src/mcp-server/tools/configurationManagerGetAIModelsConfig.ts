@@ -9,7 +9,6 @@ export const tool$configurationManagerGetAIModelsConfig: ToolDefinition = {
   name: "configuration-manager-get-AI-models-config",
   description: `Get AI models configuration
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve the AI models configuration for the organization.
 `,
   annotations: {

@@ -14,7 +14,6 @@ export const tool$crawlingJobsPauseCrawlingJob: ToolDefinition<typeof args> = {
   name: "crawling-jobs-pause-crawling-job",
   description: `Pause a crawling job
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Pause a running or scheduled crawling job for a specific connector.
 `,
   annotations: {

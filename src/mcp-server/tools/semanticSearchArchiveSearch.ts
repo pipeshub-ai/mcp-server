@@ -14,7 +14,6 @@ export const tool$semanticSearchArchiveSearch: ToolDefinition<typeof args> = {
   name: "semantic-search-archive-search",
   description: `Archive a search
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Archive a specific search result. Archived searches are hidden from the default search history view.
 `,
   annotations: {

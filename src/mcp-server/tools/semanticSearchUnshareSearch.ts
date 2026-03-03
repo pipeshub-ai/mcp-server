@@ -14,7 +14,6 @@ export const tool$semanticSearchUnshareSearch: ToolDefinition<typeof args> = {
   name: "semantic-search-unshare-search",
   description: `Unshare a search
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Revoke sharing for a specific search result, making it private again.
 `,
   annotations: {

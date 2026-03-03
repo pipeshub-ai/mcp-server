@@ -14,7 +14,6 @@ export const tool$usersUpdateDesignation: ToolDefinition<typeof args> = {
   name: "users-update-designation",
   description: `Update user designation
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Update the designation/title of a user.
 `,
   annotations: {

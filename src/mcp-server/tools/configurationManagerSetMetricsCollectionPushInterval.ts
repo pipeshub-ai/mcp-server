@@ -15,7 +15,6 @@ export const tool$configurationManagerSetMetricsCollectionPushInterval:
     name: "configuration-manager-set-metrics-collection-cb8",
     description: `Set metrics push interval
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Configure the interval for pushing metrics to the collection server.
 `,
     annotations: {

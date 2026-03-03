@@ -29,10 +29,7 @@ import { Result } from "../types/fp.js";
  * Add users to team
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Add one or more users to a team.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function teamsAddUsersToTeam(
   client$: SDKCore,

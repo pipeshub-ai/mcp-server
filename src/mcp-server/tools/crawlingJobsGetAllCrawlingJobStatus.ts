@@ -9,7 +9,6 @@ export const tool$crawlingJobsGetAllCrawlingJobStatus: ToolDefinition = {
   name: "crawling-jobs-get-all-crawling-job-status",
   description: `Get all crawling job statuses
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve the status of all scheduled crawling jobs across the organization.
 `,
   annotations: {

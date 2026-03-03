@@ -9,7 +9,6 @@ export const tool$crawlingJobsGetQueueStats: ToolDefinition = {
   name: "crawling-jobs-get-queue-stats",
   description: `Get queue statistics
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve statistics for the crawling job queue including active, waiting, and completed job counts.
 `,
   annotations: {

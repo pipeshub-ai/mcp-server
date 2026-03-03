@@ -9,7 +9,6 @@ export const tool$usersGetUserTeamsViaUsers: ToolDefinition = {
   name: "users-get-user-teams-via-users",
   description: `Get user teams
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve teams associated with the authenticated user.
 `,
   annotations: {

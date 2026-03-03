@@ -14,7 +14,6 @@ export const tool$semanticSearchShareSearch: ToolDefinition<typeof args> = {
   name: "semantic-search-share-search",
   description: `Share a search
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Share a specific search result, making it accessible to other users.
 `,
   annotations: {

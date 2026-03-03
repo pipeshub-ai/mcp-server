@@ -29,10 +29,7 @@ import { Result } from "../types/fp.js";
  * Archive a search
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Archive a specific search result. Archived searches are hidden from the default search history view.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function semanticSearchArchiveSearch(
   client$: SDKCore,
