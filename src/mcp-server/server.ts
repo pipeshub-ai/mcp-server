@@ -3,7 +3,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SDKCore } from "../core.js";
+import { PipeshubCore } from "../core.js";
 import { SDKOptions } from "../lib/config.js";
 import type { ConsoleLogger } from "./console-logger.js";
 import { createRegisterPrompt } from "./prompts.js";
@@ -283,19 +283,19 @@ export function createMCPServer(deps: {
   allowedTools?: string[] | undefined;
   dynamic?: boolean | undefined;
   scopes?: MCPScope[] | undefined;
-  getSDK?: () => SDKCore;
+  getSDK?: () => PipeshubCore;
   serverURL?: string | undefined;
   security?: SDKOptions["security"] | undefined;
   serverIdx?: SDKOptions["serverIdx"] | undefined;
   instance_url?: SDKOptions["instance_url"] | undefined;
 }) {
   const server = new McpServer({
-    name: "SDK",
-    version: "0.0.2",
+    name: "Pipeshub",
+    version: "1.0.0",
   });
 
   const getClient = deps.getSDK || (() =>
-    new SDKCore({
+    new PipeshubCore({
       security: deps.security,
       serverURL: deps.serverURL,
       serverIdx: deps.serverIdx,
