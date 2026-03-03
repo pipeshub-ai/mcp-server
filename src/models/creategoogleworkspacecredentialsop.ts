@@ -4,58 +4,40 @@
 
 import * as z from "zod";
 import * as b64$ from "../lib/base64.js";
-import { ClosedEnum } from "../types/enums.js";
 
-/**
- * Type: 'business' for service account, 'individual' for user OAuth
- */
-export const CreateGoogleWorkspaceCredentialsUserType = {
-  Individual: "individual",
-  Business: "business",
-} as const;
-/**
- * Type: 'business' for service account, 'individual' for user OAuth
- */
-export type CreateGoogleWorkspaceCredentialsUserType = ClosedEnum<
-  typeof CreateGoogleWorkspaceCredentialsUserType
->;
-
-export const CreateGoogleWorkspaceCredentialsUserType$zodSchema = z.enum([
-  "individual",
-  "business",
-]).describe(
-  "Type: 'business' for service account, 'individual' for user OAuth",
-);
-
-export type CreateGoogleWorkspaceCredentialsGoogleWorkspaceCredentials = {
+export type CreateGoogleWorkspaceCredentialsFile = {
   fileName: string;
   content: Uint8Array | string;
 };
 
-export const CreateGoogleWorkspaceCredentialsGoogleWorkspaceCredentials$zodSchema:
-  z.ZodType<CreateGoogleWorkspaceCredentialsGoogleWorkspaceCredentials> = z
-    .object({
-      content: z.string().describe("Base64-encoded binary content").transform(
-        b64$.bytesFromBase64,
-      ),
-      fileName: z.string(),
-    });
+export const CreateGoogleWorkspaceCredentialsFile$zodSchema: z.ZodType<
+  CreateGoogleWorkspaceCredentialsFile
+> = z.object({
+  content: z.string().describe("Base64-encoded binary content").transform(
+    b64$.bytesFromBase64,
+  ),
+  fileName: z.string(),
+});
 
-/**
- * Request body for Upload Google Workspace credentials
- */
 export type CreateGoogleWorkspaceCredentialsRequest = {
-  userType: CreateGoogleWorkspaceCredentialsUserType;
-  googleWorkspaceCredentials:
-    | CreateGoogleWorkspaceCredentialsGoogleWorkspaceCredentials
-    | Blob;
+  file?: CreateGoogleWorkspaceCredentialsFile | Blob | undefined;
 };
 
 export const CreateGoogleWorkspaceCredentialsRequest$zodSchema: z.ZodType<
   CreateGoogleWorkspaceCredentialsRequest
 > = z.object({
-  googleWorkspaceCredentials: z.lazy(() =>
-    CreateGoogleWorkspaceCredentialsGoogleWorkspaceCredentials$zodSchema
-  ),
-  userType: CreateGoogleWorkspaceCredentialsUserType$zodSchema,
-}).describe("Request body for Upload Google Workspace credentials");
+  file: z.lazy(() => CreateGoogleWorkspaceCredentialsFile$zodSchema).optional(),
+});
+
+/**
+ * Google Workspace credentials uploaded
+ */
+export type CreateGoogleWorkspaceCredentialsResponse = {
+  message?: string | undefined;
+};
+
+export const CreateGoogleWorkspaceCredentialsResponse$zodSchema: z.ZodType<
+  CreateGoogleWorkspaceCredentialsResponse
+> = z.object({
+  message: z.string().optional(),
+}).describe("Google Workspace credentials uploaded");

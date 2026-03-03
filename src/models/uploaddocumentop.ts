@@ -4,48 +4,6 @@
 
 import * as z from "zod";
 import * as b64$ from "../lib/base64.js";
-import { ClosedEnum } from "../types/enums.js";
-import { Document, Document$zodSchema } from "./document.js";
-
-/**
- * Default permission level for shared access
- */
-export const UploadDocumentPermissions = {
-  Owner: "owner",
-  Editor: "editor",
-  Commentator: "commentator",
-  Readonly: "readonly",
-} as const;
-/**
- * Default permission level for shared access
- */
-export type UploadDocumentPermissions = ClosedEnum<
-  typeof UploadDocumentPermissions
->;
-
-export const UploadDocumentPermissions$zodSchema = z.enum([
-  "owner",
-  "editor",
-  "commentator",
-  "readonly",
-]).describe("Default permission level for shared access");
-
-/**
- * Enable version control for this document
- */
-export const IsVersionedFile = {
-  True: "true",
-  False: "false",
-} as const;
-/**
- * Enable version control for this document
- */
-export type IsVersionedFile = ClosedEnum<typeof IsVersionedFile>;
-
-export const IsVersionedFile$zodSchema = z.enum([
-  "true",
-  "false",
-]).describe("Enable version control for this document");
 
 export type UploadDocumentFile = {
   fileName: string;
@@ -60,38 +18,22 @@ export const UploadDocumentFile$zodSchema: z.ZodType<UploadDocumentFile> = z
     fileName: z.string(),
   });
 
-/**
- * Request payload
- */
 export type UploadDocumentRequest = {
-  documentName: string;
-  documentPath?: string | undefined;
-  alternateDocumentName?: string | undefined;
-  permissions?: UploadDocumentPermissions | undefined;
-  customMetadata?: string | undefined;
-  isVersionedFile: IsVersionedFile;
-  file: UploadDocumentFile | Blob;
+  file?: UploadDocumentFile | Blob | undefined;
 };
 
 export const UploadDocumentRequest$zodSchema: z.ZodType<UploadDocumentRequest> =
   z.object({
-    alternateDocumentName: z.string().optional(),
-    customMetadata: z.string().optional(),
-    documentName: z.string(),
-    documentPath: z.string().optional(),
-    file: z.lazy(() => UploadDocumentFile$zodSchema),
-    isVersionedFile: IsVersionedFile$zodSchema,
-    permissions: UploadDocumentPermissions$zodSchema.default("owner"),
-  }).describe("Request payload");
+    file: z.lazy(() => UploadDocumentFile$zodSchema).optional(),
+  });
 
-export type UploadDocumentResponse = {
-  Headers: { [k: string]: Array<string> };
-  Result: Document;
-};
+/**
+ * Document uploaded successfully
+ */
+export type UploadDocumentResponse = { message?: string | undefined };
 
 export const UploadDocumentResponse$zodSchema: z.ZodType<
   UploadDocumentResponse
 > = z.object({
-  Headers: z.record(z.string(), z.array(z.string())).default({}),
-  Result: Document$zodSchema,
-});
+  message: z.string().optional(),
+}).describe("Document uploaded successfully");

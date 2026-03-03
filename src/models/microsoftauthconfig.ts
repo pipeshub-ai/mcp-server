@@ -8,12 +8,12 @@ import * as z from "zod";
  * Microsoft authentication configuration
  */
 export type MicrosoftAuthConfig = {
-  clientId: string;
+  clientId?: string | undefined;
   tenantId?: string | undefined;
 };
 
 export const MicrosoftAuthConfig$zodSchema: z.ZodType<MicrosoftAuthConfig> = z
   .object({
-    clientId: z.string(),
+    clientId: z.string().optional(),
     tenantId: z.string().default("common"),
   }).describe("Microsoft authentication configuration");

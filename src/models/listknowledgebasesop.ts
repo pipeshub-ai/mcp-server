@@ -5,7 +5,6 @@
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
 import { KnowledgeBase, KnowledgeBase$zodSchema } from "./knowledgebase.js";
-import { PaginationInfo, PaginationInfo$zodSchema } from "./paginationinfo.js";
 
 /**
  * Field to sort by
@@ -72,17 +71,66 @@ export const ListKnowledgeBasesRequest$zodSchema: z.ZodType<
   sortOrder: ListKnowledgeBasesSortOrder$zodSchema.default("asc"),
 });
 
+export type ListKnowledgeBasesPagination = {
+  page?: number | undefined;
+  limit?: number | undefined;
+  totalCount?: number | undefined;
+  totalPages?: number | undefined;
+  hasNext?: boolean | undefined;
+  hasPrev?: boolean | undefined;
+};
+
+export const ListKnowledgeBasesPagination$zodSchema: z.ZodType<
+  ListKnowledgeBasesPagination
+> = z.object({
+  hasNext: z.boolean().optional(),
+  hasPrev: z.boolean().optional(),
+  limit: z.int().optional(),
+  page: z.int().optional(),
+  totalCount: z.int().optional(),
+  totalPages: z.int().optional(),
+});
+
+export type ListKnowledgeBasesApplied = {};
+
+export const ListKnowledgeBasesApplied$zodSchema: z.ZodType<
+  ListKnowledgeBasesApplied
+> = z.object({});
+
+export type ListKnowledgeBasesAvailable = {};
+
+export const ListKnowledgeBasesAvailable$zodSchema: z.ZodType<
+  ListKnowledgeBasesAvailable
+> = z.object({});
+
+/**
+ * Applied and available filters
+ */
+export type ListKnowledgeBasesFilters = {
+  applied?: ListKnowledgeBasesApplied | undefined;
+  available?: ListKnowledgeBasesAvailable | undefined;
+};
+
+export const ListKnowledgeBasesFilters$zodSchema: z.ZodType<
+  ListKnowledgeBasesFilters
+> = z.object({
+  applied: z.lazy(() => ListKnowledgeBasesApplied$zodSchema).optional(),
+  available: z.lazy(() => ListKnowledgeBasesAvailable$zodSchema).optional(),
+}).describe("Applied and available filters");
+
 /**
  * Successful operation
  */
 export type ListKnowledgeBasesResponse = {
   knowledgeBases?: Array<KnowledgeBase> | undefined;
-  pagination?: PaginationInfo | undefined;
+  pagination?: ListKnowledgeBasesPagination | undefined;
+  filters?: ListKnowledgeBasesFilters | undefined;
 };
 
 export const ListKnowledgeBasesResponse$zodSchema: z.ZodType<
   ListKnowledgeBasesResponse
 > = z.object({
+  filters: z.lazy(() => ListKnowledgeBasesFilters$zodSchema).optional(),
   knowledgeBases: z.array(KnowledgeBase$zodSchema).optional(),
-  pagination: PaginationInfo$zodSchema.optional(),
+  pagination: z.lazy(() => ListKnowledgeBasesPagination$zodSchema).optional(),
 }).describe("Successful operation");

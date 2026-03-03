@@ -6,7 +6,7 @@ import * as z from "zod";
 import {
   AIModelProviderConfig,
   AIModelProviderConfig$zodSchema,
-} from "./aimodelproviderconfiginput.js";
+} from "./aimodelproviderconfig.js";
 import { ModelType, ModelType$zodSchema } from "./modeltype.js";
 
 export type GetModelsByTypeRequest = { modelType: ModelType };
@@ -21,11 +21,15 @@ export const GetModelsByTypeRequest$zodSchema: z.ZodType<
  * Models retrieved
  */
 export type GetModelsByTypeResponse = {
+  status?: string | undefined;
+  message?: string | undefined;
   models?: Array<AIModelProviderConfig> | undefined;
 };
 
 export const GetModelsByTypeResponse$zodSchema: z.ZodType<
   GetModelsByTypeResponse
 > = z.object({
+  message: z.string().optional(),
   models: z.array(AIModelProviderConfig$zodSchema).optional(),
+  status: z.string().optional(),
 }).describe("Models retrieved");

@@ -5,7 +5,7 @@
 import * as z from "zod";
 
 export type Folder = {
-  _key?: string | undefined;
+  id?: string | undefined;
   name: string;
   parentId?: string | undefined;
   kbId: string;
@@ -16,8 +16,8 @@ export type Folder = {
 };
 
 export const Folder$zodSchema: z.ZodType<Folder> = z.object({
-  _key: z.string().optional(),
   createdAtTimestamp: z.int().optional(),
+  id: z.string().optional(),
   isDeleted: z.boolean().default(false),
   kbId: z.string(),
   name: z.string(),

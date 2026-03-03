@@ -4,19 +4,82 @@
 
 import * as z from "zod";
 
-export type CreateAgentModelConfig = {
+export type CreateAgentModel = {
   modelKey?: string | undefined;
-  temperature?: number | undefined;
-  maxTokens?: number | undefined;
+  modelName?: string | undefined;
+  provider?: string | undefined;
+  isReasoning?: boolean | undefined;
 };
 
-export const CreateAgentModelConfig$zodSchema: z.ZodType<
-  CreateAgentModelConfig
-> = z.object({
-  maxTokens: z.int().optional(),
-  modelKey: z.string().optional(),
-  temperature: z.number().optional(),
+export const CreateAgentModel$zodSchema: z.ZodType<CreateAgentModel> = z.object(
+  {
+    isReasoning: z.boolean().optional(),
+    modelKey: z.string().optional(),
+    modelName: z.string().optional(),
+    provider: z.string().optional(),
+  },
+);
+
+export type CreateAgentModelUnion = string | CreateAgentModel;
+
+export const CreateAgentModelUnion$zodSchema: z.ZodType<CreateAgentModelUnion> =
+  z.union([
+    z.string(),
+    z.lazy(() => CreateAgentModel$zodSchema),
+  ]);
+
+export type CreateAgentTool = {
+  name?: string | undefined;
+  fullName?: string | undefined;
+  description?: string | undefined;
+};
+
+export const CreateAgentTool$zodSchema: z.ZodType<CreateAgentTool> = z.object({
+  description: z.string().optional(),
+  fullName: z.string().optional(),
+  name: z.string().optional(),
 });
+
+export type CreateAgentToolset = {
+  name?: string | undefined;
+  displayName?: string | undefined;
+  type?: string | undefined;
+  instanceId?: string | undefined;
+  instanceName?: string | undefined;
+  tools?: Array<CreateAgentTool> | undefined;
+};
+
+export const CreateAgentToolset$zodSchema: z.ZodType<CreateAgentToolset> = z
+  .object({
+    displayName: z.string().optional(),
+    instanceId: z.string().optional(),
+    instanceName: z.string().optional(),
+    name: z.string().optional(),
+    tools: z.array(z.lazy(() => CreateAgentTool$zodSchema)).optional(),
+    type: z.string().optional(),
+  });
+
+export type CreateAgentFilters = { [k: string]: any } | string;
+
+export const CreateAgentFilters$zodSchema: z.ZodType<CreateAgentFilters> = z
+  .union([
+    z.record(z.string(), z.any()),
+    z.string(),
+  ]);
+
+export type CreateAgentKnowledge = {
+  connectorId?: string | undefined;
+  filters?: { [k: string]: any } | string | undefined;
+};
+
+export const CreateAgentKnowledge$zodSchema: z.ZodType<CreateAgentKnowledge> = z
+  .object({
+    connectorId: z.string().optional(),
+    filters: z.union([
+      z.record(z.string(), z.any()),
+      z.string(),
+    ]).optional(),
+  });
 
 /**
  * Request payload
@@ -25,19 +88,28 @@ export type CreateAgentRequest = {
   name: string;
   description?: string | undefined;
   systemPrompt?: string | undefined;
-  tools?: Array<string> | undefined;
-  knowledgeBases?: Array<string> | undefined;
-  modelConfig?: CreateAgentModelConfig | undefined;
+  startMessage?: string | undefined;
+  instructions?: string | null | undefined;
+  models?: Array<string | CreateAgentModel> | undefined;
+  toolsets?: Array<CreateAgentToolset> | undefined;
+  knowledge?: Array<CreateAgentKnowledge> | undefined;
   isPublic?: boolean | undefined;
+  shareWithOrg?: boolean | undefined;
 };
 
 export const CreateAgentRequest$zodSchema: z.ZodType<CreateAgentRequest> = z
   .object({
     description: z.string().optional(),
+    instructions: z.string().nullable().optional(),
     isPublic: z.boolean().default(false),
-    knowledgeBases: z.array(z.string()).optional(),
-    modelConfig: z.lazy(() => CreateAgentModelConfig$zodSchema).optional(),
+    knowledge: z.array(z.lazy(() => CreateAgentKnowledge$zodSchema)).optional(),
+    models: z.array(z.union([
+      z.string(),
+      z.lazy(() => CreateAgentModel$zodSchema),
+    ])).optional(),
     name: z.string(),
+    shareWithOrg: z.boolean().default(false),
+    startMessage: z.string().optional(),
     systemPrompt: z.string().optional(),
-    tools: z.array(z.string()).optional(),
+    toolsets: z.array(z.lazy(() => CreateAgentToolset$zodSchema)).optional(),
   }).describe("Request payload");

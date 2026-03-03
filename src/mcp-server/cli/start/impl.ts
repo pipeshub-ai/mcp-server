@@ -52,9 +52,19 @@ async function startStdio(flags: StartCommandFlags) {
     logger,
     allowedTools: flags.tool,
     dynamic: flags.mode === "dynamic",
-    security: { bearerAuth: flags["bearer-auth"] ?? "" },
+    security: {
+      bearerAuth: flags["bearer-auth"] ?? "",
+      oauth2: flags["client-id"] != null && flags["client-secret"] != null
+        ? {
+          clientID: flags["client-id"] || "",
+          clientSecret: flags["client-secret"] || "",
+          tokenURL: flags["token-url"] || "",
+        }
+        : undefined,
+    },
     serverURL: flags["server-url"],
     serverIdx: flags["server-index"],
+    instance_url: flags["instance-url"],
   });
   await server.connect(transport);
 
@@ -93,8 +103,12 @@ async function startSSE(cliFlags: StartCommandFlags) {
     const flags: StartCommandFlags = {
       ...cliFlags,
       // Security fields can be overridden via headers
-      "bearer-auth": (req.headers["bearerAuth"] as string)
+      "bearer-auth": (req.headers["bearerauth"] as string)
         ?? cliFlags["bearer-auth"],
+      "client-id": (req.headers["clientid"] as string) ?? cliFlags["client-id"],
+      "client-secret": (req.headers["clientsecret"] as string)
+        ?? cliFlags["client-secret"],
+      "token-url": (req.headers["tokenurl"] as string) ?? cliFlags["token-url"],
     };
 
     // Create a new MCP server for this connection with its auth
@@ -102,9 +116,19 @@ async function startSSE(cliFlags: StartCommandFlags) {
       logger,
       allowedTools: flags.tool,
       dynamic: flags.mode === "dynamic",
-      security: { bearerAuth: flags["bearer-auth"] ?? "" },
+      security: {
+        bearerAuth: flags["bearer-auth"] ?? "",
+        oauth2: flags["client-id"] != null && flags["client-secret"] != null
+          ? {
+            clientID: flags["client-id"] || "",
+            clientSecret: flags["client-secret"] || "",
+            tokenURL: flags["token-url"] || "",
+          }
+          : undefined,
+      },
       serverURL: flags["server-url"],
       serverIdx: flags["server-index"],
+      instance_url: flags["instance-url"],
     });
 
     // Message path includes session ID for routing

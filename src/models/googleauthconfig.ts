@@ -7,10 +7,10 @@ import * as z from "zod";
 /**
  * Google authentication configuration
  */
-export type GoogleAuthConfig = { clientId: string };
+export type GoogleAuthConfig = { clientId?: string | undefined };
 
 export const GoogleAuthConfig$zodSchema: z.ZodType<GoogleAuthConfig> = z.object(
   {
-    clientId: z.string(),
+    clientId: z.string().optional(),
   },
 ).describe("Google authentication configuration");

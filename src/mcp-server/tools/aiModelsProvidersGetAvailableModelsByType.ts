@@ -13,7 +13,7 @@ const args = {
 export const tool$aiModelsProvidersGetAvailableModelsByType: ToolDefinition<
   typeof args
 > = {
-  name: "ai-models-providers-get-available-models-by-type",
+  name: "AI-models-providers-get-available-models-by-type",
   description: `Get available models for selection
 
 Get available models in a flattened format for UI selection dropdowns.`,
