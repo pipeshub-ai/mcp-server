@@ -1,6 +1,6 @@
 configVersion: 2.0.0
 generation:
-  sdkClassName: SDK
+  sdkClassName: Pipeshub
   maintainOpenAPIOrder: true
   usageSnippets:
     optionalPropertyRendering: withExample
@@ -31,16 +31,16 @@ generation:
     generateNewTests: true
     skipResponseBodyAssertions: false
 mcp-typescript:
-  version: 0.0.2
+  version: 1.0.0
   additionalDependencies:
     dependencies: {}
     devDependencies: {}
     peerDependencies: {}
   advancedFlags: []
-  author: Speakeasy
-  baseErrorName: SDKError
+  author: Pipeshub
+  baseErrorName: PipeshubError
   cloudflareEnabled: false
-  defaultErrorName: SDKDefaultError
+  defaultErrorName: PipeshubDefaultError
   formStringArrayEncodeMode: array
   gramEnabled: false
   inferUnionDiscriminators: true
@@ -48,6 +48,6 @@ mcp-typescript:
   maxMethodParams: 0
   multipartArrayFormat: standard
   outputModelSuffix: output
-  packageName: mcp
+  packageName: '@pipeshub-ai/mcp'
   responseFormat: flat
   validateResponse: false
