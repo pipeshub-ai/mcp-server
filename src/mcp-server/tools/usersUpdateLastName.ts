@@ -14,7 +14,6 @@ export const tool$usersUpdateLastName: ToolDefinition<typeof args> = {
   name: "users-update-last-name",
   description: `Update user last name
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Update the last name of a user.
 `,
   annotations: {

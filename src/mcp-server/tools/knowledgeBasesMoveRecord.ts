@@ -14,7 +14,6 @@ export const tool$knowledgeBasesMoveRecord: ToolDefinition<typeof args> = {
   name: "knowledge-bases-move-record",
   description: `Move record to another location
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Move a record from one location to another within a knowledge base.
 `,
   annotations: {

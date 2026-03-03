@@ -16,7 +16,6 @@ export const tool$organizationAuthConfigSetUpAuthConfig: ToolDefinition<
   name: "organization-auth-config-set-up-auth-config",
   description: `Set up auth configuration
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Set up or initialize the organization's authentication configuration.
 `,
   annotations: {

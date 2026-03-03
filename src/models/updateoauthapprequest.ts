@@ -21,7 +21,11 @@ export const UpdateOAuthAppRequestAllowedGrantType$zodSchema = z.enum([
 ]);
 
 /**
- * Request to update an OAuth app
+ * Request to update an OAuth app.
+ *
+ * @remarks
+ * Redirect URIs are required when `authorization_code` grant type is enabled (either already set or being added).
+ * Existing redirect URIs are preserved in the database even if `authorization_code` is removed from grant types.
  */
 export type UpdateOAuthAppRequest = {
   name?: string | undefined;
@@ -49,4 +53,6 @@ export const UpdateOAuthAppRequest$zodSchema: z.ZodType<UpdateOAuthAppRequest> =
     redirectUris: z.array(z.string()).optional(),
     refreshTokenLifetime: z.int().optional(),
     termsOfServiceUrl: z.string().nullable().optional(),
-  }).describe("Request to update an OAuth app");
+  }).describe(
+    "Request to update an OAuth app.\nRedirect URIs are required when `authorization_code` grant type is enabled (either already set or being added).\nExisting redirect URIs are preserved in the database even if `authorization_code` is removed from grant types.\n",
+  );

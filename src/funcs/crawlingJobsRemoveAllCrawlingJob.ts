@@ -23,10 +23,7 @@ import { Result } from "../types/fp.js";
  * Remove all crawling jobs
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Remove all scheduled crawling jobs for the organization.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function crawlingJobsRemoveAllCrawlingJob(
   client$: SDKCore,

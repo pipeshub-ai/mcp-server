@@ -51,23 +51,13 @@ import { tool$authenticationConfigurationSetMicrosoftAuthConfig } from "./tools/
 import { tool$authenticationConfigurationSetOAuthConfig } from "./tools/authenticationConfigurationSetOAuthConfig.js";
 import { tool$authenticationConfigurationSetSsoAuthConfig } from "./tools/authenticationConfigurationSetSsoAuthConfig.js";
 import { tool$configurationManagerCreateAIModelsConfig } from "./tools/configurationManagerCreateAIModelsConfig.js";
-import { tool$configurationManagerCreateGoogleWorkspaceCredentials } from "./tools/configurationManagerCreateGoogleWorkspaceCredentials.js";
 import { tool$configurationManagerCreateSlackBotConfig } from "./tools/configurationManagerCreateSlackBotConfig.js";
 import { tool$configurationManagerDeleteSlackBotConfig } from "./tools/configurationManagerDeleteSlackBotConfig.js";
 import { tool$configurationManagerGetAIModelsConfig } from "./tools/configurationManagerGetAIModelsConfig.js";
 import { tool$configurationManagerGetAIModelsProviders } from "./tools/configurationManagerGetAIModelsProviders.js";
-import { tool$configurationManagerGetAtlassianOauthConfig } from "./tools/configurationManagerGetAtlassianOauthConfig.js";
-import { tool$configurationManagerGetGoogleWorkspaceCredentials } from "./tools/configurationManagerGetGoogleWorkspaceCredentials.js";
-import { tool$configurationManagerGetGoogleWorkspaceOauthConfig } from "./tools/configurationManagerGetGoogleWorkspaceOauthConfig.js";
-import { tool$configurationManagerGetOneDriveCredentials } from "./tools/configurationManagerGetOneDriveCredentials.js";
-import { tool$configurationManagerGetSharePointCredentials } from "./tools/configurationManagerGetSharePointCredentials.js";
 import { tool$configurationManagerGetSlackBotConfigs } from "./tools/configurationManagerGetSlackBotConfigs.js";
-import { tool$configurationManagerSetAtlassianOauthConfig } from "./tools/configurationManagerSetAtlassianOauthConfig.js";
-import { tool$configurationManagerSetGoogleWorkspaceOauthConfig } from "./tools/configurationManagerSetGoogleWorkspaceOauthConfig.js";
 import { tool$configurationManagerSetMetricsCollectionPushInterval } from "./tools/configurationManagerSetMetricsCollectionPushInterval.js";
 import { tool$configurationManagerSetMetricsCollectionRemoteServer } from "./tools/configurationManagerSetMetricsCollectionRemoteServer.js";
-import { tool$configurationManagerSetOneDriveCredentials } from "./tools/configurationManagerSetOneDriveCredentials.js";
-import { tool$configurationManagerSetSharePointCredentials } from "./tools/configurationManagerSetSharePointCredentials.js";
 import { tool$configurationManagerUpdateSlackBotConfig } from "./tools/configurationManagerUpdateSlackBotConfig.js";
 import { tool$connectorConfigurationGetConnectorConfig } from "./tools/connectorConfigurationGetConnectorConfig.js";
 import { tool$connectorConfigurationUpdateConnectorAuthConfig } from "./tools/connectorConfigurationUpdateConnectorAuthConfig.js";
@@ -116,18 +106,7 @@ import { tool$crawlingJobsRemoveAllCrawlingJob } from "./tools/crawlingJobsRemov
 import { tool$crawlingJobsRemoveCrawlingJob } from "./tools/crawlingJobsRemoveCrawlingJob.js";
 import { tool$crawlingJobsResumeCrawlingJob } from "./tools/crawlingJobsResumeCrawlingJob.js";
 import { tool$crawlingJobsScheduleCrawlingJob } from "./tools/crawlingJobsScheduleCrawlingJob.js";
-import { tool$documentManagementCreateDocumentBufferMultipart } from "./tools/documentManagementCreateDocumentBufferMultipart.js";
-import { tool$documentManagementCreateDocumentBufferRaw } from "./tools/documentManagementCreateDocumentBufferRaw.js";
-import { tool$documentManagementCreatePlaceholderDocument } from "./tools/documentManagementCreatePlaceholderDocument.js";
-import { tool$documentManagementDeleteDocumentById } from "./tools/documentManagementDeleteDocumentById.js";
-import { tool$documentManagementDocumentDiffChecker } from "./tools/documentManagementDocumentDiffChecker.js";
 import { tool$documentManagementDownloadDocument } from "./tools/documentManagementDownloadDocument.js";
-import { tool$documentManagementGetDocumentBuffer } from "./tools/documentManagementGetDocumentBuffer.js";
-import { tool$documentManagementGetDocumentById } from "./tools/documentManagementGetDocumentById.js";
-import { tool$documentManagementRollBackToPreviousVersion } from "./tools/documentManagementRollBackToPreviousVersion.js";
-import { tool$documentManagementUploadDirectDocument } from "./tools/documentManagementUploadDirectDocument.js";
-import { tool$documentManagementUploadDocument } from "./tools/documentManagementUploadDocument.js";
-import { tool$documentManagementUploadNextVersionDocument } from "./tools/documentManagementUploadNextVersionDocument.js";
 import { tool$foldersCreateRootFolder } from "./tools/foldersCreateRootFolder.js";
 import { tool$foldersCreateSubfolder } from "./tools/foldersCreateSubfolder.js";
 import { tool$foldersDeleteFolder } from "./tools/foldersDeleteFolder.js";
@@ -312,7 +291,7 @@ export function createMCPServer(deps: {
 }) {
   const server = new McpServer({
     name: "SDK",
-    version: "0.0.1",
+    version: "0.0.2",
   });
 
   const getClient = deps.getSDK || (() =>
@@ -442,17 +421,6 @@ export function createMCPServer(deps: {
   tool(tool$userGroupsGetUsersInGroup);
   tool(tool$userGroupsGetGroupStatistics);
   tool(tool$documentManagementDownloadDocument);
-  tool(tool$documentManagementUploadDocument);
-  tool(tool$documentManagementCreatePlaceholderDocument);
-  tool(tool$documentManagementGetDocumentById);
-  tool(tool$documentManagementDeleteDocumentById);
-  tool(tool$documentManagementUploadNextVersionDocument);
-  tool(tool$documentManagementRollBackToPreviousVersion);
-  tool(tool$documentManagementGetDocumentBuffer);
-  tool(tool$documentManagementCreateDocumentBufferMultipart);
-  tool(tool$documentManagementCreateDocumentBufferRaw);
-  tool(tool$documentManagementUploadDirectDocument);
-  tool(tool$documentManagementDocumentDiffChecker);
   tool(tool$knowledgeBasesCreateKnowledgeBase);
   tool(tool$knowledgeBasesListKnowledgeBases);
   tool(tool$knowledgeBasesGetKnowledgeBase);
@@ -615,16 +583,6 @@ export function createMCPServer(deps: {
   tool(tool$platformSettingsGetCustomSystemPrompt);
   tool(tool$metricsCollectionGetMetricsCollection);
   tool(tool$metricsCollectionToggleMetricsCollection);
-  tool(tool$configurationManagerGetAtlassianOauthConfig);
-  tool(tool$configurationManagerSetAtlassianOauthConfig);
-  tool(tool$configurationManagerGetOneDriveCredentials);
-  tool(tool$configurationManagerSetOneDriveCredentials);
-  tool(tool$configurationManagerGetSharePointCredentials);
-  tool(tool$configurationManagerSetSharePointCredentials);
-  tool(tool$configurationManagerGetGoogleWorkspaceCredentials);
-  tool(tool$configurationManagerCreateGoogleWorkspaceCredentials);
-  tool(tool$configurationManagerGetGoogleWorkspaceOauthConfig);
-  tool(tool$configurationManagerSetGoogleWorkspaceOauthConfig);
   tool(tool$configurationManagerGetSlackBotConfigs);
   tool(tool$configurationManagerCreateSlackBotConfig);
   tool(tool$configurationManagerUpdateSlackBotConfig);

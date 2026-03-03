@@ -14,7 +14,6 @@ export const tool$semanticSearchUnarchiveSearch: ToolDefinition<typeof args> = {
   name: "semantic-search-unarchive-search",
   description: `Unarchive a search
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Restore a previously archived search result back to the active search history.
 `,
   annotations: {

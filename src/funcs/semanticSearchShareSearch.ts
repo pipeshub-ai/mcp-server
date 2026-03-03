@@ -29,10 +29,7 @@ import { Result } from "../types/fp.js";
  * Share a search
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Share a specific search result, making it accessible to other users.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function semanticSearchShareSearch(
   client$: SDKCore,

@@ -14,7 +14,6 @@ export const tool$teamsRemoveUserFromTeam: ToolDefinition<typeof args> = {
   name: "teams-remove-user-from-team",
   description: `Remove user from team
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Remove a user from a team.
 `,
   annotations: {

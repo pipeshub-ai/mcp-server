@@ -16,7 +16,6 @@ export const tool$configurationManagerCreateAIModelsConfig: ToolDefinition<
   name: "configuration-manager-create-AI-models-config",
   description: `Create AI models configuration
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Create or initialize AI models configuration for the organization.
 `,
   annotations: {

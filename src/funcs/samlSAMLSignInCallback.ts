@@ -28,10 +28,7 @@ import { Result } from "../types/fp.js";
  * SAML sign-in callback
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Handle the SAML Identity Provider callback after user authentication. This endpoint receives the SAML assertion from the IdP.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function samlSAMLSignInCallback(
   client$: SDKCore,

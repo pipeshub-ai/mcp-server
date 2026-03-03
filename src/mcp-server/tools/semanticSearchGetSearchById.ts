@@ -14,7 +14,6 @@ export const tool$semanticSearchGetSearchById: ToolDefinition<typeof args> = {
   name: "semantic-search-get-search-by-id",
   description: `Get search by ID
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve a specific search result by its ID.
 `,
   annotations: {

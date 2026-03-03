@@ -9,7 +9,6 @@ export const tool$teamsGetUserCreatedTeams: ToolDefinition = {
   name: "teams-get-user-created-teams",
   description: `Get user created teams
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve teams created by the authenticated user.
 `,
   annotations: {

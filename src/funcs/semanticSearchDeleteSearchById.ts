@@ -29,10 +29,7 @@ import { Result } from "../types/fp.js";
  * Delete search by ID
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Delete a specific search result by its ID.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function semanticSearchDeleteSearchById(
   client$: SDKCore,

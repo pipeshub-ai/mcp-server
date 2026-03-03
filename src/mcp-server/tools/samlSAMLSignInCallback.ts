@@ -14,7 +14,6 @@ export const tool$samlSAMLSignInCallback: ToolDefinition<typeof args> = {
   name: "saml-saml-sign-in-callback",
   description: `SAML sign-in callback
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Handle the SAML Identity Provider callback after user authentication. This endpoint receives the SAML assertion from the IdP.
 `,
   annotations: {

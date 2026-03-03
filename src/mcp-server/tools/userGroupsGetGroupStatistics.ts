@@ -9,7 +9,6 @@ export const tool$userGroupsGetGroupStatistics: ToolDefinition = {
   name: "user-groups-get-group-statistics",
   description: `Get group statistics
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Retrieve statistics for all user groups including member counts.
 `,
   annotations: {

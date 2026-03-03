@@ -29,10 +29,7 @@ import { Result } from "../types/fp.js";
  * Update user designation
  *
  * @remarks
- * <b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
  * Update the designation/title of a user.
- *
- * @deprecated method: This will be removed in a future release, please migrate away from it as soon as possible.
  */
 export function usersUpdateDesignation(
   client$: SDKCore,

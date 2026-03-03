@@ -15,7 +15,6 @@ export const tool$configurationManagerSetMetricsCollectionRemoteServer:
     name: "configuration-manager-set-metrics-collection-58e",
     description: `Set metrics remote server URL
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Configure the remote server URL for metrics collection.
 `,
     annotations: {

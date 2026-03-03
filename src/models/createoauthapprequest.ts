@@ -21,12 +21,16 @@ export const CreateOAuthAppRequestAllowedGrantType$zodSchema = z.enum([
 ]);
 
 /**
- * Request to create a new OAuth app
+ * Request to create a new OAuth app.
+ *
+ * @remarks
+ * Redirect URIs are required only when `authorization_code` is included in `allowedGrantTypes`.
+ * If `authorization_code` is not enabled, redirect URIs are optional and will be ignored.
  */
 export type CreateOAuthAppRequest = {
   name: string;
   description?: string | undefined;
-  redirectUris: Array<string>;
+  redirectUris?: Array<string> | undefined;
   allowedGrantTypes?: Array<CreateOAuthAppRequestAllowedGrantType> | undefined;
   allowedScopes: Array<string>;
   homepageUrl?: string | undefined;
@@ -48,7 +52,9 @@ export const CreateOAuthAppRequest$zodSchema: z.ZodType<CreateOAuthAppRequest> =
     isConfidential: z.boolean().default(true),
     name: z.string(),
     privacyPolicyUrl: z.string().optional(),
-    redirectUris: z.array(z.string()),
+    redirectUris: z.array(z.string()).optional(),
     refreshTokenLifetime: z.int().default(604800),
     termsOfServiceUrl: z.string().optional(),
-  }).describe("Request to create a new OAuth app");
+  }).describe(
+    "Request to create a new OAuth app.\nRedirect URIs are required only when `authorization_code` is included in `allowedGrantTypes`.\nIf `authorization_code` is not enabled, redirect URIs are optional and will be ignored.\n",
+  );

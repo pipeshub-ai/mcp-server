@@ -14,7 +14,6 @@ export const tool$usersUpdateEmail: ToolDefinition<typeof args> = {
   name: "users-update-email",
   description: `Update user email
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Update the email address of a user.
 `,
   annotations: {

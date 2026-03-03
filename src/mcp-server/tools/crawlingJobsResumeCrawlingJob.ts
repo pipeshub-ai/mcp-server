@@ -14,7 +14,6 @@ export const tool$crawlingJobsResumeCrawlingJob: ToolDefinition<typeof args> = {
   name: "crawling-jobs-resume-crawling-job",
   description: `Resume a crawling job
 
-<b>⚠️ Deprecated:</b> This endpoint is deprecated and will be removed in a future release.<br><br>
 Resume a previously paused crawling job for a specific connector.
 `,
   annotations: {
