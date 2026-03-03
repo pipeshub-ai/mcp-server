@@ -56,7 +56,7 @@ The MCP bundle package includes the MCP server and all necessary configuration. 
 <details>
 <summary>Cursor</summary>
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=SDK&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJtY3AiLCJzdGFydCIsIi0taW5zdGFuY2UtdXJsIiwiaHR0cHM6Ly9hcHAucGlwZXNodWIuY29tIiwiLS1iZWFyZXItYXV0aCIsIiIsIi0tY2xpZW50LWlkIiwiIiwiLS1jbGllbnQtc2VjcmV0IiwiIiwiLS10b2tlbi11cmwiLCIvYXBpL3YxL29hdXRoMi90b2tlbiJdfQ==)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=Pipeshub&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAcGlwZXNodWItYWkvbWNwIiwic3RhcnQiLCItLWluc3RhbmNlLXVybCIsImh0dHBzOi8vYXBwLnBpcGVzaHViLmNvbSIsIi0tYmVhcmVyLWF1dGgiLCIiLCItLWNsaWVudC1pZCIsIiIsIi0tY2xpZW50LXNlY3JldCIsIiIsIi0tdG9rZW4tdXJsIiwiL2FwaS92MS9vYXV0aDIvdG9rZW4iXX0=)
 
 Or manually:
 
@@ -69,7 +69,7 @@ Or manually:
 {
   "command": "npx",
   "args": [
-    "mcp",
+    "@pipeshub-ai/mcp",
     "start",
     "--instance-url",
     "https://app.pipeshub.com",
@@ -91,7 +91,7 @@ Or manually:
 <summary>Claude Code CLI</summary>
 
 ```bash
-claude mcp add SDK -- npx -y mcp start --instance-url https://app.pipeshub.com --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
+claude mcp add Pipeshub -- npx -y @pipeshub-ai/mcp start --instance-url https://app.pipeshub.com --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
 ```
 
 </details>
@@ -99,7 +99,7 @@ claude mcp add SDK -- npx -y mcp start --instance-url https://app.pipeshub.com -
 <summary>Gemini</summary>
 
 ```bash
-gemini mcp add SDK -- npx -y mcp start --instance-url https://app.pipeshub.com --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
+gemini mcp add Pipeshub -- npx -y @pipeshub-ai/mcp start --instance-url https://app.pipeshub.com --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
 ```
 
 </details>
@@ -118,7 +118,7 @@ Refer to [Official Windsurf documentation](https://docs.windsurf.com/windsurf/ca
 {
   "command": "npx",
   "args": [
-    "mcp",
+    "@pipeshub-ai/mcp",
     "start",
     "--instance-url",
     "https://app.pipeshub.com",
@@ -137,7 +137,7 @@ Refer to [Official Windsurf documentation](https://docs.windsurf.com/windsurf/ca
 <details>
 <summary>VS Code</summary>
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-VS_Code?style=flat-square&label=Install%20SDK%20MCP&color=0098FF)](vscode://ms-vscode.vscode-mcp/install?name=SDK&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJtY3AiLCJzdGFydCIsIi0taW5zdGFuY2UtdXJsIiwiaHR0cHM6Ly9hcHAucGlwZXNodWIuY29tIiwiLS1iZWFyZXItYXV0aCIsIiIsIi0tY2xpZW50LWlkIiwiIiwiLS1jbGllbnQtc2VjcmV0IiwiIiwiLS10b2tlbi11cmwiLCIvYXBpL3YxL29hdXRoMi90b2tlbiJdfQ==)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-VS_Code?style=flat-square&label=Install%20Pipeshub%20MCP&color=0098FF)](vscode://ms-vscode.vscode-mcp/install?name=Pipeshub&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAcGlwZXNodWItYWkvbWNwIiwic3RhcnQiLCItLWluc3RhbmNlLXVybCIsImh0dHBzOi8vYXBwLnBpcGVzaHViLmNvbSIsIi0tYmVhcmVyLWF1dGgiLCIiLCItLWNsaWVudC1pZCIsIiIsIi0tY2xpZW50LXNlY3JldCIsIiIsIi0tdG9rZW4tdXJsIiwiL2FwaS92MS9vYXV0aDIvdG9rZW4iXX0=)
 
 Or manually:
 
@@ -151,7 +151,7 @@ Refer to [Official VS Code documentation](https://code.visualstudio.com/api/exte
 {
   "command": "npx",
   "args": [
-    "mcp",
+    "@pipeshub-ai/mcp",
     "start",
     "--instance-url",
     "https://app.pipeshub.com",
@@ -173,13 +173,13 @@ Refer to [Official VS Code documentation](https://code.visualstudio.com/api/exte
 To start the MCP server, run:
 
 ```bash
-npx mcp start --instance-url https://app.pipeshub.com --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
+npx @pipeshub-ai/mcp start --instance-url https://app.pipeshub.com --bearer-auth  --client-id  --client-secret  --token-url /api/v1/oauth2/token
 ```
 
 For a full list of server arguments, run:
 
 ```
-npx mcp --help
+npx @pipeshub-ai/mcp --help
 ```
 
 </details>
@@ -231,9 +231,9 @@ To enable dynamic mode, pass the `--mode dynamic` flag when starting your server
 ```jsonc
 {
   "mcpServers": {
-    "SDK": {
+    "Pipeshub": {
       "command": "npx",
-      "args": ["mcp", "start", "--mode", "dynamic"],
+      "args": ["@pipeshub-ai/mcp", "start", "--mode", "dynamic"],
       // ... other server arguments
     }
   }

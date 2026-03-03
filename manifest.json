@@ -1,11 +1,11 @@
 {
   "manifest_version": "0.3",
-  "name": "mcp",
-  "version": "0.0.2",
+  "name": "@pipeshub-ai/mcp",
+  "version": "1.0.0",
   "description": "",
   "long_description": "PipesHub API: Unified API documentation for PipesHub services.\n\nPipesHub is an enterprise-grade platform providing:\n- User authentication and management\n- Document storage and version control\n- Knowledge base management\n- Enterprise search and conversational AI\n- Third-party integrations via connectors\n- System configuration management\n- Crawling job scheduling\n- Email services\n\n## Authentication\nMost endpoints require JWT Bearer token authentication. Some internal endpoints use scoped tokens for service-to-service communication.\n\n## Base URLs\nAll endpoints use the `/api/v1` prefix unless otherwise noted.\n",
   "author": {
-    "name": "Speakeasy"
+    "name": "Pipeshub"
   },
   "server": {
     "type": "node",
@@ -28,10 +28,11 @@
       ]
     }
   },
-  "display_name": "Mcp",
+  "display_name": "@pipeshub Ai/mcp",
   "prompts": [],
   "keywords": [
-      "mcp",
+      "@pipeshub",
+      "ai/mcp",
       "pipeshub",
       "api",
       "unified",
