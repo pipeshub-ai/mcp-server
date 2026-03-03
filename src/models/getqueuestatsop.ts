@@ -3,20 +3,11 @@
  */
 
 import * as z from "zod";
-import { QueueStats, QueueStats$zodSchema } from "./queuestats.js";
 
 /**
- * Queue statistics retrieved successfully
+ * Queue statistics retrieved
  */
-export type GetQueueStatsResponse = {
-  success?: boolean | undefined;
-  message?: string | undefined;
-  data?: QueueStats | undefined;
-};
+export type GetQueueStatsResponse = {};
 
 export const GetQueueStatsResponse$zodSchema: z.ZodType<GetQueueStatsResponse> =
-  z.object({
-    data: QueueStats$zodSchema.optional(),
-    message: z.string().optional(),
-    success: z.boolean().optional(),
-  }).describe("Queue statistics retrieved successfully");
+  z.object({}).describe("Queue statistics retrieved");

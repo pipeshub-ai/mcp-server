@@ -3,29 +3,20 @@
  */
 
 import * as z from "zod";
-import { Document, Document$zodSchema } from "./document.js";
 
 export type GetDocumentByIdRequest = { documentId: string };
 
 export const GetDocumentByIdRequest$zodSchema: z.ZodType<
   GetDocumentByIdRequest
 > = z.object({
-  documentId: z.string().describe(
-    "Document ID (24-character MongoDB ObjectId)",
-  ),
+  documentId: z.string(),
 });
 
 /**
- * Document details retrieved successfully
+ * Document details retrieved
  */
-export type GetDocumentByIdResponse = {
-  success?: boolean | undefined;
-  data?: Document | undefined;
-};
+export type GetDocumentByIdResponse = {};
 
 export const GetDocumentByIdResponse$zodSchema: z.ZodType<
   GetDocumentByIdResponse
-> = z.object({
-  data: Document$zodSchema.optional(),
-  success: z.boolean().optional(),
-}).describe("Document details retrieved successfully");
+> = z.object({}).describe("Document details retrieved");

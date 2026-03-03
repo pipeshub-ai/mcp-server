@@ -3,10 +3,15 @@
  */
 
 import * as z from "zod";
+import { SchemeOauth2, SchemeOauth2$zodSchema } from "./schemeoauth2.js";
 
-export type Security = { bearerAuth?: string | undefined };
+export type Security = {
+  bearerAuth?: string | undefined;
+  oauth2?: SchemeOauth2 | undefined;
+};
 
 export const Security$zodSchema: z.ZodType<Security> = z.object({
   bearerAuth: z.string().describe("JWT Bearer token for authenticated requests")
     .optional(),
+  oauth2: SchemeOauth2$zodSchema.optional(),
 });

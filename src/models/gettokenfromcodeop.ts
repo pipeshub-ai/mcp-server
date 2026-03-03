@@ -4,28 +4,91 @@
 
 import * as z from "zod";
 
-/**
- * Authorization code from Google OAuth consent
- */
-export type GetTokenFromCodeRequest = { code: string };
+export type GetTokenFromCodeRequest = { tempCode: string };
 
 export const GetTokenFromCodeRequest$zodSchema: z.ZodType<
   GetTokenFromCodeRequest
 > = z.object({
-  code: z.string(),
-}).describe("Authorization code from Google OAuth consent");
+  tempCode: z.string(),
+});
+
+export type Connector2 = {
+  _id?: string | undefined;
+  orgId?: string | undefined;
+  name?: string | undefined;
+  isEnabled?: boolean | undefined;
+  lastUpdatedBy?: string | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+};
+
+export const Connector2$zodSchema: z.ZodType<Connector2> = z.object({
+  _id: z.string().optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
+  isEnabled: z.boolean().optional(),
+  lastUpdatedBy: z.string().optional(),
+  name: z.string().optional(),
+  orgId: z.string().optional(),
+  updatedAt: z.iso.datetime({ offset: true }).optional(),
+});
 
 /**
- * Tokens exchanged and stored successfully
+ * New connector created and enabled
  */
-export type GetTokenFromCodeResponse = {
-  success?: boolean | undefined;
+export type GetTokenFromCodeResponseBody2 = {
   message?: string | undefined;
+  connector?: Connector2 | undefined;
 };
+
+export const GetTokenFromCodeResponseBody2$zodSchema: z.ZodType<
+  GetTokenFromCodeResponseBody2
+> = z.object({
+  connector: z.lazy(() => Connector2$zodSchema).optional(),
+  message: z.string().optional(),
+}).describe("New connector created and enabled");
+
+export type Connector1 = {
+  _id?: string | undefined;
+  orgId?: string | undefined;
+  name?: string | undefined;
+  isEnabled?: boolean | undefined;
+  lastUpdatedBy?: string | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+};
+
+export const Connector1$zodSchema: z.ZodType<Connector1> = z.object({
+  _id: z.string().optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
+  isEnabled: z.boolean().optional(),
+  lastUpdatedBy: z.string().optional(),
+  name: z.string().optional(),
+  orgId: z.string().optional(),
+  updatedAt: z.iso.datetime({ offset: true }).optional(),
+});
+
+/**
+ * Existing connector enabled successfully
+ */
+export type GetTokenFromCodeResponseBody1 = {
+  message?: string | undefined;
+  connector?: Connector1 | undefined;
+};
+
+export const GetTokenFromCodeResponseBody1$zodSchema: z.ZodType<
+  GetTokenFromCodeResponseBody1
+> = z.object({
+  connector: z.lazy(() => Connector1$zodSchema).optional(),
+  message: z.string().optional(),
+}).describe("Existing connector enabled successfully");
+
+export type GetTokenFromCodeResponse =
+  | GetTokenFromCodeResponseBody1
+  | GetTokenFromCodeResponseBody2;
 
 export const GetTokenFromCodeResponse$zodSchema: z.ZodType<
   GetTokenFromCodeResponse
-> = z.object({
-  message: z.string().optional(),
-  success: z.boolean().optional(),
-}).describe("Tokens exchanged and stored successfully");
+> = z.union([
+  z.lazy(() => GetTokenFromCodeResponseBody1$zodSchema),
+  z.lazy(() => GetTokenFromCodeResponseBody2$zodSchema),
+]);

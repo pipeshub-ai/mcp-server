@@ -3,7 +3,6 @@
  */
 
 import * as z from "zod";
-import { User, User$zodSchema } from "./user.js";
 
 export type GetUserByIdRequest = { id: string };
 
@@ -11,17 +10,3 @@ export const GetUserByIdRequest$zodSchema: z.ZodType<GetUserByIdRequest> = z
   .object({
     id: z.string().describe("User ID (24-character MongoDB ObjectId)"),
   });
-
-/**
- * User details retrieved successfully
- */
-export type GetUserByIdResponse = {
-  success?: boolean | undefined;
-  data?: User | undefined;
-};
-
-export const GetUserByIdResponse$zodSchema: z.ZodType<GetUserByIdResponse> = z
-  .object({
-    data: User$zodSchema.optional(),
-    success: z.boolean().optional(),
-  }).describe("User details retrieved successfully");

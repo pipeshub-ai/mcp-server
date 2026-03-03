@@ -8,7 +8,7 @@ import { ClosedEnum } from "../types/enums.js";
 /**
  * Currently configured storage type
  */
-export const GetStorageConfigStorageType = {
+export const StorageType = {
   Local: "local",
   S3: "s3",
   AzureBlob: "azureBlob",
@@ -16,11 +16,9 @@ export const GetStorageConfigStorageType = {
 /**
  * Currently configured storage type
  */
-export type GetStorageConfigStorageType = ClosedEnum<
-  typeof GetStorageConfigStorageType
->;
+export type StorageType = ClosedEnum<typeof StorageType>;
 
-export const GetStorageConfigStorageType$zodSchema = z.enum([
+export const StorageType$zodSchema = z.enum([
   "local",
   "s3",
   "azureBlob",
@@ -30,7 +28,7 @@ export const GetStorageConfigStorageType$zodSchema = z.enum([
  * Storage configuration retrieved
  */
 export type GetStorageConfigResponse = {
-  storageType?: GetStorageConfigStorageType | undefined;
+  storageType?: StorageType | undefined;
   mountName?: string | undefined;
   baseUrl?: string | undefined;
   accessKeyId?: string | undefined;
@@ -52,5 +50,5 @@ export const GetStorageConfigResponse$zodSchema: z.ZodType<
   mountName: z.string().optional(),
   region: z.string().optional(),
   secretAccessKey: z.string().optional(),
-  storageType: GetStorageConfigStorageType$zodSchema.optional(),
+  storageType: StorageType$zodSchema.optional(),
 }).describe("Storage configuration retrieved");

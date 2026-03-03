@@ -3,7 +3,6 @@
  */
 
 import { Security } from "../models/security.js";
-import { env } from "./env.js";
 
 type OAuth2PasswordFlow = {
   username: string;
@@ -84,7 +83,10 @@ type SecurityInputOAuth2 = {
 type SecurityInputOAuth2ClientCredentials = {
   type: "oauth2:client_credentials";
   value:
-    | { clientID?: string | undefined; clientSecret?: string | undefined }
+    | {
+      clientID?: string | undefined;
+      clientSecret?: string | undefined;
+    }
     | null
     | string
     | undefined;
@@ -243,7 +245,16 @@ export function resolveGlobalSecurity(
       {
         fieldName: "Authorization",
         type: "http:bearer",
-        value: security?.bearerAuth || env().PIPESHUB_BEARER_AUTH,
+        value: security?.bearerAuth,
+      },
+    ],
+    [
+      {
+        type: "oauth2:client_credentials",
+        value: {
+          clientID: security?.oauth2?.clientID,
+          clientSecret: security?.oauth2?.clientSecret,
+        },
       },
     ],
   );

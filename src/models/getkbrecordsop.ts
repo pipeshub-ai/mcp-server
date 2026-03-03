@@ -4,6 +4,8 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { Folder, Folder$zodSchema } from "./folder.js";
+import { RecordT, RecordT$zodSchema } from "./record.js";
 
 export const GetKBRecordsSortOrder = {
   Asc: "asc",
@@ -45,3 +47,129 @@ export const GetKBRecordsRequest$zodSchema: z.ZodType<GetKBRecordsRequest> = z
     sortBy: z.string().default("createdAtTimestamp"),
     sortOrder: GetKBRecordsSortOrder$zodSchema.default("desc"),
   });
+
+export type GetKBRecordsContainer = {
+  id?: string | undefined;
+  name?: string | undefined;
+  path?: string | undefined;
+  type?: string | undefined;
+  webUrl?: string | undefined;
+  recordGroupId?: string | undefined;
+};
+
+export const GetKBRecordsContainer$zodSchema: z.ZodType<GetKBRecordsContainer> =
+  z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    path: z.string().optional(),
+    recordGroupId: z.string().optional(),
+    type: z.string().optional(),
+    webUrl: z.string().optional(),
+  });
+
+export type GetKBRecordsCounts = {
+  folders?: number | undefined;
+  records?: number | undefined;
+  totalItems?: number | undefined;
+  totalFolders?: number | undefined;
+  totalRecords?: number | undefined;
+};
+
+export const GetKBRecordsCounts$zodSchema: z.ZodType<GetKBRecordsCounts> = z
+  .object({
+    folders: z.int().optional(),
+    records: z.int().optional(),
+    totalFolders: z.int().optional(),
+    totalItems: z.int().optional(),
+    totalRecords: z.int().optional(),
+  });
+
+export type GetKBRecordsAvailableFilters = {};
+
+export const GetKBRecordsAvailableFilters$zodSchema: z.ZodType<
+  GetKBRecordsAvailableFilters
+> = z.object({});
+
+export type GetKBRecordsUserPermission = {
+  role?: string | undefined;
+  canUpload?: boolean | undefined;
+  canCreateFolders?: boolean | undefined;
+  canEdit?: boolean | undefined;
+  canDelete?: boolean | undefined;
+  canManagePermissions?: boolean | undefined;
+};
+
+export const GetKBRecordsUserPermission$zodSchema: z.ZodType<
+  GetKBRecordsUserPermission
+> = z.object({
+  canCreateFolders: z.boolean().optional(),
+  canDelete: z.boolean().optional(),
+  canEdit: z.boolean().optional(),
+  canManagePermissions: z.boolean().optional(),
+  canUpload: z.boolean().optional(),
+  role: z.string().optional(),
+});
+
+export type GetKBRecordsPagination = {
+  page?: number | undefined;
+  limit?: number | undefined;
+  totalItems?: number | undefined;
+  totalPages?: number | undefined;
+  hasNext?: boolean | undefined;
+  hasPrev?: boolean | undefined;
+};
+
+export const GetKBRecordsPagination$zodSchema: z.ZodType<
+  GetKBRecordsPagination
+> = z.object({
+  hasNext: z.boolean().optional(),
+  hasPrev: z.boolean().optional(),
+  limit: z.int().optional(),
+  page: z.int().optional(),
+  totalItems: z.int().optional(),
+  totalPages: z.int().optional(),
+});
+
+/**
+ * Applied and available filters
+ */
+export type GetKBRecordsFilters = {};
+
+export const GetKBRecordsFilters$zodSchema: z.ZodType<GetKBRecordsFilters> = z
+  .object({}).describe("Applied and available filters");
+
+/**
+ * Successful operation
+ */
+export type GetKBRecordsResponse = {
+  success?: boolean | undefined;
+  container?: GetKBRecordsContainer | undefined;
+  folders?: Array<Folder> | undefined;
+  records?: Array<RecordT> | undefined;
+  level?: number | undefined;
+  totalCount?: number | undefined;
+  counts?: GetKBRecordsCounts | undefined;
+  availableFilters?: GetKBRecordsAvailableFilters | undefined;
+  paginationMode?: string | undefined;
+  userPermission?: GetKBRecordsUserPermission | undefined;
+  pagination?: GetKBRecordsPagination | undefined;
+  filters?: GetKBRecordsFilters | undefined;
+};
+
+export const GetKBRecordsResponse$zodSchema: z.ZodType<GetKBRecordsResponse> = z
+  .object({
+    availableFilters: z.lazy(() => GetKBRecordsAvailableFilters$zodSchema)
+      .optional(),
+    container: z.lazy(() => GetKBRecordsContainer$zodSchema).optional(),
+    counts: z.lazy(() => GetKBRecordsCounts$zodSchema).optional(),
+    filters: z.lazy(() => GetKBRecordsFilters$zodSchema).optional(),
+    folders: z.array(Folder$zodSchema).optional(),
+    level: z.int().optional(),
+    pagination: z.lazy(() => GetKBRecordsPagination$zodSchema).optional(),
+    paginationMode: z.string().optional(),
+    records: z.array(RecordT$zodSchema).optional(),
+    success: z.boolean().optional(),
+    totalCount: z.int().optional(),
+    userPermission: z.lazy(() => GetKBRecordsUserPermission$zodSchema)
+      .optional(),
+  }).describe("Successful operation");

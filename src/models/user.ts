@@ -24,14 +24,16 @@ export type User = {
   dataCollectionConsent?: boolean | undefined;
   isDeleted?: boolean | undefined;
   deletedBy?: string | undefined;
-  createdAt?: number | undefined;
-  updatedAt?: number | undefined;
+  _v?: number | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
 };
 
 export const User$zodSchema: z.ZodType<User> = z.object({
   _id: z.string().optional(),
+  _v: z.int().optional(),
   address: Address$zodSchema.optional(),
-  createdAt: z.int().optional(),
+  createdAt: z.iso.datetime({ offset: true }).optional(),
   dataCollectionConsent: z.boolean().optional(),
   deletedBy: z.string().optional(),
   designation: z.string().optional(),
@@ -45,5 +47,5 @@ export const User$zodSchema: z.ZodType<User> = z.object({
   mobile: z.string().optional(),
   orgId: z.string(),
   slug: z.string().optional(),
-  updatedAt: z.int().optional(),
+  updatedAt: z.iso.datetime({ offset: true }).optional(),
 }).describe("User account in an organization");
