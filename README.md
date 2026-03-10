@@ -22,7 +22,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Cl
      |---|---|
      | **Cursor** | `cursor://anysphere.cursor-mcp/oauth/callback` |
      | **Claude Code** | `http://localhost:<PORT>/callback` (e.g., `http://localhost:8080/callback`) |
-     | **Claude.ai (Web)** | `https://claude.ai/oauth/callback` |
+     | **Claude.ai (Web)** | `https://claude.ai/api/mcp/auth_callback` |
      | **Gemini CLI** | `http://localhost:7777/oauth/callback` |
 
 > **Important:** The scopes in [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) must match the scopes granted to your OAuth app — a mismatch will result in an authorization error.
@@ -367,7 +367,7 @@ Claude.ai supports custom connectors via remote MCP servers. This lets you use P
 Claude.ai uses the following redirect URI for OAuth:
 
 ```
-https://claude.ai/oauth/callback
+https://claude.ai/api/mcp/auth_callback
 ```
 
 Register this as an allowed redirect URI in your PipesHub OAuth app.
@@ -715,7 +715,7 @@ This means the client is trying dynamic registration instead of using your pre-c
 - Ensure the **Redirect URI** in your OAuth app matches exactly what the client uses:
   - **Cursor**: `cursor://anysphere.cursor-mcp/oauth/callback`
   - **Claude Code**: `http://localhost:<callbackPort>/callback`
-  - **Claude.ai**: `https://claude.ai/oauth/callback`
+  - **Claude.ai**: `https://claude.ai/api/mcp/auth_callback`
   - **Gemini CLI**: `http://localhost:7777/oauth/callback`
 - Make sure the OAuth app is **active** (not suspended) in PipesHub
 
