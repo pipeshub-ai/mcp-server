@@ -1,6 +1,6 @@
 # Connecting MCP Clients to PipesHub MCP Server
 
-This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, and **Claude.ai (Web)** using static OAuth credentials.
+This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials.
 
 PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Clients connect to this endpoint directly -- no local npm packages or stdio processes needed.
 
@@ -24,6 +24,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Cl
      | **Claude Code** | `http://localhost:<PORT>/callback` (e.g., `http://localhost:8080/callback`) |
      | **Claude.ai (Web)** | `https://claude.ai/api/mcp/auth_callback` |
      | **Gemini CLI** | `http://localhost:7777/oauth/callback` |
+     | **LibreChat** | `http://localhost:3080/api/mcp/<server-identifier>/oauth/callback` |
 
 > **Important:** The scopes in [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) must match the scopes granted to your OAuth app — a mismatch will result in an authorization error.
 
@@ -31,7 +32,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Cl
 
 ### Customizing Default Scopes
 
-By default, PipesHub advertises some default scopes in its `/.well-known/oauth-protected-resource/mcp` discovery endpoint. You can customize which scopes are advertised by setting the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) environment variable on your PipesHub instance. This is useful for clients like Claude Code that automatically request all advertised scopes.
+By default, PipesHub exposes some default scopes in its `/.well-known/oauth-protected-resource/mcp` discovery endpoint. You can customize which scopes are exposed by setting the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) environment variable on your PipesHub instance. This is useful for clients like Claude Code that automatically request all exposed scopes.
 
 ## Placeholders
 
@@ -53,8 +54,6 @@ The remote MCP endpoint URL is: `PIPESHUB_INSTANCE_URL/mcp`
 <summary><strong>Cursor</strong></summary>
 
 Cursor supports static OAuth for remote MCP servers via the `auth` object in `mcp.json`.
-
-![Cursor MCP Configuration](./images/cursor.png)
 
 ### Configuration
 
@@ -90,7 +89,7 @@ Open Cursor Settings > Tools and Integrations > New MCP Server, or edit your pro
 
 Cursor will auto-discover the authorization and token endpoints via PipesHub's `/.well-known/oauth-protected-resource/mcp` metadata.
 
-> **Note:** If the `scopes` field is omitted, Cursor fetches `/.well-known/oauth-protected-resource/mcp` and requests **all** `scopes_supported` listed there. To limit access, explicitly list only the scopes you need. You can also control which scopes are advertised server-side — see [Customizing Default Scopes](#customizing-default-scopes).
+> **Note:** If the `scopes` field is omitted, Cursor fetches `/.well-known/oauth-protected-resource/mcp` and requests **all** `scopes_supported` listed there. To limit access, explicitly list only the scopes you need. You can also control which scopes are exposed server-side — see [Customizing Default Scopes](#customizing-default-scopes).
 
 ### Using Environment Variables
 
@@ -141,7 +140,7 @@ Claude Code supports remote HTTP MCP servers with static OAuth credentials via `
 
 PipesHub exposes discovery at `/.well-known/oauth-protected-resource/mcp`, so Claude Code auto-discovers the authorization and token endpoints.
 
-> **Important:** Claude Code does **not** support configuring specific scopes. It fetches `/.well-known/oauth-protected-resource/mcp`, reads the `scopes_supported` list, and requests **all** of them. Your OAuth app in PipesHub **must have access to all scopes** listed in the discovery endpoint, otherwise the authorization request will fail. To limit the advertised scopes, see [Customizing Default Scopes](#customizing-default-scopes).
+> **Important:** Claude Code does **not** support configuring specific scopes. It fetches `/.well-known/oauth-protected-resource/mcp`, reads the `scopes_supported` list, and requests **all** of them. Your OAuth app in PipesHub **must have access to all scopes** listed in the discovery endpoint, otherwise the authorization request will fail. To limit the exposed scopes, see [Customizing Default Scopes](#customizing-default-scopes).
 
 ### Add with CLI
 
@@ -377,6 +376,68 @@ Register this as an allowed redirect URI in your PipesHub OAuth app.
 - Only connect to trusted MCP servers
 - Review the permissions requested during the OAuth authentication flow
 - Claude.ai interacts with PipesHub on your behalf using the granted OAuth token — your password is never shared
+
+</details>
+
+<details>
+<summary><strong>LibreChat</strong></summary>
+
+LibreChat supports remote MCP servers with OAuth authentication via its custom connectors UI. This lets you connect PipesHub tools to any model available in your LibreChat instance.
+
+![LibreChat MCP Configuration](./images/librechat.png)
+
+### Configuration
+
+1. Log in to your LibreChat instance
+2. Navigate to **MCP Servers** settings panel
+3. Click **Add** to create a new custom MCP connector
+4. Fill in the connector details:
+   - **Name**: `Pipeshub` (or any name you prefer)
+   - **MCP Server URL**: `PIPESHUB_INSTANCE_URL/mcp`
+   - **Transport**: Select **Streamable HTTPS** 
+   - **Authentication**: Select **OAuth**
+5. Enter your OAuth credentials:
+   - **Client ID**: `YOUR_CLIENT_ID`
+   - **Client Secret**: `YOUR_CLIENT_SECRET`
+   - **Authorization URL**: `PIPESHUB_INSTANCE_URL/api/v1/oauth2/authorize`
+   - **Token URL**: `PIPESHUB_INSTANCE_URL/api/v1/oauth2/token`
+   - **Scope**: `openid email` (or additional scopes as needed)
+6. Check **I trust this application**
+7. Click **Add** to save the connector
+8. After adding, LibreChat will generate a **Redirect URI** displayed in the connector settings panel (next to the copy button). It follows this format:
+   ```
+   http://localhost:3080/api/mcp/<server-identifier>/oauth/callback
+   ```
+9. **Copy the Redirect URI** and register it as an allowed redirect URI in your PipesHub OAuth app (see [Step 1](#step-1-create-an-oauth-app-in-pipeshub))
+10. Return to the LibreChat connector and click **Update** to initiate the OAuth flow — you'll be redirected to PipesHub's login page to authenticate and grant permissions
+
+### Redirect URI
+
+LibreChat generates the redirect URI **after** the connector is created. The URI follows this format:
+
+```
+http://localhost:3080/api/mcp/<server-identifier>/oauth/callback
+```
+
+Where `<server-identifier>` is the unique identifier assigned by LibreChat (visible at the top of the connector settings as "Unique Server Identifier"). You must copy this URI and add it to your PipesHub OAuth app's allowed redirect URIs **before** authenticating.
+
+> **Note:** If your LibreChat instance runs on a different host or port, the URI will reflect that (e.g., `https://chat.example.com/api/mcp/pipeshub/oauth/callback`).
+
+### Scopes
+
+LibreChat allows you to specify the OAuth scopes in the **Scope** field. Use a space-separated list:
+
+```
+openid email
+```
+
+To request PipesHub-specific scopes, add them to the scope field:
+
+```
+openid email org:read kb:read kb:write semantic:read conversation:read conversation:write conversation:chat agent:read agent:execute
+```
+
+> **Note:** The scopes you request must match the scopes granted to your OAuth app in PipesHub. See [Customizing Default Scopes](#customizing-default-scopes) for details.
 
 </details>
 
@@ -676,7 +737,7 @@ npx @pipeshub-ai/mcp --help
 ### Architecture
 
 ```
-AI Client (Cursor / Claude Code / Gemini CLI / Claude.ai)
+AI Client (Cursor / Claude Code / Gemini CLI / Claude.ai / LibreChat)
         │
         │  HTTP POST (JSON-RPC)
         │  Authorization: Bearer <token>
@@ -717,6 +778,7 @@ This means the client is trying dynamic registration instead of using your pre-c
   - **Claude Code**: `http://localhost:<callbackPort>/callback`
   - **Claude.ai**: `https://claude.ai/api/mcp/auth_callback`
   - **Gemini CLI**: `http://localhost:7777/oauth/callback`
+  - **LibreChat**: `http://localhost:3080/api/mcp/<server-identifier>/oauth/callback`
 - Make sure the OAuth app is **active** (not suspended) in PipesHub
 
 ### Cannot reach MCP endpoint
@@ -739,7 +801,7 @@ Then connect to `PIPESHUB_INSTANCE_URL/mcp` with a Bearer token to test the endp
 <details>
 <summary><strong>How do I update the scopes for my MCP integration?</strong></summary>
 
-1. **Update the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) environment variable** on your PipesHub instance to include the new scopes you want advertised via the discovery endpoint.
+1. **Update the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) environment variable** on your PipesHub instance to include the new scopes you want exposed via the discovery endpoint.
 2. **Update the OAuth app scopes** in PipesHub: go to **Settings > Developer Settings > OAuth Apps**, select your OAuth app, and add or remove scopes as needed.
 3. **Re-authenticate the client** — existing tokens carry the old scopes, so you need to re-authenticate to get a new token with the updated scopes. For example:
    - **Cursor**: Remove and re-add the MCP server, or clear the cached OAuth token and reconnect.
