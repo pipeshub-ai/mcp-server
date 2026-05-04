@@ -1,1 +1,0 @@
-{"version":3,"file":"oauthtokenop.d.ts","sourceRoot":"","sources":["../../src/models/oauthtokenop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EACL,kBAAkB,EAEnB,MAAM,yBAAyB,CAAC;AACjC,OAAO,EACL,kBAAkB,EAEnB,MAAM,yBAAyB,CAAC;AAEjC,MAAM,MAAM,0BAA0B,GAClC,kBAAkB,GAClB,kBAAkB,CAAC;AAEvB,eAAO,MAAM,oCAAoC,EAAE,CAAC,CAAC,OAAO,CAC1D,0BAA0B,CAI1B,CAAC"}

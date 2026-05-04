@@ -5,161 +5,78 @@
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
 
+/**
+ * Sort order.
+ */
+export const SortOrder = {
+  Asc: "asc",
+  Desc: "desc",
+} as const;
+/**
+ * Sort order.
+ */
+export type SortOrder = ClosedEnum<typeof SortOrder>;
+
+export const SortOrder$zodSchema = z.enum([
+  "asc",
+  "desc",
+]).describe("Sort order.");
+
 export type GetKnowledgeHubRootNodesRequest = {
-  view?: string | undefined;
+  only_containers?: boolean | undefined;
   page?: number | undefined;
   limit?: number | undefined;
-  nodeTypes?: string | undefined;
+  sortBy?: string | undefined;
+  sortOrder?: SortOrder | undefined;
   q?: string | undefined;
+  nodeTypes?: string | undefined;
+  recordTypes?: string | undefined;
+  origins?: string | undefined;
+  connectorIds?: string | undefined;
+  indexingStatus?: string | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+  size?: string | undefined;
+  flattened?: boolean | undefined;
+  include?: string | undefined;
 };
 
 export const GetKnowledgeHubRootNodesRequest$zodSchema: z.ZodType<
   GetKnowledgeHubRootNodesRequest
 > = z.object({
-  limit: z.int().optional(),
-  nodeTypes: z.string().describe("Filter by node types (comma-separated)")
+  connectorIds: z.string().describe(
+    "Comma-separated connector instance ids to scope to.",
+  ).optional(),
+  createdAt: z.string().describe("Created date range as `gte:<ms>,lte:<ms>`.")
     .optional(),
-  page: z.int().optional(),
-  q: z.string().describe("Search query").optional(),
-  view: z.string().describe("View mode").optional(),
+  flattened: z.boolean().default(false).describe(
+    "Return flattened view with all nested children.",
+  ),
+  include: z.string().describe(
+    "Comma-separated includes — any of `breadcrumbs`, `counts`,\n`availableFilters`, `permissions`.\n",
+  ).optional(),
+  indexingStatus: z.string().describe("Comma-separated indexing statuses.")
+    .optional(),
+  limit: z.int().default(50).describe("Items per page."),
+  nodeTypes: z.string().describe(
+    "Comma-separated node types (`app`, `recordGroup`, `folder`, `record`).",
+  ).optional(),
+  only_containers: z.boolean().default(false).describe(
+    "Only return nodes with children (for sidebar UIs).",
+  ),
+  origins: z.string().describe(
+    "Comma-separated origins (`COLLECTION`, `CONNECTOR`).",
+  ).optional(),
+  page: z.int().default(1).describe("Page number (1-indexed)."),
+  q: z.string().describe("Full-text search query against node names.")
+    .optional(),
+  recordTypes: z.string().describe("Comma-separated record types.").optional(),
+  size: z.string().describe("Size range as `gte:<bytes>,lte:<bytes>`.")
+    .optional(),
+  sortBy: z.string().default("updatedAt").describe(
+    "Sort field — one of `name`, `createdAt`, `updatedAt`, `size`, `type`.",
+  ),
+  sortOrder: SortOrder$zodSchema.default("desc"),
+  updatedAt: z.string().describe("Updated date range as `gte:<ms>,lte:<ms>`.")
+    .optional(),
 });
-
-export type CurrentNode = {};
-
-export const CurrentNode$zodSchema: z.ZodType<CurrentNode> = z.object({});
-
-export type ParentNode = {};
-
-export const ParentNode$zodSchema: z.ZodType<ParentNode> = z.object({});
-
-export const NodeType = {
-  Kb: "kb",
-  Folder: "folder",
-  Record: "record",
-  Connector: "connector",
-  App: "app",
-} as const;
-export type NodeType = ClosedEnum<typeof NodeType>;
-
-export const NodeType$zodSchema = z.enum([
-  "kb",
-  "folder",
-  "record",
-  "connector",
-  "app",
-]);
-
-export type Item = {
-  id?: string | undefined;
-  name?: string | undefined;
-  nodeType?: NodeType | undefined;
-  parentId?: string | null | undefined;
-  origin?: string | undefined;
-  connector?: string | undefined;
-  recordType?: string | null | undefined;
-  indexingStatus?: string | null | undefined;
-  createdAt?: number | undefined;
-  updatedAt?: number | undefined;
-  sizeInBytes?: number | null | undefined;
-  mimeType?: string | null | undefined;
-  extension?: string | null | undefined;
-  webUrl?: string | undefined;
-  hasChildren?: boolean | undefined;
-  sharingStatus?: string | undefined;
-};
-
-export const Item$zodSchema: z.ZodType<Item> = z.object({
-  connector: z.string().optional(),
-  createdAt: z.int().optional(),
-  extension: z.string().nullable().optional(),
-  hasChildren: z.boolean().optional(),
-  id: z.string().optional(),
-  indexingStatus: z.string().nullable().optional(),
-  mimeType: z.string().nullable().optional(),
-  name: z.string().optional(),
-  nodeType: NodeType$zodSchema.optional(),
-  origin: z.string().optional(),
-  parentId: z.string().nullable().optional(),
-  recordType: z.string().nullable().optional(),
-  sharingStatus: z.string().optional(),
-  sizeInBytes: z.int().nullable().optional(),
-  updatedAt: z.int().optional(),
-  webUrl: z.string().optional(),
-});
-
-export type GetKnowledgeHubRootNodesPagination = {
-  page?: number | undefined;
-  limit?: number | undefined;
-  totalItems?: number | undefined;
-  totalPages?: number | undefined;
-  hasNext?: boolean | undefined;
-  hasPrev?: boolean | undefined;
-};
-
-export const GetKnowledgeHubRootNodesPagination$zodSchema: z.ZodType<
-  GetKnowledgeHubRootNodesPagination
-> = z.object({
-  hasNext: z.boolean().optional(),
-  hasPrev: z.boolean().optional(),
-  limit: z.int().optional(),
-  page: z.int().optional(),
-  totalItems: z.int().optional(),
-  totalPages: z.int().optional(),
-});
-
-export type GetKnowledgeHubRootNodesFilters = {};
-
-export const GetKnowledgeHubRootNodesFilters$zodSchema: z.ZodType<
-  GetKnowledgeHubRootNodesFilters
-> = z.object({});
-
-export type Breadcrumb = {};
-
-export const Breadcrumb$zodSchema: z.ZodType<Breadcrumb> = z.object({});
-
-export type GetKnowledgeHubRootNodesCounts = {};
-
-export const GetKnowledgeHubRootNodesCounts$zodSchema: z.ZodType<
-  GetKnowledgeHubRootNodesCounts
-> = z.object({});
-
-export type Permissions = {};
-
-export const Permissions$zodSchema: z.ZodType<Permissions> = z.object({});
-
-/**
- * Root nodes retrieved
- */
-export type GetKnowledgeHubRootNodesResponse = {
-  success?: boolean | undefined;
-  error?: string | null | undefined;
-  id?: string | null | undefined;
-  currentNode?: CurrentNode | null | undefined;
-  parentNode?: ParentNode | null | undefined;
-  items?: Array<Item> | undefined;
-  pagination?: GetKnowledgeHubRootNodesPagination | undefined;
-  filters?: GetKnowledgeHubRootNodesFilters | null | undefined;
-  breadcrumbs?: Array<Breadcrumb> | null | undefined;
-  counts?: GetKnowledgeHubRootNodesCounts | null | undefined;
-  permissions?: Permissions | null | undefined;
-};
-
-export const GetKnowledgeHubRootNodesResponse$zodSchema: z.ZodType<
-  GetKnowledgeHubRootNodesResponse
-> = z.object({
-  breadcrumbs: z.array(z.lazy(() => Breadcrumb$zodSchema)).nullable()
-    .optional(),
-  counts: z.lazy(() => GetKnowledgeHubRootNodesCounts$zodSchema).nullable()
-    .optional(),
-  currentNode: z.lazy(() => CurrentNode$zodSchema).nullable().optional(),
-  error: z.string().nullable().optional(),
-  filters: z.lazy(() => GetKnowledgeHubRootNodesFilters$zodSchema).nullable()
-    .optional(),
-  id: z.string().nullable().optional(),
-  items: z.array(z.lazy(() => Item$zodSchema)).optional(),
-  pagination: z.lazy(() => GetKnowledgeHubRootNodesPagination$zodSchema)
-    .optional(),
-  parentNode: z.lazy(() => ParentNode$zodSchema).nullable().optional(),
-  permissions: z.lazy(() => Permissions$zodSchema).nullable().optional(),
-  success: z.boolean().optional(),
-}).describe("Root nodes retrieved");

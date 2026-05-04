@@ -52,6 +52,7 @@ async function startStdio(flags: StartCommandFlags) {
     logger,
     allowedTools: flags.tool,
     dynamic: flags.mode === "dynamic",
+    scopes: flags.scope,
     security: {
       bearerAuth: flags["bearer-auth"] ?? "",
       oauth2: flags["client-id"] != null && flags["client-secret"] != null
@@ -116,6 +117,7 @@ async function startSSE(cliFlags: StartCommandFlags) {
       logger,
       allowedTools: flags.tool,
       dynamic: flags.mode === "dynamic",
+      scopes: flags.scope,
       security: {
         bearerAuth: flags["bearer-auth"] ?? "",
         oauth2: flags["client-id"] != null && flags["client-secret"] != null

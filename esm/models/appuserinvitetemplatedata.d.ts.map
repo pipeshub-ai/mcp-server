@@ -1,1 +1,0 @@
-{"version":3,"file":"appuserinvitetemplatedata.d.ts","sourceRoot":"","sources":["../../src/models/appuserinvitetemplatedata.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,yBAAyB,GAAG;IACtC,OAAO,EAAE,MAAM,CAAC;IAChB,OAAO,EAAE,MAAM,CAAC;IAChB,IAAI,EAAE,MAAM,CAAC;CACd,CAAC;AAEF,eAAO,MAAM,mCAAmC,EAAE,CAAC,CAAC,OAAO,CACzD,yBAAyB,CAK2B,CAAC"}

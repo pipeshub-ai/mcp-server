@@ -3,70 +3,25 @@
  */
 
 import * as z from "zod";
-import { ClosedEnum } from "../types/enums.js";
 import {
-  SearchResultItem,
-  SearchResultItem$zodSchema,
-} from "./searchresultitem.js";
-
-export const SearchResultAccessLevel = {
-  Read: "read",
-  Write: "write",
-} as const;
-export type SearchResultAccessLevel = ClosedEnum<
-  typeof SearchResultAccessLevel
->;
-
-export const SearchResultAccessLevel$zodSchema = z.enum([
-  "read",
-  "write",
-]);
-
-export type SearchResultSharedWith = {
-  userId?: string | undefined;
-  accessLevel?: SearchResultAccessLevel | undefined;
-};
-
-export const SearchResultSharedWith$zodSchema: z.ZodType<
-  SearchResultSharedWith
-> = z.object({
-  accessLevel: SearchResultAccessLevel$zodSchema.optional(),
-  userId: z.string().optional(),
-});
+  SearchResponsePayload,
+  SearchResponsePayload$zodSchema,
+} from "./searchresponsepayload.js";
 
 /**
- * Result of a semantic search operation, containing matching
+ * Top-level response from `POST /search`. The search is also persisted
  *
  * @remarks
- * document chunks with relevance scores.
+ * and can later be fetched by `searchId`.
  */
 export type SearchResult = {
-  _id?: string | undefined;
-  searchId?: string | undefined;
-  query?: string | undefined;
-  results?: Array<SearchResultItem> | undefined;
-  records?: { [k: string]: string } | undefined;
-  userId?: string | undefined;
-  orgId?: string | undefined;
-  isShared?: boolean | undefined;
-  sharedWith?: Array<SearchResultSharedWith> | undefined;
-  isArchived?: boolean | undefined;
-  createdAt?: string | undefined;
+  searchId: string;
+  searchResponse: SearchResponsePayload;
 };
 
 export const SearchResult$zodSchema: z.ZodType<SearchResult> = z.object({
-  _id: z.string().optional(),
-  createdAt: z.iso.datetime({ offset: true }).optional(),
-  isArchived: z.boolean().default(false),
-  isShared: z.boolean().default(false),
-  orgId: z.string().optional(),
-  query: z.string().optional(),
-  records: z.record(z.string(), z.string()).optional(),
-  results: z.array(SearchResultItem$zodSchema).optional(),
-  searchId: z.string().optional(),
-  sharedWith: z.array(z.lazy(() => SearchResultSharedWith$zodSchema))
-    .optional(),
-  userId: z.string().optional(),
+  searchId: z.string(),
+  searchResponse: SearchResponsePayload$zodSchema,
 }).describe(
-  "Result of a semantic search operation, containing matching\ndocument chunks with relevance scores.\n",
+  "Top-level response from `POST /search`. The search is also persisted\nand can later be fetched by `searchId`.\n",
 );

@@ -5,6 +5,6 @@ import * as z from "zod";
 import { AddMessageRequest$zodSchema, } from "./addmessagerequest.js";
 export const AddMessageRequestRequest$zodSchema = z.object({
     body: AddMessageRequest$zodSchema,
-    conversationId: z.string().describe("Unique conversation identifier"),
+    conversationId: z.string().describe("Unique conversation identifier. Get this from a prior\n`POST /conversations/create` response\n(`conversation._id`) or from `GET /conversations`.\n"),
 });
 //# sourceMappingURL=addmessageop.js.map

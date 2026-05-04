@@ -12,37 +12,3 @@ export const GetAvailableModelsByTypeRequest$zodSchema: z.ZodType<
 > = z.object({
   modelType: ModelType$zodSchema,
 });
-
-export type GetAvailableModelsByTypeModel = {
-  modelKey?: string | undefined;
-  provider?: string | undefined;
-  model?: string | undefined;
-  isDefault?: boolean | undefined;
-};
-
-export const GetAvailableModelsByTypeModel$zodSchema: z.ZodType<
-  GetAvailableModelsByTypeModel
-> = z.object({
-  isDefault: z.boolean().optional(),
-  model: z.string().optional(),
-  modelKey: z.string().optional(),
-  provider: z.string().optional(),
-});
-
-/**
- * Available models retrieved
- */
-export type GetAvailableModelsByTypeResponse = {
-  status?: string | undefined;
-  message?: string | undefined;
-  models?: Array<GetAvailableModelsByTypeModel> | undefined;
-};
-
-export const GetAvailableModelsByTypeResponse$zodSchema: z.ZodType<
-  GetAvailableModelsByTypeResponse
-> = z.object({
-  message: z.string().optional(),
-  models: z.array(z.lazy(() => GetAvailableModelsByTypeModel$zodSchema))
-    .optional(),
-  status: z.string().optional(),
-}).describe("Available models retrieved");

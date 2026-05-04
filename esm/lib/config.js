@@ -9,17 +9,30 @@ export const ServerList = [
     /**
      * Base API URL
      */
-    "/api/v1",
+    "https://{instance_url}/api/v1",
+    /**
+     * Root URL (used for MCP endpoints mounted at /mcp)
+     */
+    "https://{instance_url}",
 ];
 export function serverURLFromOptions(options) {
     let serverURL = options.serverURL;
-    const params = {};
+    const serverParams = [
+        {
+            "instance_url": options.instance_url ?? "https://app.pipeshub.com",
+        },
+        {
+            "instance_url": options.instance_url ?? "https://app.pipeshub.com",
+        },
+    ];
+    let params = {};
     if (!serverURL) {
         const serverIdx = options.serverIdx ?? 0;
         if (serverIdx < 0 || serverIdx >= ServerList.length) {
             throw new Error(`Invalid server index ${serverIdx}`);
         }
         serverURL = ServerList[serverIdx] || "";
+        params = serverParams[serverIdx] || {};
     }
     const u = pathToFunc(serverURL)(params);
     return new URL(u);
@@ -27,8 +40,8 @@ export function serverURLFromOptions(options) {
 export const SDK_METADATA = {
     language: "typescript",
     openapiDocVersion: "1.0.0",
-    sdkVersion: "0.1.1",
-    genVersion: "2.824.1",
-    userAgent: "speakeasy-sdk/mcp-typescript 0.1.1 2.824.1 1.0.0 pipeshub",
+    sdkVersion: "0.0.4",
+    genVersion: "2.846.1",
+    userAgent: "speakeasy-sdk/mcp-typescript 0.0.4 2.846.1 1.0.0 mcp",
 };
 //# sourceMappingURL=config.js.map

@@ -6,6 +6,7 @@ import { buildCommand } from "@stricli/core";
 import { numberParser } from "@stricli/core";
 import * as z from "zod";
 import { consoleLoggerLevels } from "../../console-logger.js";
+import { mcpScopes } from "../../scopes.js";
 
 export const startCommand = buildCommand({
   loader: async () => {
@@ -41,6 +42,13 @@ export const startCommand = buildCommand({
         brief:
           "Server mode (dynamic: expose list_tools, describe_tool, and execute_tool instead of individual tools)",
         values: ["dynamic"],
+        optional: true,
+      },
+      scope: {
+        kind: "enum",
+        brief: "Mount tools/resources that match given scope (repeatable flag)",
+        values: mcpScopes,
+        variadic: true,
         optional: true,
       },
       "bearer-auth": {

@@ -1,11 +1,11 @@
 {
   "manifest_version": "0.3",
-  "name": "@pipeshub-ai/mcp",
-  "version": "1.0.0",
+  "name": "mcp",
+  "version": "0.0.4",
   "description": "",
-  "long_description": "PipesHub API: Unified API documentation for PipesHub services.\n\nPipesHub is an enterprise-grade platform providing:\n- User authentication and management\n- Document storage and version control\n- Knowledge base management\n- Enterprise search and conversational AI\n- Third-party integrations via connectors\n- System configuration management\n- Crawling job scheduling\n- Email services\n\n## Authentication\nMost endpoints require JWT Bearer token authentication. Some internal endpoints use scoped tokens for service-to-service communication.\n\n## Base URLs\nAll endpoints use the `/api/v1` prefix unless otherwise noted.\n",
+  "long_description": "PipesHub API: # PipesHub MCP — read-only tool set\n\nThis server exposes 10 read-style tools over the PipesHub workplace AI\nplatform.  All tools require a bearer token (or OAuth `read` scope).\n\n## Discovery (call first if you don't already have these ids)\n\n- `pipeshub-list-sources` — root nodes of the knowledge hub.  Each item's\n  `id` is exactly the value to put in `filters.apps` on a chat or search\n  request.  At the root you'll see one entry per connector instance\n  (e.g. Box, Drive) with id = a UUID, plus the synthetic\n  `knowledgeBase_<orgId>` entry (`connector: \"KB\"`) representing the\n  org's knowledge base.\n- `pipeshub-list-models` — configured AI models of a given `modelType`\n  (default: `llm`).  Each item's `modelKey` is what to pass on chat /\n  search requests.  Pick `isDefault: true` unless the user asked for a\n  specific model.\n\n## Chat with the user's enterprise data\n\n1. **Start a chat** with `pipeshub-chat` (POST /conversations/create).\n   Pass the user's question in `query`.  For source scoping, populate\n   `filters.apps` with ids from `pipeshub-list-sources` (mix connector\n   UUIDs and the `knowledgeBase_<orgId>` synthetic id freely).\n   Always leave `filters.kb` as `[]` — the server scopes via `apps`.\n2. **Continue the chat** with `pipeshub-chat-continue`\n   (POST /conversations/{conversationId}/messages).  Pass the\n   `conversationId` you captured from the previous response and the\n   user's next question in `query`.  Server-side context is preserved on\n   the conversation; do NOT call `pipeshub-chat` again unless the user\n   explicitly asks to start over.\n3. The AI's reply is the last `bot_response` message in\n   `conversation.messages`.  Citations on that message tell you which\n   records the answer was grounded in\n   (`citations[*].metadata.recordId`).\n\n## Find and download documents\n\n- `pipeshub-search` (POST /search) does semantic search across the org's\n  indexed records.  Use it to resolve a filename / topic into a\n  `recordId`.  Read\n  `searchResponse.searchResults[*].metadata.recordId`.  Same `apps`\n  scoping rules as chat — get ids from `pipeshub-list-sources`.\n- `pipeshub-download-record`\n  (GET /knowledgeBase/stream/record/{recordId}) streams the file bytes.\n  Get the `recordId` from a chat citation OR from a search result.\n- For \"download the file the AI just cited\": pull `recordId` straight\n  from the chat's `citations[*].metadata.recordId`, no extra search call\n  needed.\n\n## Look up people, groups, and teams\n\n- `pipeshub-list-users` (GET /users) — list / search org users.  Pass\n  `search=<substring>` to match by name or email.\n- `pipeshub-get-user` (GET /users/{id}) — full profile for one user,\n  including the authenticated user themself (decode the JWT `userId`\n  claim to find their id, or list-and-match-on-email).\n- `pipeshub-list-user-groups` (GET /userGroups) — list user groups.\n- `pipeshub-list-my-teams` (GET /teams/user/teams) — teams the caller\n  belongs to.\n\n## Behavior hints\n\n- These tools are **read / query**; none of them is destructive.  The\n  three POST tools (`pipeshub-chat`, `pipeshub-chat-continue`,\n  `pipeshub-search`) persist a conversation / search record but never\n  mutate org data.\n- `filters.apps` accepts both connector instance UUIDs AND the\n  `knowledgeBase_<orgId>` synthetic id — never pass connector type\n  names (`\"drive\"`, `\"gmail\"`, ...).  `filters.kb` is unused; keep it\n  `[]`.\n- `Conversation.status` values are mixed-case\n  (`Complete`, `Failed`, `Inprogress`, `None`).  `Message.confidence`\n  values are `High`, `Medium`, `Low`, `Very High`, `Unknown`.\n",
   "author": {
-    "name": "Pipeshub"
+    "name": "Speakeasy"
   },
   "server": {
     "type": "node",
@@ -15,6 +15,8 @@
       "args": [
         "${__dirname}/bin/mcp-server.js",
         "start",
+        "--server-index",
+        "${user_config.server_index}",
         "--instance-url",
         "${user_config.instance_url}",
         "--bearer-auth",
@@ -28,52 +30,80 @@
       ]
     }
   },
-  "display_name": "@pipeshub Ai/mcp",
+  "display_name": "Mcp",
   "prompts": [],
   "keywords": [
-      "@pipeshub",
-      "ai/mcp",
-      "pipeshub",
-      "api",
-      "unified",
-      "documentation"
-    ],
+    "mcp",
+    "pipeshub",
+    "api",
+    "read"
+  ],
   "user_config": {
-      "instance_url": {
-        "type": "string",
-        "title": "instance_url",
-        "description": "Base server URL (without /api/v1) ",
-        "required": false,
-        "default": "https://app.pipeshub.com"
-      },
-      "bearer_auth": {
-        "type": "string",
-        "title": "bearerAuth",
-        "description": "The bearerAuth to use for the request",
-        "required": false,
-        "sensitive": true
-      },
-      "client_id": {
-        "type": "string",
-        "title": "ClientID",
-        "description": "The ClientID to use for the request",
-        "required": true,
-        "sensitive": true
-      },
-      "client_secret": {
-        "type": "string",
-        "title": "ClientSecret",
-        "description": "The ClientSecret to use for the request",
-        "required": true,
-        "sensitive": true
-      },
-      "token_url": {
-        "type": "string",
-        "title": "TokenURL",
-        "description": "The TokenURL to use for the request",
-        "required": true,
-        "default": "/api/v1/oauth2/token",
-        "sensitive": true
-      }
+    "server_index": {
+      "type": "number",
+      "title": "Server Index",
+      "description": "Available servers: [https://{instance_url}/api/v1, https://{instance_url}]",
+      "required": false,
+      "default": "0",
+      "max": 1
+    },
+    "instance_url": {
+      "type": "string",
+      "title": "instance_url",
+      "description": "Base server URL Templated in https://{instance_url}.",
+      "required": false,
+      "default": "https://app.pipeshub.com"
+    },
+    "bearer_auth": {
+      "type": "string",
+      "title": "bearerAuth",
+      "description": "The bearerAuth to use for the request",
+      "required": false,
+      "sensitive": true
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ClientID",
+      "description": "The ClientID to use for the request",
+      "required": true,
+      "sensitive": true
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "ClientSecret",
+      "description": "The ClientSecret to use for the request",
+      "required": true,
+      "sensitive": true
+    },
+    "token_url": {
+      "type": "string",
+      "title": "TokenURL",
+      "description": "The TokenURL to use for the request",
+      "required": true,
+      "default": "/api/v1/oauth2/token",
+      "sensitive": true
     }
+  },
+  "tools": [
+    {
+      "name": "pipeshub_sources",
+      "description": "Discover available chat sources and AI models in one call.\n\nReturns up to three sections:\n\n- `sources` — every connector instance the org has wired up plus the\n  synthetic `knowledgeBase_<orgId>` entry for the org's KB. Each\n  item's `id` is exactly the value to put in `pipeshub_chat`'s or\n  `pipeshub_search`'s `apps` filter.\n- `llmModels` — chat / generation models. Each item's `modelKey`\n  is the value to pass on `pipeshub_chat` / `pipeshub_search` as\n  `modelKey`. Pick `isDefault: true` unless the user asks for a\n  specific model.\n- `embeddingModels` — vector embedding models (only fetched when\n  explicitly requested via `include`).\n\nCall this once at the start of a session and cache the result —\nsources and models change infrequently. `sources` and `llmModels`\nare returned by default; pass `include` to override."
+    },
+    {
+      "name": "pipeshub_chat",
+      "description": "**Default tool for anything PipesHub-related.** Use this whenever the\nuser asks about their documents, files, knowledge base, company\npolicies, or anything that could plausibly be answered by content in\ntheir PipesHub-indexed sources (Drive, Box, Confluence, Slack, Gmail,\nJira, the org's KB, ...). Do NOT answer those from your own knowledge —\n`pipeshub_chat` grounds the answer in the user's actual data and\nreturns citations.\n\n**When to pick this over other tools:**\n- \"What does <document> say about X?\" → `pipeshub_chat` (NOT search;\n  search is only for locating files by name).\n- \"Summarize <topic / doc>.\" → `pipeshub_chat`.\n- \"What's our policy on Y?\" → `pipeshub_chat`.\n- \"What do we know about Z?\" → `pipeshub_chat`.\n- \"Find / locate the file named X\" → `pipeshub_search` (then\n  `pipeshub_download_record` if the user wants the bytes).\n\n**Conversation lifecycle** — one tool, both start and continue:\n\n- **First turn**: omit `conversationId`. The server creates a new\n  conversation; capture `conversationId` from the response.\n- **Follow-up turn**: pass the `conversationId` from the previous\n  response. Server-side context is preserved — do NOT replay earlier\n  messages, and `filters` is ignored on follow-ups (set once at\n  creation).\n\nOnly re-omit `conversationId` (start a fresh conversation) when the\nuser explicitly asks to start over / clear context.\n\nThe response contains the AI's `answer` plus `citations`. To download a\ncited document, take `citations[*].recordId` and call\n`pipeshub_download_record`."
+    },
+    {
+      "name": "pipeshub_search",
+      "description": "Vector / semantic search across the org's indexed documents.\n\n**Use this only when the user wants to LOCATE a document** — by name,\ntopic, or a phrase to grep for. For \"what does the document say about\nX?\" or any open-ended question, use `pipeshub_chat` instead, which\ndoes the retrieval internally and grounds the answer in citations.\n\nTypical uses:\n- Resolve a filename / phrase into a `recordId` for\n  `pipeshub_download_record`.\n- Show the user a ranked list of matching files when they ask \"find /\n  search for X\".\n\nThe response is trimmed to one row per hit:\n`{ recordId, recordName, score, snippet, mimeType, webUrl, ... }`.\nHighest `score` first; multiple hits may share the same `recordId`\n(different chunks of the same record)."
+    },
+    {
+      "name": "pipeshub_download_record",
+      "description": "Stream the binary content of a single record from PipesHub.\n\nTypical sources for the `recordId`:\n- A chat citation:\n  `pipeshub_chat` response → `citations[*].recordId`.\n- A search result:\n  `pipeshub_search` response → `hits[*].recordId` /\n  `uniqueRecords[*].recordId`.\n\nResponse `Content-Type` is forwarded from the upstream service —\n`application/pdf`, `application/octet-stream`, etc. Binary content is\nreturned base64-encoded; text content is returned inline."
+    },
+    {
+      "name": "pipeshub_directory",
+      "description": "Look up people, groups, and teams in PipesHub. One tool with five\nactions — pick the right `action`:\n\n- `whoami` — who is the caller?  Use this whenever you need the\n  authenticated user's own id, email, or full name (e.g. before\n  `get_user` on themselves).\n- `list_users` — search / page through org users.\n- `get_user` — full `User` document for one user (requires `userId`).\n- `list_groups` — list user groups with `userCount`.\n- `list_my_teams` — teams the caller belongs to, with capability flags\n  (`canEdit` / `canDelete` / `canManageMembers`).\n\nOutput shape varies by action; see each action's docs above."
+    }
+  ]
 }

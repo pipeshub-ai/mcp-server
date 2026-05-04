@@ -5,6 +5,7 @@ import { buildCommand } from "@stricli/core";
 import { numberParser } from "@stricli/core";
 import * as z from "zod";
 import { consoleLoggerLevels } from "../../console-logger.js";
+import { mcpScopes } from "../../scopes.js";
 export const startCommand = buildCommand({
     loader: async () => {
         const { main } = await import("./impl.js");
@@ -39,6 +40,13 @@ export const startCommand = buildCommand({
                 values: ["dynamic"],
                 optional: true,
             },
+            scope: {
+                kind: "enum",
+                brief: "Mount tools/resources that match given scope (repeatable flag)",
+                values: mcpScopes,
+                variadic: true,
+                optional: true,
+            },
             "bearer-auth": {
                 kind: "parsed",
                 brief: "Sets the bearerAuth auth field for the API",
@@ -47,10 +55,34 @@ export const startCommand = buildCommand({
                     return z.string().parse(value);
                 },
             },
+            "client-id": {
+                kind: "parsed",
+                brief: "Sets the ClientID auth field for the API",
+                optional: true,
+                parse: (value) => {
+                    return z.string().parse(value);
+                },
+            },
+            "client-secret": {
+                kind: "parsed",
+                brief: "Sets the ClientSecret auth field for the API",
+                optional: true,
+                parse: (value) => {
+                    return z.string().parse(value);
+                },
+            },
+            "token-url": {
+                kind: "parsed",
+                brief: "Sets the TokenURL auth field for the API",
+                optional: true,
+                parse: (value) => {
+                    return z.string().default("/api/v1/oauth2/token").parse(value);
+                },
+            },
             "server-url": {
                 kind: "parsed",
                 brief: "Overrides the default server URL used by the SDK",
-                optional: false,
+                optional: true,
                 parse: (value) => new URL(value).toString(),
             },
             "server-index": {
@@ -58,6 +90,12 @@ export const startCommand = buildCommand({
                 brief: "Selects a predefined server used by the SDK",
                 optional: true,
                 parse: numberParser,
+            },
+            "instance-url": {
+                kind: "parsed",
+                brief: "Sets the instance_url variable for url substitution",
+                optional: true,
+                parse: (value) => value,
             },
             "log-level": {
                 kind: "enum",

@@ -9,9 +9,10 @@ export declare function createMCPServer(deps: {
     dynamic?: boolean | undefined;
     scopes?: MCPScope[] | undefined;
     getSDK?: () => PipeshubCore;
-    serverURL: string;
+    serverURL?: string | undefined;
     security?: SDKOptions["security"] | undefined;
     serverIdx?: SDKOptions["serverIdx"] | undefined;
+    instance_url?: SDKOptions["instance_url"] | undefined;
 }): {
     server: McpServer;
     tools: {

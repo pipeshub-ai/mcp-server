@@ -1,11 +1,8 @@
 import * as z from "zod";
-import { UserGroup } from "./usergroup.js";
-/**
- * List of user groups retrieved successfully
- */
-export type GetAllUserGroupsResponse = {
-    success?: boolean | undefined;
-    data?: Array<UserGroup> | undefined;
+export type GetAllUserGroupsRequest = {
+    page?: number | undefined;
+    limit?: number | undefined;
+    search?: string | undefined;
 };
-export declare const GetAllUserGroupsResponse$zodSchema: z.ZodType<GetAllUserGroupsResponse>;
+export declare const GetAllUserGroupsRequest$zodSchema: z.ZodType<GetAllUserGroupsRequest>;
 //# sourceMappingURL=getallusergroupsop.d.ts.map

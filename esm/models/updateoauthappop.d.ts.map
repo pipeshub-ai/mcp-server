@@ -1,1 +1,0 @@
-{"version":3,"file":"updateoauthappop.d.ts","sourceRoot":"","sources":["../../src/models/updateoauthappop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EACL,qBAAqB,EAEtB,MAAM,4BAA4B,CAAC;AAEpC,MAAM,MAAM,4BAA4B,GAAG;IACzC,KAAK,EAAE,MAAM,CAAC;IACd,IAAI,EAAE,qBAAqB,CAAC;CAC7B,CAAC;AAEF,eAAO,MAAM,sCAAsC,EAAE,CAAC,CAAC,OAAO,CAC5D,4BAA4B,CAI5B,CAAC"}

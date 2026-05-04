@@ -8,7 +8,10 @@ export type AddMessageRequest = {
     filters?: Filters | undefined;
     modelKey?: string | undefined;
     modelName?: string | undefined;
+    modelFriendlyName?: string | undefined;
     chatMode?: string | undefined;
+    timezone?: string | undefined;
+    currentTime?: string | undefined;
 };
 export declare const AddMessageRequest$zodSchema: z.ZodType<AddMessageRequest>;
 //# sourceMappingURL=addmessagerequest.d.ts.map

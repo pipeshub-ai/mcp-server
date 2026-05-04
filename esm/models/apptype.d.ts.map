@@ -1,1 +1,0 @@
-{"version":3,"file":"apptype.d.ts","sourceRoot":"","sources":["../../src/models/apptype.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EAAE,UAAU,EAAE,MAAM,mBAAmB,CAAC;AAE/C;;GAEG;AACH,eAAO,MAAM,OAAO;;;;;;;;;;;;;;CAcV,CAAC;AACX;;GAEG;AACH,MAAM,MAAM,OAAO,GAAG,UAAU,CAAC,OAAO,OAAO,CAAC,CAAC;AAEjD,eAAO,MAAM,iBAAiB;;;;;;;;;;;;;;EAcsB,CAAC"}

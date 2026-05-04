@@ -6,9 +6,12 @@ import { Filters$zodSchema } from "./filters.js";
 export const AddMessageRequest$zodSchema = z
     .object({
     chatMode: z.string().optional(),
+    currentTime: z.iso.datetime({ offset: true }).optional(),
     filters: Filters$zodSchema.optional(),
+    modelFriendlyName: z.string().optional(),
     modelKey: z.string().optional(),
     modelName: z.string().optional(),
     query: z.string(),
+    timezone: z.string().optional(),
 }).describe("Request body for adding a message to an existing conversation");
 //# sourceMappingURL=addmessagerequest.js.map

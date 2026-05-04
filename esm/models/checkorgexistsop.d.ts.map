@@ -1,1 +1,0 @@
-{"version":3,"file":"checkorgexistsop.d.ts","sourceRoot":"","sources":["../../src/models/checkorgexistsop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,sBAAsB,GAAG;IACnC,OAAO,CAAC,EAAE,OAAO,GAAG,SAAS,CAAC;IAC9B,MAAM,CAAC,EAAE,OAAO,GAAG,SAAS,CAAC;CAC9B,CAAC;AAEF,eAAO,MAAM,gCAAgC,EAAE,CAAC,CAAC,OAAO,CACtD,sBAAsB,CAI6B,CAAC"}

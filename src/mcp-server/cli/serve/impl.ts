@@ -65,6 +65,7 @@ async function startStreamableHTTP(cliFlags: ServeCommandFlags) {
       logger,
       allowedTools: cliFlags.tool,
       dynamic: cliFlags.mode === "dynamic",
+      scopes: cliFlags.scope,
       serverURL: cliFlags["server-url"],
       getSDK: () =>
         buildSDK(headers, cliFlags, cliFlags["disable-static-auth"], logger),

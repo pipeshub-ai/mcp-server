@@ -1,1 +1,0 @@
-{"version":3,"file":"getrecordbyidop.d.ts","sourceRoot":"","sources":["../../src/models/getrecordbyidop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB,MAAM,MAAM,oBAAoB,GAAG;IACjC,QAAQ,EAAE,MAAM,CAAC;IACjB,SAAS,CAAC,EAAE,MAAM,GAAG,SAAS,CAAC;CAChC,CAAC;AAEF,eAAO,MAAM,8BAA8B,EAAE,CAAC,CAAC,OAAO,CAAC,oBAAoB,CAKvE,CAAC"}

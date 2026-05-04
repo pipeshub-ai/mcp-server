@@ -3,9 +3,11 @@
  */
 import * as z from "zod";
 export const PaginationInfo$zodSchema = z.object({
+    hasNextPage: z.boolean().optional(),
+    hasPrevPage: z.boolean().optional(),
     limit: z.int().optional(),
     page: z.int().optional(),
     totalCount: z.int().optional(),
     totalPages: z.int().optional(),
-});
+}).describe("Standard pagination block returned alongside list responses\n(e.g. `{ items: [...], pagination: PaginationInfo }`).\n");
 //# sourceMappingURL=paginationinfo.js.map

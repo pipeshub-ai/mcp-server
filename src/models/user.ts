@@ -24,6 +24,7 @@ export type User = {
   dataCollectionConsent?: boolean | undefined;
   isDeleted?: boolean | undefined;
   deletedBy?: string | undefined;
+  profilePicture?: string | null | undefined;
   _v?: number | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
@@ -46,6 +47,7 @@ export const User$zodSchema: z.ZodType<User> = z.object({
   middleName: z.string().optional(),
   mobile: z.string().optional(),
   orgId: z.string(),
+  profilePicture: z.string().nullable().optional(),
   slug: z.string().optional(),
   updatedAt: z.iso.datetime({ offset: true }).optional(),
 }).describe("User account in an organization");

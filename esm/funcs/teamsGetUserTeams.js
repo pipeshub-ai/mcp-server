@@ -38,8 +38,12 @@ async function $do(client$, request, options) {
     const body$ = null;
     const path$ = pathToFunc("/teams/user/teams")();
     const query$ = encodeFormQuery({
+        "created_after": payload$?.created_after,
+        "created_before": payload$?.created_before,
+        "created_by": payload$?.created_by,
         "limit": payload$?.limit,
         "page": payload$?.page,
+        "search": payload$?.search,
     });
     const headers$ = new Headers(compactMap({
         Accept: "application/json",
@@ -50,7 +54,7 @@ async function $do(client$, request, options) {
         options: client$._options,
         baseURL: options?.serverURL ?? client$._baseURL ?? "",
         operationID: "getUserTeams",
-        oAuth2Scopes: null,
+        oAuth2Scopes: ["team:read"],
         resolvedSecurity: requestSecurity,
         securitySource: client$._options.security,
         retryConfig: options?.retries

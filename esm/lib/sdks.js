@@ -6,7 +6,6 @@ import { ConnectionError, InvalidRequestError, RequestAbortedError, RequestTimeo
 import { stringToBase64 } from "./base64.js";
 import { SDK_METADATA, serverURLFromOptions } from "./config.js";
 import { encodeForm } from "./encodings.js";
-import { env } from "./env.js";
 import { HTTPClient, isAbortError, isConnectionError, isTimeoutError, matchContentType, matchStatusCode, } from "./http.js";
 import { ERR, OK } from "./result.js";
 import { retry } from "./retries.js";
@@ -24,7 +23,7 @@ export class ClientSDK {
     #logger;
     _baseURL;
     _options;
-    constructor(options) {
+    constructor(options = {}) {
         const opt = options;
         if (typeof opt === "object"
             && opt != null
@@ -46,9 +45,6 @@ export class ClientSDK {
         this.#httpClient = options.httpClient || defaultHttpClient;
         this._options = { ...options, hooks: this.#hooks };
         this.#logger = this._options.debugLogger;
-        if (!this.#logger && env().PIPESHUB_DEBUG) {
-            this.#logger = console;
-        }
     }
     _createRequest(context, conf, options) {
         const { method, path, query, headers: opHeaders, security } = conf;

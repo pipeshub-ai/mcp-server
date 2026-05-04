@@ -1,1 +1,0 @@
-{"version":3,"file":"shareagentop.js","sourceRoot":"","sources":["../../src/models/shareagentop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AACzB,OAAO,EAAgB,sBAAsB,EAAE,MAAM,mBAAmB,CAAC;AAIzE,MAAM,CAAC,MAAM,2BAA2B,GAAiC,CAAC;KACvE,MAAM,CAAC;IACN,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE;IACpB,IAAI,EAAE,sBAAsB;CAC7B,CAAC,CAAC"}

@@ -148,18 +148,6 @@ export type OAuth2Scope =
    */
   | "config:write"
   /**
-   * Read documents
-   */
-  | "document:read"
-  /**
-   * Upload and update documents
-   */
-  | "document:write"
-  /**
-   * Delete documents
-   */
-  | "document:delete"
-  /**
    * Read crawling jobs
    */
   | "crawl:read"

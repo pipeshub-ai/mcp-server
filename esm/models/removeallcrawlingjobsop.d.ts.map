@@ -1,1 +1,0 @@
-{"version":3,"file":"removeallcrawlingjobsop.d.ts","sourceRoot":"","sources":["../../src/models/removeallcrawlingjobsop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,6BAA6B,GAAG;IAC1C,OAAO,CAAC,EAAE,OAAO,GAAG,SAAS,CAAC;IAC9B,OAAO,CAAC,EAAE,MAAM,GAAG,SAAS,CAAC;CAC9B,CAAC;AAEF,eAAO,MAAM,uCAAuC,EAAE,CAAC,CAAC,OAAO,CAC7D,6BAA6B,CAIsB,CAAC"}

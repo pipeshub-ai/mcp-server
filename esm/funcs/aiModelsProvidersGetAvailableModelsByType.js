@@ -9,10 +9,25 @@ import { pathToFunc } from "../lib/url.js";
 import { GetAvailableModelsByTypeRequest$zodSchema, } from "../models/getavailablemodelsbytypeop.js";
 import { APIPromise } from "../types/async.js";
 /**
- * Get available models for selection
+ * List available AI models of a given type
  *
  * @remarks
- * Get available models in a flattened format for UI selection dropdowns.
+ * List every AI model of the requested type that the org has
+ * configured. Use this to discover valid `modelKey` values to pass
+ * on chat / search requests.<br><br>
+ * <b>Typical flow for a programmatic / MCP caller:</b>
+ * <ol>
+ * <li>Call this endpoint with <code>modelType=llm</code> to find
+ *     chat models. Pick the one with <code>isDefault: true</code>
+ *     unless the user explicitly asked for another.</li>
+ * <li>Pass the chosen <code>modelKey</code> (and optionally
+ *     <code>modelName</code>, <code>modelFriendlyName</code>) to
+ *     <code>POST /conversations/create</code> /
+ *     <code>POST /conversations/{id}/messages</code> /
+ *     <code>POST /search</code>.</li>
+ * </ol>
+ * Other useful `modelType` values: `embedding` (for re-embedding),
+ * `ocr`, `multiModal`, `reasoning`, `imageGeneration`, `tts`, `stt`.
  */
 export function aiModelsProvidersGetAvailableModelsByType(client$, request, options) {
     return new APIPromise($do(client$, request, options));
@@ -40,7 +55,7 @@ async function $do(client$, request, options) {
         options: client$._options,
         baseURL: options?.serverURL ?? client$._baseURL ?? "",
         operationID: "getAvailableModelsByType",
-        oAuth2Scopes: null,
+        oAuth2Scopes: ["config:read"],
         resolvedSecurity: requestSecurity,
         securitySource: client$._options.security,
         retryConfig: options?.retries

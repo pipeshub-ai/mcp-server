@@ -1,11 +1,11 @@
 {
   "name": "@pipeshub-ai/mcp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "Pipeshub",
   "type": "module",
   "sideEffects": false,
   "bin": {
-    "@pipeshub-ai/mcp": "bin/mcp-server.js",
+    "@aashil/mcp": "bin/mcp-server.js",
     "mcp": "bin/mcp-server.js"
   },
   "scripts": {

@@ -3,6 +3,7 @@
  */
 
 import { SDKOptions } from "../lib/config.js";
+import { MCPScope } from "./scopes.js";
 
 /**
  * Base flags interface for MCP server configuration.
@@ -11,6 +12,7 @@ import { SDKOptions } from "../lib/config.js";
 export interface MCPServerFlags {
   readonly tool?: string[];
   readonly mode?: "dynamic" | undefined;
+  readonly scope?: MCPScope[];
   readonly "bearer-auth"?: string | undefined;
   readonly "client-id"?: string | undefined;
   readonly "client-secret"?: string | undefined;

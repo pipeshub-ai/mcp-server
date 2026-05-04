@@ -12,6 +12,9 @@ export const ModelType = {
     Slm: "slm",
     Reasoning: "reasoning",
     MultiModal: "multiModal",
+    ImageGeneration: "imageGeneration",
+    Tts: "tts",
+    Stt: "stt",
 };
 export const ModelType$zodSchema = z.enum([
     "llm",
@@ -20,5 +23,8 @@ export const ModelType$zodSchema = z.enum([
     "slm",
     "reasoning",
     "multiModal",
+    "imageGeneration",
+    "tts",
+    "stt",
 ]).describe("Type of AI model");
 //# sourceMappingURL=modeltype.js.map
