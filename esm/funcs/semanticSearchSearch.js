@@ -61,7 +61,7 @@ async function $do(client$, request, options) {
         options: client$._options,
         baseURL: options?.serverURL ?? client$._baseURL ?? "",
         operationID: "search",
-        oAuth2Scopes: null,
+        oAuth2Scopes: ["semantic:write"],
         resolvedSecurity: requestSecurity,
         securitySource: client$._options.security,
         retryConfig: options?.retries

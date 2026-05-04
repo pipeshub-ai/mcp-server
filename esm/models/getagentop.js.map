@@ -1,1 +1,0 @@
-{"version":3,"file":"getagentop.js","sourceRoot":"","sources":["../../src/models/getagentop.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAIzB,MAAM,CAAC,MAAM,yBAAyB,GAA+B,CAAC,CAAC,MAAM,CAAC;IAC5E,QAAQ,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,QAAQ,CAAC,yBAAyB,CAAC;CACzD,CAAC,CAAC"}

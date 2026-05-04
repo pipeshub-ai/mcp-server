@@ -15,6 +15,9 @@ export const ModelType = {
   Slm: "slm",
   Reasoning: "reasoning",
   MultiModal: "multiModal",
+  ImageGeneration: "imageGeneration",
+  Tts: "tts",
+  Stt: "stt",
 } as const;
 /**
  * Type of AI model
@@ -28,4 +31,7 @@ export const ModelType$zodSchema = z.enum([
   "slm",
   "reasoning",
   "multiModal",
+  "imageGeneration",
+  "tts",
+  "stt",
 ]).describe("Type of AI model");

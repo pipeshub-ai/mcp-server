@@ -12,7 +12,8 @@ export type GetAllUsersRequest = {
 
 export const GetAllUsersRequest$zodSchema: z.ZodType<GetAllUsersRequest> = z
   .object({
-    limit: z.int().default(50).describe("Number of users per page"),
-    page: z.int().default(1).describe("Page number for pagination (1-based)"),
-    search: z.string().describe("Search users by name or email").optional(),
+    limit: z.int().default(50).describe("Number of users per page."),
+    page: z.int().default(1).describe("Page number for pagination (1-based)."),
+    search: z.string().describe("Substring match against name or email.")
+      .optional(),
   });

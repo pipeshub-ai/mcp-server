@@ -4,6 +4,8 @@ This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **C
 
 PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Clients connect to this endpoint directly -- no local npm packages or stdio processes needed.
 
+> **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`).
+
 ## Prerequisites
 
 - A running PipesHub instance (self-hosted or cloud)
@@ -655,33 +657,6 @@ Open Windsurf Settings > Cascade > Manage MCPs > View raw config, then add:
 </details>
 
 <details>
-<summary><strong>Progressive Discovery (Dynamic Mode)</strong></summary>
-
-The local MCP server exposes 300+ tools. To avoid context window bloat, enable **dynamic mode** which exposes only 3 meta-tools (`list_tools`, `describe_tool`, `execute_tool`) for progressive discovery:
-
-```json
-{
-  "mcpServers": {
-    "pipeshub": {
-      "command": "npx",
-      "args": [
-        "@pipeshub-ai/mcp",
-        "start",
-        "--mode",
-        "dynamic",
-        "--server-url",
-        "PIPESHUB_INSTANCE_URL",
-        "--bearer-auth",
-        "YOUR_BEARER_TOKEN"
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-<details>
 <summary><strong>Running from Source (Development)</strong></summary>
 
 To run the local MCP server from a cloned repository instead of the npm package:
@@ -747,7 +722,7 @@ AI Client (Cursor / Claude Code / Gemini CLI / Claude.ai / LibreChat)
         │  StreamableHTTP Transport
         │  (stateless, per-request MCP server)
         ▼
-  PipesHub API (300+ tools via progressive discovery)
+  PipesHub API (curated tool set — see TOOLS.md)
 ```
 
 
@@ -785,9 +760,6 @@ This means the client is trying dynamic registration instead of using your pre-c
 - Verify the endpoint is accessible: `curl -X POST PIPESHUB_INSTANCE_URL/mcp` (should return 401, not connection error)
 - Check that your PipesHub instance has MCP enabled
 
-### Too many tools / context window bloat
-The remote MCP server runs in **dynamic mode** (progressive discovery) by default, exposing only 3 meta-tools (`list_tools`, `describe_tool`, `execute_tool`). This keeps context usage minimal across all clients.
-
 ### Debugging with MCP Inspector
 ```bash
 npx @modelcontextprotocol/inspector
@@ -810,3 +782,4 @@ Then connect to `PIPESHUB_INSTANCE_URL/mcp` with a Bearer token to test the endp
    - **Claude.ai**: Disconnect and reconnect the connector in **Settings > Connectors**.
 
 </details>
+

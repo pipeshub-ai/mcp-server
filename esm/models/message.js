@@ -44,7 +44,28 @@ export const ContentFormat$zodSchema = z.enum([
     "JSON",
     "HTML",
 ]).describe("Format of the content for rendering");
-export const MessageMetadata$zodSchema = z.object({
+/**
+ * AI confidence level in the response. Values come from
+ *
+ * @remarks
+ * `CONFIDENCE_LEVELS` in
+ * `enterprise_search/constants/constants.ts`.
+ */
+export const Confidence = {
+    High: "High",
+    Medium: "Medium",
+    Low: "Low",
+    VeryHigh: "Very High",
+    Unknown: "Unknown",
+};
+export const Confidence$zodSchema = z.enum([
+    "High",
+    "Medium",
+    "Low",
+    "Very High",
+    "Unknown",
+]).describe("AI confidence level in the response. Values come from\n`CONFIDENCE_LEVELS` in\n`enterprise_search/constants/constants.ts`.\n");
+export const Metadata$zodSchema = z.object({
     aiTransactionId: z.string().optional(),
     modelVersion: z.string().optional(),
     processingTimeMs: z.number().optional(),
@@ -53,14 +74,14 @@ export const MessageMetadata$zodSchema = z.object({
 export const Message$zodSchema = z.object({
     _id: z.string().optional(),
     citations: z.array(CitationReference$zodSchema).optional(),
-    confidence: z.string().optional(),
+    confidence: Confidence$zodSchema.optional(),
     content: z.string().optional(),
     contentFormat: ContentFormat$zodSchema.default("MARKDOWN"),
     createdAt: z.iso.datetime({ offset: true }).optional(),
     feedback: z.array(MessageFeedback$zodSchema).optional(),
     followUpQuestions: z.array(FollowUpQuestion$zodSchema).optional(),
     messageType: MessageType$zodSchema.optional(),
-    metadata: z.lazy(() => MessageMetadata$zodSchema).optional(),
+    metadata: z.lazy(() => Metadata$zodSchema).optional(),
     updatedAt: z.iso.datetime({ offset: true }).optional(),
 }).describe("A single message within a conversation. Messages can be user queries,\nAI responses, system messages, or error notifications.\n");
 //# sourceMappingURL=message.js.map

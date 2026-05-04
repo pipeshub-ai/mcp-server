@@ -5,8 +5,9 @@ import * as z from "zod";
 import { Address$zodSchema } from "./address.js";
 export const User$zodSchema = z.object({
     _id: z.string().optional(),
+    _v: z.int().optional(),
     address: Address$zodSchema.optional(),
-    createdAt: z.int().optional(),
+    createdAt: z.iso.datetime({ offset: true }).optional(),
     dataCollectionConsent: z.boolean().optional(),
     deletedBy: z.string().optional(),
     designation: z.string().optional(),
@@ -19,7 +20,8 @@ export const User$zodSchema = z.object({
     middleName: z.string().optional(),
     mobile: z.string().optional(),
     orgId: z.string(),
+    profilePicture: z.string().nullable().optional(),
     slug: z.string().optional(),
-    updatedAt: z.int().optional(),
+    updatedAt: z.iso.datetime({ offset: true }).optional(),
 }).describe("User account in an organization");
 //# sourceMappingURL=user.js.map

@@ -3,19 +3,18 @@
  */
 
 import * as z from "zod";
-import { UserGroup, UserGroup$zodSchema } from "./usergroup.js";
 
-/**
- * List of user groups retrieved successfully
- */
-export type GetAllUserGroupsResponse = {
-  success?: boolean | undefined;
-  data?: Array<UserGroup> | undefined;
+export type GetAllUserGroupsRequest = {
+  page?: number | undefined;
+  limit?: number | undefined;
+  search?: string | undefined;
 };
 
-export const GetAllUserGroupsResponse$zodSchema: z.ZodType<
-  GetAllUserGroupsResponse
+export const GetAllUserGroupsRequest$zodSchema: z.ZodType<
+  GetAllUserGroupsRequest
 > = z.object({
-  data: z.array(UserGroup$zodSchema).optional(),
-  success: z.boolean().optional(),
-}).describe("List of user groups retrieved successfully");
+  limit: z.int().default(25).describe("Number of groups per page"),
+  page: z.int().default(1).describe("Page number (1-based)"),
+  search: z.string().describe("Search groups by name (case-insensitive)")
+    .optional(),
+});

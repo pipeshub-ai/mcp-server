@@ -50,7 +50,7 @@ export declare class ClientSDK {
     readonly _options: SDKOptions & {
         hooks?: SDKHooks;
     };
-    constructor(options: SDKOptions);
+    constructor(options?: SDKOptions);
     _createRequest(context: HookContext, conf: RequestConfig, options?: RequestOptions): Result<Request, InvalidRequestError | UnexpectedClientError>;
     _do(request: Request, options: {
         context: HookContext;

@@ -5,50 +5,105 @@
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
 
-export const KnowledgeHubNodeType = {
-  Kb: "KB",
-  Folder: "FOLDER",
-  Record: "RECORD",
-  Connector: "CONNECTOR",
-  App: "APP",
+/**
+ * Type of the node
+ */
+export const NodeType = {
+  App: "app",
+  RecordGroup: "recordGroup",
+  Folder: "folder",
+  Record: "record",
 } as const;
-export type KnowledgeHubNodeType = ClosedEnum<typeof KnowledgeHubNodeType>;
+/**
+ * Type of the node
+ */
+export type NodeType = ClosedEnum<typeof NodeType>;
 
-export const KnowledgeHubNodeType$zodSchema = z.enum([
-  "KB",
-  "FOLDER",
-  "RECORD",
-  "CONNECTOR",
-  "APP",
-]);
-
-export type KnowledgeHubNodeMetadata = {};
-
-export const KnowledgeHubNodeMetadata$zodSchema: z.ZodType<
-  KnowledgeHubNodeMetadata
-> = z.object({});
+export const NodeType$zodSchema = z.enum([
+  "app",
+  "recordGroup",
+  "folder",
+  "record",
+]).describe("Type of the node");
 
 /**
- * A node in the knowledge hub tree structure
+ * Origin type
+ */
+export const KnowledgeHubNodeOrigin = {
+  Collection: "COLLECTION",
+  Connector: "CONNECTOR",
+} as const;
+/**
+ * Origin type
+ */
+export type KnowledgeHubNodeOrigin = ClosedEnum<typeof KnowledgeHubNodeOrigin>;
+
+export const KnowledgeHubNodeOrigin$zodSchema = z.enum([
+  "COLLECTION",
+  "CONNECTOR",
+]).describe("Origin type");
+
+export type Permission = {
+  role?: string | undefined;
+  canEdit?: boolean | undefined;
+  canDelete?: boolean | undefined;
+};
+
+export const Permission$zodSchema: z.ZodType<Permission> = z.object({
+  canDelete: z.boolean().optional(),
+  canEdit: z.boolean().optional(),
+  role: z.string().optional(),
+});
+
+/**
+ * A node in the knowledge hub tree structure (NodeItem)
  */
 export type KnowledgeHubNode = {
   id?: string | undefined;
   name?: string | undefined;
-  type?: KnowledgeHubNodeType | undefined;
-  parentId?: string | undefined;
+  nodeType?: NodeType | undefined;
+  parentId?: string | null | undefined;
+  origin?: KnowledgeHubNodeOrigin | undefined;
+  connector?: string | null | undefined;
+  recordType?: string | null | undefined;
+  recordGroupType?: string | null | undefined;
+  indexingStatus?: string | null | undefined;
+  reason?: string | null | undefined;
+  isInternal?: boolean | undefined;
+  createdAt?: number | undefined;
+  updatedAt?: number | undefined;
+  sizeInBytes?: number | null | undefined;
+  mimeType?: string | null | undefined;
+  extension?: string | null | undefined;
+  webUrl?: string | null | undefined;
   hasChildren?: boolean | undefined;
-  childCount?: number | undefined;
-  metadata?: KnowledgeHubNodeMetadata | undefined;
+  previewRenderable?: boolean | null | undefined;
+  permission?: Permission | null | undefined;
+  sharingStatus?: string | null | undefined;
 };
 
 export const KnowledgeHubNode$zodSchema: z.ZodType<KnowledgeHubNode> = z.object(
   {
-    childCount: z.int().optional(),
+    connector: z.string().nullable().optional(),
+    createdAt: z.int().optional(),
+    extension: z.string().nullable().optional(),
     hasChildren: z.boolean().optional(),
     id: z.string().optional(),
-    metadata: z.lazy(() => KnowledgeHubNodeMetadata$zodSchema).optional(),
+    indexingStatus: z.string().nullable().optional(),
+    isInternal: z.boolean().optional(),
+    mimeType: z.string().nullable().optional(),
     name: z.string().optional(),
-    parentId: z.string().optional(),
-    type: KnowledgeHubNodeType$zodSchema.optional(),
+    nodeType: NodeType$zodSchema.optional(),
+    origin: KnowledgeHubNodeOrigin$zodSchema.optional(),
+    parentId: z.string().nullable().optional(),
+    permission: z.lazy(() => Permission$zodSchema).nullable().optional(),
+    previewRenderable: z.boolean().nullable().optional(),
+    reason: z.string().nullable().optional(),
+    recordGroupType: z.string().nullable().optional(),
+    recordType: z.string().nullable().optional(),
+    sharingStatus: z.string().nullable().optional(),
+    sizeInBytes: z.int().nullable().optional(),
+    updatedAt: z.int().optional(),
+    webUrl: z.string().nullable().optional(),
   },
-).describe("A node in the knowledge hub tree structure");
+).describe("A node in the knowledge hub tree structure (NodeItem)");

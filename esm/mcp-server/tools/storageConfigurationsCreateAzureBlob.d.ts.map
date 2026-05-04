@@ -1,1 +1,0 @@
-{"version":3,"file":"storageConfigurationsCreateAzureBlob.d.ts","sourceRoot":"","sources":["../../../src/mcp-server/tools/storageConfigurationsCreateAzureBlob.ts"],"names":[],"mappings":"AAMA,OAAO,EAAgB,cAAc,EAAE,MAAM,aAAa,CAAC;AAE3D,QAAA,MAAM,IAAI;;CAET,CAAC;AAEF,eAAO,MAAM,yCAAyC,EAAE,cAAc,CACpE,OAAO,IAAI,CAiCZ,CAAC"}

@@ -5,7 +5,7 @@ import { RetryConfig } from "./retries.js";
 /**
  * Contains the list of servers available to the SDK
  */
-export declare const ServerList: readonly ["/api/v1"];
+export declare const ServerList: readonly ["https://{instance_url}/api/v1", "https://{instance_url}"];
 export type SDKOptions = {
     /**
      * The security details required to authenticate the SDK
@@ -17,9 +17,13 @@ export type SDKOptions = {
      */
     serverIdx?: number | undefined;
     /**
-     * Specifies the server URL to be used by the SDK
+     * Sets the instance_url variable for url substitution
      */
-    serverURL: string;
+    instance_url?: string | undefined;
+    /**
+     * Allows overriding the default server URL used by the SDK
+     */
+    serverURL?: string | undefined;
     /**
      * Allows overriding the default user agent used by the SDK
      */
@@ -35,8 +39,8 @@ export declare function serverURLFromOptions(options: SDKOptions): URL | null;
 export declare const SDK_METADATA: {
     readonly language: "typescript";
     readonly openapiDocVersion: "1.0.0";
-    readonly sdkVersion: "0.1.1";
-    readonly genVersion: "2.824.1";
-    readonly userAgent: "speakeasy-sdk/mcp-typescript 0.1.1 2.824.1 1.0.0 pipeshub";
+    readonly sdkVersion: "0.0.4";
+    readonly genVersion: "2.846.1";
+    readonly userAgent: "speakeasy-sdk/mcp-typescript 0.0.4 2.846.1 1.0.0 mcp";
 };
 //# sourceMappingURL=config.d.ts.map

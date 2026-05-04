@@ -3,6 +3,7 @@
  */
 
 import * as z from "zod";
+import * as b64$ from "../lib/base64.js";
 
 export type StreamRecordBufferRequest = {
   recordId: string;
@@ -12,6 +13,112 @@ export type StreamRecordBufferRequest = {
 export const StreamRecordBufferRequest$zodSchema: z.ZodType<
   StreamRecordBufferRequest
 > = z.object({
-  convertTo: z.string().describe("Target format for conversion").optional(),
-  recordId: z.string().describe("Record ID"),
+  convertTo: z.string().describe(
+    "Optional target format for server-side conversion (e.g. `pdf`).\nWhen omitted, the original file is streamed as-is.\n",
+  ).optional(),
+  recordId: z.string().describe(
+    "Record identifier — typically a UUID for connector-sourced records\nand an ObjectId for uploaded records. Treated as an opaque string;\nobtain it from a chat citation (`metadata.recordId`) or from a\n`POST /search` result (`searchResponse.searchResults[*].metadata.recordId`).\n",
+  ),
+});
+
+/**
+ * Internal error or upstream stream failure. If the failure occurs
+ *
+ * @remarks
+ * after bytes have started flowing, the connection is closed
+ * mid-stream rather than returning JSON.
+ */
+export type StreamRecordBufferInternalServerErrorResponseBody = {
+  error?: string | undefined;
+};
+
+export const StreamRecordBufferInternalServerErrorResponseBody$zodSchema:
+  z.ZodType<StreamRecordBufferInternalServerErrorResponseBody> = z.object({
+    error: z.string().optional(),
+  }).describe(
+    "Internal error or upstream stream failure. If the failure occurs\nafter bytes have started flowing, the connection is closed\nmid-stream rather than returning JSON.\n",
+  );
+
+/**
+ * Record not found.
+ */
+export type StreamRecordBufferNotFoundResponseBody = {
+  error?: string | undefined;
+};
+
+export const StreamRecordBufferNotFoundResponseBody$zodSchema: z.ZodType<
+  StreamRecordBufferNotFoundResponseBody
+> = z.object({
+  error: z.string().optional(),
+}).describe("Record not found.");
+
+/**
+ * Forbidden — the authenticated user does not have read permission
+ *
+ * @remarks
+ * on this record's knowledge base.
+ */
+export type StreamRecordBufferForbiddenResponseBody = {
+  error?: string | undefined;
+};
+
+export const StreamRecordBufferForbiddenResponseBody$zodSchema: z.ZodType<
+  StreamRecordBufferForbiddenResponseBody
+> = z.object({
+  error: z.string().optional(),
+}).describe(
+  "Forbidden — the authenticated user does not have read permission\non this record's knowledge base.\n",
+);
+
+export type StreamRecordBufferResponseResult =
+  | Uint8Array
+  | string
+  | Uint8Array
+  | string
+  | StreamRecordBufferForbiddenResponseBody
+  | StreamRecordBufferNotFoundResponseBody
+  | StreamRecordBufferInternalServerErrorResponseBody;
+
+export const StreamRecordBufferResponseResult$zodSchema: z.ZodType<
+  StreamRecordBufferResponseResult
+> = z.union([
+  z.string().describe("Base64-encoded binary content").transform(
+    b64$.bytesFromBase64,
+  ),
+  z.string().describe("Base64-encoded binary content").transform(
+    b64$.bytesFromBase64,
+  ),
+  z.lazy(() => StreamRecordBufferForbiddenResponseBody$zodSchema),
+  z.lazy(() => StreamRecordBufferNotFoundResponseBody$zodSchema),
+  z.lazy(() => StreamRecordBufferInternalServerErrorResponseBody$zodSchema),
+]);
+
+export type StreamRecordBufferResponse = {
+  Headers: { [k: string]: Array<string> };
+  Result?:
+    | Uint8Array
+    | string
+    | Uint8Array
+    | string
+    | StreamRecordBufferForbiddenResponseBody
+    | StreamRecordBufferNotFoundResponseBody
+    | StreamRecordBufferInternalServerErrorResponseBody
+    | undefined;
+};
+
+export const StreamRecordBufferResponse$zodSchema: z.ZodType<
+  StreamRecordBufferResponse
+> = z.object({
+  Headers: z.record(z.string(), z.array(z.string())).default({}),
+  Result: z.union([
+    z.string().describe("Base64-encoded binary content").transform(
+      b64$.bytesFromBase64,
+    ),
+    z.string().describe("Base64-encoded binary content").transform(
+      b64$.bytesFromBase64,
+    ),
+    z.lazy(() => StreamRecordBufferForbiddenResponseBody$zodSchema),
+    z.lazy(() => StreamRecordBufferNotFoundResponseBody$zodSchema),
+    z.lazy(() => StreamRecordBufferInternalServerErrorResponseBody$zodSchema),
+  ]).optional(),
 });

@@ -1,7 +1,0 @@
-import { ToolDefinition } from "../tools.js";
-declare const args: {
-    request: import("zod").ZodOptional<import("zod").ZodType<import("../../models/getallusersop.js").GetAllUsersRequest, unknown, import("zod/v4/core").$ZodTypeInternals<import("../../models/getallusersop.js").GetAllUsersRequest, unknown>>>;
-};
-export declare const tool$usersGetAllUsers: ToolDefinition<typeof args>;
-export {};
-//# sourceMappingURL=usersGetAllUsers.d.ts.map

@@ -6,13 +6,4 @@ import { ModelType$zodSchema } from "./modeltype.js";
 export const GetAvailableModelsByTypeRequest$zodSchema = z.object({
     modelType: ModelType$zodSchema,
 });
-export const Model$zodSchema = z.object({
-    isDefault: z.boolean().optional(),
-    model: z.string().optional(),
-    modelKey: z.string().optional(),
-    provider: z.string().optional(),
-});
-export const GetAvailableModelsByTypeResponse$zodSchema = z.object({
-    models: z.array(z.lazy(() => Model$zodSchema)).optional(),
-}).describe("Available models retrieved");
 //# sourceMappingURL=getavailablemodelsbytypeop.js.map

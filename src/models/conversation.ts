@@ -7,38 +7,46 @@ import { ClosedEnum } from "../types/enums.js";
 import { Message, Message$zodSchema } from "./message.js";
 
 /**
- * Current status of the conversation:
+ * Current status of the conversation (mixed-case values, source of
  *
  * @remarks
+ * truth is `CONVERSATION_STATUS` in
+ * `enterprise_search/constants/constants.ts`):
  * <ul>
- * <li><code>INPROGRESS</code> - AI is processing</li>
- * <li><code>COMPLETED</code> - Response ready</li>
- * <li><code>FAILED</code> - Error occurred</li>
+ * <li><code>Inprogress</code> — request received, AI is generating a response</li>
+ * <li><code>Complete</code> — response ready</li>
+ * <li><code>Failed</code> — AI backend or downstream error; see <code>failReason</code></li>
+ * <li><code>None</code> — placeholder used for empty/legacy conversations</li>
  * </ul>
  */
 export const ConversationStatus = {
-  Inprogress: "INPROGRESS",
-  Completed: "COMPLETED",
-  Failed: "FAILED",
+  Complete: "Complete",
+  Failed: "Failed",
+  Inprogress: "Inprogress",
+  None: "None",
 } as const;
 /**
- * Current status of the conversation:
+ * Current status of the conversation (mixed-case values, source of
  *
  * @remarks
+ * truth is `CONVERSATION_STATUS` in
+ * `enterprise_search/constants/constants.ts`):
  * <ul>
- * <li><code>INPROGRESS</code> - AI is processing</li>
- * <li><code>COMPLETED</code> - Response ready</li>
- * <li><code>FAILED</code> - Error occurred</li>
+ * <li><code>Inprogress</code> — request received, AI is generating a response</li>
+ * <li><code>Complete</code> — response ready</li>
+ * <li><code>Failed</code> — AI backend or downstream error; see <code>failReason</code></li>
+ * <li><code>None</code> — placeholder used for empty/legacy conversations</li>
  * </ul>
  */
 export type ConversationStatus = ClosedEnum<typeof ConversationStatus>;
 
 export const ConversationStatus$zodSchema = z.enum([
-  "INPROGRESS",
-  "COMPLETED",
-  "FAILED",
+  "Complete",
+  "Failed",
+  "Inprogress",
+  "None",
 ]).describe(
-  "Current status of the conversation:\n<ul>\n<li><code>INPROGRESS</code> - AI is processing</li>\n<li><code>COMPLETED</code> - Response ready</li>\n<li><code>FAILED</code> - Error occurred</li>\n</ul>\n",
+  "Current status of the conversation (mixed-case values, source of\ntruth is `CONVERSATION_STATUS` in\n`enterprise_search/constants/constants.ts`):\n<ul>\n<li><code>Inprogress</code> — request received, AI is generating a response</li>\n<li><code>Complete</code> — response ready</li>\n<li><code>Failed</code> — AI backend or downstream error; see <code>failReason</code></li>\n<li><code>None</code> — placeholder used for empty/legacy conversations</li>\n</ul>\n",
 );
 
 /**
@@ -47,39 +55,37 @@ export const ConversationStatus$zodSchema = z.enum([
 export type ModelInfo = {
   modelKey?: string | undefined;
   modelName?: string | undefined;
+  modelFriendlyName?: string | undefined;
   modelProvider?: string | undefined;
   chatMode?: string | undefined;
 };
 
 export const ModelInfo$zodSchema: z.ZodType<ModelInfo> = z.object({
   chatMode: z.string().optional(),
+  modelFriendlyName: z.string().optional(),
   modelKey: z.string().optional(),
   modelName: z.string().optional(),
   modelProvider: z.string().optional(),
 }).describe("AI model configuration used");
 
-export const ConversationAccessLevel = {
+export const AccessLevel = {
   Read: "read",
   Write: "write",
 } as const;
-export type ConversationAccessLevel = ClosedEnum<
-  typeof ConversationAccessLevel
->;
+export type AccessLevel = ClosedEnum<typeof AccessLevel>;
 
-export const ConversationAccessLevel$zodSchema = z.enum([
+export const AccessLevel$zodSchema = z.enum([
   "read",
   "write",
 ]);
 
-export type ConversationSharedWith = {
+export type SharedWith = {
   userId?: string | undefined;
-  accessLevel?: ConversationAccessLevel | undefined;
+  accessLevel?: AccessLevel | undefined;
 };
 
-export const ConversationSharedWith$zodSchema: z.ZodType<
-  ConversationSharedWith
-> = z.object({
-  accessLevel: ConversationAccessLevel$zodSchema.optional(),
+export const SharedWith$zodSchema: z.ZodType<SharedWith> = z.object({
+  accessLevel: AccessLevel$zodSchema.optional(),
   userId: z.string().optional(),
 });
 
@@ -102,7 +108,7 @@ export type Conversation = {
   modelInfo?: ModelInfo | undefined;
   isShared?: boolean | undefined;
   shareLink?: string | undefined;
-  sharedWith?: Array<ConversationSharedWith> | undefined;
+  sharedWith?: Array<SharedWith> | undefined;
   isArchived?: boolean | undefined;
   archivedBy?: string | undefined;
   lastActivityAt?: number | undefined;
@@ -123,8 +129,7 @@ export const Conversation$zodSchema: z.ZodType<Conversation> = z.object({
   modelInfo: z.lazy(() => ModelInfo$zodSchema).optional(),
   orgId: z.string().optional(),
   shareLink: z.string().optional(),
-  sharedWith: z.array(z.lazy(() => ConversationSharedWith$zodSchema))
-    .optional(),
+  sharedWith: z.array(z.lazy(() => SharedWith$zodSchema)).optional(),
   status: ConversationStatus$zodSchema.optional(),
   title: z.string().optional(),
   updatedAt: z.iso.datetime({ offset: true }).optional(),

@@ -4,6 +4,7 @@ import { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.j
 import { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import { PipeshubCore } from "../core.js";
 import { ConsoleLogger } from "./console-logger.js";
+import { MCPServerFlags } from "./flags.js";
 import { MCPScope } from "./scopes.js";
 export type ToolDefinition<Args extends undefined | ZodRawShapeCompat = undefined> = Args extends ZodRawShapeCompat ? {
     name: string;
@@ -42,4 +43,7 @@ export declare function createRegisterTool(logger: ConsoleLogger, server: McpSer
     Map<string, ToolDefinition<ZodRawShapeCompat | undefined>>
 ];
 export declare function registerDynamicTools(logger: ConsoleLogger, server: McpServer, getSDK: () => PipeshubCore, toolMap: Map<string, ToolDefinition<ZodRawShapeCompat | undefined>>, allowedScopes: Set<MCPScope>): void;
+export declare function buildSDK(headers: Headers, cliFlags: MCPServerFlags, disableStaticAuth: boolean, logger: {
+    level: string;
+}): PipeshubCore;
 //# sourceMappingURL=tools.d.ts.map

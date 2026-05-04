@@ -5,11 +5,17 @@ import * as z from "zod";
 import { Filters$zodSchema } from "./filters.js";
 export const CreateConversationRequest$zodSchema = z.object({
     chatMode: z.string().optional(),
+    conversationId: z.string().optional(),
+    currentTime: z.iso.datetime({ offset: true }).optional(),
     departments: z.array(z.string()).optional(),
     filters: Filters$zodSchema.optional(),
+    modelFriendlyName: z.string().optional(),
     modelKey: z.string().optional(),
     modelName: z.string().optional(),
+    modelProvider: z.string().optional(),
+    previousConversations: z.array(z.record(z.string(), z.any())).optional(),
     query: z.string(),
     recordIds: z.array(z.string()).optional(),
+    timezone: z.string().optional(),
 }).describe("Request body for creating a new AI conversation.<br><br>\n<b>Query Processing:</b><br>\nThe query is processed through PipesHub's AI pipeline which:\n<ul>\n<li>Performs semantic search across indexed knowledge bases</li>\n<li>Retrieves relevant context from matching documents</li>\n<li>Generates a response with citations to source materials</li>\n<li>Suggests follow-up questions based on the conversation</li>\n</ul>\n");
 //# sourceMappingURL=createconversationrequest.js.map

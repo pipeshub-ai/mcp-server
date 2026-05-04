@@ -37,8 +37,8 @@ export declare const MessageType: {
 export type MessageType = ClosedEnum<typeof MessageType>;
 export declare const MessageType$zodSchema: z.ZodEnum<{
     error: "error";
-    user_query: "user_query";
     bot_response: "bot_response";
+    user_query: "user_query";
     feedback: "feedback";
     system: "system";
 }>;
@@ -59,13 +59,42 @@ export declare const ContentFormat$zodSchema: z.ZodEnum<{
     JSON: "JSON";
     HTML: "HTML";
 }>;
-export type MessageMetadata = {
+/**
+ * AI confidence level in the response. Values come from
+ *
+ * @remarks
+ * `CONFIDENCE_LEVELS` in
+ * `enterprise_search/constants/constants.ts`.
+ */
+export declare const Confidence: {
+    readonly High: "High";
+    readonly Medium: "Medium";
+    readonly Low: "Low";
+    readonly VeryHigh: "Very High";
+    readonly Unknown: "Unknown";
+};
+/**
+ * AI confidence level in the response. Values come from
+ *
+ * @remarks
+ * `CONFIDENCE_LEVELS` in
+ * `enterprise_search/constants/constants.ts`.
+ */
+export type Confidence = ClosedEnum<typeof Confidence>;
+export declare const Confidence$zodSchema: z.ZodEnum<{
+    High: "High";
+    Medium: "Medium";
+    Low: "Low";
+    "Very High": "Very High";
+    Unknown: "Unknown";
+}>;
+export type Metadata = {
     processingTimeMs?: number | undefined;
     modelVersion?: string | undefined;
     aiTransactionId?: string | undefined;
     reason?: string | undefined;
 };
-export declare const MessageMetadata$zodSchema: z.ZodType<MessageMetadata>;
+export declare const Metadata$zodSchema: z.ZodType<Metadata>;
 /**
  * A single message within a conversation. Messages can be user queries,
  *
@@ -78,10 +107,10 @@ export type Message = {
     content?: string | undefined;
     contentFormat?: ContentFormat | undefined;
     citations?: Array<CitationReference> | undefined;
-    confidence?: string | undefined;
+    confidence?: Confidence | undefined;
     followUpQuestions?: Array<FollowUpQuestion> | undefined;
     feedback?: Array<MessageFeedback> | undefined;
-    metadata?: MessageMetadata | undefined;
+    metadata?: Metadata | undefined;
     createdAt?: string | undefined;
     updatedAt?: string | undefined;
 };

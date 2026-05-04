@@ -3,75 +3,26 @@
  */
 
 import * as z from "zod";
-import { ClosedEnum } from "../types/enums.js";
-import { Team, Team$zodSchema } from "./team.js";
 
 export type GetUserTeamsRequest = {
   page?: number | undefined;
   limit?: number | undefined;
+  search?: string | undefined;
+  created_by?: string | undefined;
+  created_after?: number | undefined;
+  created_before?: number | undefined;
 };
 
 export const GetUserTeamsRequest$zodSchema: z.ZodType<GetUserTeamsRequest> = z
   .object({
-    limit: z.int().default(20).describe("Number of teams per page"),
+    created_after: z.int().describe(
+      "Filter teams created after this timestamp (ms)",
+    ).optional(),
+    created_before: z.int().describe(
+      "Filter teams created before this timestamp (ms)",
+    ).optional(),
+    created_by: z.string().describe("Filter by creator user key").optional(),
+    limit: z.int().default(100).describe("Number of teams per page"),
     page: z.int().default(1).describe("Page number for pagination (1-based)"),
+    search: z.string().describe("Search teams by name").optional(),
   });
-
-export const GetUserTeamsRole = {
-  Owner: "owner",
-  Admin: "admin",
-  Member: "member",
-  Viewer: "viewer",
-} as const;
-export type GetUserTeamsRole = ClosedEnum<typeof GetUserTeamsRole>;
-
-export const GetUserTeamsRole$zodSchema = z.enum([
-  "owner",
-  "admin",
-  "member",
-  "viewer",
-]);
-
-export type GetUserTeamsData = {
-  team?: Team | undefined;
-  role?: GetUserTeamsRole | undefined;
-  joinedAt?: string | undefined;
-};
-
-export const GetUserTeamsData$zodSchema: z.ZodType<GetUserTeamsData> = z.object(
-  {
-    joinedAt: z.iso.datetime({ offset: true }).optional(),
-    role: GetUserTeamsRole$zodSchema.optional(),
-    team: Team$zodSchema.optional(),
-  },
-);
-
-export type GetUserTeamsPagination = {
-  page?: number | undefined;
-  limit?: number | undefined;
-  total?: number | undefined;
-};
-
-export const GetUserTeamsPagination$zodSchema: z.ZodType<
-  GetUserTeamsPagination
-> = z.object({
-  limit: z.int().optional(),
-  page: z.int().optional(),
-  total: z.int().optional(),
-});
-
-/**
- * User's teams retrieved successfully
- */
-export type GetUserTeamsResponse = {
-  success?: boolean | undefined;
-  data?: Array<GetUserTeamsData> | undefined;
-  pagination?: GetUserTeamsPagination | undefined;
-};
-
-export const GetUserTeamsResponse$zodSchema: z.ZodType<GetUserTeamsResponse> = z
-  .object({
-    data: z.array(z.lazy(() => GetUserTeamsData$zodSchema)).optional(),
-    pagination: z.lazy(() => GetUserTeamsPagination$zodSchema).optional(),
-    success: z.boolean().optional(),
-  }).describe("User's teams retrieved successfully");

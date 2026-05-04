@@ -29,9 +29,20 @@ async function startStdio(flags) {
         logger,
         allowedTools: flags.tool,
         dynamic: flags.mode === "dynamic",
-        security: { bearerAuth: flags["bearer-auth"] ?? "" },
+        scopes: flags.scope,
+        security: {
+            bearerAuth: flags["bearer-auth"] ?? "",
+            oauth2: flags["client-id"] != null && flags["client-secret"] != null
+                ? {
+                    clientID: flags["client-id"] || "",
+                    clientSecret: flags["client-secret"] || "",
+                    tokenURL: flags["token-url"] || "",
+                }
+                : undefined,
+        },
         serverURL: flags["server-url"],
         serverIdx: flags["server-index"],
+        instance_url: flags["instance-url"],
     });
     await server.connect(transport);
     const abort = async () => {
@@ -64,17 +75,32 @@ async function startSSE(cliFlags) {
         const flags = {
             ...cliFlags,
             // Security fields can be overridden via headers
-            "bearer-auth": req.headers["bearerAuth"]
+            "bearer-auth": req.headers["bearerauth"]
                 ?? cliFlags["bearer-auth"],
+            "client-id": req.headers["clientid"] ?? cliFlags["client-id"],
+            "client-secret": req.headers["clientsecret"]
+                ?? cliFlags["client-secret"],
+            "token-url": req.headers["tokenurl"] ?? cliFlags["token-url"],
         };
         // Create a new MCP server for this connection with its auth
         const { server: mcpServer } = createMCPServer({
             logger,
             allowedTools: flags.tool,
             dynamic: flags.mode === "dynamic",
-            security: { bearerAuth: flags["bearer-auth"] ?? "" },
+            scopes: flags.scope,
+            security: {
+                bearerAuth: flags["bearer-auth"] ?? "",
+                oauth2: flags["client-id"] != null && flags["client-secret"] != null
+                    ? {
+                        clientID: flags["client-id"] || "",
+                        clientSecret: flags["client-secret"] || "",
+                        tokenURL: flags["token-url"] || "",
+                    }
+                    : undefined,
+            },
             serverURL: flags["server-url"],
             serverIdx: flags["server-index"],
+            instance_url: flags["instance-url"],
         });
         // Message path includes session ID for routing
         const transport = new SSEServerTransport(`/message/${sessionId}`, res);

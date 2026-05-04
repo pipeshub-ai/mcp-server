@@ -3,7 +3,9 @@
  */
 
 import { PipeshubCore } from "../core.js";
+import { encodeFormQuery } from "../lib/encodings.js";
 import { compactMap } from "../lib/primitives.js";
+import { safeParse } from "../lib/schemas.js";
 import { RequestOptions } from "../lib/sdks.js";
 import { extractSecurity, resolveGlobalSecurity } from "../lib/security.js";
 import { pathToFunc } from "../lib/url.js";
@@ -16,6 +18,10 @@ import {
   UnexpectedClientError,
 } from "../models/errors/httpclienterrors.js";
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
+import {
+  GetAllUserGroupsRequest,
+  GetAllUserGroupsRequest$zodSchema,
+} from "../models/getallusergroupsop.js";
 import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
@@ -29,16 +35,19 @@ import { Result } from "../types/fp.js";
  * <li>Returns all groups including admin, standard, everyone, and custom types</li>
  * <li>Groups are returned with their member counts</li>
  * <li>Soft-deleted groups are excluded by default</li>
+ * <li>Each user in the <code>users</code> array is returned as an object with <code>_id</code> and <code>profilePicture</code> (base64 data URI or null)</li>
  * </ul>
  * <b>Use Cases:</b><br>
  * <ul>
  * <li>Populating group selection dropdowns</li>
  * <li>Managing group memberships</li>
  * <li>Access control configuration</li>
+ * <li>Rendering user avatars in group member lists</li>
  * </ul>
  */
 export function userGroupsGetAllUserGroups(
   client$: PipeshubCore,
+  request?: GetAllUserGroupsRequest | undefined,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -54,12 +63,14 @@ export function userGroupsGetAllUserGroups(
 > {
   return new APIPromise($do(
     client$,
+    request,
     options,
   ));
 }
 
 async function $do(
   client$: PipeshubCore,
+  request?: GetAllUserGroupsRequest | undefined,
   options?: RequestOptions,
 ): Promise<
   [
@@ -76,7 +87,22 @@ async function $do(
     APICall,
   ]
 > {
+  const parsed$ = safeParse(
+    request,
+    (value$) => GetAllUserGroupsRequest$zodSchema.optional().parse(value$),
+    "Input validation failed",
+  );
+  if (!parsed$.ok) {
+    return [parsed$, { status: "invalid" }];
+  }
+  const payload$ = parsed$.value;
+  const body$ = null;
   const path$ = pathToFunc("/userGroups")();
+  const query$ = encodeFormQuery({
+    "limit": payload$?.limit,
+    "page": payload$?.page,
+    "search": payload$?.search,
+  });
 
   const headers$ = new Headers(compactMap({
     Accept: "application/json",
@@ -109,6 +135,8 @@ async function $do(
     baseURL: options?.serverURL,
     path: path$,
     headers: headers$,
+    query: query$,
+    body: body$,
     userAgent: client$._options.userAgent,
     timeoutMs: options?.timeoutMs || client$._options.timeoutMs
       || -1,

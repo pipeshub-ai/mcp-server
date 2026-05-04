@@ -1,1 +1,0 @@
-{"version":3,"file":"ssoauthconfig.d.ts","sourceRoot":"","sources":["../../src/models/ssoauthconfig.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB;;GAEG;AACH,MAAM,MAAM,aAAa,GAAG;IAC1B,UAAU,EAAE,MAAM,CAAC;IACnB,WAAW,EAAE,MAAM,CAAC;IACpB,QAAQ,EAAE,MAAM,CAAC;CAClB,CAAC;AAEF,eAAO,MAAM,uBAAuB,EAAE,CAAC,CAAC,OAAO,CAAC,aAAa,CAIT,CAAC"}

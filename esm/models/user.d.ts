@@ -19,8 +19,10 @@ export type User = {
     dataCollectionConsent?: boolean | undefined;
     isDeleted?: boolean | undefined;
     deletedBy?: string | undefined;
-    createdAt?: number | undefined;
-    updatedAt?: number | undefined;
+    profilePicture?: string | null | undefined;
+    _v?: number | undefined;
+    createdAt?: string | undefined;
+    updatedAt?: string | undefined;
 };
 export declare const User$zodSchema: z.ZodType<User>;
 //# sourceMappingURL=user.d.ts.map

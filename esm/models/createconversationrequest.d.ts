@@ -16,11 +16,19 @@ import { Filters } from "./filters.js";
 export type CreateConversationRequest = {
     query: string;
     recordIds?: Array<string> | undefined;
+    previousConversations?: Array<{
+        [k: string]: any;
+    }> | undefined;
     departments?: Array<string> | undefined;
     filters?: Filters | undefined;
     modelKey?: string | undefined;
     modelName?: string | undefined;
+    modelFriendlyName?: string | undefined;
+    modelProvider?: string | undefined;
     chatMode?: string | undefined;
+    conversationId?: string | undefined;
+    timezone?: string | undefined;
+    currentTime?: string | undefined;
 };
 export declare const CreateConversationRequest$zodSchema: z.ZodType<CreateConversationRequest>;
 //# sourceMappingURL=createconversationrequest.d.ts.map

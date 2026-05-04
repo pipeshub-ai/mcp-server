@@ -17,5 +17,7 @@ export const AddMessageRequestRequest$zodSchema: z.ZodType<
   AddMessageRequestRequest
 > = z.object({
   body: AddMessageRequest$zodSchema,
-  conversationId: z.string().describe("Unique conversation identifier"),
+  conversationId: z.string().describe(
+    "Unique conversation identifier. Get this from a prior\n`POST /conversations/create` response\n(`conversation._id`) or from `GET /conversations`.\n",
+  ),
 });

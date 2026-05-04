@@ -1,1 +1,0 @@
-{"version":3,"file":"deleteagentconversationop.d.ts","sourceRoot":"","sources":["../../src/models/deleteagentconversationop.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,CAAC,MAAM,KAAK,CAAC;AAEzB,MAAM,MAAM,8BAA8B,GAAG;IAC3C,QAAQ,EAAE,MAAM,CAAC;IACjB,cAAc,EAAE,MAAM,CAAC;CACxB,CAAC;AAEF,eAAO,MAAM,wCAAwC,EAAE,CAAC,CAAC,OAAO,CAC9D,8BAA8B,CAI9B,CAAC"}

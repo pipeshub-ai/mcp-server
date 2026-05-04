@@ -8,5 +8,7 @@ export type GetUserByIdRequest = { id: string };
 
 export const GetUserByIdRequest$zodSchema: z.ZodType<GetUserByIdRequest> = z
   .object({
-    id: z.string().describe("User ID (24-character MongoDB ObjectId)"),
+    id: z.string().describe(
+      "User identifier (24-character MongoDB ObjectId). To look up the\nauthenticated user, decode the JWT and use its `userId` claim,\nor list `/users` and match on email.\n",
+    ),
   });

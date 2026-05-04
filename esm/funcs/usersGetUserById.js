@@ -61,7 +61,7 @@ async function $do(client$, request, options) {
         options: client$._options,
         baseURL: options?.serverURL ?? client$._baseURL ?? "",
         operationID: "getUserById",
-        oAuth2Scopes: null,
+        oAuth2Scopes: ["user:read"],
         resolvedSecurity: requestSecurity,
         securitySource: client$._options.security,
         retryConfig: options?.retries

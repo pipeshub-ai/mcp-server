@@ -3,14 +3,35 @@
  */
 
 import * as z from "zod";
-import { AppType, AppType$zodSchema } from "./apptype.js";
 
+/**
+ * Source-scoping for a chat turn. **All scoping ids go in `apps`** —
+ *
+ * @remarks
+ * both connector instance UUIDs (e.g. a specific Box / Drive / Confluence
+ * connection) and the synthetic knowledge-base id
+ * `knowledgeBase_<orgId>` (used to include the org's knowledge base
+ * as a source). The separate `kb` field is preserved for
+ * backwards-compat but the server-side flow funnels everything
+ * through `apps`; leave `kb` as `[]`.<br><br>
+ * **NOT connector type names** — do NOT pass `"drive"`, `"gmail"`,
+ * etc. Get connector instance UUIDs from
+ * `GET /connectors/active` (field `_id`).<br><br>
+ * For **org assistant** chats, send explicit `apps` lists. For
+ * **agent** chats, send explicit id lists, or **omit** `filters`
+ * (and `tools`) to let the service use the agent's stored knowledge
+ * and tool configuration. Sending `{ "apps": [], "kb": [] }` on an
+ * agent chat means **no** knowledge sources for that turn (it is
+ * not "full org default").
+ */
 export type Filters = {
-  apps?: Array<AppType> | undefined;
+  apps?: Array<string> | undefined;
   kb?: Array<string> | undefined;
 };
 
 export const Filters$zodSchema: z.ZodType<Filters> = z.object({
-  apps: z.array(AppType$zodSchema).optional(),
+  apps: z.array(z.string()).optional(),
   kb: z.array(z.string()).optional(),
-});
+}).describe(
+  "Source-scoping for a chat turn. **All scoping ids go in `apps`** —\nboth connector instance UUIDs (e.g. a specific Box / Drive / Confluence\nconnection) and the synthetic knowledge-base id\n`knowledgeBase_<orgId>` (used to include the org's knowledge base\nas a source). The separate `kb` field is preserved for\nbackwards-compat but the server-side flow funnels everything\nthrough `apps`; leave `kb` as `[]`.<br><br>\n**NOT connector type names** — do NOT pass `\"drive\"`, `\"gmail\"`,\netc. Get connector instance UUIDs from\n`GET /connectors/active` (field `_id`).<br><br>\nFor **org assistant** chats, send explicit `apps` lists. For\n**agent** chats, send explicit id lists, or **omit** `filters`\n(and `tools`) to let the service use the agent's stored knowledge\nand tool configuration. Sending `{ \"apps\": [], \"kb\": [] }` on an\nagent chat means **no** knowledge sources for that turn (it is\nnot \"full org default\").\n",
+);
