@@ -68,29 +68,41 @@ const args = {
   ),
   modelName: z.string().optional(),
   modelFriendlyName: z.string().optional(),
-  chatMode: z.enum(["quick", "balanced"]).optional().describe(
-    "`quick` for low-retrieval / fast answers; `balanced` for full RAG. "
-      + "Default `quick`.",
+  chatMode: z.enum(["web_search", "internal_search"]).optional().describe(
+    "Controls retrieval source. "
+      + "`internal_search` (default) — searches the org's indexed knowledge "
+      + "bases (Drive, Confluence, Slack, Gmail, Jira, Box, etc.) and returns "
+      + "citations. Use this for questions about internal docs, policies, or "
+      + "company data. "
+      + "`web_search` — searches the public web instead of internal sources. "
+      + "Use only when the user explicitly asks about current events, public "
+      + "information, or anything not expected to be in the org's KB. "
+      + "Omit this field (or pass `internal_search`) for all normal queries.",
   ),
 };
 
 export const tool$pipeshubChat: ToolDefinition<typeof args> = {
   name: "pipeshub_chat",
   description:
-    `**Default tool for anything PipesHub-related.** Use this whenever the
-user asks about their documents, files, knowledge base, company
-policies, or anything that could plausibly be answered by content in
-their PipesHub-indexed sources (Drive, Box, Confluence, Slack, Gmail,
-Jira, the org's KB, ...). Do NOT answer those from your own knowledge —
-\`pipeshub_chat\` grounds the answer in the user's actual data and
-returns citations.
+    `**Primary chat tool — handles both internal knowledge queries and web search.**
+
+**Internal search** (default, \`chatMode: "internal_search"\`): Use whenever
+the user asks about their documents, files, knowledge base, company policies,
+or anything that could plausibly be answered by content in their PipesHub-indexed
+sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, ...).
+Grounds the answer in the user's actual data and returns citations.
+
+**Web search** (\`chatMode: "web_search"\`): Use when the user asks about
+current events, public information, or anything unlikely to be in the org's
+internal knowledge base. Pass \`chatMode: "web_search"\` and this tool will
+search the public web instead.
 
 **When to pick this over other tools:**
-- "What does <document> say about X?" → \`pipeshub_chat\` (NOT search;
-  search is only for locating files by name).
-- "Summarize <topic / doc>." → \`pipeshub_chat\`.
-- "What's our policy on Y?" → \`pipeshub_chat\`.
-- "What do we know about Z?" → \`pipeshub_chat\`.
+- "What does <document> say about X?" → \`pipeshub_chat\` (internal_search)
+- "Summarize <topic / doc>." → \`pipeshub_chat\` (internal_search)
+- "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
+- "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
+- "What is the latest version of <library>?" → \`pipeshub_chat\` (web_search)
 - "Find / locate the file named X" → \`pipeshub_search\` (then
   \`pipeshub_download_record\` if the user wants the bytes).
 
