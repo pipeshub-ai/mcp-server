@@ -5,18 +5,18 @@
 import * as z from "zod";
 
 /**
- * A single filter option for knowledge hub filters
+ * A single filter option for knowledge hub filters.
  */
 export type FilterOption = {
-  id?: string | undefined;
-  label?: string | undefined;
+  id: string;
+  label: string;
   type?: string | null | undefined;
   connectorType?: string | null | undefined;
 };
 
 export const FilterOption$zodSchema: z.ZodType<FilterOption> = z.object({
   connectorType: z.string().nullable().optional(),
-  id: z.string().optional(),
-  label: z.string().optional(),
+  id: z.string(),
+  label: z.string(),
   type: z.string().nullable().optional(),
-}).describe("A single filter option for knowledge hub filters");
+}).describe("A single filter option for knowledge hub filters.");

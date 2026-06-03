@@ -6,7 +6,7 @@ import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
 
 /**
- * Type of the node
+ * Type of the node (app, recordGroup, folder, or record).
  */
 export const NodeType = {
   App: "app",
@@ -15,7 +15,7 @@ export const NodeType = {
   Record: "record",
 } as const;
 /**
- * Type of the node
+ * Type of the node (app, recordGroup, folder, or record).
  */
 export type NodeType = ClosedEnum<typeof NodeType>;
 
@@ -24,86 +24,92 @@ export const NodeType$zodSchema = z.enum([
   "recordGroup",
   "folder",
   "record",
-]).describe("Type of the node");
+]).describe("Type of the node (app, recordGroup, folder, or record).");
 
 /**
- * Origin type
+ * Origin type.
  */
-export const KnowledgeHubNodeOrigin = {
+export const Origin = {
   Collection: "COLLECTION",
   Connector: "CONNECTOR",
 } as const;
 /**
- * Origin type
+ * Origin type.
  */
-export type KnowledgeHubNodeOrigin = ClosedEnum<typeof KnowledgeHubNodeOrigin>;
+export type Origin = ClosedEnum<typeof Origin>;
 
-export const KnowledgeHubNodeOrigin$zodSchema = z.enum([
+export const Origin$zodSchema = z.enum([
   "COLLECTION",
   "CONNECTOR",
-]).describe("Origin type");
-
-export type Permission = {
-  role?: string | undefined;
-  canEdit?: boolean | undefined;
-  canDelete?: boolean | undefined;
-};
-
-export const Permission$zodSchema: z.ZodType<Permission> = z.object({
-  canDelete: z.boolean().optional(),
-  canEdit: z.boolean().optional(),
-  role: z.string().optional(),
-});
+]).describe("Origin type.");
 
 /**
- * A node in the knowledge hub tree structure (NodeItem)
+ * Per-item permission when `include=permissions` is requested; otherwise `null`.
+ */
+export type Permission = { role: string; canEdit: boolean; canDelete: boolean };
+
+export const Permission$zodSchema: z.ZodType<Permission> = z.object({
+  canDelete: z.boolean(),
+  canEdit: z.boolean(),
+  role: z.string(),
+}).describe(
+  "Per-item permission when `include=permissions` is requested; otherwise `null`.",
+);
+
+/**
+ * One element of `items`. The live API keeps keys stable and sets
+ *
+ * @remarks
+ * inapplicable values to JSON `null` (not omitted).
  */
 export type KnowledgeHubNode = {
-  id?: string | undefined;
-  name?: string | undefined;
-  nodeType?: NodeType | undefined;
-  parentId?: string | null | undefined;
-  origin?: KnowledgeHubNodeOrigin | undefined;
-  connector?: string | null | undefined;
-  recordType?: string | null | undefined;
-  recordGroupType?: string | null | undefined;
-  indexingStatus?: string | null | undefined;
-  reason?: string | null | undefined;
-  isInternal?: boolean | undefined;
-  createdAt?: number | undefined;
-  updatedAt?: number | undefined;
-  sizeInBytes?: number | null | undefined;
-  mimeType?: string | null | undefined;
-  extension?: string | null | undefined;
-  webUrl?: string | null | undefined;
-  hasChildren?: boolean | undefined;
-  previewRenderable?: boolean | null | undefined;
-  permission?: Permission | null | undefined;
-  sharingStatus?: string | null | undefined;
+  id: string;
+  name: string;
+  nodeType: NodeType;
+  parentId: string | null;
+  origin: Origin;
+  connector: string | null;
+  recordType: string | null;
+  recordGroupType: string | null;
+  indexingStatus: string | null;
+  reason: string | null;
+  isInternal: boolean;
+  createdAt: number;
+  updatedAt: number;
+  sizeInBytes: number | null;
+  mimeType: string | null;
+  extension: string | null;
+  webUrl: string | null;
+  hasChildren: boolean;
+  previewRenderable: boolean | null;
+  permission: Permission | null;
+  sharingStatus: string | null;
 };
 
 export const KnowledgeHubNode$zodSchema: z.ZodType<KnowledgeHubNode> = z.object(
   {
-    connector: z.string().nullable().optional(),
-    createdAt: z.int().optional(),
-    extension: z.string().nullable().optional(),
-    hasChildren: z.boolean().optional(),
-    id: z.string().optional(),
-    indexingStatus: z.string().nullable().optional(),
-    isInternal: z.boolean().optional(),
-    mimeType: z.string().nullable().optional(),
-    name: z.string().optional(),
-    nodeType: NodeType$zodSchema.optional(),
-    origin: KnowledgeHubNodeOrigin$zodSchema.optional(),
-    parentId: z.string().nullable().optional(),
-    permission: z.lazy(() => Permission$zodSchema).nullable().optional(),
-    previewRenderable: z.boolean().nullable().optional(),
-    reason: z.string().nullable().optional(),
-    recordGroupType: z.string().nullable().optional(),
-    recordType: z.string().nullable().optional(),
-    sharingStatus: z.string().nullable().optional(),
-    sizeInBytes: z.int().nullable().optional(),
-    updatedAt: z.int().optional(),
-    webUrl: z.string().nullable().optional(),
+    connector: z.string().nullable(),
+    createdAt: z.int(),
+    extension: z.string().nullable(),
+    hasChildren: z.boolean(),
+    id: z.string(),
+    indexingStatus: z.string().nullable(),
+    isInternal: z.boolean(),
+    mimeType: z.string().nullable(),
+    name: z.string(),
+    nodeType: NodeType$zodSchema,
+    origin: Origin$zodSchema,
+    parentId: z.string().nullable(),
+    permission: z.lazy(() => Permission$zodSchema).nullable(),
+    previewRenderable: z.boolean().nullable(),
+    reason: z.string().nullable(),
+    recordGroupType: z.string().nullable(),
+    recordType: z.string().nullable(),
+    sharingStatus: z.string().nullable(),
+    sizeInBytes: z.int().nullable(),
+    updatedAt: z.int(),
+    webUrl: z.string().nullable(),
   },
-).describe("A node in the knowledge hub tree structure (NodeItem)");
+).describe(
+  "One element of `items`. The live API keeps keys stable and sets\ninapplicable values to JSON `null` (not omitted).\n",
+);

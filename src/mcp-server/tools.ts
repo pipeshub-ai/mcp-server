@@ -14,7 +14,7 @@ import {
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod";
-import { PipeshubCore } from "../core.js";
+import { SDKCore } from "../core.js";
 import { ConsoleLogger } from "./console-logger.js";
 import { MCPServerFlags } from "./flags.js";
 import { MCPScope, mcpScopes } from "./scopes.js";
@@ -35,7 +35,7 @@ export type ToolDefinition<
       readOnlyHint: boolean;
     };
     tool: (
-      client: PipeshubCore,
+      client: SDKCore,
       args: ShapeOutput<Args>,
       extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => CallToolResult | Promise<CallToolResult>;
@@ -53,7 +53,7 @@ export type ToolDefinition<
       readOnlyHint: boolean;
     };
     tool: (
-      client: PipeshubCore,
+      client: SDKCore,
       extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
     ) => CallToolResult | Promise<CallToolResult>;
   };
@@ -86,7 +86,7 @@ export async function formatResult(
 export function createRegisterTool(
   logger: ConsoleLogger,
   server: McpServer,
-  getSDK: () => PipeshubCore,
+  getSDK: () => SDKCore,
   allowedScopes: Set<MCPScope>,
   allowedTools?: Set<string>,
   dynamic?: boolean,
@@ -187,7 +187,7 @@ function matchesSearchTerms(
 export function registerDynamicTools(
   logger: ConsoleLogger,
   server: McpServer,
-  getSDK: () => PipeshubCore,
+  getSDK: () => SDKCore,
   toolMap: Map<string, ToolDefinition<ZodRawShapeCompat | undefined>>,
   allowedScopes: Set<MCPScope>,
 ): void {
@@ -429,7 +429,7 @@ export function buildSDK(
     ),
   };
 
-  return new PipeshubCore({
+  return new SDKCore({
     security: {
       bearerAuth: flags["bearer-auth"] ?? "",
       oauth2: flags["client-id"] != null && flags["client-secret"] != null

@@ -5,6 +5,7 @@
 import * as z from "zod";
 
 export type Address = {
+  _id?: string | undefined;
   addressLine1?: string | undefined;
   city?: string | undefined;
   state?: string | undefined;
@@ -13,6 +14,7 @@ export type Address = {
 };
 
 export const Address$zodSchema: z.ZodType<Address> = z.object({
+  _id: z.string().optional(),
   addressLine1: z.string().optional(),
   city: z.string().optional(),
   country: z.string().optional(),

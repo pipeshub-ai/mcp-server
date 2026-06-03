@@ -9,204 +9,257 @@ import {
   KnowledgeHubNode$zodSchema,
 } from "./knowledgehubnode.js";
 
+/**
+ * Node being browsed when `parentId` is in the path; `null` at root.
+ */
 export type CurrentNode = {
-  id?: string | undefined;
-  name?: string | undefined;
-  nodeType?: string | undefined;
+  id: string;
+  name: string;
+  nodeType: string;
   subType?: string | null | undefined;
 };
 
 export const CurrentNode$zodSchema: z.ZodType<CurrentNode> = z.object({
-  id: z.string().optional(),
-  name: z.string().optional(),
-  nodeType: z.string().optional(),
+  id: z.string(),
+  name: z.string(),
+  nodeType: z.string(),
   subType: z.string().nullable().optional(),
-});
+}).describe(
+  "Node being browsed when `parentId` is in the path; `null` at root.",
+);
 
+/**
+ * Parent of `currentNode` when present; `null` when not applicable.
+ */
 export type ParentNode = {
-  id?: string | undefined;
-  name?: string | undefined;
-  nodeType?: string | undefined;
+  id: string;
+  name: string;
+  nodeType: string;
   subType?: string | null | undefined;
 };
 
 export const ParentNode$zodSchema: z.ZodType<ParentNode> = z.object({
-  id: z.string().optional(),
-  name: z.string().optional(),
-  nodeType: z.string().optional(),
+  id: z.string(),
+  name: z.string(),
+  nodeType: z.string(),
   subType: z.string().nullable().optional(),
-});
+}).describe(
+  "Parent of `currentNode` when present; `null` when not applicable.",
+);
 
-export type Pagination = {
-  page?: number | undefined;
-  limit?: number | undefined;
-  totalItems?: number | undefined;
-  totalPages?: number | undefined;
-  hasNext?: boolean | undefined;
-  hasPrev?: boolean | undefined;
+export type KnowledgeHubNodesResponsePagination = {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 };
 
-export const Pagination$zodSchema: z.ZodType<Pagination> = z.object({
-  hasNext: z.boolean().optional(),
-  hasPrev: z.boolean().optional(),
-  limit: z.int().optional(),
-  page: z.int().optional(),
-  totalItems: z.int().optional(),
-  totalPages: z.int().optional(),
+export const KnowledgeHubNodesResponsePagination$zodSchema: z.ZodType<
+  KnowledgeHubNodesResponsePagination
+> = z.object({
+  hasNext: z.boolean(),
+  hasPrev: z.boolean(),
+  limit: z.int(),
+  page: z.int(),
+  totalItems: z.int(),
+  totalPages: z.int(),
 });
 
-export type CreatedAt = {};
+/**
+ * Date range filter with optional inclusive bounds (epoch ms).
+ */
+export type CreatedAt = {
+  gte?: number | null | undefined;
+  lte?: number | null | undefined;
+};
 
-export const CreatedAt$zodSchema: z.ZodType<CreatedAt> = z.object({});
+export const CreatedAt$zodSchema: z.ZodType<CreatedAt> = z.object({
+  gte: z.int().nullable().optional(),
+  lte: z.int().nullable().optional(),
+}).describe("Date range filter with optional inclusive bounds (epoch ms).");
 
-export type UpdatedAt = {};
+/**
+ * Date range filter with optional inclusive bounds (epoch ms).
+ */
+export type UpdatedAt = {
+  gte?: number | null | undefined;
+  lte?: number | null | undefined;
+};
 
-export const UpdatedAt$zodSchema: z.ZodType<UpdatedAt> = z.object({});
+export const UpdatedAt$zodSchema: z.ZodType<UpdatedAt> = z.object({
+  gte: z.int().nullable().optional(),
+  lte: z.int().nullable().optional(),
+}).describe("Date range filter with optional inclusive bounds (epoch ms).");
 
-export type Size = {};
+/**
+ * Size range filter with optional inclusive bounds (bytes).
+ */
+export type Size = {
+  gte?: number | null | undefined;
+  lte?: number | null | undefined;
+};
 
-export const Size$zodSchema: z.ZodType<Size> = z.object({});
+export const Size$zodSchema: z.ZodType<Size> = z.object({
+  gte: z.int().nullable().optional(),
+  lte: z.int().nullable().optional(),
+}).describe("Size range filter with optional inclusive bounds (bytes).");
 
+/**
+ * Echo of applied filters; unused slots are JSON `null`.
+ */
 export type Applied = {
-  q?: string | null | undefined;
-  nodeTypes?: Array<string> | null | undefined;
-  recordTypes?: Array<string> | null | undefined;
-  origins?: Array<string> | null | undefined;
-  connectorIds?: Array<string> | null | undefined;
-  indexingStatus?: Array<string> | null | undefined;
-  createdAt?: CreatedAt | null | undefined;
-  updatedAt?: UpdatedAt | null | undefined;
-  size?: Size | null | undefined;
-  sortBy?: string | undefined;
-  sortOrder?: string | undefined;
+  q: string | null;
+  nodeTypes: Array<string> | null;
+  recordTypes: Array<string> | null;
+  origins: Array<string> | null;
+  connectorIds: Array<string> | null;
+  indexingStatus: Array<string> | null;
+  createdAt: CreatedAt | null;
+  updatedAt: UpdatedAt | null;
+  size: Size | null;
+  sortBy: string;
+  sortOrder: string;
 };
 
 export const Applied$zodSchema: z.ZodType<Applied> = z.object({
-  connectorIds: z.array(z.string()).nullable().optional(),
-  createdAt: z.lazy(() => CreatedAt$zodSchema).nullable().optional(),
-  indexingStatus: z.array(z.string()).nullable().optional(),
-  nodeTypes: z.array(z.string()).nullable().optional(),
-  origins: z.array(z.string()).nullable().optional(),
-  q: z.string().nullable().optional(),
-  recordTypes: z.array(z.string()).nullable().optional(),
-  size: z.lazy(() => Size$zodSchema).nullable().optional(),
-  sortBy: z.string().optional(),
-  sortOrder: z.string().optional(),
-  updatedAt: z.lazy(() => UpdatedAt$zodSchema).nullable().optional(),
-});
+  connectorIds: z.array(z.string()).nullable(),
+  createdAt: z.lazy(() => CreatedAt$zodSchema).nullable(),
+  indexingStatus: z.array(z.string()).nullable(),
+  nodeTypes: z.array(z.string()).nullable(),
+  origins: z.array(z.string()).nullable(),
+  q: z.string().nullable(),
+  recordTypes: z.array(z.string()).nullable(),
+  size: z.lazy(() => Size$zodSchema).nullable(),
+  sortBy: z.string(),
+  sortOrder: z.string(),
+  updatedAt: z.lazy(() => UpdatedAt$zodSchema).nullable(),
+}).describe("Echo of applied filters; unused slots are JSON `null`.");
 
+/**
+ * Populated when `include=availableFilters`; otherwise `null`.
+ */
 export type Available = {
-  nodeTypes?: Array<FilterOption> | undefined;
-  recordTypes?: Array<FilterOption> | undefined;
-  origins?: Array<FilterOption> | undefined;
-  connectors?: Array<FilterOption> | undefined;
-  indexingStatus?: Array<FilterOption> | undefined;
-  sortBy?: Array<FilterOption> | undefined;
-  sortOrder?: Array<FilterOption> | undefined;
+  nodeTypes: Array<FilterOption>;
+  recordTypes: Array<FilterOption>;
+  origins: Array<FilterOption>;
+  connectors: Array<FilterOption>;
+  indexingStatus: Array<FilterOption>;
+  sortBy: Array<FilterOption>;
+  sortOrder: Array<FilterOption>;
 };
 
 export const Available$zodSchema: z.ZodType<Available> = z.object({
-  connectors: z.array(FilterOption$zodSchema).optional(),
-  indexingStatus: z.array(FilterOption$zodSchema).optional(),
-  nodeTypes: z.array(FilterOption$zodSchema).optional(),
-  origins: z.array(FilterOption$zodSchema).optional(),
-  recordTypes: z.array(FilterOption$zodSchema).optional(),
-  sortBy: z.array(FilterOption$zodSchema).optional(),
-  sortOrder: z.array(FilterOption$zodSchema).optional(),
-});
+  connectors: z.array(FilterOption$zodSchema),
+  indexingStatus: z.array(FilterOption$zodSchema),
+  nodeTypes: z.array(FilterOption$zodSchema),
+  origins: z.array(FilterOption$zodSchema),
+  recordTypes: z.array(FilterOption$zodSchema),
+  sortBy: z.array(FilterOption$zodSchema),
+  sortOrder: z.array(FilterOption$zodSchema),
+}).describe("Populated when `include=availableFilters`; otherwise `null`.");
 
 export type KnowledgeHubNodesResponseFilters = {
-  applied?: Applied | undefined;
-  available?: Available | null | undefined;
+  applied: Applied;
+  available: Available | null;
 };
 
 export const KnowledgeHubNodesResponseFilters$zodSchema: z.ZodType<
   KnowledgeHubNodesResponseFilters
 > = z.object({
-  applied: z.lazy(() => Applied$zodSchema).optional(),
-  available: z.lazy(() => Available$zodSchema).nullable().optional(),
+  applied: z.lazy(() => Applied$zodSchema),
+  available: z.lazy(() => Available$zodSchema).nullable(),
 });
 
 export type Breadcrumb = {
-  id?: string | undefined;
-  name?: string | undefined;
-  nodeType?: string | undefined;
+  id: string;
+  name: string;
+  nodeType: string;
   subType?: string | null | undefined;
 };
 
 export const Breadcrumb$zodSchema: z.ZodType<Breadcrumb> = z.object({
-  id: z.string().optional(),
-  name: z.string().optional(),
-  nodeType: z.string().optional(),
+  id: z.string(),
+  name: z.string(),
+  nodeType: z.string(),
   subType: z.string().nullable().optional(),
 });
 
-export type Item = { label?: string | undefined; count?: number | undefined };
+export type Item = { label: string; count: number };
 
 export const Item$zodSchema: z.ZodType<Item> = z.object({
-  count: z.int().optional(),
-  label: z.string().optional(),
-});
-
-export type Counts = {
-  items?: Array<Item> | undefined;
-  total?: number | undefined;
-};
-
-export const Counts$zodSchema: z.ZodType<Counts> = z.object({
-  items: z.array(z.lazy(() => Item$zodSchema)).optional(),
-  total: z.int().optional(),
-});
-
-export type Permissions = {
-  role?: string | undefined;
-  canUpload?: boolean | undefined;
-  canCreateFolders?: boolean | undefined;
-  canEdit?: boolean | undefined;
-  canDelete?: boolean | undefined;
-  canManagePermissions?: boolean | undefined;
-};
-
-export const Permissions$zodSchema: z.ZodType<Permissions> = z.object({
-  canCreateFolders: z.boolean().optional(),
-  canDelete: z.boolean().optional(),
-  canEdit: z.boolean().optional(),
-  canManagePermissions: z.boolean().optional(),
-  canUpload: z.boolean().optional(),
-  role: z.string().optional(),
+  count: z.int(),
+  label: z.string(),
 });
 
 /**
- * Response for Knowledge Hub nodes API
+ * Present when `include=counts`; otherwise `null`.
+ */
+export type Counts = { items: Array<Item>; total: number };
+
+export const Counts$zodSchema: z.ZodType<Counts> = z.object({
+  items: z.array(z.lazy(() => Item$zodSchema)),
+  total: z.int(),
+}).describe("Present when `include=counts`; otherwise `null`.");
+
+/**
+ * Present when `include=permissions`; otherwise `null`.
+ */
+export type Permissions = {
+  role: string;
+  canUpload: boolean;
+  canCreateFolders: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canManagePermissions: boolean;
+};
+
+export const Permissions$zodSchema: z.ZodType<Permissions> = z.object({
+  canCreateFolders: z.boolean(),
+  canDelete: z.boolean(),
+  canEdit: z.boolean(),
+  canManagePermissions: z.boolean(),
+  canUpload: z.boolean(),
+  role: z.string(),
+}).describe("Present when `include=permissions`; otherwise `null`.");
+
+/**
+ * Response body for the Knowledge Hub nodes API. The deployed service
+ *
+ * @remarks
+ * serialises optional values as JSON `null` and always includes the keys
+ * listed in `required` (Swagger / clients will see stable shapes, not
+ * omitted properties).
  */
 export type KnowledgeHubNodesResponse = {
-  success?: boolean | undefined;
-  error?: string | null | undefined;
-  id?: string | null | undefined;
-  currentNode?: CurrentNode | null | undefined;
-  parentNode?: ParentNode | null | undefined;
-  items?: Array<KnowledgeHubNode> | undefined;
-  pagination?: Pagination | null | undefined;
-  filters?: KnowledgeHubNodesResponseFilters | null | undefined;
-  breadcrumbs?: Array<Breadcrumb> | null | undefined;
-  counts?: Counts | null | undefined;
-  permissions?: Permissions | null | undefined;
+  success: boolean;
+  error: string | null;
+  id: string | null;
+  currentNode: CurrentNode | null;
+  parentNode: ParentNode | null;
+  items: Array<KnowledgeHubNode>;
+  pagination: KnowledgeHubNodesResponsePagination;
+  filters: KnowledgeHubNodesResponseFilters;
+  breadcrumbs: Array<Breadcrumb> | null;
+  counts: Counts | null;
+  permissions: Permissions | null;
 };
 
 export const KnowledgeHubNodesResponse$zodSchema: z.ZodType<
   KnowledgeHubNodesResponse
 > = z.object({
-  breadcrumbs: z.array(z.lazy(() => Breadcrumb$zodSchema)).nullable()
-    .optional(),
-  counts: z.lazy(() => Counts$zodSchema).nullable().optional(),
-  currentNode: z.lazy(() => CurrentNode$zodSchema).nullable().optional(),
-  error: z.string().nullable().optional(),
-  filters: z.lazy(() => KnowledgeHubNodesResponseFilters$zodSchema).nullable()
-    .optional(),
-  id: z.string().nullable().optional(),
-  items: z.array(KnowledgeHubNode$zodSchema).optional(),
-  pagination: z.lazy(() => Pagination$zodSchema).nullable().optional(),
-  parentNode: z.lazy(() => ParentNode$zodSchema).nullable().optional(),
-  permissions: z.lazy(() => Permissions$zodSchema).nullable().optional(),
-  success: z.boolean().optional(),
-}).describe("Response for Knowledge Hub nodes API");
+  breadcrumbs: z.array(z.lazy(() => Breadcrumb$zodSchema)).nullable(),
+  counts: z.lazy(() => Counts$zodSchema).nullable(),
+  currentNode: z.lazy(() => CurrentNode$zodSchema).nullable(),
+  error: z.string().nullable(),
+  filters: z.lazy(() => KnowledgeHubNodesResponseFilters$zodSchema),
+  id: z.string().nullable(),
+  items: z.array(KnowledgeHubNode$zodSchema),
+  pagination: z.lazy(() => KnowledgeHubNodesResponsePagination$zodSchema),
+  parentNode: z.lazy(() => ParentNode$zodSchema).nullable(),
+  permissions: z.lazy(() => Permissions$zodSchema).nullable(),
+  success: z.boolean(),
+}).describe(
+  "Response body for the Knowledge Hub nodes API. The deployed service\nserialises optional values as JSON `null` and always includes the keys\nlisted in `required` (Swagger / clients will see stable shapes, not\nomitted properties).\n",
+);

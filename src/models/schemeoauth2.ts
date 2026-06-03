@@ -10,6 +10,7 @@ import * as z from "zod";
  * @remarks
  * Supports authorization_code (with PKCE) and client_credentials flows.
  * OAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.
+ * For **client_credentials**, machine JWTs may use `userId === client_id`; the Node gateway resolves the OAuth app creator and forwards **`x-oauth-user-id`** to Python where applicable — see **OAuth Provider** tag.
  */
 export type SchemeOauth2 = {
   clientID: string;
@@ -19,14 +20,14 @@ export type SchemeOauth2 = {
 
 export const SchemeOauth2$zodSchema: z.ZodType<SchemeOauth2> = z.object({
   clientID: z.string().describe(
-    "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\n client identifier",
+    "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\nFor **client_credentials**, machine JWTs may use `userId === client_id`; the Node gateway resolves the OAuth app creator and forwards **`x-oauth-user-id`** to Python where applicable — see **OAuth Provider** tag.\n client identifier",
   ),
   clientSecret: z.string().describe(
-    "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\n client secret",
+    "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\nFor **client_credentials**, machine JWTs may use `userId === client_id`; the Node gateway resolves the OAuth app creator and forwards **`x-oauth-user-id`** to Python where applicable — see **OAuth Provider** tag.\n client secret",
   ),
   tokenURL: z.string().default("/api/v1/oauth2/token").describe(
-    "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\n token URL",
+    "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\nFor **client_credentials**, machine JWTs may use `userId === client_id`; the Node gateway resolves the OAuth app creator and forwards **`x-oauth-user-id`** to Python where applicable — see **OAuth Provider** tag.\n token URL",
   ),
 }).describe(
-  "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\n",
+  "OAuth 2.0 authentication with fine-grained scopes.\nSupports authorization_code (with PKCE) and client_credentials flows.\nOAuth tokens are Bearer JWTs — use the same Authorization header as regular tokens.\nFor **client_credentials**, machine JWTs may use `userId === client_id`; the Node gateway resolves the OAuth app creator and forwards **`x-oauth-user-id`** to Python where applicable — see **OAuth Provider** tag.\n",
 );

@@ -19,42 +19,49 @@ export const Ratings$zodSchema: z.ZodType<Ratings> = z.object({
   relevance: z.int().optional(),
 });
 
-export const Category = {
+export const MessageFeedbackCategory = {
   IncorrectInformation: "incorrect_information",
   MissingInformation: "missing_information",
-  OutdatedInformation: "outdated_information",
-  IrrelevantResponse: "irrelevant_response",
-  TooVerbose: "too_verbose",
-  TooBrief: "too_brief",
-  FormattingIssues: "formatting_issues",
-  CitationIssues: "citation_issues",
+  IrrelevantInformation: "irrelevant_information",
+  UnclearExplanation: "unclear_explanation",
+  PoorCitations: "poor_citations",
+  ExcellentAnswer: "excellent_answer",
+  HelpfulCitations: "helpful_citations",
+  WellExplained: "well_explained",
+  Other: "other",
 } as const;
-export type Category = ClosedEnum<typeof Category>;
+export type MessageFeedbackCategory = ClosedEnum<
+  typeof MessageFeedbackCategory
+>;
 
-export const Category$zodSchema = z.enum([
+export const MessageFeedbackCategory$zodSchema = z.enum([
   "incorrect_information",
   "missing_information",
-  "outdated_information",
-  "irrelevant_response",
-  "too_verbose",
-  "too_brief",
-  "formatting_issues",
-  "citation_issues",
+  "irrelevant_information",
+  "unclear_explanation",
+  "poor_citations",
+  "excellent_answer",
+  "helpful_citations",
+  "well_explained",
+  "other",
 ]);
 
-export type Comments = {
+export type MessageFeedbackComments = {
   positive?: string | undefined;
   negative?: string | undefined;
   suggestions?: string | undefined;
 };
 
-export const Comments$zodSchema: z.ZodType<Comments> = z.object({
+export const MessageFeedbackComments$zodSchema: z.ZodType<
+  MessageFeedbackComments
+> = z.object({
   negative: z.string().optional(),
   positive: z.string().optional(),
   suggestions: z.string().optional(),
 });
 
 export type CitationFeedback = {
+  _id?: string | undefined;
   citationId?: string | undefined;
   isRelevant?: boolean | undefined;
   relevanceScore?: number | undefined;
@@ -63,12 +70,71 @@ export type CitationFeedback = {
 
 export const CitationFeedback$zodSchema: z.ZodType<CitationFeedback> = z.object(
   {
+    _id: z.string().optional(),
     citationId: z.string().optional(),
     comment: z.string().optional(),
     isRelevant: z.boolean().optional(),
     relevanceScore: z.int().optional(),
   },
 );
+
+/**
+ * Origin of the feedback. Always present in responses (server applies the default `user`).
+ */
+export const Source = {
+  User: "user",
+  System: "system",
+  Admin: "admin",
+  Auto: "auto",
+} as const;
+/**
+ * Origin of the feedback. Always present in responses (server applies the default `user`).
+ */
+export type Source = ClosedEnum<typeof Source>;
+
+export const Source$zodSchema = z.enum([
+  "user",
+  "system",
+  "admin",
+  "auto",
+]).describe(
+  "Origin of the feedback. Always present in responses (server applies the default `user`).",
+);
+
+export type Revision = {
+  _id?: string | undefined;
+  updatedFields?: Array<string> | undefined;
+  previousValues?: { [k: string]: any } | undefined;
+  updatedBy?: string | undefined;
+  updatedAt?: number | undefined;
+};
+
+export const Revision$zodSchema: z.ZodType<Revision> = z.object({
+  _id: z.string().optional(),
+  previousValues: z.record(z.string(), z.any()).optional(),
+  updatedAt: z.int().optional(),
+  updatedBy: z.string().optional(),
+  updatedFields: z.array(z.string()).optional(),
+});
+
+/**
+ * Optional telemetry captured alongside the feedback
+ */
+export type Metrics = {
+  timeToFeedback?: number | undefined;
+  userInteractionTime?: number | undefined;
+  feedbackSessionId?: string | undefined;
+  userAgent?: string | undefined;
+  platform?: string | undefined;
+};
+
+export const Metrics$zodSchema: z.ZodType<Metrics> = z.object({
+  feedbackSessionId: z.string().optional(),
+  platform: z.string().optional(),
+  timeToFeedback: z.number().optional(),
+  userAgent: z.string().optional(),
+  userInteractionTime: z.number().optional(),
+}).describe("Optional telemetry captured alongside the feedback");
 
 /**
  * Comprehensive feedback on an AI response. Feedback helps improve
@@ -79,20 +145,32 @@ export const CitationFeedback$zodSchema: z.ZodType<CitationFeedback> = z.object(
 export type MessageFeedback = {
   isHelpful?: boolean | undefined;
   ratings?: Ratings | undefined;
-  categories?: Array<Category> | undefined;
-  comments?: Comments | undefined;
+  categories?: Array<MessageFeedbackCategory> | undefined;
+  comments?: MessageFeedbackComments | undefined;
   citationFeedback?: Array<CitationFeedback> | undefined;
   followUpQuestionsHelpful?: boolean | undefined;
+  unusedFollowUpQuestions?: Array<string> | undefined;
+  source?: Source | undefined;
+  feedbackProvider?: string | undefined;
+  timestamp?: number | undefined;
+  revisions?: Array<Revision> | undefined;
+  metrics?: Metrics | undefined;
 };
 
 export const MessageFeedback$zodSchema: z.ZodType<MessageFeedback> = z.object({
-  categories: z.array(Category$zodSchema).optional(),
+  categories: z.array(MessageFeedbackCategory$zodSchema).optional(),
   citationFeedback: z.array(z.lazy(() => CitationFeedback$zodSchema))
     .optional(),
-  comments: z.lazy(() => Comments$zodSchema).optional(),
+  comments: z.lazy(() => MessageFeedbackComments$zodSchema).optional(),
+  feedbackProvider: z.string().optional(),
   followUpQuestionsHelpful: z.boolean().optional(),
   isHelpful: z.boolean().optional(),
+  metrics: z.lazy(() => Metrics$zodSchema).optional(),
   ratings: z.lazy(() => Ratings$zodSchema).optional(),
+  revisions: z.array(z.lazy(() => Revision$zodSchema)).optional(),
+  source: Source$zodSchema.default("user"),
+  timestamp: z.int().optional(),
+  unusedFollowUpQuestions: z.array(z.string()).optional(),
 }).describe(
   "Comprehensive feedback on an AI response. Feedback helps improve\nthe AI's performance and response quality over time.\n",
 );
