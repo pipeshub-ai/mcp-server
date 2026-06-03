@@ -4,30 +4,77 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import {
+  KnowledgeHubNodesResponse,
+  KnowledgeHubNodesResponse$zodSchema,
+} from "./knowledgehubnodesresponse.js";
 
 /**
- * Sort order.
+ * Field to sort results by. Omitted → default `updatedAt`.
+ *
+ * @remarks
+ * Unknown value → silently falls back to `name`.
  */
-export const SortOrder = {
+export const GetKnowledgeHubRootNodesSortBy = {
+  Name: "name",
+  CreatedAt: "createdAt",
+  UpdatedAt: "updatedAt",
+  Size: "size",
+  Type: "type",
+} as const;
+/**
+ * Field to sort results by. Omitted → default `updatedAt`.
+ *
+ * @remarks
+ * Unknown value → silently falls back to `name`.
+ */
+export type GetKnowledgeHubRootNodesSortBy = ClosedEnum<
+  typeof GetKnowledgeHubRootNodesSortBy
+>;
+
+export const GetKnowledgeHubRootNodesSortBy$zodSchema = z.enum([
+  "name",
+  "createdAt",
+  "updatedAt",
+  "size",
+  "type",
+]).describe(
+  "Field to sort results by. Omitted → default `updatedAt`.\nUnknown value → silently falls back to `name`.\n",
+);
+
+/**
+ * Sort direction. Omitted → default `desc`.
+ *
+ * @remarks
+ * Unknown value → silently falls back to `asc`.
+ */
+export const GetKnowledgeHubRootNodesSortOrder = {
   Asc: "asc",
   Desc: "desc",
 } as const;
 /**
- * Sort order.
+ * Sort direction. Omitted → default `desc`.
+ *
+ * @remarks
+ * Unknown value → silently falls back to `asc`.
  */
-export type SortOrder = ClosedEnum<typeof SortOrder>;
+export type GetKnowledgeHubRootNodesSortOrder = ClosedEnum<
+  typeof GetKnowledgeHubRootNodesSortOrder
+>;
 
-export const SortOrder$zodSchema = z.enum([
+export const GetKnowledgeHubRootNodesSortOrder$zodSchema = z.enum([
   "asc",
   "desc",
-]).describe("Sort order.");
+]).describe(
+  "Sort direction. Omitted → default `desc`.\nUnknown value → silently falls back to `asc`.\n",
+);
 
 export type GetKnowledgeHubRootNodesRequest = {
-  only_containers?: boolean | undefined;
+  onlyContainers?: boolean | undefined;
   page?: number | undefined;
   limit?: number | undefined;
-  sortBy?: string | undefined;
-  sortOrder?: SortOrder | undefined;
+  sortBy?: GetKnowledgeHubRootNodesSortBy | undefined;
+  sortOrder?: GetKnowledgeHubRootNodesSortOrder | undefined;
   q?: string | undefined;
   nodeTypes?: string | undefined;
   recordTypes?: string | undefined;
@@ -37,7 +84,6 @@ export type GetKnowledgeHubRootNodesRequest = {
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
   size?: string | undefined;
-  flattened?: boolean | undefined;
   include?: string | undefined;
 };
 
@@ -45,38 +91,232 @@ export const GetKnowledgeHubRootNodesRequest$zodSchema: z.ZodType<
   GetKnowledgeHubRootNodesRequest
 > = z.object({
   connectorIds: z.string().describe(
-    "Comma-separated connector instance ids to scope to.",
+    "Comma-separated list of connector instance IDs (UUIDs) to filter by.\nMaximum 100 items. No enum validation — any string is accepted, but\nnon-existent IDs simply yield zero results.\n",
   ).optional(),
-  createdAt: z.string().describe("Created date range as `gte:<ms>,lte:<ms>`.")
-    .optional(),
-  flattened: z.boolean().default(false).describe(
-    "Return flattened view with all nested children.",
-  ),
+  createdAt: z.string().describe(
+    "Created-date range filter. Format: `gte:<epochMs>,lte:<epochMs>`.\nBoth bounds are optional (you may send just `gte:...` or just\n`lte:...`). Timestamps must be in the range 0 to 9999999999999 and\n`gte` must be less than or equal to `lte` when both are present.\n",
+  ).optional(),
   include: z.string().describe(
-    "Comma-separated includes — any of `breadcrumbs`, `counts`,\n`availableFilters`, `permissions`.\n",
+    "Comma-separated list of additional response sections to include.\nInvalid values are silently ignored. Maximum 100 items.\n\nValid values: `breadcrumbs`, `counts`, `availableFilters`, `permissions`\n",
   ).optional(),
-  indexingStatus: z.string().describe("Comma-separated indexing statuses.")
-    .optional(),
-  limit: z.int().default(50).describe("Items per page."),
+  indexingStatus: z.string().describe(
+    "Comma-separated list of indexing statuses to include. Invalid values\nare silently ignored. Maximum 100 items.\n\nValid values: `NOT_STARTED`, `PAUSED`, `IN_PROGRESS`, `COMPLETED`,\n`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `AUTO_INDEX_OFF`, `EMPTY`,\n`ENABLE_MULTIMODAL_MODELS`, `QUEUED`\n",
+  ).optional(),
+  limit: z.int().default(50).describe(
+    "Maximum number of items to return per page.\n",
+  ),
   nodeTypes: z.string().describe(
-    "Comma-separated node types (`app`, `recordGroup`, `folder`, `record`).",
+    "Comma-separated list of node types to include. Invalid values are\nsilently ignored. Maximum 100 items.\n\nValid values: `folder`, `app`, `recordGroup`, `record`\n",
   ).optional(),
-  only_containers: z.boolean().default(false).describe(
-    "Only return nodes with children (for sidebar UIs).",
+  onlyContainers: z.boolean().default(false).describe(
+    "When `true`, only nodes that have children are returned (useful for\nbuilding sidebar / tree navigation). Leaf nodes are excluded.\n",
   ),
   origins: z.string().describe(
-    "Comma-separated origins (`COLLECTION`, `CONNECTOR`).",
+    "Comma-separated list of origin types to include. Invalid values are\nsilently ignored. Maximum 100 items.\n\nValid values: `COLLECTION`, `CONNECTOR`\n",
   ).optional(),
-  page: z.int().default(1).describe("Page number (1-indexed)."),
-  q: z.string().describe("Full-text search query against node names.")
-    .optional(),
-  recordTypes: z.string().describe("Comma-separated record types.").optional(),
-  size: z.string().describe("Size range as `gte:<bytes>,lte:<bytes>`.")
-    .optional(),
-  sortBy: z.string().default("updatedAt").describe(
-    "Sort field — one of `name`, `createdAt`, `updatedAt`, `size`, `type`.",
+  page: z.int().default(1).describe(
+    "Page number (1-indexed). Combined with `limit` to paginate results.\n",
   ),
-  sortOrder: SortOrder$zodSchema.default("desc"),
-  updatedAt: z.string().describe("Updated date range as `gte:<ms>,lte:<ms>`.")
-    .optional(),
+  q: z.string().describe(
+    "Full-text search query. Must be between 2 and 500 characters\n(inclusive). When provided, the endpoint searches across the entire\nnode tree regardless of the current browse level.\n",
+  ).optional(),
+  recordTypes: z.string().describe(
+    "Comma-separated list of record types to include. Invalid values are\nsilently ignored. Maximum 100 items.\n\nValid values: `FILE`, `DRIVE`, `WEBPAGE`, `DATABASE`, `DATASOURCE`,\n`MESSAGE`, `MAIL`, `GROUP_MAIL`, `TICKET`, `COMMENT`,\n`INLINE_COMMENT`, `CONFLUENCE_PAGE`, `CONFLUENCE_BLOGPOST`,\n`SHAREPOINT_PAGE`, `SHAREPOINT_LIST`, `SHAREPOINT_LIST_ITEM`,\n`SHAREPOINT_DOCUMENT_LIBRARY`, `LINK`, `PROJECT`, `PULL_REQUEST`,\n`MEETING`, `PRODUCT`, `DEAL`, `CASE`, `TASK`, `ARTIFACT`,\n`CODE_FILE`, `SQL_TABLE`, `SQL_VIEW`, `OTHERS`\n",
+  ).optional(),
+  size: z.string().describe(
+    "File-size range filter in bytes. Format: `gte:<bytes>,lte:<bytes>`.\nBoth bounds are optional. Values must be non-negative and at most\n1099511627776 (1 TB). `gte` must be less than or equal to `lte`\nwhen both are present.\n",
+  ).optional(),
+  sortBy: GetKnowledgeHubRootNodesSortBy$zodSchema.default("updatedAt"),
+  sortOrder: GetKnowledgeHubRootNodesSortOrder$zodSchema.default("desc"),
+  updatedAt: z.string().describe(
+    "Updated-date range filter. Same format and constraints as `createdAt`.\n",
+  ).optional(),
 });
+
+export const GetKnowledgeHubRootNodesCodeHTTPInternalServerError = {
+  HttpInternalServerError: "HTTP_INTERNAL_SERVER_ERROR",
+} as const;
+export type GetKnowledgeHubRootNodesCodeHTTPInternalServerError = ClosedEnum<
+  typeof GetKnowledgeHubRootNodesCodeHTTPInternalServerError
+>;
+
+export const GetKnowledgeHubRootNodesCodeHTTPInternalServerError$zodSchema = z
+  .enum([
+    "HTTP_INTERNAL_SERVER_ERROR",
+  ]);
+
+export type GetKnowledgeHubRootNodesErrorHTTPInternalServerError = {
+  code: GetKnowledgeHubRootNodesCodeHTTPInternalServerError;
+  message: string;
+};
+
+export const GetKnowledgeHubRootNodesErrorHTTPInternalServerError$zodSchema:
+  z.ZodType<GetKnowledgeHubRootNodesErrorHTTPInternalServerError> = z.object({
+    code: GetKnowledgeHubRootNodesCodeHTTPInternalServerError$zodSchema,
+    message: z.string(),
+  });
+
+/**
+ * An unexpected error occurred on the server.
+ */
+export type GetKnowledgeHubRootNodesInternalServerErrorResponseBody = {
+  error: GetKnowledgeHubRootNodesErrorHTTPInternalServerError;
+};
+
+export const GetKnowledgeHubRootNodesInternalServerErrorResponseBody$zodSchema:
+  z.ZodType<GetKnowledgeHubRootNodesInternalServerErrorResponseBody> = z.object(
+    {
+      error: z.lazy(() =>
+        GetKnowledgeHubRootNodesErrorHTTPInternalServerError$zodSchema
+      ),
+    },
+  ).describe("An unexpected error occurred on the server.");
+
+export const GetKnowledgeHubRootNodesForbiddenCode = {
+  HttpForbidden: "HTTP_FORBIDDEN",
+} as const;
+export type GetKnowledgeHubRootNodesForbiddenCode = ClosedEnum<
+  typeof GetKnowledgeHubRootNodesForbiddenCode
+>;
+
+export const GetKnowledgeHubRootNodesForbiddenCode$zodSchema = z.enum([
+  "HTTP_FORBIDDEN",
+]);
+
+export type GetKnowledgeHubRootNodesErrorHTTPForbidden = {
+  code: GetKnowledgeHubRootNodesForbiddenCode;
+  message: string;
+};
+
+export const GetKnowledgeHubRootNodesErrorHTTPForbidden$zodSchema: z.ZodType<
+  GetKnowledgeHubRootNodesErrorHTTPForbidden
+> = z.object({
+  code: GetKnowledgeHubRootNodesForbiddenCode$zodSchema,
+  message: z.string(),
+});
+
+/**
+ * Insufficient OAuth scope.
+ *
+ * @remarks
+ *
+ * Only applies to OAuth tokens. The token did not carry the `kb:read`
+ * scope required by this endpoint. Regular (non-OAuth) JWT bearer
+ * tokens are not subject to scope enforcement and will not receive
+ * this error.
+ */
+export type GetKnowledgeHubRootNodesForbiddenResponseBody = {
+  error: GetKnowledgeHubRootNodesErrorHTTPForbidden;
+};
+
+export const GetKnowledgeHubRootNodesForbiddenResponseBody$zodSchema: z.ZodType<
+  GetKnowledgeHubRootNodesForbiddenResponseBody
+> = z.object({
+  error: z.lazy(() => GetKnowledgeHubRootNodesErrorHTTPForbidden$zodSchema),
+}).describe(
+  "Insufficient OAuth scope.\n\nOnly applies to OAuth tokens. The token did not carry the `kb:read`\nscope required by this endpoint. Regular (non-OAuth) JWT bearer\ntokens are not subject to scope enforcement and will not receive\nthis error.\n",
+);
+
+export const GetKnowledgeHubRootNodesUnauthorizedCode = {
+  HttpUnauthorized: "HTTP_UNAUTHORIZED",
+} as const;
+export type GetKnowledgeHubRootNodesUnauthorizedCode = ClosedEnum<
+  typeof GetKnowledgeHubRootNodesUnauthorizedCode
+>;
+
+export const GetKnowledgeHubRootNodesUnauthorizedCode$zodSchema = z.enum([
+  "HTTP_UNAUTHORIZED",
+]);
+
+export type GetKnowledgeHubRootNodesErrorHTTPUnauthorized = {
+  code: GetKnowledgeHubRootNodesUnauthorizedCode;
+  message: string;
+};
+
+export const GetKnowledgeHubRootNodesErrorHTTPUnauthorized$zodSchema: z.ZodType<
+  GetKnowledgeHubRootNodesErrorHTTPUnauthorized
+> = z.object({
+  code: GetKnowledgeHubRootNodesUnauthorizedCode$zodSchema,
+  message: z.string(),
+});
+
+/**
+ * Missing or invalid authentication token.
+ *
+ * @remarks
+ *
+ * The bearer token was absent, expired, malformed, or could not be
+ * verified by the auth middleware.
+ */
+export type GetKnowledgeHubRootNodesUnauthorizedResponseBody = {
+  error: GetKnowledgeHubRootNodesErrorHTTPUnauthorized;
+};
+
+export const GetKnowledgeHubRootNodesUnauthorizedResponseBody$zodSchema:
+  z.ZodType<GetKnowledgeHubRootNodesUnauthorizedResponseBody> = z.object({
+    error: z.lazy(() =>
+      GetKnowledgeHubRootNodesErrorHTTPUnauthorized$zodSchema
+    ),
+  }).describe(
+    "Missing or invalid authentication token.\n\nThe bearer token was absent, expired, malformed, or could not be\nverified by the auth middleware.\n",
+  );
+
+export const GetKnowledgeHubRootNodesCodeHTTPBadRequest = {
+  HttpBadRequest: "HTTP_BAD_REQUEST",
+} as const;
+export type GetKnowledgeHubRootNodesCodeHTTPBadRequest = ClosedEnum<
+  typeof GetKnowledgeHubRootNodesCodeHTTPBadRequest
+>;
+
+export const GetKnowledgeHubRootNodesCodeHTTPBadRequest$zodSchema = z.enum([
+  "HTTP_BAD_REQUEST",
+]);
+
+export type GetKnowledgeHubRootNodesErrorHTTPBadRequest = {
+  code: GetKnowledgeHubRootNodesCodeHTTPBadRequest;
+  message: string;
+};
+
+export const GetKnowledgeHubRootNodesErrorHTTPBadRequest$zodSchema: z.ZodType<
+  GetKnowledgeHubRootNodesErrorHTTPBadRequest
+> = z.object({
+  code: GetKnowledgeHubRootNodesCodeHTTPBadRequest$zodSchema,
+  message: z.string(),
+});
+
+/**
+ * Invalid request parameters. The backend's validation message is
+ *
+ * @remarks
+ * returned verbatim in `error.message`. See the examples below for
+ * the common triggers.
+ */
+export type GetKnowledgeHubRootNodesBadRequestResponseBody = {
+  error: GetKnowledgeHubRootNodesErrorHTTPBadRequest;
+};
+
+export const GetKnowledgeHubRootNodesBadRequestResponseBody$zodSchema:
+  z.ZodType<GetKnowledgeHubRootNodesBadRequestResponseBody> = z.object({
+    error: z.lazy(() => GetKnowledgeHubRootNodesErrorHTTPBadRequest$zodSchema),
+  }).describe(
+    "Invalid request parameters. The backend's validation message is\nreturned verbatim in `error.message`. See the examples below for\nthe common triggers.\n",
+  );
+
+export type GetKnowledgeHubRootNodesResponse =
+  | KnowledgeHubNodesResponse
+  | GetKnowledgeHubRootNodesBadRequestResponseBody
+  | GetKnowledgeHubRootNodesUnauthorizedResponseBody
+  | GetKnowledgeHubRootNodesForbiddenResponseBody
+  | GetKnowledgeHubRootNodesInternalServerErrorResponseBody;
+
+export const GetKnowledgeHubRootNodesResponse$zodSchema: z.ZodType<
+  GetKnowledgeHubRootNodesResponse
+> = z.union([
+  KnowledgeHubNodesResponse$zodSchema,
+  z.lazy(() => GetKnowledgeHubRootNodesBadRequestResponseBody$zodSchema),
+  z.lazy(() => GetKnowledgeHubRootNodesUnauthorizedResponseBody$zodSchema),
+  z.lazy(() => GetKnowledgeHubRootNodesForbiddenResponseBody$zodSchema),
+  z.lazy(() =>
+    GetKnowledgeHubRootNodesInternalServerErrorResponseBody$zodSchema
+  ),
+]);

@@ -4,10 +4,19 @@
 
 import * as z from "zod";
 import { ClosedEnum } from "../types/enums.js";
+import { AppliedFilters, AppliedFilters$zodSchema } from "./appliedfilters.js";
+import {
+  ChatAttachmentRef,
+  ChatAttachmentRef$zodSchema,
+} from "./chatattachmentref.js";
 import {
   CitationReference,
   CitationReference$zodSchema,
 } from "./citationreference.js";
+import {
+  ConversationModelInfo,
+  ConversationModelInfo$zodSchema,
+} from "./conversationmodelinfo.js";
 import {
   FollowUpQuestion,
   FollowUpQuestion$zodSchema,
@@ -29,7 +38,7 @@ import {
  * <li><code>system</code> - System notification or status</li>
  * </ul>
  */
-export const MessageType = {
+export const MessageMessageType = {
   UserQuery: "user_query",
   BotResponse: "bot_response",
   Error: "error",
@@ -48,9 +57,9 @@ export const MessageType = {
  * <li><code>system</code> - System notification or status</li>
  * </ul>
  */
-export type MessageType = ClosedEnum<typeof MessageType>;
+export type MessageMessageType = ClosedEnum<typeof MessageMessageType>;
 
-export const MessageType$zodSchema = z.enum([
+export const MessageMessageType$zodSchema = z.enum([
   "user_query",
   "bot_response",
   "error",
@@ -63,7 +72,7 @@ export const MessageType$zodSchema = z.enum([
 /**
  * Format of the content for rendering
  */
-export const ContentFormat = {
+export const MessageContentFormat = {
   Markdown: "MARKDOWN",
   Json: "JSON",
   Html: "HTML",
@@ -71,60 +80,46 @@ export const ContentFormat = {
 /**
  * Format of the content for rendering
  */
-export type ContentFormat = ClosedEnum<typeof ContentFormat>;
+export type MessageContentFormat = ClosedEnum<typeof MessageContentFormat>;
 
-export const ContentFormat$zodSchema = z.enum([
+export const MessageContentFormat$zodSchema = z.enum([
   "MARKDOWN",
   "JSON",
   "HTML",
 ]).describe("Format of the content for rendering");
 
-/**
- * AI confidence level in the response. Values come from
- *
- * @remarks
- * `CONFIDENCE_LEVELS` in
- * `enterprise_search/constants/constants.ts`.
- */
-export const Confidence = {
-  High: "High",
-  Medium: "Medium",
-  Low: "Low",
-  VeryHigh: "Very High",
-  Unknown: "Unknown",
-} as const;
-/**
- * AI confidence level in the response. Values come from
- *
- * @remarks
- * `CONFIDENCE_LEVELS` in
- * `enterprise_search/constants/constants.ts`.
- */
-export type Confidence = ClosedEnum<typeof Confidence>;
-
-export const Confidence$zodSchema = z.enum([
-  "High",
-  "Medium",
-  "Low",
-  "Very High",
-  "Unknown",
-]).describe(
-  "AI confidence level in the response. Values come from\n`CONFIDENCE_LEVELS` in\n`enterprise_search/constants/constants.ts`.\n",
-);
-
-export type Metadata = {
+export type MessageMetadata = {
   processingTimeMs?: number | undefined;
   modelVersion?: string | undefined;
   aiTransactionId?: string | undefined;
   reason?: string | undefined;
 };
 
-export const Metadata$zodSchema: z.ZodType<Metadata> = z.object({
+export const MessageMetadata$zodSchema: z.ZodType<MessageMetadata> = z.object({
   aiTransactionId: z.string().optional(),
   modelVersion: z.string().optional(),
   processingTimeMs: z.number().optional(),
   reason: z.string().optional(),
 });
+
+export type MessageReferenceDatum = {
+  name?: string | undefined;
+  id?: string | undefined;
+  type?: string | undefined;
+  app?: string | undefined;
+  webUrl?: string | undefined;
+  metadata?: { [k: string]: string } | undefined;
+};
+
+export const MessageReferenceDatum$zodSchema: z.ZodType<MessageReferenceDatum> =
+  z.object({
+    app: z.string().optional(),
+    id: z.string().optional(),
+    metadata: z.record(z.string(), z.string()).optional(),
+    name: z.string().optional(),
+    type: z.string().optional(),
+    webUrl: z.string().optional(),
+  });
 
 /**
  * A single message within a conversation. Messages can be user queries,
@@ -134,29 +129,38 @@ export const Metadata$zodSchema: z.ZodType<Metadata> = z.object({
  */
 export type Message = {
   _id?: string | undefined;
-  messageType?: MessageType | undefined;
+  messageType?: MessageMessageType | undefined;
   content?: string | undefined;
-  contentFormat?: ContentFormat | undefined;
+  contentFormat?: MessageContentFormat | undefined;
   citations?: Array<CitationReference> | undefined;
-  confidence?: Confidence | undefined;
+  confidence?: string | undefined;
   followUpQuestions?: Array<FollowUpQuestion> | undefined;
   feedback?: Array<MessageFeedback> | undefined;
-  metadata?: Metadata | undefined;
+  metadata?: MessageMetadata | undefined;
+  modelInfo?: ConversationModelInfo | undefined;
+  appliedFilters?: AppliedFilters | undefined;
+  referenceData?: Array<MessageReferenceDatum> | undefined;
+  attachments?: Array<ChatAttachmentRef> | undefined;
   createdAt?: string | undefined;
   updatedAt?: string | undefined;
 };
 
 export const Message$zodSchema: z.ZodType<Message> = z.object({
   _id: z.string().optional(),
+  appliedFilters: AppliedFilters$zodSchema.optional(),
+  attachments: z.array(ChatAttachmentRef$zodSchema).optional(),
   citations: z.array(CitationReference$zodSchema).optional(),
-  confidence: Confidence$zodSchema.optional(),
+  confidence: z.string().optional(),
   content: z.string().optional(),
-  contentFormat: ContentFormat$zodSchema.default("MARKDOWN"),
+  contentFormat: MessageContentFormat$zodSchema.default("MARKDOWN"),
   createdAt: z.iso.datetime({ offset: true }).optional(),
   feedback: z.array(MessageFeedback$zodSchema).optional(),
   followUpQuestions: z.array(FollowUpQuestion$zodSchema).optional(),
-  messageType: MessageType$zodSchema.optional(),
-  metadata: z.lazy(() => Metadata$zodSchema).optional(),
+  messageType: MessageMessageType$zodSchema.optional(),
+  metadata: z.lazy(() => MessageMetadata$zodSchema).optional(),
+  modelInfo: ConversationModelInfo$zodSchema.optional(),
+  referenceData: z.array(z.lazy(() => MessageReferenceDatum$zodSchema))
+    .optional(),
   updatedAt: z.iso.datetime({ offset: true }).optional(),
 }).describe(
   "A single message within a conversation. Messages can be user queries,\nAI responses, system messages, or error notifications.\n",

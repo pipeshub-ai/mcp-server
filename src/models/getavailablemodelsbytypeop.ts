@@ -3,6 +3,7 @@
  */
 
 import * as z from "zod";
+import { ClosedEnum } from "../types/enums.js";
 import { ModelType, ModelType$zodSchema } from "./modeltype.js";
 
 export type GetAvailableModelsByTypeRequest = { modelType: ModelType };
@@ -12,3 +13,309 @@ export const GetAvailableModelsByTypeRequest$zodSchema: z.ZodType<
 > = z.object({
   modelType: ModelType$zodSchema,
 });
+
+export const GetAvailableModelsByTypeCodeHTTPInternalServerError = {
+  HttpInternalServerError: "HTTP_INTERNAL_SERVER_ERROR",
+} as const;
+export type GetAvailableModelsByTypeCodeHTTPInternalServerError = ClosedEnum<
+  typeof GetAvailableModelsByTypeCodeHTTPInternalServerError
+>;
+
+export const GetAvailableModelsByTypeCodeHTTPInternalServerError$zodSchema = z
+  .enum([
+    "HTTP_INTERNAL_SERVER_ERROR",
+  ]);
+
+export type GetAvailableModelsByTypeErrorHTTPInternalServerError = {
+  code: GetAvailableModelsByTypeCodeHTTPInternalServerError;
+  message: string;
+};
+
+export const GetAvailableModelsByTypeErrorHTTPInternalServerError$zodSchema:
+  z.ZodType<GetAvailableModelsByTypeErrorHTTPInternalServerError> = z.object({
+    code: GetAvailableModelsByTypeCodeHTTPInternalServerError$zodSchema,
+    message: z.string(),
+  });
+
+/**
+ * An unexpected error occurred on the server.
+ */
+export type GetAvailableModelsByTypeInternalServerErrorResponseBody = {
+  error: GetAvailableModelsByTypeErrorHTTPInternalServerError;
+};
+
+export const GetAvailableModelsByTypeInternalServerErrorResponseBody$zodSchema:
+  z.ZodType<GetAvailableModelsByTypeInternalServerErrorResponseBody> = z.object(
+    {
+      error: z.lazy(() =>
+        GetAvailableModelsByTypeErrorHTTPInternalServerError$zodSchema
+      ),
+    },
+  ).describe("An unexpected error occurred on the server.");
+
+export const GetAvailableModelsByTypeForbiddenCode = {
+  HttpForbidden: "HTTP_FORBIDDEN",
+} as const;
+export type GetAvailableModelsByTypeForbiddenCode = ClosedEnum<
+  typeof GetAvailableModelsByTypeForbiddenCode
+>;
+
+export const GetAvailableModelsByTypeForbiddenCode$zodSchema = z.enum([
+  "HTTP_FORBIDDEN",
+]);
+
+export type GetAvailableModelsByTypeErrorHTTPForbidden = {
+  code: GetAvailableModelsByTypeForbiddenCode;
+  message: string;
+};
+
+export const GetAvailableModelsByTypeErrorHTTPForbidden$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeErrorHTTPForbidden
+> = z.object({
+  code: GetAvailableModelsByTypeForbiddenCode$zodSchema,
+  message: z.string(),
+});
+
+/**
+ * Insufficient OAuth scope.
+ *
+ * @remarks
+ *
+ * Only applies to OAuth tokens. The token did not carry the `config:read`
+ * scope required by this endpoint. Regular (non-OAuth) JWT bearer tokens
+ * are not subject to scope enforcement and will not receive this error.
+ */
+export type GetAvailableModelsByTypeForbiddenResponseBody = {
+  error: GetAvailableModelsByTypeErrorHTTPForbidden;
+};
+
+export const GetAvailableModelsByTypeForbiddenResponseBody$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeForbiddenResponseBody
+> = z.object({
+  error: z.lazy(() => GetAvailableModelsByTypeErrorHTTPForbidden$zodSchema),
+}).describe(
+  "Insufficient OAuth scope.\n\nOnly applies to OAuth tokens. The token did not carry the `config:read`\nscope required by this endpoint. Regular (non-OAuth) JWT bearer tokens\nare not subject to scope enforcement and will not receive this error.\n",
+);
+
+export const GetAvailableModelsByTypeUnauthorizedCode = {
+  HttpUnauthorized: "HTTP_UNAUTHORIZED",
+} as const;
+export type GetAvailableModelsByTypeUnauthorizedCode = ClosedEnum<
+  typeof GetAvailableModelsByTypeUnauthorizedCode
+>;
+
+export const GetAvailableModelsByTypeUnauthorizedCode$zodSchema = z.enum([
+  "HTTP_UNAUTHORIZED",
+]);
+
+export type GetAvailableModelsByTypeErrorHTTPUnauthorized = {
+  code: GetAvailableModelsByTypeUnauthorizedCode;
+  message: string;
+};
+
+export const GetAvailableModelsByTypeErrorHTTPUnauthorized$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeErrorHTTPUnauthorized
+> = z.object({
+  code: GetAvailableModelsByTypeUnauthorizedCode$zodSchema,
+  message: z.string(),
+});
+
+/**
+ * Missing or invalid authentication token.
+ *
+ * @remarks
+ *
+ * The bearer token was absent, expired, malformed, or could not be
+ * verified by the auth middleware.
+ */
+export type GetAvailableModelsByTypeUnauthorizedResponseBody = {
+  error: GetAvailableModelsByTypeErrorHTTPUnauthorized;
+};
+
+export const GetAvailableModelsByTypeUnauthorizedResponseBody$zodSchema:
+  z.ZodType<GetAvailableModelsByTypeUnauthorizedResponseBody> = z.object({
+    error: z.lazy(() =>
+      GetAvailableModelsByTypeErrorHTTPUnauthorized$zodSchema
+    ),
+  }).describe(
+    "Missing or invalid authentication token.\n\nThe bearer token was absent, expired, malformed, or could not be\nverified by the auth middleware.\n",
+  );
+
+export const GetAvailableModelsByTypeCodeValidationError = {
+  ValidationError: "VALIDATION_ERROR",
+} as const;
+export type GetAvailableModelsByTypeCodeValidationError = ClosedEnum<
+  typeof GetAvailableModelsByTypeCodeValidationError
+>;
+
+export const GetAvailableModelsByTypeCodeValidationError$zodSchema = z.enum([
+  "VALIDATION_ERROR",
+]);
+
+/**
+ * Machine-readable error code mapped from the Zod issue code.
+ */
+export const MetadataCode = {
+  InvalidType: "INVALID_TYPE",
+  InvalidLiteral: "INVALID_LITERAL",
+  InvalidEnum: "INVALID_ENUM",
+  InvalidUnion: "INVALID_UNION",
+  InvalidDiscriminator: "INVALID_DISCRIMINATOR",
+  InvalidArguments: "INVALID_ARGUMENTS",
+  TooSmall: "TOO_SMALL",
+  TooBig: "TOO_BIG",
+} as const;
+/**
+ * Machine-readable error code mapped from the Zod issue code.
+ */
+export type MetadataCode = ClosedEnum<typeof MetadataCode>;
+
+export const MetadataCode$zodSchema = z.enum([
+  "INVALID_TYPE",
+  "INVALID_LITERAL",
+  "INVALID_ENUM",
+  "INVALID_UNION",
+  "INVALID_DISCRIMINATOR",
+  "INVALID_ARGUMENTS",
+  "TOO_SMALL",
+  "TOO_BIG",
+]).describe("Machine-readable error code mapped from the Zod issue code.");
+
+export type MetadataError = {
+  field: string;
+  message: string;
+  code: MetadataCode;
+  value: string;
+};
+
+export const MetadataError$zodSchema: z.ZodType<MetadataError> = z.object({
+  code: MetadataCode$zodSchema,
+  field: z.string(),
+  message: z.string(),
+  value: z.string(),
+});
+
+/**
+ * Per-field validation detail from Zod.
+ */
+export type GetAvailableModelsByTypeMetadata = { errors: Array<MetadataError> };
+
+export const GetAvailableModelsByTypeMetadata$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeMetadata
+> = z.object({
+  errors: z.array(z.lazy(() => MetadataError$zodSchema)),
+}).describe("Per-field validation detail from Zod.");
+
+export type GetAvailableModelsByTypeErrorValidationError = {
+  code: GetAvailableModelsByTypeCodeValidationError;
+  message: string;
+  metadata: GetAvailableModelsByTypeMetadata;
+};
+
+export const GetAvailableModelsByTypeErrorValidationError$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeErrorValidationError
+> = z.object({
+  code: GetAvailableModelsByTypeCodeValidationError$zodSchema,
+  message: z.string(),
+  metadata: z.lazy(() => GetAvailableModelsByTypeMetadata$zodSchema),
+});
+
+/**
+ * Invalid `modelType` path parameter.
+ *
+ * @remarks
+ *
+ * The `modelType` value was not one of the supported enum categories.
+ * This response is produced by the Zod validation middleware **before**
+ * the handler runs. The `error.metadata.errors` array contains
+ * per-field detail about exactly which constraint failed.
+ */
+export type GetAvailableModelsByTypeBadRequestResponseBody = {
+  error: GetAvailableModelsByTypeErrorValidationError;
+};
+
+export const GetAvailableModelsByTypeBadRequestResponseBody$zodSchema:
+  z.ZodType<GetAvailableModelsByTypeBadRequestResponseBody> = z.object({
+    error: z.lazy(() => GetAvailableModelsByTypeErrorValidationError$zodSchema),
+  }).describe(
+    "Invalid `modelType` path parameter.\n\nThe `modelType` value was not one of the supported enum categories.\nThis response is produced by the Zod validation middleware **before**\nthe handler runs. The `error.metadata.errors` array contains\nper-field detail about exactly which constraint failed.\n",
+  );
+
+export const GetAvailableModelsByTypeStatus = {
+  Success: "success",
+} as const;
+export type GetAvailableModelsByTypeStatus = ClosedEnum<
+  typeof GetAvailableModelsByTypeStatus
+>;
+
+export const GetAvailableModelsByTypeStatus$zodSchema = z.enum([
+  "success",
+]);
+
+export type GetAvailableModelsByTypeModel = {
+  modelType: ModelType;
+  provider: string;
+  modelName: string;
+  modelKey: string;
+  isMultimodal: boolean;
+  isReasoning: boolean;
+  isDefault: boolean;
+  modelFriendlyName?: string | undefined;
+};
+
+export const GetAvailableModelsByTypeModel$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeModel
+> = z.object({
+  isDefault: z.boolean(),
+  isMultimodal: z.boolean(),
+  isReasoning: z.boolean(),
+  modelFriendlyName: z.string().optional(),
+  modelKey: z.string(),
+  modelName: z.string(),
+  modelType: ModelType$zodSchema,
+  provider: z.string(),
+});
+
+/**
+ * Available models retrieved successfully.
+ *
+ * @remarks
+ *
+ * An empty `models` array (with HTTP 200) is returned when no providers of
+ * the requested type have been configured — treat this as a valid, empty
+ * state, not an error.
+ */
+export type GetAvailableModelsByTypeResponseBodySuccess = {
+  status: GetAvailableModelsByTypeStatus;
+  message: string;
+  models: Array<GetAvailableModelsByTypeModel>;
+};
+
+export const GetAvailableModelsByTypeResponseBodySuccess$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeResponseBodySuccess
+> = z.object({
+  message: z.string(),
+  models: z.array(z.lazy(() => GetAvailableModelsByTypeModel$zodSchema)),
+  status: GetAvailableModelsByTypeStatus$zodSchema,
+}).describe(
+  "Available models retrieved successfully.\n\nAn empty `models` array (with HTTP 200) is returned when no providers of\nthe requested type have been configured — treat this as a valid, empty\nstate, not an error.\n",
+);
+
+export type GetAvailableModelsByTypeResponse =
+  | GetAvailableModelsByTypeResponseBodySuccess
+  | GetAvailableModelsByTypeBadRequestResponseBody
+  | GetAvailableModelsByTypeUnauthorizedResponseBody
+  | GetAvailableModelsByTypeForbiddenResponseBody
+  | GetAvailableModelsByTypeInternalServerErrorResponseBody;
+
+export const GetAvailableModelsByTypeResponse$zodSchema: z.ZodType<
+  GetAvailableModelsByTypeResponse
+> = z.union([
+  z.lazy(() => GetAvailableModelsByTypeResponseBodySuccess$zodSchema),
+  z.lazy(() => GetAvailableModelsByTypeBadRequestResponseBody$zodSchema),
+  z.lazy(() => GetAvailableModelsByTypeUnauthorizedResponseBody$zodSchema),
+  z.lazy(() => GetAvailableModelsByTypeForbiddenResponseBody$zodSchema),
+  z.lazy(() =>
+    GetAvailableModelsByTypeInternalServerErrorResponseBody$zodSchema
+  ),
+]);

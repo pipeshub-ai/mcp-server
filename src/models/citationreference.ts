@@ -3,47 +3,21 @@
  */
 
 import * as z from "zod";
-import {
-  CitationMetadata,
-  CitationMetadata$zodSchema,
-} from "./citationmetadata.js";
 
 /**
- * A single citation attached to a `bot_response` message. Each citation
- *
- * @remarks
- * points back to a chunk of a source record that the AI used while
- * answering.<br><br>
- * <b>Shape on the wire:</b> the API returns a populated Citation document
- * with `_id`, `content` (the chunk text), `chunkIndex`, `citationType`,
- * timestamps, and a `metadata` object that carries the record-level
- * identity (most importantly <code>metadata.recordId</code> and
- * <code>metadata.recordName</code>).<br><br>
- * <b>Discovering a recordId for download:</b> when a programmatic / MCP
- * caller wants to download a file mentioned in the chat, read
- * <code>citations[*].metadata.recordId</code> from the
- * <code>complete</code> SSE frame and pass it to
- * <code>GET /knowledgeBase/stream/record/{recordId}</code>.
+ * Reference to a source document cited in a response
  */
 export type CitationReference = {
-  _id?: string | undefined;
-  content?: string | undefined;
-  chunkIndex?: number | undefined;
-  citationType?: string | undefined;
-  metadata?: CitationMetadata | undefined;
-  createdAt?: string | undefined;
-  updatedAt?: string | undefined;
+  citationId?: string | undefined;
+  relevanceScore?: number | undefined;
+  excerpt?: string | undefined;
+  context?: string | undefined;
 };
 
 export const CitationReference$zodSchema: z.ZodType<CitationReference> = z
   .object({
-    _id: z.string().optional(),
-    chunkIndex: z.int().optional(),
-    citationType: z.string().optional(),
-    content: z.string().optional(),
-    createdAt: z.iso.datetime({ offset: true }).optional(),
-    metadata: CitationMetadata$zodSchema.optional(),
-    updatedAt: z.iso.datetime({ offset: true }).optional(),
-  }).describe(
-    "A single citation attached to a `bot_response` message. Each citation\npoints back to a chunk of a source record that the AI used while\nanswering.<br><br>\n<b>Shape on the wire:</b> the API returns a populated Citation document\nwith `_id`, `content` (the chunk text), `chunkIndex`, `citationType`,\ntimestamps, and a `metadata` object that carries the record-level\nidentity (most importantly <code>metadata.recordId</code> and\n<code>metadata.recordName</code>).<br><br>\n<b>Discovering a recordId for download:</b> when a programmatic / MCP\ncaller wants to download a file mentioned in the chat, read\n<code>citations[*].metadata.recordId</code> from the\n<code>complete</code> SSE frame and pass it to\n<code>GET /knowledgeBase/stream/record/{recordId}</code>.\n",
-  );
+    citationId: z.string().optional(),
+    context: z.string().optional(),
+    excerpt: z.string().optional(),
+    relevanceScore: z.number().optional(),
+  }).describe("Reference to a source document cited in a response");

@@ -3,58 +3,35 @@
  */
 
 import * as z from "zod";
-import {
-  SemanticSearchFilters,
-  SemanticSearchFilters$zodSchema,
-} from "./semanticsearchfilters.js";
+import { Filters, Filters$zodSchema } from "./filters.js";
 
 /**
- * Request body for `POST /search`. Performs a semantic vector search
+ * Request body for performing semantic search across the enterprise knowledge base.
  *
  * @remarks
- * across the caller's organization and persists a search record that
- * can later be retrieved via `GET /search/{searchId}`.<br><br>
- * <b>How Semantic Search Works:</b><br>
- * <ol>
- * <li>Query is converted to vector embeddings</li>
- * <li>Similar content is found using vector similarity</li>
- * <li>Results are ranked by relevance score</li>
- * <li>Matching chunks with metadata are returned</li>
- * </ol>
- * <b>Filtering:</b> Use `filters` to narrow scope by connector,
- * knowledge base, department, module, or record type. See
- * `SemanticSearchFilters`.<br><br>
- * <b>Notes for programmatic / MCP callers:</b><br>
- * <ul>
- * <li>To resolve a filename or topic to a downloadable record, call
- *     this endpoint and read
- *     <code>searchResponse.searchResults[*].metadata.recordId</code>
- *     (or any key of <code>searchResponse.virtual_to_record_map</code>).
- *     Then pass that id to
- *     <code>GET /knowledgeBase/stream/record/{recordId}</code>.</li>
- * <li>Use <code>limit</code> aggressively (5–10) when searching just to
- *     resolve a record id; raise it only when you need ranked snippets.</li>
- * </ul>
+ *
+ * **How Semantic Search Works:**
+ *
+ * 1. Query is converted to vector embeddings
+ * 2. Similar content is found using vector similarity
+ * 3. Results are ranked by relevance score
+ * 4. Matching chunks with metadata are returned
+ *
+ * **Filtering:**
+ *
+ * Use filters to narrow search scope to specific apps or knowledge bases.
  */
 export type SemanticSearchRequest = {
   query: string;
-  filters?: SemanticSearchFilters | undefined;
+  filters?: Filters | undefined;
   limit?: number | undefined;
-  modelKey?: string | undefined;
-  modelName?: string | undefined;
-  modelFriendlyName?: string | undefined;
-  chatMode?: string | undefined;
 };
 
 export const SemanticSearchRequest$zodSchema: z.ZodType<SemanticSearchRequest> =
   z.object({
-    chatMode: z.string().optional(),
-    filters: SemanticSearchFilters$zodSchema.optional(),
+    filters: Filters$zodSchema.optional(),
     limit: z.int().default(10),
-    modelFriendlyName: z.string().optional(),
-    modelKey: z.string().optional(),
-    modelName: z.string().optional(),
     query: z.string(),
   }).describe(
-    "Request body for `POST /search`. Performs a semantic vector search\nacross the caller's organization and persists a search record that\ncan later be retrieved via `GET /search/{searchId}`.<br><br>\n<b>How Semantic Search Works:</b><br>\n<ol>\n<li>Query is converted to vector embeddings</li>\n<li>Similar content is found using vector similarity</li>\n<li>Results are ranked by relevance score</li>\n<li>Matching chunks with metadata are returned</li>\n</ol>\n<b>Filtering:</b> Use `filters` to narrow scope by connector,\nknowledge base, department, module, or record type. See\n`SemanticSearchFilters`.<br><br>\n<b>Notes for programmatic / MCP callers:</b><br>\n<ul>\n<li>To resolve a filename or topic to a downloadable record, call\n    this endpoint and read\n    <code>searchResponse.searchResults[*].metadata.recordId</code>\n    (or any key of <code>searchResponse.virtual_to_record_map</code>).\n    Then pass that id to\n    <code>GET /knowledgeBase/stream/record/{recordId}</code>.</li>\n<li>Use <code>limit</code> aggressively (5–10) when searching just to\n    resolve a record id; raise it only when you need ranked snippets.</li>\n</ul>\n",
+    "Request body for performing semantic search across the enterprise knowledge base.\n\n**How Semantic Search Works:**\n\n1. Query is converted to vector embeddings\n2. Similar content is found using vector similarity\n3. Results are ranked by relevance score\n4. Matching chunks with metadata are returned\n\n**Filtering:**\n\nUse filters to narrow search scope to specific apps or knowledge bases.\n",
   );
