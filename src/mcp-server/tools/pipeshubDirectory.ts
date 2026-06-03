@@ -1,4 +1,3 @@
-// Curated directory tool. Hand-written; merges four generated tools
 // (`pipeshub-list-users`, `pipeshub-get-user`, `pipeshub-list-user-groups`,
 // `pipeshub-list-my-teams`) plus a `whoami` action that decodes the bearer
 // JWT into a single tool.

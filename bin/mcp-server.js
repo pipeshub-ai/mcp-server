@@ -50387,6 +50387,86 @@ var init_mcp = __esm(() => {
   };
 });
 
+// src/mcp-server/instructions.ts
+var PIPESHUB_INSTRUCTIONS = `# PipesHub MCP — instructions for the LLM
+
+PipesHub is the user's workplace AI platform. It indexes their documents,
+knowledge base content, and connector sources (Drive, Box, Confluence,
+Slack, Jira, Gmail, ...). When in doubt, the answer is in PipesHub.
+
+## Default tool: \`pipeshub_chat\`
+
+**Use \`pipeshub_chat\` for any question that could plausibly be answered
+by the user's PipesHub-indexed data.** That includes:
+
+- Anything about a specific document, file, report, ticket, message, or
+  page (e.g. "what's in the Q4 sales report?", "summarize the langchain
+  doc", "what did Aashil say about onboarding?").
+- Anything about company / org policies, processes, decisions, or
+  history (e.g. "what's our vacation policy?", "who owns the auth
+  service?").
+- Anything explicitly mentioning PipesHub itself, or its sources
+  (Drive / Box / Confluence / Slack / Gmail / Jira / etc.) when the
+  user has those connected.
+- Open-ended "what do we know about X" questions where the answer
+  likely lives in the org's documents.
+
+Do NOT answer those from your own knowledge — \`pipeshub_chat\` grounds
+the answer in the user's actual indexed content and returns citations
+the user can verify.
+
+## When to use the other tools
+
+- \`pipeshub_search\` — only when the user asks specifically to **find /
+  locate** a document by name or topic (so you can hand them a list, or
+  resolve a filename to a \`recordId\` for download). For "what does
+  the doc say?" use \`pipeshub_chat\` instead — it does the retrieval
+  internally.
+- \`pipeshub_download_record\` — when the user wants the actual file
+  bytes (download, attach, open). Get the \`recordId\` either from
+  citations on a prior \`pipeshub_chat\` response or from
+  \`pipeshub_search\`.
+- \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
+  Not for documents.
+- \`pipeshub_sources\` — call once at the start of a session to discover
+  which connectors / KB / models are available, then cache the result.
+- \`pipeshub_agents\` — list the org's configured **agents** (specialized
+  assistants with their own prompt, tools, and knowledge scope).
+
+## Agents
+
+Some orgs configure **agents** for specific jobs (e.g. a Slack messenger, a
+Jira ticket creator, a Salesforce CRM updater). To run a turn against an
+agent, call \`pipeshub_chat\` with its \`agentId\` (from \`pipeshub_agents\`)
+— optionally with an agent \`chatMode\` (\`auto\` by default, or \`quick\` /
+\`verification\` / \`deep\`). Keep passing the same \`agentId\` plus the
+returned \`conversationId\` on follow-up turns.
+
+**When to route to an agent vs plain chat:**
+- The user names a system/action that maps to an agent (e.g. "post to
+  Slack", "create a Jira ticket", "update the Salesforce deal") → call
+  \`pipeshub_agents\`, pick the matching agent, and use it.
+- Plain question about the org's knowledge or the public web → just use
+  \`pipeshub_chat\` (no \`agentId\`) with \`internal_search\` or \`web_search\`.
+
+**If you are unsure which agent or route fits the request**, call
+\`pipeshub_agents\` FIRST and read the returned names/descriptions, then
+either pick the best match or present the list to the user and let them
+choose. Do NOT guess an agent blindly, and do NOT refuse — list the agents
+and decide from real data. The list may be empty (no agents configured),
+in which case fall back to plain \`pipeshub_chat\`.
+
+## Conversation lifecycle
+
+\`pipeshub_chat\` is a single tool that handles both starting and
+continuing conversations (plain or with an \`agentId\`). On the first turn
+omit \`conversationId\`; on every subsequent turn pass back the
+\`conversationId\` returned by the previous call (along with the same
+\`agentId\` if you used one). Server-side context is preserved — do NOT
+replay prior messages. Only start a fresh conversation when the user
+explicitly asks to clear context.
+`;
+
 // src/hooks/registration.ts
 function initHooks(hooks) {}
 
@@ -52460,6 +52540,326 @@ var init_conversationsStreamMessage = __esm(() => {
   init_async();
 });
 
+// src/models/agentops.ts
+var ListAgentsRequest$zodSchema, AgentStreamConversationBody$zodSchema, AgentStreamCreateConversationRequest$zodSchema, AgentAddMessageStreamRequest$zodSchema, AgentWebSearch$zodSchema, AgentToolsetTool$zodSchema, AgentToolset$zodSchema, AgentKnowledge$zodSchema, AgentSummary$zodSchema, AgentListPagination$zodSchema, AgentListEnvelope$zodSchema;
+var init_agentops = __esm(() => {
+  init_zod();
+  init_filters();
+  ListAgentsRequest$zodSchema = object({
+    page: int().optional(),
+    limit: int().optional(),
+    search: string2().optional(),
+    sortBy: string2().optional(),
+    sortOrder: _enum(["asc", "desc"]).optional()
+  });
+  AgentStreamConversationBody$zodSchema = object({
+    query: string2().min(1),
+    recordIds: array(string2()).optional(),
+    filters: Filters$zodSchema.optional(),
+    chatMode: string2().optional(),
+    modelKey: string2().optional(),
+    modelName: string2().optional(),
+    modelFriendlyName: string2().optional(),
+    tools: array(string2()).optional(),
+    timezone: string2().optional(),
+    currentTime: string2().optional()
+  });
+  AgentStreamCreateConversationRequest$zodSchema = object({
+    agentKey: string2().min(1),
+    body: AgentStreamConversationBody$zodSchema
+  });
+  AgentAddMessageStreamRequest$zodSchema = object({
+    agentKey: string2().min(1),
+    conversationId: string2(),
+    body: AgentStreamConversationBody$zodSchema
+  });
+  AgentWebSearch$zodSchema = object({
+    provider: string2().optional(),
+    providerKey: string2().optional(),
+    providerLabel: string2().optional()
+  });
+  AgentToolsetTool$zodSchema = object({
+    name: string2().nullish(),
+    fullName: string2().nullish()
+  });
+  AgentToolset$zodSchema = object({
+    name: string2().nullish(),
+    displayName: string2().nullish(),
+    instanceName: string2().nullish(),
+    tools: array(AgentToolsetTool$zodSchema).default([])
+  });
+  AgentKnowledge$zodSchema = object({
+    name: string2().nullish(),
+    displayName: string2().nullish(),
+    type: string2().nullish()
+  });
+  AgentSummary$zodSchema = object({
+    _key: string2(),
+    name: string2(),
+    description: string2().nullish(),
+    systemPrompt: string2().nullish(),
+    startMessage: string2().nullish(),
+    tags: array(string2()).default([]),
+    webSearch: AgentWebSearch$zodSchema.nullish(),
+    isActive: boolean2().nullish(),
+    toolsets: array(AgentToolset$zodSchema).default([]),
+    knowledge: array(AgentKnowledge$zodSchema).default([])
+  });
+  AgentListPagination$zodSchema = object({
+    totalItems: number2().nullish(),
+    total: number2().nullish(),
+    hasNext: boolean2().nullish(),
+    hasNextPage: boolean2().nullish()
+  });
+  AgentListEnvelope$zodSchema = object({
+    success: boolean2().nullish(),
+    agents: array(AgentSummary$zodSchema).default([]),
+    pagination: AgentListPagination$zodSchema.nullish()
+  });
+});
+
+// src/funcs/agentsStreamConversation.ts
+function agentsStreamConversation(client$, request, options) {
+  return new APIPromise($do3(client$, request, options));
+}
+async function $do3(client$, request, options) {
+  const parsed$ = safeParse4(request, (value$) => AgentStreamCreateConversationRequest$zodSchema.parse(value$), "Input validation failed");
+  if (!parsed$.ok) {
+    return [parsed$, { status: "invalid" }];
+  }
+  const payload$ = parsed$.value;
+  const body$ = encodeJSON("body", payload$.body, { explode: true });
+  const pathParams$ = {
+    agentKey: encodeSimple("agentKey", payload$.agentKey, {
+      explode: false,
+      charEncoding: "percent"
+    })
+  };
+  const path$ = pathToFunc("/agents/{agentKey}/conversations/stream")(pathParams$);
+  const headers$ = new Headers(compactMap({
+    "Content-Type": "application/json",
+    Accept: "text/event-stream"
+  }));
+  const securityInput = await extractSecurity(client$._options.security);
+  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const context = {
+    options: client$._options,
+    baseURL: options?.serverURL ?? client$._baseURL ?? "",
+    operationID: "streamAgentConversation",
+    oAuth2Scopes: ["agent:execute"],
+    resolvedSecurity: requestSecurity,
+    securitySource: client$._options.security,
+    retryConfig: options?.retries || client$._options.retryConfig || { strategy: "none" },
+    retryCodes: options?.retryCodes || [
+      "429",
+      "500",
+      "502",
+      "503",
+      "504"
+    ]
+  };
+  const requestRes = client$._createRequest(context, {
+    security: requestSecurity,
+    method: "POST",
+    baseURL: options?.serverURL,
+    path: path$,
+    headers: headers$,
+    body: body$,
+    userAgent: client$._options.userAgent,
+    timeoutMs: options?.timeoutMs || -1
+  }, options);
+  if (!requestRes.ok) {
+    return [requestRes, { status: "invalid" }];
+  }
+  const req$ = requestRes.value;
+  const doResult = await client$._do(req$, {
+    context,
+    errorCodes: [],
+    retryConfig: context.retryConfig,
+    retryCodes: context.retryCodes
+  });
+  if (!doResult.ok) {
+    return [doResult, { status: "request-error", request: req$ }];
+  }
+  return [doResult, {
+    status: "complete",
+    request: req$,
+    response: doResult.value
+  }];
+}
+var init_agentsStreamConversation = __esm(() => {
+  init_encodings();
+  init_primitives();
+  init_schemas4();
+  init_security2();
+  init_url();
+  init_agentops();
+  init_async();
+});
+
+// src/funcs/agentsStreamMessage.ts
+function agentsStreamMessage(client$, request, options) {
+  return new APIPromise($do4(client$, request, options));
+}
+async function $do4(client$, request, options) {
+  const parsed$ = safeParse4(request, (value$) => AgentAddMessageStreamRequest$zodSchema.parse(value$), "Input validation failed");
+  if (!parsed$.ok) {
+    return [parsed$, { status: "invalid" }];
+  }
+  const payload$ = parsed$.value;
+  const body$ = encodeJSON("body", payload$.body, { explode: true });
+  const pathParams$ = {
+    agentKey: encodeSimple("agentKey", payload$.agentKey, {
+      explode: false,
+      charEncoding: "percent"
+    }),
+    conversationId: encodeSimple("conversationId", payload$.conversationId, {
+      explode: false,
+      charEncoding: "percent"
+    })
+  };
+  const path$ = pathToFunc("/agents/{agentKey}/conversations/{conversationId}/messages/stream")(pathParams$);
+  const headers$ = new Headers(compactMap({
+    "Content-Type": "application/json",
+    Accept: "text/event-stream"
+  }));
+  const securityInput = await extractSecurity(client$._options.security);
+  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const context = {
+    options: client$._options,
+    baseURL: options?.serverURL ?? client$._baseURL ?? "",
+    operationID: "streamAgentConversationMessage",
+    oAuth2Scopes: ["agent:execute"],
+    resolvedSecurity: requestSecurity,
+    securitySource: client$._options.security,
+    retryConfig: options?.retries || client$._options.retryConfig || { strategy: "none" },
+    retryCodes: options?.retryCodes || [
+      "429",
+      "500",
+      "502",
+      "503",
+      "504"
+    ]
+  };
+  const requestRes = client$._createRequest(context, {
+    security: requestSecurity,
+    method: "POST",
+    baseURL: options?.serverURL,
+    path: path$,
+    headers: headers$,
+    body: body$,
+    userAgent: client$._options.userAgent,
+    timeoutMs: options?.timeoutMs || -1
+  }, options);
+  if (!requestRes.ok) {
+    return [requestRes, { status: "invalid" }];
+  }
+  const req$ = requestRes.value;
+  const doResult = await client$._do(req$, {
+    context,
+    errorCodes: [],
+    retryConfig: context.retryConfig,
+    retryCodes: context.retryCodes
+  });
+  if (!doResult.ok) {
+    return [doResult, { status: "request-error", request: req$ }];
+  }
+  return [doResult, {
+    status: "complete",
+    request: req$,
+    response: doResult.value
+  }];
+}
+var init_agentsStreamMessage = __esm(() => {
+  init_encodings();
+  init_primitives();
+  init_schemas4();
+  init_security2();
+  init_url();
+  init_agentops();
+  init_async();
+});
+
+// src/funcs/agentsListAgents.ts
+function agentsListAgents(client$, request, options) {
+  return new APIPromise($do5(client$, request, options));
+}
+async function $do5(client$, request, options) {
+  const parsed$ = safeParse4(request, (value$) => ListAgentsRequest$zodSchema.optional().parse(value$), "Input validation failed");
+  if (!parsed$.ok) {
+    return [parsed$, { status: "invalid" }];
+  }
+  const payload$ = parsed$.value;
+  const body$ = null;
+  const path$ = pathToFunc("/agents")();
+  const query$ = encodeFormQuery({
+    page: payload$?.page,
+    limit: payload$?.limit,
+    search: payload$?.search,
+    sort_by: payload$?.sortBy,
+    sort_order: payload$?.sortOrder
+  });
+  const headers$ = new Headers(compactMap({
+    Accept: "application/json"
+  }));
+  const securityInput = await extractSecurity(client$._options.security);
+  const requestSecurity = resolveGlobalSecurity(securityInput);
+  const context = {
+    options: client$._options,
+    baseURL: options?.serverURL ?? client$._baseURL ?? "",
+    operationID: "listAgents",
+    oAuth2Scopes: ["agent:read"],
+    resolvedSecurity: requestSecurity,
+    securitySource: client$._options.security,
+    retryConfig: options?.retries || client$._options.retryConfig || { strategy: "none" },
+    retryCodes: options?.retryCodes || [
+      "429",
+      "500",
+      "502",
+      "503",
+      "504"
+    ]
+  };
+  const requestRes = client$._createRequest(context, {
+    security: requestSecurity,
+    method: "GET",
+    baseURL: options?.serverURL,
+    path: path$,
+    headers: headers$,
+    query: query$,
+    body: body$,
+    userAgent: client$._options.userAgent,
+    timeoutMs: options?.timeoutMs || client$._options.timeoutMs || -1
+  }, options);
+  if (!requestRes.ok) {
+    return [requestRes, { status: "invalid" }];
+  }
+  const req$ = requestRes.value;
+  const doResult = await client$._do(req$, {
+    context,
+    errorCodes: [],
+    retryConfig: context.retryConfig,
+    retryCodes: context.retryCodes
+  });
+  if (!doResult.ok) {
+    return [doResult, { status: "request-error", request: req$ }];
+  }
+  return [doResult, {
+    status: "complete",
+    request: req$,
+    response: doResult.value
+  }];
+}
+var init_agentsListAgents = __esm(() => {
+  init_encodings();
+  init_primitives();
+  init_schemas4();
+  init_security2();
+  init_url();
+  init_agentops();
+  init_async();
+});
+
 // src/mcp-server/tools/_helpers.ts
 async function readJson(response) {
   const text = await response.text();
@@ -52500,6 +52900,52 @@ function errorResult(message) {
     content: [{ type: "text", text: message }],
     isError: true
   };
+}
+async function httpErrorResult(response, context) {
+  if (response.ok)
+    return null;
+  let body = "";
+  try {
+    body = await response.text();
+  } catch {}
+  let message = body;
+  if (body) {
+    try {
+      const parsed = JSON.parse(body);
+      const candidate = typeof parsed?.message === "string" && parsed.message || typeof parsed?.error === "string" && parsed.error || typeof parsed?.error?.message === "string" && parsed.error.message || typeof parsed?.detail === "string" && parsed.detail || "";
+      message = candidate || body;
+    } catch {}
+  }
+  const detail = message ? ` ${message.slice(0, 400)}` : "";
+  const auth = response.status === 401 || response.status === 403 ? " Check that the bearer token / credentials are valid and not expired." : "";
+  return errorResult(`${context} failed (HTTP ${response.status} ${response.statusText}).${detail}${auth}`);
+}
+async function readValidated(response, schema) {
+  const text = await response.text();
+  if (!text) {
+    return { ok: false, result: errorResult("Empty response from server") };
+  }
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    return {
+      ok: false,
+      result: errorResult(`Failed to parse response as JSON: ${e.message}` + `
+
+Raw body:
+${text.slice(0, 500)}`)
+    };
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      result: errorResult(`Unexpected response shape:
+${prettifyError(parsed.error)}`)
+    };
+  }
+  return { ok: true, value: parsed.data };
 }
 async function resolveSecurity2(client) {
   const sec = client._options.security;
@@ -52639,6 +53085,63 @@ async function* iterateSSE(response) {
     } catch {}
   }
 }
+function trimAgent(a) {
+  return {
+    agentId: a._key,
+    name: a.name,
+    description: a.description ?? null,
+    systemPrompt: a.systemPrompt ?? null,
+    startMessage: a.startMessage ?? null,
+    tags: a.tags,
+    webSearch: !!a.webSearch,
+    isActive: a.isActive,
+    toolsets: a.toolsets.map((ts) => ({
+      name: ts.name,
+      tools: ts.tools.map((t) => t.fullName ?? t.name).filter((id) => typeof id === "string")
+    })),
+    knowledge: a.knowledge.map((k) => ({
+      name: k.name ?? k.displayName,
+      type: k.type
+    }))
+  };
+}
+async function listAllAgents(client, opts = {}) {
+  const PAGE_SIZE = 200;
+  const maxPages = opts.maxPages ?? 25;
+  const reqOptions = opts.signal ? { fetchOptions: { signal: opts.signal } } : {};
+  const all = [];
+  let total = 0;
+  for (let page = 1;page <= maxPages; page++) {
+    const [r] = await agentsListAgents(client, {
+      page,
+      limit: PAGE_SIZE,
+      search: opts.search
+    }, reqOptions).$inspect();
+    if (!r.ok)
+      return { ok: false, result: errorResult(r.error.message) };
+    const httpErr = await httpErrorResult(r.value, "Agent list request");
+    if (httpErr)
+      return { ok: false, result: httpErr };
+    const parsed = await readValidated(r.value, AgentListEnvelope$zodSchema);
+    if (!parsed.ok)
+      return { ok: false, result: parsed.result };
+    if (parsed.value.success === false) {
+      return {
+        ok: false,
+        result: errorResult("Agent list request returned success: false")
+      };
+    }
+    const agents = parsed.value.agents;
+    all.push(...agents);
+    const pg = parsed.value.pagination;
+    total = pg?.totalItems ?? pg?.total ?? all.length;
+    const hasNext = pg?.hasNext ?? pg?.hasNextPage ?? agents.length >= PAGE_SIZE;
+    if (!hasNext || agents.length === 0) {
+      return { ok: true, agents: all, total, truncated: false };
+    }
+  }
+  return { ok: true, agents: all, total: total || all.length, truncated: true };
+}
 function trimSearchHit(hit) {
   const md = hit?.metadata ?? {};
   return {
@@ -52653,6 +53156,11 @@ function trimSearchHit(hit) {
     pageNum: md.pageNum
   };
 }
+var init__helpers = __esm(() => {
+  init_zod();
+  init_agentsListAgents();
+  init_agentops();
+});
 
 // src/mcp-server/tools/pipeshubChat.ts
 var FiltersShape, args, tool$pipeshubChat;
@@ -52660,6 +53168,9 @@ var init_pipeshubChat = __esm(() => {
   init_zod();
   init_conversationsStreamConversation();
   init_conversationsStreamMessage();
+  init_agentsStreamConversation();
+  init_agentsStreamMessage();
+  init__helpers();
   FiltersShape = object({
     apps: array(string2()).optional().describe("Source-scoping ids. Mix connector instance UUIDs with the synthetic " + "`knowledgeBase_<orgId>` id (use pipeshub_sources to discover them). " + "Empty / omitted means no app-side restriction."),
     kb: array(string2()).optional().describe("Legacy / unused. Leave empty.")
@@ -52671,24 +53182,38 @@ var init_pipeshubChat = __esm(() => {
     modelKey: string2().optional().describe("Model id to use (from `pipeshub_sources` `models[*].modelKey`). " + "Defaults to the org's default LLM."),
     modelName: string2().optional(),
     modelFriendlyName: string2().optional(),
-    chatMode: _enum(["quick", "balanced"]).optional().describe("`quick` for low-retrieval / fast answers; `balanced` for full RAG. " + "Default `quick`.")
+    agentId: string2().optional().describe("Optional PipesHub agent to converse with — the `agentId` from " + "`pipeshub_agents`. When set, this turn runs against that agent's " + "configuration (prompt, tools, knowledge). On follow-up turns pass the " + "SAME `agentId` together with the `conversationId` returned by the " + "previous call. Omit for a plain (non-agent) conversation. If unsure " + "which agent to use, call `pipeshub_agents` first to see the options."),
+    chatMode: _enum([
+      "internal_search",
+      "web_search",
+      "auto",
+      "quick",
+      "verification",
+      "deep"
+    ]).optional().describe("Response strategy. The valid values depend on whether `agentId` is set:\n" + "- WITHOUT `agentId` (plain chat): `internal_search` — answer from the " + "org's indexed knowledge (default) — or `web_search` — answer from the " + `live web.
+` + "- WITH `agentId` (agent chat): `auto` (let the agent decide; default), " + "`quick`, `verification`, or `deep`.")
   };
   tool$pipeshubChat = {
     name: "pipeshub_chat",
-    description: `**Default tool for anything PipesHub-related.** Use this whenever the
-user asks about their documents, files, knowledge base, company
-policies, or anything that could plausibly be answered by content in
-their PipesHub-indexed sources (Drive, Box, Confluence, Slack, Gmail,
-Jira, the org's KB, ...). Do NOT answer those from your own knowledge —
-\`pipeshub_chat\` grounds the answer in the user's actual data and
-returns citations.
+    description: `**Primary chat tool — handles both internal knowledge queries and web search.**
+
+**Internal search** (default, \`chatMode: "internal_search"\`): Use whenever
+the user asks about their documents, files, knowledge base, company policies,
+or anything that could plausibly be answered by content in their PipesHub-indexed
+sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, ...).
+Grounds the answer in the user's actual data and returns citations.
+
+**Web search** (\`chatMode: "web_search"\`): Use when the user asks about
+current events, public information, or anything unlikely to be in the org's
+internal knowledge base. Pass \`chatMode: "web_search"\` and this tool will
+search the public web instead.
 
 **When to pick this over other tools:**
-- "What does <document> say about X?" → \`pipeshub_chat\` (NOT search;
-  search is only for locating files by name).
-- "Summarize <topic / doc>." → \`pipeshub_chat\`.
-- "What's our policy on Y?" → \`pipeshub_chat\`.
-- "What do we know about Z?" → \`pipeshub_chat\`.
+- "What does <document> say about X?" → \`pipeshub_chat\` (internal_search)
+- "Summarize <topic / doc>." → \`pipeshub_chat\` (internal_search)
+- "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
+- "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
+- "What is the latest version of <library>?" → \`pipeshub_chat\` (web_search)
 - "Find / locate the file named X" → \`pipeshub_search\` (then
   \`pipeshub_download_record\` if the user wants the bytes).
 
@@ -52719,7 +53244,40 @@ cited document, take \`citations[*].recordId\` and call
     tool: async (client, args2, ctx) => {
       const fetchOptions = { signal: ctx.signal };
       let response;
-      if (args2.conversationId) {
+      if (args2.agentId) {
+        const agentChatMode = args2.chatMode ?? "auto";
+        if (args2.conversationId) {
+          const [result] = await agentsStreamMessage(client, {
+            agentKey: args2.agentId,
+            conversationId: args2.conversationId,
+            body: {
+              query: args2.query,
+              modelKey: args2.modelKey,
+              modelName: args2.modelName,
+              modelFriendlyName: args2.modelFriendlyName,
+              chatMode: agentChatMode
+            }
+          }, { fetchOptions }).$inspect();
+          if (!result.ok)
+            return errorResult(result.error.message);
+          response = result.value;
+        } else {
+          const [result] = await agentsStreamConversation(client, {
+            agentKey: args2.agentId,
+            body: {
+              query: args2.query,
+              filters: args2.filters,
+              modelKey: args2.modelKey,
+              modelName: args2.modelName,
+              modelFriendlyName: args2.modelFriendlyName,
+              chatMode: agentChatMode
+            }
+          }, { fetchOptions }).$inspect();
+          if (!result.ok)
+            return errorResult(result.error.message);
+          response = result.value;
+        }
+      } else if (args2.conversationId) {
         const [result] = await conversationsStreamMessage(client, {
           conversationId: args2.conversationId,
           body: {
@@ -52727,7 +53285,7 @@ cited document, take \`citations[*].recordId\` and call
             modelKey: args2.modelKey,
             modelName: args2.modelName,
             modelFriendlyName: args2.modelFriendlyName,
-            chatMode: args2.chatMode
+            chatMode: args2.chatMode ?? "internal_search"
           }
         }, { fetchOptions }).$inspect();
         if (!result.ok)
@@ -52740,12 +53298,15 @@ cited document, take \`citations[*].recordId\` and call
           modelKey: args2.modelKey,
           modelName: args2.modelName,
           modelFriendlyName: args2.modelFriendlyName,
-          chatMode: args2.chatMode
+          chatMode: args2.chatMode ?? "internal_search"
         }, { fetchOptions }).$inspect();
         if (!result.ok)
           return errorResult(result.error.message);
         response = result.value;
       }
+      const httpErr = await httpErrorResult(response, "PipesHub chat request");
+      if (httpErr)
+        return httpErr;
       let finalConversation = null;
       let recordsUsed;
       let lastAccumulated = null;
@@ -52869,9 +53430,9 @@ knowledge base, department, module, or record type. See
 
 // src/funcs/semanticSearchSearch.ts
 function semanticSearchSearch(client$, request, options) {
-  return new APIPromise($do3(client$, request, options));
+  return new APIPromise($do6(client$, request, options));
 }
-async function $do3(client$, request, options) {
+async function $do6(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => SemanticSearchRequest$zodSchema.parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -52945,6 +53506,7 @@ var args2, tool$pipeshubSearch;
 var init_pipeshubSearch = __esm(() => {
   init_zod();
   init_semanticSearchSearch();
+  init__helpers();
   args2 = {
     query: string2().min(1).describe("Natural language query. Vector search across the org's indexed records."),
     limit: number2().int().min(1).max(100).optional().describe("Max number of result chunks. Default 10. Use a small value (5–10) " + "when the goal is to resolve a filename / topic into a recordId."),
@@ -53049,9 +53611,9 @@ on this record's knowledge base.
 
 // src/funcs/recordsStreamRecordBuffer.ts
 function recordsStreamRecordBuffer(client$, request, options) {
-  return new APIPromise($do4(client$, request, options));
+  return new APIPromise($do7(client$, request, options));
 }
-async function $do4(client$, request, options) {
+async function $do7(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => StreamRecordBufferRequest$zodSchema.parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53135,6 +53697,7 @@ var init_pipeshubDownloadRecord = __esm(() => {
   init_zod();
   init_recordsStreamRecordBuffer();
   init_tools();
+  init__helpers();
   args3 = {
     recordId: string2().min(1).describe("Record identifier — usually a UUID for connector-sourced records or " + "a 24-character ObjectId for uploaded records. Get it from a chat " + "citation (`citations[*].recordId`) or from a `pipeshub_search` hit."),
     convertTo: string2().optional().describe("Optional server-side format conversion target (e.g. `pdf`). When " + "omitted, the original file bytes are returned.")
@@ -53187,9 +53750,9 @@ var init_getallusersop = __esm(() => {
 
 // src/funcs/usersGetAllUsers.ts
 function usersGetAllUsers(client$, request, options) {
-  return new APIPromise($do5(client$, request, options));
+  return new APIPromise($do8(client$, request, options));
 }
-async function $do5(client$, request, options) {
+async function $do8(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => GetAllUsersRequest$zodSchema.optional().parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53274,9 +53837,9 @@ var init_getuserbyidop = __esm(() => {
 
 // src/funcs/usersGetUserById.ts
 function usersGetUserById(client$, request, options) {
-  return new APIPromise($do6(client$, request, options));
+  return new APIPromise($do9(client$, request, options));
 }
-async function $do6(client$, request, options) {
+async function $do9(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => GetUserByIdRequest$zodSchema.parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53363,9 +53926,9 @@ var init_getallusergroupsop = __esm(() => {
 
 // src/funcs/userGroupsGetAllUserGroups.ts
 function userGroupsGetAllUserGroups(client$, request, options) {
-  return new APIPromise($do7(client$, request, options));
+  return new APIPromise($do10(client$, request, options));
 }
-async function $do7(client$, request, options) {
+async function $do10(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => GetAllUserGroupsRequest$zodSchema.optional().parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53455,9 +54018,9 @@ var init_getuserteamsop = __esm(() => {
 
 // src/funcs/teamsGetUserTeams.ts
 function teamsGetUserTeams(client$, request, options) {
-  return new APIPromise($do8(client$, request, options));
+  return new APIPromise($do11(client$, request, options));
 }
-async function $do8(client$, request, options) {
+async function $do11(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => GetUserTeamsRequest$zodSchema.optional().parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53542,6 +54105,7 @@ var init_pipeshubDirectory = __esm(() => {
   init_usersGetUserById();
   init_userGroupsGetAllUserGroups();
   init_teamsGetUserTeams();
+  init__helpers();
   args4 = {
     action: _enum([
       "whoami",
@@ -53686,9 +54250,9 @@ var init_getknowledgehubrootnodesop = __esm(() => {
 
 // src/funcs/knowledgeHubGetKnowledgeHubRootNodes.ts
 function knowledgeHubGetKnowledgeHubRootNodes(client$, request, options) {
-  return new APIPromise($do9(client$, request, options));
+  return new APIPromise($do12(client$, request, options));
 }
-async function $do9(client$, request, options) {
+async function $do12(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => GetKnowledgeHubRootNodesRequest$zodSchema.optional().parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53804,9 +54368,9 @@ var init_getavailablemodelsbytypeop = __esm(() => {
 
 // src/funcs/aiModelsProvidersGetAvailableModelsByType.ts
 function aiModelsProvidersGetAvailableModelsByType(client$, request, options) {
-  return new APIPromise($do10(client$, request, options));
+  return new APIPromise($do13(client$, request, options));
 }
-async function $do10(client$, request, options) {
+async function $do13(client$, request, options) {
   const parsed$ = safeParse4(request, (value$) => GetAvailableModelsByTypeRequest$zodSchema.parse(value$), "Input validation failed");
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
@@ -53886,6 +54450,7 @@ var init_pipeshubSources = __esm(() => {
   init_zod();
   init_knowledgeHubGetKnowledgeHubRootNodes();
   init_aiModelsProvidersGetAvailableModelsByType();
+  init__helpers();
   args5 = {
     include: array(_enum(["sources", "llmModels", "embeddingModels"])).optional().describe('Which sections to fetch. Default: `["sources", "llmModels"]`. ' + "Add `embeddingModels` if the user is configuring re-embedding.")
   };
@@ -53969,6 +54534,99 @@ are returned by default; pass \`include\` to override.`,
   };
 });
 
+// src/mcp-server/tools/pipeshubAgents.ts
+var args6, tool$pipeshubAgents;
+var init_pipeshubAgents = __esm(() => {
+  init_zod();
+  init__helpers();
+  args6 = {
+    search: string2().optional().describe("Optional case-insensitive substring match across agent name, " + "description, and tags. Omit to return every agent.")
+  };
+  tool$pipeshubAgents = {
+    name: "pipeshub_agents",
+    description: `List the PipesHub **agents** configured for this org, each with its
+capabilities.
+
+Agents are specialized assistants (custom system prompt, tools, knowledge
+scope). To converse with one, take its \`agentId\` and pass it to
+\`pipeshub_chat\`'s \`agentId\` argument.
+
+Each agent is returned as:
+\`{ agentId, name, description, systemPrompt, startMessage, tags, webSearch,
+isActive, toolsets, knowledge }\`.
+- \`toolsets\` — what the agent can DO: each \`{ name, tools }\` where \`name\`
+  is the connector (e.g. \`jira\`, \`gmail\`) and \`tools\` are the runnable
+  tool ids (e.g. \`jira.create_issue\`, \`gmail.send_email\`).
+- \`knowledge\` — what the agent can READ: each \`{ name, type }\` (e.g.
+  \`Confluence-2\` / \`Confluence\`).
+
+**Route on \`toolsets\`/\`knowledge\`, not the name** — names and descriptions
+are often generic or misleading. Match the request to the agent whose tools can
+actually perform it (e.g. "create a Jira ticket" → the agent whose toolset is
+\`jira\` and whose tools include \`jira.create_issue\`). If NO agent has a tool
+for the requested action, say so — don't force an unrelated agent.
+
+The list **may be empty** (no agents configured). For plain Q&A when no
+specific agent is needed, use \`pipeshub_chat\` WITHOUT \`agentId\` and pick a
+\`chatMode\`: \`internal_search\` (org's indexed knowledge) or \`web_search\`
+(live web). Use \`agentId\` everywhere an agent is referenced.`,
+    scopes: ["read"],
+    annotations: {
+      title: "List PipesHub agents (with toolsets & knowledge)",
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+      readOnlyHint: true
+    },
+    args: args6,
+    tool: async (client, args7, ctx) => {
+      const all = await listAllAgents(client, {
+        search: args7.search,
+        signal: ctx.signal
+      });
+      if (!all.ok)
+        return all.result;
+      return jsonResult({
+        agents: all.agents.map(trimAgent),
+        total: all.total,
+        ...all.truncated ? { truncated: true } : {}
+      });
+    }
+  };
+});
+
+// src/mcp-server/prompts/pipeshubAssistant.ts
+var args7, prompt$pipeshubAssistant;
+var init_pipeshubAssistant = __esm(() => {
+  init_zod();
+  args7 = {
+    query: string2().optional().describe("Optional. The user's request to route. Provide it to have the guidance " + "applied to a concrete request; omit it to just load the routing " + "guidance as a seed system prompt at the start of a session.")
+  };
+  prompt$pipeshubAssistant = {
+    name: "pipeshub-assistant",
+    description: "Load PipesHub tool-routing guidance so the assistant picks the correct " + "tool (pipeshub_chat / search / agents / directory) and lists agents " + "with pipeshub_agents when unsure which route fits the query.",
+    scopes: ["read"],
+    args: args7,
+    prompt: (_client, args8, _extra) => {
+      const text = args8.query ? `${PIPESHUB_INSTRUCTIONS}
+
+---
+
+Follow the routing rules above to ` + `handle this request, picking the right tool (and listing agents via ` + `\`pipeshub_agents\` if unsure which route fits):
+
+${args8.query}` : PIPESHUB_INSTRUCTIONS;
+      return {
+        messages: [
+          {
+            role: "user",
+            content: { type: "text", text }
+          }
+        ]
+      };
+    }
+  };
+});
+
 // src/mcp-server/server.ts
 function createMCPServer(deps) {
   const server = new McpServer({
@@ -53983,9 +54641,9 @@ function createMCPServer(deps) {
     serverIdx: deps.serverIdx,
     instance_url: deps.instance_url,
     debugLogger: deps.logger.level === "debug" ? {
-      log: (...args6) => console.log(...args6),
-      group: (...args6) => console.group(...args6),
-      groupEnd: (...args6) => console.groupEnd(...args6)
+      log: (...args8) => console.log(...args8),
+      group: (...args8) => console.group(...args8),
+      groupEnd: (...args8) => console.groupEnd(...args8)
     } : undefined
   }));
   const scopes = new Set(deps.scopes);
@@ -54000,63 +54658,13 @@ function createMCPServer(deps) {
   tool(tool$pipeshubSearch);
   tool(tool$pipeshubDownloadRecord);
   tool(tool$pipeshubDirectory);
+  tool(tool$pipeshubAgents);
+  prompt(prompt$pipeshubAssistant);
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);
   }
   return { server, tools };
 }
-var PIPESHUB_INSTRUCTIONS = `# PipesHub MCP — instructions for the LLM
-
-PipesHub is the user's workplace AI platform. It indexes their documents,
-knowledge base content, and connector sources (Drive, Box, Confluence,
-Slack, Jira, Gmail, ...). When in doubt, the answer is in PipesHub.
-
-## Default tool: \`pipeshub_chat\`
-
-**Use \`pipeshub_chat\` for any question that could plausibly be answered
-by the user's PipesHub-indexed data.** That includes:
-
-- Anything about a specific document, file, report, ticket, message, or
-  page (e.g. "what's in the Q4 sales report?", "summarize the langchain
-  doc", "what did Aashil say about onboarding?").
-- Anything about company / org policies, processes, decisions, or
-  history (e.g. "what's our vacation policy?", "who owns the auth
-  service?").
-- Anything explicitly mentioning PipesHub itself, or its sources
-  (Drive / Box / Confluence / Slack / Gmail / Jira / etc.) when the
-  user has those connected.
-- Open-ended "what do we know about X" questions where the answer
-  likely lives in the org's documents.
-
-Do NOT answer those from your own knowledge — \`pipeshub_chat\` grounds
-the answer in the user's actual indexed content and returns citations
-the user can verify.
-
-## When to use the other tools
-
-- \`pipeshub_search\` — only when the user asks specifically to **find /
-  locate** a document by name or topic (so you can hand them a list, or
-  resolve a filename to a \`recordId\` for download). For "what does
-  the doc say?" use \`pipeshub_chat\` instead — it does the retrieval
-  internally.
-- \`pipeshub_download_record\` — when the user wants the actual file
-  bytes (download, attach, open). Get the \`recordId\` either from
-  citations on a prior \`pipeshub_chat\` response or from
-  \`pipeshub_search\`.
-- \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
-  Not for documents.
-- \`pipeshub_sources\` — call once at the start of a session to discover
-  which connectors / KB / models are available, then cache the result.
-
-## Conversation lifecycle
-
-\`pipeshub_chat\` is a single tool that handles both starting and
-continuing conversations. On the first turn omit \`conversationId\`; on
-every subsequent turn pass back the \`conversationId\` returned by the
-previous call. Server-side context is preserved — do NOT replay prior
-messages. Only start a fresh conversation when the user explicitly
-asks to clear context.
-`;
 var init_server2 = __esm(() => {
   init_mcp();
   init_core3();
@@ -54067,6 +54675,8 @@ var init_server2 = __esm(() => {
   init_pipeshubDownloadRecord();
   init_pipeshubDirectory();
   init_pipeshubSources();
+  init_pipeshubAgents();
+  init_pipeshubAssistant();
 });
 
 // src/tool-names.ts
@@ -54079,20 +54689,25 @@ var init_tool_names = __esm(() => {
     },
     {
       name: "pipeshub_chat",
-      description: `**Default tool for anything PipesHub-related.** Use this whenever the
-user asks about their documents, files, knowledge base, company
-policies, or anything that could plausibly be answered by content in
-their PipesHub-indexed sources (Drive, Box, Confluence, Slack, Gmail,
-Jira, the org's KB, ...). Do NOT answer those from your own knowledge —
-\`pipeshub_chat\` grounds the answer in the user's actual data and
-returns citations.
+      description: `**Primary chat tool — handles both internal knowledge queries and web search.**
+
+**Internal search** (default, \`chatMode: "internal_search"\`): Use whenever
+the user asks about their documents, files, knowledge base, company policies,
+or anything that could plausibly be answered by content in their PipesHub-indexed
+sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, ...).
+Grounds the answer in the user's actual data and returns citations.
+
+**Web search** (\`chatMode: "web_search"\`): Use when the user asks about
+current events, public information, or anything unlikely to be in the org's
+internal knowledge base. Pass \`chatMode: "web_search"\` and this tool will
+search the public web instead.
 
 **When to pick this over other tools:**
-- "What does <document> say about X?" → \`pipeshub_chat\` (NOT search;
-  search is only for locating files by name).
-- "Summarize <topic / doc>." → \`pipeshub_chat\`.
-- "What's our policy on Y?" → \`pipeshub_chat\`.
-- "What do we know about Z?" → \`pipeshub_chat\`.
+- "What does <document> say about X?" → \`pipeshub_chat\` (internal_search)
+- "Summarize <topic / doc>." → \`pipeshub_chat\` (internal_search)
+- "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
+- "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
+- "What is the latest version of <library>?" → \`pipeshub_chat\` (web_search)
 - "Find / locate the file named X" → \`pipeshub_search\` (then
   \`pipeshub_download_record\` if the user wants the bytes).
 
@@ -54139,6 +54754,10 @@ Highest \`score\` first; multiple hits may share the same \`recordId\`
     {
       name: "pipeshub_directory",
       description: "Look up people, groups, and teams in PipesHub. One tool with five\nactions — pick the right `action`:\n\n- `whoami` — who is the caller?  Use this whenever you need the\n  authenticated user's own id, email, or full name (e.g. before\n  `get_user` on themselves).\n- `list_users` — search / page through org users.\n- `get_user` — full `User` document for one user (requires `userId`).\n- `list_groups` — list user groups with `userCount`.\n- `list_my_teams` — teams the caller belongs to, with capability flags\n  (`canEdit` / `canDelete` / `canManageMembers`).\n\nOutput shape varies by action; see each action's docs above."
+    },
+    {
+      name: "pipeshub_agents",
+      description: 'List the PipesHub **agents** configured for this org, each with its\ncapabilities.\n\nAgents are specialized assistants (custom system prompt, tools, knowledge\nscope). To converse with one, take its `agentId` and pass it to\n`pipeshub_chat`\'s `agentId` argument.\n\nEach agent is returned as:\n`{ agentId, name, description, systemPrompt, startMessage, tags, webSearch,\nisActive, toolsets, knowledge }`.\n- `toolsets` — what the agent can DO: each `{ name, tools }` where `name`\n  is the connector (e.g. `jira`, `gmail`) and `tools` are the runnable\n  tool ids (e.g. `jira.create_issue`, `gmail.send_email`).\n- `knowledge` — what the agent can READ: each `{ name, type }` (e.g.\n  `Confluence-2` / `Confluence`).\n\n**Route on `toolsets`/`knowledge`, not the name** — names and descriptions\nare often generic or misleading. Match the request to the agent whose tools can\nactually perform it (e.g. "create a Jira ticket" → the agent whose toolset is\n`jira` and whose tools include `jira.create_issue`). If NO agent has a tool\nfor the requested action, say so — don\'t force an unrelated agent.\n\nThe list **may be empty** (no agents configured). For plain Q&A when no\nspecific agent is needed, use `pipeshub_chat` WITHOUT `agentId` and pick a\n`chatMode`: `internal_search` (org\'s indexed knowledge) or `web_search`\n(live web). Use `agentId` everywhere an agent is referenced.'
     }
   ];
 });
@@ -57767,5 +58386,5 @@ export {
   app
 };
 
-//# debugId=7826B5469EE4785964756E2164756E21
+//# debugId=E589470B4E3C258364756E2164756E21
 //# sourceMappingURL=mcp-server.js.map

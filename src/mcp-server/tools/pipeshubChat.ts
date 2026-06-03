@@ -1,9 +1,3 @@
-// Curated PipesHub chat tool. Hand-written; replaces the two generated
-// tools `pipeshub-chat` (create) and `pipeshub-chat-continue` (follow-up)
-// with a single tool that branches on whether `conversationId` was given.
-//
-// Wire transport: SSE. The non-streaming `/conversations/create` endpoint
-// is broken in production today, so we drive
 // `POST /conversations/stream` (and
 // `POST /conversations/{conversationId}/messages/stream` for follow-ups),
 // accumulate the frames server-side, and hand the LLM a single trimmed
@@ -29,9 +23,12 @@
 import * as z from "zod";
 import { conversationsStreamConversation } from "../../funcs/conversationsStreamConversation.js";
 import { conversationsStreamMessage } from "../../funcs/conversationsStreamMessage.js";
+import { agentsStreamConversation } from "../../funcs/agentsStreamConversation.js";
+import { agentsStreamMessage } from "../../funcs/agentsStreamMessage.js";
 import { ToolDefinition } from "../tools.js";
 import {
   errorResult,
+  httpErrorResult,
   iterateSSE,
   jsonResult,
   trimConversation,
@@ -68,16 +65,28 @@ const args = {
   ),
   modelName: z.string().optional(),
   modelFriendlyName: z.string().optional(),
-  chatMode: z.enum(["web_search", "internal_search"]).optional().describe(
-    "Controls retrieval source. "
-      + "`internal_search` (default) — searches the org's indexed knowledge "
-      + "bases (Drive, Confluence, Slack, Gmail, Jira, Box, etc.) and returns "
-      + "citations. Use this for questions about internal docs, policies, or "
-      + "company data. "
-      + "`web_search` — searches the public web instead of internal sources. "
-      + "Use only when the user explicitly asks about current events, public "
-      + "information, or anything not expected to be in the org's KB. "
-      + "Omit this field (or pass `internal_search`) for all normal queries.",
+  agentId: z.string().optional().describe(
+    "Optional PipesHub agent to converse with — the `agentId` from "
+      + "`pipeshub_agents`. When set, this turn runs against that agent's "
+      + "configuration (prompt, tools, knowledge). On follow-up turns pass the "
+      + "SAME `agentId` together with the `conversationId` returned by the "
+      + "previous call. Omit for a plain (non-agent) conversation. If unsure "
+      + "which agent to use, call `pipeshub_agents` first to see the options.",
+  ),
+  chatMode: z.enum([
+    "internal_search",
+    "web_search",
+    "auto",
+    "quick",
+    "verification",
+    "deep",
+  ]).optional().describe(
+    "Response strategy. The valid values depend on whether `agentId` is set:\n"
+      + "- WITHOUT `agentId` (plain chat): `internal_search` — answer from the "
+      + "org's indexed knowledge (default) — or `web_search` — answer from the "
+      + "live web.\n"
+      + "- WITH `agentId` (agent chat): `auto` (let the agent decide; default), "
+      + "`quick`, `verification`, or `deep`.",
   ),
 };
 
@@ -134,8 +143,42 @@ cited document, take \`citations[*].recordId\` and call
     const fetchOptions = { signal: ctx.signal };
     let response: Response;
 
-    if (args.conversationId) {
-      // Continue an existing conversation.
+    if (args.agentId) {
+      // Agent conversation. Agent chatMode vocabulary defaults to `auto`.
+      const agentChatMode = args.chatMode ?? "auto";
+      if (args.conversationId) {
+        // Continue an existing agent conversation.
+        const [result] = await agentsStreamMessage(client, {
+          agentKey: args.agentId,
+          conversationId: args.conversationId,
+          body: {
+            query: args.query,
+            modelKey: args.modelKey,
+            modelName: args.modelName,
+            modelFriendlyName: args.modelFriendlyName,
+            chatMode: agentChatMode,
+          },
+        }, { fetchOptions }).$inspect();
+        if (!result.ok) return errorResult(result.error.message);
+        response = result.value;
+      } else {
+        // Start a new agent conversation.
+        const [result] = await agentsStreamConversation(client, {
+          agentKey: args.agentId,
+          body: {
+            query: args.query,
+            filters: args.filters,
+            modelKey: args.modelKey,
+            modelName: args.modelName,
+            modelFriendlyName: args.modelFriendlyName,
+            chatMode: agentChatMode,
+          },
+        }, { fetchOptions }).$inspect();
+        if (!result.ok) return errorResult(result.error.message);
+        response = result.value;
+      }
+    } else if (args.conversationId) {
+      // Continue an existing (non-agent) conversation.
       const [result] = await conversationsStreamMessage(client, {
         conversationId: args.conversationId,
         body: {
@@ -143,24 +186,30 @@ cited document, take \`citations[*].recordId\` and call
           modelKey: args.modelKey,
           modelName: args.modelName,
           modelFriendlyName: args.modelFriendlyName,
-          chatMode: args.chatMode,
+          chatMode: args.chatMode ?? "internal_search",
         },
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
       response = result.value;
     } else {
-      // Start a new conversation.
+      // Start a new (non-agent) conversation.
       const [result] = await conversationsStreamConversation(client, {
         query: args.query,
         filters: args.filters,
         modelKey: args.modelKey,
         modelName: args.modelName,
         modelFriendlyName: args.modelFriendlyName,
-        chatMode: args.chatMode,
+        chatMode: args.chatMode ?? "internal_search",
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
       response = result.value;
     }
+
+    // The streaming funcs accept any HTTP status as a "successful request",
+    // so explicitly reject non-2xx (auth, not-found, server errors) with a
+    // clear message before we try to read the body as SSE.
+    const httpErr = await httpErrorResult(response, "PipesHub chat request");
+    if (httpErr) return httpErr;
 
     // Drain the SSE stream. We only need the terminal `complete` (or
     // `error`) frame; everything else is observability and ignored.

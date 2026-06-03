@@ -1,8 +1,3 @@
-// Curated discovery tool. Hand-written; merges two generated tools
-// (`pipeshub-list-sources` for connectors+KB and `pipeshub-list-models`
-// for available LLMs / embedding models) into one tool, since the LLM
-// almost always wants both before the first chat turn.
-
 import * as z from "zod";
 import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
 import { aiModelsProvidersGetAvailableModelsByType } from "../../funcs/aiModelsProvidersGetAvailableModelsByType.js";
