@@ -1,3 +1,7 @@
+// POSTs to `/agents/{agentKey}/conversations/{conversationId}/messages/stream`
+// (operationId `streamAgentConversationMessage`) to append a follow-up turn
+// to an existing agent conversation. Returns the raw streaming `Response`.
+
 import { PipeshubCore } from "../core.js";
 import { encodeJSON, encodeSimple } from "../lib/encodings.js";
 import { compactMap } from "../lib/primitives.js";
@@ -6,9 +10,9 @@ import { RequestOptions } from "../lib/sdks.js";
 import { extractSecurity, resolveGlobalSecurity } from "../lib/security.js";
 import { pathToFunc } from "../lib/url.js";
 import {
-  AddMessageRequestRequest,
-  AddMessageRequestRequest$zodSchema,
-} from "../models/addmessageop.js";
+  AgentAddMessageStreamRequest,
+  AgentAddMessageStreamRequest$zodSchema,
+} from "../models/agentops.js";
 import { APIError } from "../models/errors/apierror.js";
 import {
   ConnectionError,
@@ -21,9 +25,9 @@ import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
 import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
-export function conversationsStreamMessage(
+export function agentsStreamMessage(
   client$: PipeshubCore,
-  request: AddMessageRequestRequest,
+  request: AgentAddMessageStreamRequest,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -42,7 +46,7 @@ export function conversationsStreamMessage(
 
 async function $do(
   client$: PipeshubCore,
-  request: AddMessageRequestRequest,
+  request: AgentAddMessageStreamRequest,
   options?: RequestOptions,
 ): Promise<
   [
@@ -61,7 +65,7 @@ async function $do(
 > {
   const parsed$ = safeParse(
     request,
-    (value$) => AddMessageRequestRequest$zodSchema.parse(value$),
+    (value$) => AgentAddMessageStreamRequest$zodSchema.parse(value$),
     "Input validation failed",
   );
   if (!parsed$.ok) {
@@ -71,13 +75,17 @@ async function $do(
   const body$ = encodeJSON("body", payload$.body, { explode: true });
 
   const pathParams$ = {
+    agentKey: encodeSimple("agentKey", payload$.agentKey, {
+      explode: false,
+      charEncoding: "percent",
+    }),
     conversationId: encodeSimple("conversationId", payload$.conversationId, {
       explode: false,
       charEncoding: "percent",
     }),
   };
   const path$ = pathToFunc(
-    "/conversations/{conversationId}/messages/stream",
+    "/agents/{agentKey}/conversations/{conversationId}/messages/stream",
   )(pathParams$);
 
   const headers$ = new Headers(compactMap({
@@ -90,8 +98,8 @@ async function $do(
   const context = {
     options: client$._options,
     baseURL: options?.serverURL ?? client$._baseURL ?? "",
-    operationID: "streamAddMessage",
-    oAuth2Scopes: ["conversation:chat"],
+    operationID: "streamAgentConversationMessage",
+    oAuth2Scopes: ["agent:execute"],
     resolvedSecurity: requestSecurity,
     securitySource: client$._options.security,
     retryConfig: options?.retries
@@ -114,6 +122,7 @@ async function $do(
     headers: headers$,
     body: body$,
     userAgent: client$._options.userAgent,
+    // SSE streams are long-lived; let the caller's AbortSignal cap it.
     timeoutMs: options?.timeoutMs || -1,
   }, options);
   if (!requestRes.ok) {

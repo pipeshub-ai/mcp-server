@@ -1,6 +1,3 @@
-// Curated semantic-search tool. Hand-written; replaces the generated
-// `pipeshub-search` tool. Trims the response to the fields the LLM
-// actually needs (recordId, recordName, score, snippet, webUrl).
 
 import * as z from "zod";
 import { semanticSearchSearch } from "../../funcs/semanticSearchSearch.js";

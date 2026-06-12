@@ -1,6 +1,4 @@
-// Hand-written supplement (NOT generated). Mirrors
-// `conversationsCreateConversation.ts` but POSTs to `/conversations/stream`
-// and asks for an SSE response. The body shape is identical to the
+// POSTs to `/conversations/stream` and asks for an SSE response. The body shape is identical to the
 // non-streaming sibling, so we reuse `CreateConversationRequest`'s zod
 // schema. Returns the raw streaming `Response`; the caller is expected to
 // parse `text/event-stream` line-by-line.

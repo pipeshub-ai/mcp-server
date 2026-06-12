@@ -1,14 +1,18 @@
+// Mirrors `usersGetAllUsers.ts`
+// but hits `GET /agents` (operationId `listAgents`). Returns the raw JSON
+// `Response`; the caller parses the `{ success, agents, pagination }` envelope.
+
 import { PipeshubCore } from "../core.js";
-import { encodeJSON, encodeSimple } from "../lib/encodings.js";
+import { encodeFormQuery } from "../lib/encodings.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
 import { RequestOptions } from "../lib/sdks.js";
 import { extractSecurity, resolveGlobalSecurity } from "../lib/security.js";
 import { pathToFunc } from "../lib/url.js";
 import {
-  AddMessageRequestRequest,
-  AddMessageRequestRequest$zodSchema,
-} from "../models/addmessageop.js";
+  ListAgentsRequest,
+  ListAgentsRequest$zodSchema,
+} from "../models/agentops.js";
 import { APIError } from "../models/errors/apierror.js";
 import {
   ConnectionError,
@@ -21,9 +25,9 @@ import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
 import { APICall, APIPromise } from "../types/async.js";
 import { Result } from "../types/fp.js";
 
-export function conversationsStreamMessage(
+export function agentsListAgents(
   client$: PipeshubCore,
-  request: AddMessageRequestRequest,
+  request?: ListAgentsRequest | undefined,
   options?: RequestOptions,
 ): APIPromise<
   Result<
@@ -42,7 +46,7 @@ export function conversationsStreamMessage(
 
 async function $do(
   client$: PipeshubCore,
-  request: AddMessageRequestRequest,
+  request?: ListAgentsRequest | undefined,
   options?: RequestOptions,
 ): Promise<
   [
@@ -61,28 +65,25 @@ async function $do(
 > {
   const parsed$ = safeParse(
     request,
-    (value$) => AddMessageRequestRequest$zodSchema.parse(value$),
+    (value$) => ListAgentsRequest$zodSchema.optional().parse(value$),
     "Input validation failed",
   );
   if (!parsed$.ok) {
     return [parsed$, { status: "invalid" }];
   }
   const payload$ = parsed$.value;
-  const body$ = encodeJSON("body", payload$.body, { explode: true });
-
-  const pathParams$ = {
-    conversationId: encodeSimple("conversationId", payload$.conversationId, {
-      explode: false,
-      charEncoding: "percent",
-    }),
-  };
-  const path$ = pathToFunc(
-    "/conversations/{conversationId}/messages/stream",
-  )(pathParams$);
+  const body$ = null;
+  const path$ = pathToFunc("/agents")();
+  const query$ = encodeFormQuery({
+    "page": payload$?.page,
+    "limit": payload$?.limit,
+    "search": payload$?.search,
+    "sort_by": payload$?.sortBy,
+    "sort_order": payload$?.sortOrder,
+  });
 
   const headers$ = new Headers(compactMap({
-    "Content-Type": "application/json",
-    Accept: "text/event-stream",
+    Accept: "application/json",
   }));
   const securityInput = await extractSecurity(client$._options.security);
   const requestSecurity = resolveGlobalSecurity(securityInput);
@@ -90,8 +91,8 @@ async function $do(
   const context = {
     options: client$._options,
     baseURL: options?.serverURL ?? client$._baseURL ?? "",
-    operationID: "streamAddMessage",
-    oAuth2Scopes: ["conversation:chat"],
+    operationID: "listAgents",
+    oAuth2Scopes: ["agent:read"],
     resolvedSecurity: requestSecurity,
     securitySource: client$._options.security,
     retryConfig: options?.retries
@@ -108,13 +109,15 @@ async function $do(
 
   const requestRes = client$._createRequest(context, {
     security: requestSecurity,
-    method: "POST",
+    method: "GET",
     baseURL: options?.serverURL,
     path: path$,
     headers: headers$,
+    query: query$,
     body: body$,
     userAgent: client$._options.userAgent,
-    timeoutMs: options?.timeoutMs || -1,
+    timeoutMs: options?.timeoutMs || client$._options.timeoutMs
+      || -1,
   }, options);
   if (!requestRes.ok) {
     return [requestRes, { status: "invalid" }];

@@ -1,7 +1,3 @@
-// Curated download tool. Hand-written; replaces the generated
-// `pipeshub-download-record`. Pipes raw bytes back through formatResult
-// so binary downloads (PDFs, images) are returned correctly.
-
 import * as z from "zod";
 import { recordsStreamRecordBuffer } from "../../funcs/recordsStreamRecordBuffer.js";
 import { formatResult, ToolDefinition } from "../tools.js";
