@@ -1,6 +1,6 @@
 # Connecting MCP Clients to PipesHub MCP Server
 
-This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, **Codex CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials.
+This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, **Codex CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials or bearer tokens.
 
 PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Clients connect to this endpoint directly -- no local npm packages or stdio processes needed.
 
