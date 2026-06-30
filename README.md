@@ -27,6 +27,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Cl
      | **Claude.ai (Web)** | `https://claude.ai/api/mcp/auth_callback` |
      | **Gemini CLI** | `http://localhost:7777/oauth/callback` |
      | **LibreChat** | `http://localhost:3080/api/mcp/<server-identifier>/oauth/callback` |
+     | **Codex CLI** | `https://devbox.example.internal/callback` |
 
 > **Important:** The scopes in [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) must match the scopes granted to your OAuth app — a mismatch will result in an authorization error.
 
@@ -326,8 +327,6 @@ gemini mcp enable pipeshub
 
 Codex CLI ([OpenAI Codex](https://developers.openai.com/codex/mcp)) connects to remote MCP servers over **Streamable HTTP**, configured with a `[mcp_servers.<name>]` table in `~/.codex/config.toml` (or `.codex/config.toml` in your project root to scope it per-project). Codex's HTTP transport authenticates with a **bearer token** read from an environment variable, so pass a PipesHub JWT bearer token.
 
-> **Codex's `codex mcp login` OAuth flow is not supported with PipesHub.** It relies on dynamic client registration (RFC 7591), which PipesHub does not implement — you'll get `Dynamic client registration not supported`. Use the bearer token below instead. (If you'd rather authenticate with an OAuth app's client ID/secret, use the **stdio** transport — see [Codex CLI (Local)](#local-mcp-server-stdio).)
-
 ```toml
 [mcp_servers.pipeshub]
 url = "PIPESHUB_INSTANCE_URL/mcp"
@@ -339,6 +338,8 @@ bearer_token_env_var = "PIPESHUB_BEARER_TOKEN"
 ```bash
 export PIPESHUB_BEARER_TOKEN="YOUR_BEARER_TOKEN"
 ```
+
+> The token is the raw JWT, without the `Bearer` keyword.
 
 Or add it with the CLI:
 
@@ -650,7 +651,7 @@ gemini mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
 <details>
 <summary><strong>Codex CLI (Local)</strong></summary>
 
-Run the MCP server as a local stdio process. Edit `~/.codex/config.toml` (or `.codex/config.toml` in your project root):
+Run the MCP server as a local stdio process, authenticated with an OAuth app's Client ID and Secret (the `client_credentials` grant). Edit `~/.codex/config.toml` (or `.codex/config.toml` in your project root):
 
 ```toml
 [mcp_servers.pipeshub]
@@ -660,23 +661,7 @@ args = [
   "@pipeshub-ai/mcp",
   "start",
   "--server-url",
-  "PIPESHUB_INSTANCE_URL",
-  "--bearer-auth",
-  "YOUR_BEARER_TOKEN",
-]
-```
-
-With OAuth credentials:
-
-```toml
-[mcp_servers.pipeshub]
-command = "npx"
-args = [
-  "-y",
-  "@pipeshub-ai/mcp",
-  "start",
-  "--server-url",
-  "PIPESHUB_INSTANCE_URL",
+  "PIPESHUB_INSTANCE_URL/api/v1",
   "--client-id",
   "YOUR_CLIENT_ID",
   "--client-secret",
@@ -686,12 +671,25 @@ args = [
 ]
 ```
 
-Or add it with the CLI:
+Notes:
 
-```bash
-codex mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
-  --server-url PIPESHUB_INSTANCE_URL \
-  --bearer-auth YOUR_BEARER_TOKEN
+- `--server-url` must include `/api/v1`.
+- `--token-url /api/v1/oauth2/token` is required.
+
+Or authenticate with a JWT bearer token instead:
+
+```toml
+[mcp_servers.pipeshub]
+command = "npx"
+args = [
+  "-y",
+  "@pipeshub-ai/mcp",
+  "start",
+  "--server-url",
+  "PIPESHUB_INSTANCE_URL/api/v1",
+  "--bearer-auth",
+  "YOUR_BEARER_TOKEN",
+]
 ```
 
 </details>
