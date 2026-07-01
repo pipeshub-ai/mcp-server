@@ -1,6 +1,6 @@
 # Connecting MCP Clients to PipesHub MCP Server
 
-This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials.
+This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, **Codex CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials or bearer tokens.
 
 PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`.MCP Clients connect to this endpoint directly -- no local npm packages or stdio processes needed.
 
@@ -322,6 +322,47 @@ gemini mcp enable pipeshub
 </details>
 
 <details>
+<summary><strong>Codex CLI</strong></summary>
+
+Codex CLI ([OpenAI Codex](https://developers.openai.com/codex/mcp)) connects to remote MCP servers over **Streamable HTTP**, configured with a `[mcp_servers.<name>]` table in `~/.codex/config.toml` (or `.codex/config.toml` in your project root to scope it per-project). Codex's HTTP transport authenticates with a **bearer token** read from an environment variable, so pass a PipesHub JWT bearer token.
+
+```toml
+[mcp_servers.pipeshub]
+url = "PIPESHUB_INSTANCE_URL/mcp"
+bearer_token_env_var = "PIPESHUB_BEARER_TOKEN"
+```
+
+`bearer_token_env_var` is the **name** of the environment variable that holds the token — export it before launching Codex:
+
+```bash
+export PIPESHUB_BEARER_TOKEN="YOUR_BEARER_TOKEN"
+```
+
+> The token is the raw JWT, without the `Bearer` keyword.
+
+Or add it with the CLI:
+
+```bash
+codex mcp add pipeshub \
+  --url PIPESHUB_INSTANCE_URL/mcp \
+  --bearer-token-env-var PIPESHUB_BEARER_TOKEN
+```
+
+> `--bearer-token-env-var` takes the **name of the environment variable** holding the token, not the token value itself.
+
+### Verify
+
+```bash
+# List configured MCP servers
+codex mcp list
+
+# Inside the Codex TUI, view server status and available tools
+/mcp
+```
+
+</details>
+
+<details>
 <summary><strong>Claude.ai (Web)</strong></summary>
 
 Claude.ai supports custom connectors via remote MCP servers. This lets you use PipesHub tools directly in the Claude.ai web interface without any local setup.
@@ -607,6 +648,52 @@ gemini mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
 </details>
 
 <details>
+<summary><strong>Codex CLI (Local)</strong></summary>
+
+Run the MCP server as a local stdio process, authenticated with an OAuth app's Client ID and Secret (the `client_credentials` grant). Edit `~/.codex/config.toml` (or `.codex/config.toml` in your project root):
+
+```toml
+[mcp_servers.pipeshub]
+command = "npx"
+args = [
+  "-y",
+  "@pipeshub-ai/mcp",
+  "start",
+  "--server-url",
+  "PIPESHUB_INSTANCE_URL/api/v1",
+  "--client-id",
+  "YOUR_CLIENT_ID",
+  "--client-secret",
+  "YOUR_CLIENT_SECRET",
+  "--token-url",
+  "/api/v1/oauth2/token",
+]
+```
+
+Notes:
+
+- `--server-url` must include `/api/v1`.
+- `--token-url /api/v1/oauth2/token` is required.
+
+Or authenticate with a JWT bearer token instead:
+
+```toml
+[mcp_servers.pipeshub]
+command = "npx"
+args = [
+  "-y",
+  "@pipeshub-ai/mcp",
+  "start",
+  "--server-url",
+  "PIPESHUB_INSTANCE_URL/api/v1",
+  "--bearer-auth",
+  "YOUR_BEARER_TOKEN",
+]
+```
+
+</details>
+
+<details>
 <summary><strong>VS Code</strong></summary>
 
 Open Command Palette > `MCP: Open User Configuration`, then add:
@@ -712,7 +799,7 @@ npx @pipeshub-ai/mcp --help
 ### Architecture
 
 ```
-AI Client (Cursor / Claude Code / Gemini CLI / Claude.ai / LibreChat)
+AI Client (Cursor / Claude Code / Gemini CLI / Codex CLI / Claude.ai / LibreChat)
         │
         │  HTTP POST (JSON-RPC)
         │  Authorization: Bearer <token>
@@ -779,6 +866,7 @@ Then connect to `PIPESHUB_INSTANCE_URL/mcp` with a Bearer token to test the endp
    - **Cursor**: Remove and re-add the MCP server, or clear the cached OAuth token and reconnect.
    - **Claude Code**: Run `/mcp` and complete the browser login flow again.
    - **Gemini CLI**: Run `/mcp auth pipeshub` to re-authenticate.
+   - **Codex CLI**: Update `PIPESHUB_BEARER_TOKEN` with a fresh token and restart Codex.
    - **Claude.ai**: Disconnect and reconnect the connector in **Settings > Connectors**.
 
 </details>
