@@ -75,9 +75,14 @@ export async function formatResult(
     content = data == null
       ? []
       : [{ type: "audio", data, mimeType: contentType }];
-  } else {
+  } else if (contentType.startsWith("text/") || contentType.includes("json")) {
     const text = await response.text();
     content = [{ type: "text", text }];
+  } else {
+    const blob = await valueToBase64(await response.arrayBuffer());
+    content = blob == null
+      ? []
+      : [{ type: "resource", resource: { uri: "", mimeType: contentType, blob } }];
   }
 
   return response.ok ? { content } : { content, isError: true };
