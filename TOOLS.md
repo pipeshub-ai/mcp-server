@@ -2,7 +2,7 @@
 
 Reference for the tools exposed by the PipesHub MCP server. These tools let an AI client (Cursor, Claude Code, Gemini CLI, Claude.ai, LibreChat, etc.) talk to PipesHub — search and chat over the org's indexed documents, look up people and groups, and download files.
 
-The server exposes five hand-written tools that cover the common PipesHub workflows. Each one wraps several lower-level API calls so the LLM gets a single, well-shaped response.
+The server exposes hand-written tools that cover the common PipesHub workflows. Each one wraps several lower-level API calls so the LLM gets a single, well-shaped response.
 
 ---
 
@@ -57,6 +57,18 @@ Stream the binary content of a single record. Use it when the user wants the act
 
 ---
 
+### `pipeshub_get_record_content`
+
+Get a record's full parsed content and metadata — the same structured content PipesHub's RAG/chat pipeline uses. Prefer this over `pipeshub_download_record` when you need to read what the record says without downloading the original file.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `recordId` | string | yes | Record identifier — UUID for connector-sourced records or 24-char ObjectId for uploaded ones. Get it from a chat citation or `pipeshub_search` hit. |
+
+**Response:** a JSON object with a `record` field (snake_case keys). Prefer `record.context_metadata` for a human/LLM-readable summary; use `record.block_containers` only when you need the raw structured blocks.
+
+---
+
 ### `pipeshub_directory`
 
 Look up people, groups, and teams in PipesHub. One tool with five `action`s.
@@ -102,6 +114,7 @@ Discover available chat sources and AI models in one call. Call this once at the
 | "What's our PTO policy?" | `pipeshub_chat` |
 | "Find the file called *security-review.pdf*" | `pipeshub_search` |
 | "Download that file" (after a search or chat citation) | `pipeshub_download_record` |
+| "Show me the full content of that record" | `pipeshub_get_record_content` |
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) |
 | First call of a session, before chat or search | `pipeshub_sources` (cache the result) |

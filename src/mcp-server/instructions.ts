@@ -41,6 +41,10 @@ the user can verify.
   bytes (download, attach, open). Get the \`recordId\` either from
   citations on a prior \`pipeshub_chat\` response or from
   \`pipeshub_search\`.
+- \`pipeshub_get_record_content\` — when you need a record's full
+  parsed content (\`context_metadata\` / \`block_containers\`) without
+  downloading the original file. Prefer this over download when the
+  question is about what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
   Not for documents.
 - \`pipeshub_sources\` — call once at the start of a session to discover
