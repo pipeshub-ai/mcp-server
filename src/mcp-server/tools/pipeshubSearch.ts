@@ -23,12 +23,16 @@ export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   description:
     `Vector / semantic search across the org's indexed documents.
 
-**Use this only when the user wants to LOCATE a document** — by name,
-topic, or a phrase to grep for. For "what does the document say about
-X?" or any open-ended question, use \`pipeshub_chat\` instead, which
-does the retrieval internally and grounds the answer in citations.
+**Use this when the user wants to LOCATE a document** — by name, topic,
+or a phrase to grep for — and to resolve it to a \`recordId\`. For
+open-ended questions across many documents, use \`pipeshub_chat\`
+instead, which does the retrieval internally and grounds the answer in
+citations.
 
 Typical uses:
+- Resolve a doc name / topic into a \`recordId\` for
+  \`pipeshub_get_record_content\` — step 1 of any full-document task
+  (summarize, extract, review, "what does the doc say?").
 - Resolve a filename / phrase into a \`recordId\` for
   \`pipeshub_download_record\`.
 - Show the user a ranked list of matching files when they ask "find /

@@ -9,14 +9,36 @@ PipesHub is the user's workplace AI platform. It indexes their documents,
 knowledge base content, and connector sources (Drive, Box, Confluence,
 Slack, Jira, Gmail, ...). When in doubt, the answer is in PipesHub.
 
+## Full-document tasks: \`pipeshub_search\` → \`pipeshub_get_record_content\`
+
+\`pipeshub_chat\` answers from a handful of retrieved passages — it never
+reads a whole document. Whenever the task depends on a document's
+COMPLETE content, fetch the document itself:
+
+1. \`pipeshub_search\` with the document's name / topic.
+2. Take the top hit's \`recordId\`.
+3. \`pipeshub_get_record_content\` with \`fetchFullContent: true\`, and
+   answer from the returned content.
+
+Tasks that need this path — anything where missing part of the document
+could make the answer wrong:
+
+- Summarize / TL;DR / key points / takeaways / action items of a doc.
+- Extract or list ALL of something (dates, owners, requirements, ...).
+- Check whether / where a doc mentions something.
+- Translate, rewrite, outline, review, or reformat a doc.
+- Compare named docs (fetch each \`recordId\`).
+- Any question explicitly scoped to ONE named document — chat retrieval
+  cannot be restricted to a single record.
+
 ## Default tool: \`pipeshub_chat\`
 
 **Use \`pipeshub_chat\` for any question that could plausibly be answered
-by the user's PipesHub-indexed data.** That includes:
+by the user's PipesHub-indexed data** and is not a full-document task:
 
-- Anything about a specific document, file, report, ticket, message, or
-  page (e.g. "what's in the Q4 sales report?", "summarize the langchain
-  doc", "what did Aashil say about onboarding?").
+- A question that may span several documents, or where you don't yet
+  know which record holds the answer (e.g. "what did Aashil say about
+  onboarding?").
 - Anything about company / org policies, processes, decisions, or
   history (e.g. "what's our vacation policy?", "who owns the auth
   service?").
@@ -32,19 +54,17 @@ the user can verify.
 
 ## When to use the other tools
 
-- \`pipeshub_search\` — only when the user asks specifically to **find /
-  locate** a document by name or topic (so you can hand them a list, or
-  resolve a filename to a \`recordId\` for download). For "what does
-  the doc say?" use \`pipeshub_chat\` instead — it does the retrieval
-  internally.
+- \`pipeshub_search\` — locate a document by name or topic and resolve it
+  to a \`recordId\`. To read or summarize one specific document, search,
+  then pass the top hit's \`recordId\` to \`pipeshub_get_record_content\`.
 - \`pipeshub_download_record\` — when the user wants the actual file
   bytes (download, attach, open). Get the \`recordId\` either from
   citations on a prior \`pipeshub_chat\` response or from
   \`pipeshub_search\`.
-- \`pipeshub_get_record_content\` — when you need a record's full
-  parsed content (\`context_metadata\` / \`block_containers\`) without
-  downloading the original file. Prefer this over download when the
-  question is about what the record says.
+- \`pipeshub_get_record_content\` — when you need a record's metadata and
+  parsed content (\`context_metadata\`) without downloading the original
+  file; pass \`fetchFullContent: true\` for the raw \`block_containers\`.
+  Prefer this over download when the question is about what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
   Not for documents.
 - \`pipeshub_sources\` — call once at the start of a session to discover
