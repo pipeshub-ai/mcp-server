@@ -17,8 +17,7 @@ COMPLETE content, fetch the document itself:
 
 1. \`pipeshub_search\` with the document's name / topic.
 2. Take the top hit's \`recordId\`.
-3. \`pipeshub_get_record_content\` with \`fetchFullContent: true\`, and
-   answer from the returned content.
+3. \`pipeshub_get_record_content\`, and answer from the returned content.
 
 Tasks that need this path — anything where missing part of the document
 could make the answer wrong:
@@ -61,10 +60,10 @@ the user can verify.
   bytes (download, attach, open). Get the \`recordId\` either from
   citations on a prior \`pipeshub_chat\` response or from
   \`pipeshub_search\`.
-- \`pipeshub_get_record_content\` — when you need a record's metadata and
-  parsed content (\`context_metadata\`) without downloading the original
-  file; pass \`fetchFullContent: true\` for the raw \`block_containers\`.
-  Prefer this over download when the question is about what the record says.
+- \`pipeshub_get_record_content\` — when you need a record's full parsed
+  content (returned as a single \`content\` string: metadata header plus
+  the document's text) without downloading the original file. Prefer this
+  over download when the question is about what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
   Not for documents.
 - \`pipeshub_sources\` — call once at the start of a session to discover

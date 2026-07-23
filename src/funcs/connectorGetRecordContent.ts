@@ -38,10 +38,11 @@ import { Result } from "../types/fp.js";
  *   (name, type, indexing status, size) — no content.
  * - `GET /knowledgeBase/stream/record/{recordId}` returns the original,
  *   unparsed file bytes — use it to download/open the source file.
- * - **This endpoint** returns the already-parsed, structured content
- *   (see `context_metadata` and `block_containers` on the response) —
- *   use it when you need the record's actual textual/tabular content
- *   without downloading and re-parsing the original file yourself.
+ * - **This endpoint** returns the record's full parsed content as a
+ *   single plain-text `content` string (a metadata header, then the
+ *   block/table text in reading order) — use it when you need the
+ *   record's actual textual/tabular content without downloading and
+ *   re-parsing the original file yourself.
  *
  * **Typical flow:** obtain a `recordId` from a `pipeshub_search` hit or
  * a chat citation's `recordId`, then call this endpoint to read the
