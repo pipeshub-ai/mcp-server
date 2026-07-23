@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { PIPESHUB_INSTRUCTIONS } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
+import { bindNewRequestId } from "../hooks/request-context.js";
 import { SDKOptions } from "../lib/config.js";
 import type { ConsoleLogger } from "./console-logger.js";
 import { createRegisterPrompt } from "./prompts.js";
@@ -14,6 +15,7 @@ import { createRegisterTool, registerDynamicTools } from "./tools.js";
 import { tool$pipeshubChat } from "./tools/pipeshubChat.js";
 import { tool$pipeshubSearch } from "./tools/pipeshubSearch.js";
 import { tool$pipeshubDownloadRecord } from "./tools/pipeshubDownloadRecord.js";
+import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
 import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
@@ -40,7 +42,7 @@ export function createMCPServer(deps: {
     },
   );
 
-  const getClient = deps.getSDK || (() =>
+  const resolveClient = deps.getSDK || (() =>
     new PipeshubCore({
       security: deps.security,
       serverURL: deps.serverURL,
@@ -54,6 +56,11 @@ export function createMCPServer(deps: {
         }
         : undefined,
     }));
+
+  const getClient = () => {
+    bindNewRequestId();
+    return resolveClient();
+  };
 
   const scopes = new Set(deps.scopes);
 
@@ -87,8 +94,9 @@ export function createMCPServer(deps: {
   tool(tool$pipeshubChat);             // 2. ask questions (start + continue)
   tool(tool$pipeshubSearch);           // 3. resolve filename → recordId
   tool(tool$pipeshubDownloadRecord);   // 4. fetch a document by id
-  tool(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
-  tool(tool$pipeshubAgents);           // 6. discover org agents
+  tool(tool$pipeshubGetRecordContent); // 5. fetch a record's parsed content
+  tool(tool$pipeshubDirectory);        // 6. people / groups / teams / whoami
+  tool(tool$pipeshubAgents);           // 7. discover org agents
 
   // Curated prompt: user-invokable tool-routing guidance.
   prompt(prompt$pipeshubAssistant);

@@ -87,7 +87,7 @@ async function $do(
     options: client$._options,
     baseURL: options?.serverURL ?? client$._baseURL ?? "",
     operationID: "streamConversation",
-    oAuth2Scopes: ["conversation:write"],
+    oAuth2Scopes: ["conversation:chat"],
     resolvedSecurity: requestSecurity,
     securitySource: client$._options.security,
     retryConfig: options?.retries

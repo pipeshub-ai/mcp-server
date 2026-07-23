@@ -100,6 +100,9 @@ the user asks about their documents, files, knowledge base, company policies,
 or anything that could plausibly be answered by content in their PipesHub-indexed
 sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, ...).
 Grounds the answer in the user's actual data and returns citations.
+Answers come from a few retrieved passages, not whole documents — for
+any task needing a document's full content, use
+\`pipeshub_get_record_content\` instead.
 
 **Web search** (\`chatMode: "web_search"\`): Use when the user asks about
 current events, public information, or anything unlikely to be in the org's
@@ -107,8 +110,11 @@ internal knowledge base. Pass \`chatMode: "web_search"\` and this tool will
 search the public web instead.
 
 **When to pick this over other tools:**
-- "What does <document> say about X?" → \`pipeshub_chat\` (internal_search)
-- "Summarize <topic / doc>." → \`pipeshub_chat\` (internal_search)
+- "Summarize <doc>" / "key points of <doc>" / "what does <document> say
+  about X?" → NOT this tool. Use \`pipeshub_search\` →
+  \`pipeshub_get_record_content\`: answering for a specific document
+  requires its full content, and chat only sees a few retrieved
+  passages, never the whole document.
 - "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
 - "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
 - "What is the latest version of <library>?" → \`pipeshub_chat\` (web_search)
