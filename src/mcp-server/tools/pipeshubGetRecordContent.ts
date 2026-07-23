@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
-import { formatResult, ToolDefinition } from "../tools.js";
-import { errorResult, jsonResult, readJson } from "./_helpers.js";
+import { ToolDefinition } from "../tools.js";
+import { errorResult, httpErrorResult, readJson } from "./_helpers.js";
 
 const args = {
   recordId: z.string().min(1).describe(
@@ -9,42 +9,38 @@ const args = {
       + "a 24-character ObjectId for uploaded records. Get it from a chat "
       + "citation (`citations[*].recordId`) or from a `pipeshub_search` hit.",
   ),
-  fetchFullContent: z.boolean().default(false).describe(
-    "When false (default), return metadata only (record fields + "
-      + "`context_metadata` summary). When true, also include "
-      + "`block_containers` — the full raw parsed blocks. Set true "
-      + "whenever the task depends on the document's actual text "
-      + "(summarize, extract, verify a mention, translate, review).",
-  ),
 };
 
 export const tool$pipeshubGetRecordContent: ToolDefinition<typeof args> = {
   name: "pipeshub_get_record_content",
   description:
-    `Read a record's parsed content by \`recordId\` — the only way to see
-a document's FULL text.
+    `Read a record's full parsed content by \`recordId\` — the only way to
+see a document's COMPLETE text.
 
-Use it whenever the answer depends on a document's complete content —
-any task where missing a part could make the answer wrong: summarize /
-key points / action items; extract or list ALL of something; check
-whether or where the doc mentions X; translate, rewrite, outline, or
-review the doc; compare named docs (fetch each); any question scoped to
-one named document. \`pipeshub_chat\` cannot do these — it only sees a
-few retrieved passages, never the whole document. Get the \`recordId\`
-from a \`pipeshub_search\` top hit or a chat citation.
+Use it whenever the answer depends on a document's full content — any
+task where missing a part could make the answer wrong: summarize / key
+points / action items; extract or list ALL of something; check whether
+or where the doc mentions X; translate, rewrite, outline, or review the
+doc; compare named docs (fetch each); any question scoped to one named
+document. \`pipeshub_chat\` cannot do these — it only sees a few
+retrieved passages, never the whole document. Get the \`recordId\` from
+a \`pipeshub_search\` top hit or a chat citation.
 
-\`fetchFullContent: false\` (default) returns record fields plus
-\`context_metadata\` — a short pre-generated summary, enough to identify
-the record or give a quick gist. \`fetchFullContent: true\` also returns
-\`block_containers\`, the full parsed text — required for the tasks
-above: a faithful summary or extraction cannot come from the pre-baked
-summary.
+Judge by the user's INTENT, not their keywords: they need not say
+"summarize", "key points", or "extract". Reason about what a good
+answer requires — if it would need the whole document (e.g. "what's
+this doc about?", "walk me through the report", "anything in here
+about Y?"), that is a full-content task, so call this tool.
 
-Response keys are snake_case (\`record_name\`, \`record_type\`, ...). Use
-\`pipeshub_download_record\` only when you need the original file bytes.`,
+Returns a single \`content\` string: a short metadata header (title,
+source, key fields, and a pre-generated summary) followed by the
+record's full parsed text — paragraphs, tables, and lists in reading
+order. For a record with no extractable content, \`content\` is the
+literal \`No record found\`. Use \`pipeshub_download_record\` only when
+you need the original file bytes.`,
   scopes: ["read"],
   annotations: {
-    title: "Get a record's metadata or full parsed content",
+    title: "Get a record's full parsed content",
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false,
@@ -57,17 +53,15 @@ Response keys are snake_case (\`record_name\`, \`record_type\`, ...). Use
     }, { fetchOptions: { signal: ctx.signal } }).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
-    // Full content, or any non-2xx response: hand back the body untouched.
-    if (args.fetchFullContent || !result.value.ok) {
-      return formatResult(result.value);
-    }
+    // The SDK func uses errorCodes:[], so any non-2xx comes back as an
+    // ok=false Response — surface it as an error rather than parsing it.
+    const httpErr = await httpErrorResult(result.value, "Get record content");
+    if (httpErr) return httpErr;
 
-    // Metadata only: drop the heavy raw blocks, keep record fields + summary.
-    const parsed = await readJson<{ record?: Record<string, unknown> }>(
-      result.value,
-    );
+    // Success: the endpoint returns { content: <string> }. Hand the LLM the
+    // plain text (real newlines), not the JSON wrapper.
+    const parsed = await readJson<{ content?: string }>(result.value);
     if (!parsed.ok) return parsed.result;
-    if (parsed.value?.record) delete parsed.value.record["block_containers"];
-    return jsonResult(parsed.value);
+    return { content: [{ type: "text", text: parsed.value.content ?? "" }] };
   },
 };
