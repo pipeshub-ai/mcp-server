@@ -67,7 +67,28 @@ export const toolNames: Array<{ name: string; description: string }>= ${JSON.str
   }
 }
 
-await buildMcpServer().catch((error) => {
+/**
+ * The `pipeshub` CLI ships from this package as a second bin. It is a separate
+ * bundle rather than another entry in the MCP server's build because it shares
+ * no runtime with it — the CLI is an MCP *client* that talks to a PipesHub
+ * instance's `/mcp` endpoint over HTTP.
+ */
+async function buildCli() {
+  const destinationDir = "./bin";
+  await build({
+    entrypoints: ["./src/cli/pipeshub.ts"],
+    outdir: destinationDir,
+    sourcemap: "linked",
+    target: "node",
+    format: "esm",
+    minify: false,
+    throw: true,
+    banner: "#!/usr/bin/env node",
+  });
+  await chmod(join(destinationDir, "pipeshub.js"), 0o755);
+}
+
+await buildMcpServer().then(buildCli).catch((error) => {
   console.error("Build failed:", error);
   process.exit(1);
 });

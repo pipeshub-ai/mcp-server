@@ -6,7 +6,8 @@
   "sideEffects": false,
   "bin": {
     "@pipeshub-ai/mcp": "bin/mcp-server.js",
-    "mcp": "bin/mcp-server.js"
+    "mcp": "bin/mcp-server.js",
+    "pipeshub": "bin/pipeshub.js"
   },
   "scripts": {
     "build": "bun i && bun src/mcp-server/build.mts && tsc",
