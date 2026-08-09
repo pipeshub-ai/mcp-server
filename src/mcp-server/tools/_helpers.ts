@@ -224,17 +224,24 @@ export function trimConversation(conv: any) {
 export function trimCitations(citations: unknown) {
   if (!Array.isArray(citations)) return [];
   return citations.map((c: any) => {
-    const md = c?.metadata ?? {};
+    // Two wire shapes exist. Flat: `{ content, chunkIndex, metadata }`.
+    // Nested (current backend): `{ citationId, citationData: { content,
+    // chunkIndex, metadata } }`. Reading only the flat one silently yields
+    // a citation with every field `undefined` — which JSON.stringify drops,
+    // leaving `{"snippet": null}` and no way to identify the source at all.
+    const cd = c?.citationData ?? c;
+    const md = cd?.metadata ?? c?.metadata ?? {};
+    const content = typeof cd?.content === "string" ? cd.content : c?.content;
     return {
-      recordId: md.recordId ?? c?.recordId,
-      recordName: md.recordName ?? c?.recordName,
-      snippet: typeof c?.content === "string"
-        ? c.content.slice(0, 280)
+      recordId: md.recordId ?? cd?.recordId ?? c?.recordId,
+      recordName: md.recordName ?? cd?.recordName ?? c?.recordName,
+      snippet: typeof content === "string"
+        ? content.slice(0, 280)
         : md.blockText ?? null,
       mimeType: md.mimeType,
       webUrl: md.webUrl,
       pageNum: md.pageNum,
-      chunkIndex: c?.chunkIndex ?? md.chunkIndex,
+      chunkIndex: cd?.chunkIndex ?? c?.chunkIndex ?? md.chunkIndex,
     };
   });
 }

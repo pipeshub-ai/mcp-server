@@ -4,21 +4,41 @@
 // `CallToolResult` once the stream emits its terminal `complete` (or
 // `error`) frame.
 //
-// Frame types we know about (from live wire traces):
+// The backend has shipped TWO stream vocabularies. We handle both: an
+// instance may be running either generation, and the tool must not break
+// against the one it wasn't written for. That is exactly what happened
+// once already — this file documented only the legacy set, the backend
+// moved to AG-UI, and every frame fell through to `default`, leaving the
+// drain loop to report "Stream ended without any usable frames" on runs
+// that had in fact completed successfully with citations.
+//
+// Legacy vocabulary:
 //   - connected        — handshake; ignored
-//   - status           — { status: "started" | "searching" | "processing"
-//                         | "checking_tools" | ... }; ignored (UI-only)
-//   - answer_chunk     — { content, accumulated, ... }; we keep the latest
-//                        `accumulated` as a fallback in case the stream
-//                        ends without a `complete` frame
-//   - tool_call        — model invoked an internal tool; we collect these
-//                        as observability breadcrumbs but the LLM doesn't
-//                        need them to answer
+//   - status           — { status: "started" | "searching" | ... }; ignored
+//   - answer_chunk     — { content, accumulated, ... }; latest `accumulated`
+//                        kept as a fallback
+//   - tool_call        — observability breadcrumb; ignored
 //   - tool_success     — paired with tool_call; same treatment
-//   - complete         — terminal; payload is `{ conversation, meta }`,
-//                        matching the non-stream response shape, so we
-//                        feed it through `trimConversation` like before
-//   - error            — terminal; surface to the LLM as a tool error
+//   - complete         — terminal; `{ conversation, meta }`
+//   - error            — terminal; surfaced as a tool error
+//
+// AG-UI vocabulary:
+//   - RUN_STARTED         — handshake; ignored
+//   - CUSTOM              — e.g. conversation_created; ignored
+//   - HEARTBEAT           — keepalive; ignored
+//   - STATE_DELTA         — incremental run state; ignored
+//   - STATE_SNAPSHOT      — run state; the one with `snapshot.final === true`
+//                           carries the resolved answer, citations and
+//                           confidence, and is our preferred fallback
+//   - TEXT_MESSAGE_START  — ignored
+//   - TEXT_MESSAGE_CONTENT— { delta }; incremental answer text. WARNING: the
+//                           deltas contain unresolved citation placeholders
+//                           (`[source](ref4)`), resolved only in the terminal
+//                           frame — never treat accumulated deltas as cited
+//   - TEXT_MESSAGE_END    — ignored
+//   - RUN_FINISHED        — terminal; `{ result: { conversation, meta } }`
+//                           (one level deeper than legacy `complete`)
+//   - RUN_ERROR           — terminal; surfaced as a tool error
 
 import * as z from "zod";
 import { conversationsStreamConversation } from "../../funcs/conversationsStreamConversation.js";
@@ -223,10 +243,12 @@ cited document, take \`citations[*].recordId\` and call
     let recordsUsed: number | undefined;
     let lastAccumulated: string | null = null;
     let errorMessage: string | null = null;
+    let finalSnapshot: any = null;
 
     try {
       for await (const frame of iterateSSE(response)) {
         switch (frame.event) {
+          // ---- Legacy vocabulary (backends before the AG-UI switch) ----
           case "complete": {
             const d = frame.data ?? {};
             finalConversation = d.conversation ?? null;
@@ -249,7 +271,51 @@ cited document, take \`citations[*].recordId\` and call
             }
             break;
           }
-          // status / tool_call / tool_success / connected — ignored.
+
+          // ---- AG-UI vocabulary ----
+          // The terminal frame. Its payload nests one level deeper than the
+          // legacy `complete` frame — `{ result: { conversation, meta } }`
+          // rather than `{ conversation, meta }` — but the conversation
+          // itself is the same shape, so `trimConversation` still applies.
+          case "RUN_FINISHED": {
+            const d = frame.data ?? {};
+            const r = d.result ?? {};
+            finalConversation = r.conversation ?? d.conversation ?? null;
+            recordsUsed = r.recordsUsed ?? r.meta?.recordsUsed
+              ?? d.recordsUsed ?? d.meta?.recordsUsed;
+            break;
+          }
+          case "RUN_ERROR": {
+            const d = frame.data ?? {};
+            errorMessage = typeof d === "string"
+              ? d
+              : (d.message ?? d.error ?? frame.raw ?? "Stream error");
+            break;
+          }
+          // Incremental answer text. Note these deltas carry UNRESOLVED
+          // citation refs (`[source](ref4)`); only the terminal frame has
+          // them resolved to real records. See the salvage branch below.
+          case "TEXT_MESSAGE_CONTENT": {
+            const d = frame.data ?? {};
+            if (typeof d.delta === "string") {
+              lastAccumulated = (lastAccumulated ?? "") + d.delta;
+            } else if (typeof d.content === "string") {
+              lastAccumulated = (lastAccumulated ?? "") + d.content;
+            }
+            break;
+          }
+          // The run emits a final STATE_SNAPSHOT carrying the resolved
+          // answer, citations and confidence. Strictly better than the raw
+          // deltas if the terminal frame is somehow missed.
+          case "STATE_SNAPSHOT": {
+            const s = (frame.data ?? {}).snapshot;
+            if (s && s.final === true) finalSnapshot = s;
+            break;
+          }
+
+          // Legacy status / tool_call / tool_success / connected and AG-UI
+          // RUN_STARTED / STATE_DELTA / TEXT_MESSAGE_START / TEXT_MESSAGE_END
+          // / HEARTBEAT / CUSTOM — observability only, ignored.
           default:
             break;
         }
@@ -268,8 +334,28 @@ cited document, take \`citations[*].recordId\` and call
       });
     }
 
-    // Stream ended without a terminal frame — unusual, but salvage what
-    // we accumulated so the LLM has something to work with.
+    // No terminal frame, but the run published a final snapshot. This still
+    // carries resolved citations, so prefer it over the raw deltas.
+    if (finalSnapshot && typeof finalSnapshot.answer === "string") {
+      return jsonResult({
+        conversationId: null,
+        title: null,
+        status: "Complete",
+        answer: finalSnapshot.answer,
+        confidence: finalSnapshot.confidence ?? null,
+        citations: finalSnapshot.citations ?? [],
+        followUpQuestions: [],
+        messageCount: 0,
+        recordsUsed,
+        warning: "Stream ended without a terminal frame; answer and citations "
+          + "were recovered from the run's final state snapshot.",
+      });
+    }
+
+    // Last resort: the accumulated text deltas. Citations are genuinely
+    // unavailable here — the deltas carry placeholder refs like
+    // `[source](ref4)` that are only resolved in the terminal frame — so
+    // `citations` stays empty and the caller must not treat this as sourced.
     if (lastAccumulated) {
       return jsonResult({
         conversationId: null,
@@ -281,8 +367,10 @@ cited document, take \`citations[*].recordId\` and call
         followUpQuestions: [],
         messageCount: 0,
         recordsUsed,
-        warning: "Stream ended without a `complete` frame; answer is "
-          + "the last accumulated chunk and citations are unavailable.",
+        warning: "Stream ended without a terminal frame; answer is the "
+          + "accumulated text chunks. Any bracketed references in it are "
+          + "UNRESOLVED placeholders, not citations — treat this answer as "
+          + "uncited.",
       });
     }
 
