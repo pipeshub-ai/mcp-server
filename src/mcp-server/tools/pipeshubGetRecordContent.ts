@@ -3,7 +3,6 @@ import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
 import { ToolDefinition } from "../tools.js";
-import { RICH_OUTPUT_HINT } from "../presentation.js";
 import {
   errorResult,
   httpErrorResult,

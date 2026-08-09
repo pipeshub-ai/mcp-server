@@ -113,6 +113,10 @@ org's KB, ...).
 **Web search** (\`chatMode: "web_search"\`): current events or public
 information unlikely to be in the org's knowledge base.
 
+Both are plain-chat modes. **Agent chat** — pass an \`agentId\` from
+\`pipeshub_agents\` — runs against that agent's own prompt, tools and knowledge;
+\`quick\` is its only mode, requires the \`agentId\`, and is sent automatically.
+
 - "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
 - "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
 - "Find / locate the file named X" → \`pipeshub_search\` (then

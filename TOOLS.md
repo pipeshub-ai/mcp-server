@@ -16,7 +16,13 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 | `conversationId` | string | no | Existing conversation id to continue. Omit on the first turn; pass it back on every subsequent turn so the server-side history is preserved. |
 | `filters` | object | no | Source scoping — `{ apps: string[] }` of connector instance UUIDs and/or `knowledgeBase_<orgId>`. Get ids from `pipeshub_sources`. Only meaningful on the first turn. |
 | `modelKey` | string | no | Model id from `pipeshub_sources` `models[*].modelKey`. Defaults to the org's default LLM. |
-| `chatMode` | enum | no | `quick` (low-retrieval, fast) or `balanced` (full RAG). Default `quick`. |
+| `agentId` | string | no | PipesHub agent to converse with (`agentId` from `pipeshub_agents`). Runs the turn against that agent's prompt, tools and knowledge. Pass the same `agentId` on every follow-up turn. Omit for plain chat. |
+| `chatMode` | enum | no | `internal_search` (default) or `web_search` — the plain-chat modes. `quick` is agent-only; see below. |
+
+**`chatMode` depends on `agentId`:**
+- **Without `agentId`** (plain chat): `internal_search` answers from the org's indexed knowledge (default), `web_search` from the live web. Anything else collapses to `internal_search`.
+- **With `agentId`** (agent chat): `quick` is the only mode the agent stream accepts, and the tool sends it automatically — omit `chatMode`.
+- `quick` requires an `agentId`. Sent without one it is ignored and the turn runs as `internal_search`, so include `agentId` whenever you want `quick`.
 
 **When to pick it over the others:**
 - Open-ended / cross-document org questions (answer spans many files) → `pipeshub_chat`.
@@ -41,7 +47,7 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 **Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score, plus `uniqueRecords[]` for deduped record-level info.
 
 > Hits are the top-scoring **blocks** from the best-matching records — not all blocks of any record, and not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
-
+>
 > For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. Reserve `pipeshub_chat` for open-ended questions that span many documents.
 
 ---

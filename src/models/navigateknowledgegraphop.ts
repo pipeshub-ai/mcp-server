@@ -34,12 +34,12 @@ export const NavigateKnowledgeGraphRequest$zodSchema: z.ZodType<
   createdBefore: z.string().describe(
     "Filter children by source creation time. `YYYY-MM-DD` is inclusive of the whole day.",
   ).optional(),
-  depth: z.int().min(1).max(3).default(1).describe(
+  depth: z.int().min(1).max(3).describe(
     "Levels of descendants to return in one call. Above 1, `rows` is a flat list of all descendants down to that level rather than only direct children, and each row carries its own `level`.",
-  ),
-  limit: z.int().min(50).max(200).default(50).describe(
+  ).optional(),
+  limit: z.int().min(50).max(200).describe(
     "Children per page. The minimum is 50 — smaller values are rejected rather than silently raised.",
-  ),
+  ).optional(),
   modifiedAfter: z.string().describe(
     "Filter children by source modification time.",
   ).optional(),
@@ -52,5 +52,5 @@ export const NavigateKnowledgeGraphRequest$zodSchema: z.ZodType<
   nodeTypes: z.array(z.string()).describe(
     "Restrict children to these node types. Repeat the parameter for multiple types: `?nodeTypes=record&nodeTypes=folder`.",
   ).optional(),
-  page: z.int().min(1).default(1).describe("Page number, 1-indexed."),
+  page: z.int().min(1).describe("Page number, 1-indexed.").optional(),
 });
