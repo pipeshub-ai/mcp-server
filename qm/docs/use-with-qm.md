@@ -50,14 +50,16 @@ Neither is something PipesHub can remove. Budget for them before you start.
 
 Roughly ten minutes, once.
 
-1. Copy the `sandbox/` folder from
-   [`pipeshub-ai/mcp-server`](https://github.com/pipeshub-ai/mcp-server) — it is
-   under `qm/` — into your QM deployment directory:
+1. Scaffold the bundle into your QM deployment directory:
 
    ```bash
-   git clone --depth 1 https://github.com/pipeshub-ai/mcp-server.git /tmp/ph
-   cp -r /tmp/ph/qm/sandbox/. /path/to/your-qm-deployment/sandbox/
+   npm install -g @pipeshub-ai/mcp
+   pipeshub init-qm /path/to/your-qm-deployment
    ```
+
+   The command stamps the Dockerfile's version pin from the package you just
+   installed, so the bundle and the CLI it configures cannot drift apart. It is
+   safe to re-run: existing files are kept rather than overwritten.
 2. In `qm.config.jsonc`, set the origin under `sandbox.env`:
 
    ```jsonc

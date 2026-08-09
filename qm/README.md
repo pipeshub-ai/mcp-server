@@ -20,8 +20,23 @@ matches nothing and protects nothing.
 
 **Admin, once:**
 
-1. Copy this directory's `sandbox/` into your QM deployment directory, merging
-   with any `sandbox/` you already have:
+1. Scaffold the bundle into your QM deployment directory:
+
+   ```bash
+   npm install -g @pipeshub-ai/mcp
+   pipeshub init-qm /path/to/your-qm-deployment
+   ```
+
+   This is preferred over copying by hand, because it stamps the Dockerfile's
+   version pin from the package you just installed — so the bundle and the CLI
+   it describes cannot be different versions.
+
+   It is safe to re-run. Existing files are kept and reported rather than
+   overwritten (`--force` overrides), and an existing `sandbox/Dockerfile` is
+   appended to rather than replaced — or left entirely alone if it already
+   installs the CLI.
+
+   If you would rather copy the files yourself:
 
    ```bash
    git clone --depth 1 https://github.com/pipeshub-ai/mcp-server.git /tmp/ph

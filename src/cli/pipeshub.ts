@@ -16,6 +16,7 @@ import {
   resolveToken,
 } from "./config.js";
 import { newRequestId } from "./client.js";
+import { initQm, renderInitReport } from "./init-qm.js";
 import {
   ask,
   authStatus,
@@ -36,6 +37,7 @@ USAGE
 COMMANDS
   auth status                 show connection, user, org, scopes, expiry
   auth connect-help           print the keychain setup steps
+  init-qm <dir>               scaffold the QM deployment-layer bundle (admin)
   sources                     list searchable sources (ids for --app)
   search <query>              locate records
   ask <question>              ask a grounded question; returns citations
@@ -53,6 +55,7 @@ OPTIONS
   --out <path>                get: write to a file instead of stdout
   --max-chars <n>             cap snippet/content length (default 2000)
   --insecure-http             allow cleartext to a host outside the private allowlist
+  --force                     init-qm: overwrite files that already exist
 
 ENVIRONMENT
   PIPESHUB_TOKEN     preferred; PIPESHUB_MCP_TOKEN also accepted
@@ -76,6 +79,7 @@ interface Flags {
   out: string | null;
   maxChars: number;
   insecureHttp: boolean;
+  force: boolean;
 }
 
 function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
@@ -89,6 +93,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     out: null,
     maxChars: 2000,
     insecureHttp: false,
+    force: false,
   };
   const positional: string[] = [];
 
@@ -106,6 +111,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--json": flags.json = true; break;
       case "--text": flags.json = false; break;
       case "--insecure-http": flags.insecureHttp = true; break;
+      case "--force": flags.force = true; break;
       case "--limit": flags.limit = Number(needValue(a, argv[++i])); break;
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
       case "--conversation": flags.conversation = needValue(a, argv[++i]); break;
@@ -188,6 +194,30 @@ async function run(argv: string[]): Promise<number> {
     });
     emit(outcome, flags.json);
     return outcome.exit;
+  }
+
+  // Scaffolding is an admin task performed before any credential exists, so it
+  // runs before the token and base-URL checks.
+  if (command === "init-qm") {
+    const dir = positional[1] ?? "";
+    if (dir === "") {
+      throw new CliError("init-qm requires a target directory", EXIT.USAGE);
+    }
+    const result = await initQm(dir, flags.force);
+    const report = renderInitReport(dir, result);
+    if (flags.json) {
+      process.stdout.write(JSON.stringify({
+        requestId,
+        target: dir,
+        version: result.version,
+        written: result.written,
+        skipped: result.skipped,
+        dockerfile: result.dockerfileAction,
+      }, null, 2) + "\n");
+    } else {
+      process.stdout.write(report + "\n");
+    }
+    return EXIT.OK;
   }
 
   if (origin === null) {
