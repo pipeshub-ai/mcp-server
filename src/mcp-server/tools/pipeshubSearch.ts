@@ -38,10 +38,23 @@ Typical uses:
 - Show the user a ranked list of matching files when they ask "find /
   search for X".
 
+Not for structural questions — what is under this epic, which pages are
+in this space, what links to this ticket. Ranking by content cannot show
+how records relate; use \`pipeshub_get_record_content\` \`mode:"navigate"\`.
+
+**A ranked sample, never a complete list.** Hits are the top-scoring
+blocks from the best-matching records — not all blocks of any record, and
+not every record that matches. Never count them to answer "how many" /
+"all" / "every"; navigate the record group instead, which reports its
+real total.
+
 The response is trimmed to one row per hit:
 \`{ recordId, recordName, score, snippet, mimeType, webUrl, ... }\`.
 Highest \`score\` first; multiple hits may share the same \`recordId\`
-(different chunks of the same record).`,
+(different blocks of the same record).
+
+When presenting results to the user, link each record using its
+\`webUrl\` (when present).`,
   scopes: ["read"],
   annotations: {
     title: "Semantic search",

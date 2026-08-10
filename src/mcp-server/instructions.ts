@@ -71,6 +71,36 @@ the user can verify.
 - \`pipeshub_agents\` — list the org's configured **agents** (specialized
   assistants with their own prompt, tools, and knowledge scope).
 
+## Knowledge Sources
+
+A source (an app connector or a KB) holds record groups (a project, space,
+drive, folder), which hold records (one ticket, page, file). Records nest —
+an epic over its stories, a page over its child pages.
+
+**Every tool returns metadata or content.**
+
+- \`pipeshub_search\` / \`pipeshub_chat\` — content, but only a ranked sample of
+  blocks: never all blocks of a record, never every record that matches, never
+  a complete list of what exists.
+- \`mode:"lookup"\` and \`mode:"navigate"\` — metadata: recordIds, fields, and
+  structure. No document text. \`mode:"content"\` — one whole record.
+
+**Combining them.** Search finds a starting point by wording; navigate on a
+\`recordId\` reveals what search structurally cannot — siblings, children,
+linked records, and the group's total count. For a question that must be
+exhaustive ("all", "how many", "every"), do NOT count search hits or trust a
+chat answer: navigate the record group, which reports the real total. For a
+record's siblings, navigate its parent — take the id from the \`Path\` line.
+
+**A named record** — an issue key, a Confluence / Drive / Slack link, an
+external ID → \`mode:"lookup"\` FIRST. It returns that record's metadata (for a
+ticket: status, assignee, priority, dates) plus its \`recordId\`, which often
+answers the question outright. Never guess a \`recordId\`.
+
+Pass a source's id from \`pipeshub_sources\` as \`apps: ["<id>"]\` to search or
+chat, and as \`nodeId\` to navigate. Navigate and lookup end in a \`Next:\` line
+naming the exact follow-up call — follow it.
+
 ## Agents
 
 Some orgs configure **agents** for specific jobs (e.g. a Slack messenger, a
