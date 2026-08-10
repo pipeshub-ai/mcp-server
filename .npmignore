@@ -9,5 +9,11 @@
 !/esm/**/*.json
 !/**/*.map
 
+# The QM deployment-layer bundle. `pipeshub init-qm` reads these out of the
+# installed package, so they must ship. This file is an allowlist — everything
+# is excluded by the `**/*` above — and the bundle is .json, .md, .jsonc and a
+# Dockerfile, none of which the rules above re-include.
+!/qm/**
+
 /eslint.config.mjs
 /__tests__
