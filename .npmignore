@@ -15,5 +15,11 @@
 # Dockerfile, none of which the rules above re-include.
 !/qm/**
 
+# ...except qm/docs/, which is for this repository, not for the package.
+# It holds a draft of a docs-site page and an ADR draft marked "not for
+# filing". Neither is read by `init-qm`, and shipping internal drafts to every
+# operator who installs the CLI is not something to do by accident.
+/qm/docs
+
 /eslint.config.mjs
 /__tests__
