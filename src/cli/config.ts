@@ -59,15 +59,35 @@ export function tokenSource(env: NodeJS.ProcessEnv = process.env): string | null
  * produce `…/mcp/mcp` or a request to the wrong path, depending on which one
  * happened to be set.
  */
+export function originSource(env: NodeJS.ProcessEnv = process.env): string {
+  return (env["PIPESHUB_BASE_URL"] ?? "").trim() !== ""
+    ? "PIPESHUB_BASE_URL"
+    : "PIPESHUB_MCP_URL";
+}
+
 export function resolveOrigin(env: NodeJS.ProcessEnv = process.env): string | null {
   const raw = (env["PIPESHUB_BASE_URL"] ?? env["PIPESHUB_MCP_URL"] ?? "").trim();
   if (raw === "") return null;
+  // Name the variable that actually supplied the value. Reporting
+  // PIPESHUB_BASE_URL unconditionally sends anyone using PIPESHUB_MCP_URL to
+  // edit a variable that is not set.
+  const name = originSource(env);
   let parsed: URL;
   try {
     parsed = new URL(raw);
   } catch {
+    throw new CliError(`${name} is not a valid URL: ${raw}`, EXIT.USAGE);
+  }
+  // Only http/https have a usable origin here. For any other scheme `URL`
+  // either yields the literal string "null" (foo://host, mailto:) or an origin
+  // we cannot speak to (ftp://h). Rejecting here keeps the failure a USAGE
+  // error with a readable message — left to `assertTransport`, the "null"
+  // string reaches `new URL("null")`, throws a bare TypeError, and surfaces as
+  // "Invalid URL" with exit 1.
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new CliError(
-      `PIPESHUB_BASE_URL is not a valid URL: ${raw}`,
+      `${name} must be an http:// or https:// URL (got "${parsed.protocol}//"). `
+        + "Set it to your PipesHub origin, e.g. https://pipeshub.example.com",
       EXIT.USAGE,
     );
   }

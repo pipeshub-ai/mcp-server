@@ -36,12 +36,21 @@ matches nothing and protects nothing.
    appended to rather than replaced — or left entirely alone if it already
    installs the CLI.
 
-   If you would rather copy the files yourself:
+   If you would rather copy the files yourself, check out the tag matching the
+   CLI version you install — cloning the default branch can pair a newer bundle
+   with an older binary, which is exactly the drift `init-qm` exists to prevent
+   — and take the config fragment from the same checkout:
 
    ```bash
-   git clone --depth 1 https://github.com/pipeshub-ai/mcp-server.git /tmp/ph
+   VERSION=$(npm view @pipeshub-ai/mcp version)
+   git clone --depth 1 --branch "v${VERSION}" \
+     https://github.com/pipeshub-ai/mcp-server.git /tmp/ph
    cp -r /tmp/ph/qm/sandbox/. /path/to/your-qm-deployment/sandbox/
+   cp /tmp/ph/qm/qm.config.fragment.jsonc /path/to/your-qm-deployment/
    ```
+
+   You must then pin `ARG PIPESHUB_CLI_VERSION` in `sandbox/Dockerfile`
+   yourself; `init-qm` stamps it for you.
 2. Merge `qm.config.fragment.jsonc` into your `qm.config.jsonc` and set
    `PIPESHUB_BASE_URL` to your instance's origin.
 3. Set `egress` in `sandbox/tools/pipeshub/tool.json` to your PipesHub

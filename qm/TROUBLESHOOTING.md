@@ -2,12 +2,19 @@
 
 Every message below is the CLI's real output, captured from a running
 deployment. If you see something not listed here, the exit code narrows it:
-`2` configuration, `3` not authenticated, `4` forbidden, `5` rate limited,
-`6` nothing retrieved.
+
+| Code | Meaning |
+| --- | --- |
+| `1` | an error that is none of the below — a network failure, or an unexpected server response |
+| `2` | configuration or usage |
+| `3` | not authenticated |
+| `4` | forbidden — this person cannot see it |
+| `5` | rate limited |
+| `6` | nothing retrieved, **or an `ask` answer with no citations** |
 
 ## "No PipesHub credential found"
 
-```
+```text
 pipeshub: No PipesHub credential found ($PIPESHUB_TOKEN is unset).
 Run 'pipeshub auth connect-help' for setup steps.
 ```
@@ -19,7 +26,7 @@ QM derives the variable from the service name: service `pipeshub` produces
 `PIPESHUB_TOKEN`. If you named the entry something else, the CLI will not see
 it. Check that the entry is:
 
-```
+```text
 service: pipeshub      (exactly this — it determines the variable name)
 kind:    env
 value:   the token only — no URL, no "PIPESHUB_TOKEN=" prefix
@@ -40,7 +47,7 @@ Two specific traps:
 
 ## "PIPESHUB_BASE_URL is not set"
 
-```
+```text
 pipeshub: PIPESHUB_BASE_URL is not set — an admin sets it once for the
 deployment. Run 'pipeshub auth connect-help' for the steps.
 ```
@@ -51,7 +58,7 @@ need doing.
 
 ## "refusing to send credentials in cleartext to a public host"
 
-```
+```text
 pipeshub: refusing to send credentials in cleartext to a public host:
 http://pipeshub.example.com
 Use https://, or pass --insecure-http if this really is a private address
@@ -68,7 +75,7 @@ message means you need a real public HTTPS address, not an override.
 
 ## "could not reach …"
 
-```
+```text
 pipeshub: could not reach http://…/mcp: fetch failed
 ```
 

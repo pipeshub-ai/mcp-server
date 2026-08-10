@@ -25,7 +25,7 @@ Two places this can go wrong by accident:
 
 The recommended PAT scopes, and why each is needed:
 
-```
+```text
 conversation:chat   ask
 semantic:write      run a search  (misleadingly named — see below)
 kb:read             read or download a record

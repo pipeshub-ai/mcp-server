@@ -14,7 +14,15 @@ import {
   describeToken,
   tokenSource,
 } from "./config.js";
-import { callTool, decodeToolJson, listTools, type ClientOptions } from "./client.js";
+import {
+  callTool,
+  callToolBlocks,
+  decodeToolJson,
+  joinText,
+  listTools,
+  type ClientOptions,
+  type ContentBlock,
+} from "./client.js";
 
 export interface Ctx extends ClientOptions {
   json: boolean;
@@ -275,6 +283,30 @@ export async function ask(
 
 // ─── get ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The base64 payload of a non-text result, if there is one.
+ *
+ * MCP carries binary in three block shapes depending on the media type:
+ * `image` and `audio` put it in `data`, everything else in
+ * `resource.blob`.
+ */
+function binaryPayload(
+  blocks: ContentBlock[],
+): { base64: string; mimeType: string } | null {
+  for (const b of blocks) {
+    if ((b.type === "image" || b.type === "audio") && typeof b.data === "string") {
+      return { base64: b.data, mimeType: b.mimeType ?? "application/octet-stream" };
+    }
+    if (b.type === "resource" && typeof b.resource?.blob === "string") {
+      return {
+        base64: b.resource.blob,
+        mimeType: b.resource.mimeType ?? "application/octet-stream",
+      };
+    }
+  }
+  return null;
+}
+
 export async function get(
   ctx: Ctx,
   recordId: string,
@@ -291,20 +323,46 @@ export async function get(
   const args: Record<string, unknown> = { recordId };
   if (convertTo !== null) args["convertTo"] = convertTo;
 
-  const raw = await callTool(ctx, toolName, args);
-  const content = typeof raw === "string" ? raw : JSON.stringify(raw);
+  const blocks = await callToolBlocks(ctx, toolName, args);
+  const binary = binaryPayload(blocks);
+  const content = joinText(blocks);
 
   if (outPath !== null) {
-    await writeFile(outPath, content, "utf8");
+    // A non-text record comes back as a base64 `resource`/`image`/`audio`
+    // block, not text. Writing `joinText` in that case produced a 0-byte file
+    // and still reported success, so the caller believed it had the document.
+    const bytes = binary !== null
+      ? Buffer.from(binary.base64, "base64")
+      : Buffer.from(content, "utf8");
+
+    if (bytes.length === 0) {
+      throw new CliError(
+        `the server returned no content for record ${recordId}`,
+        EXIT.NO_RESULTS,
+      );
+    }
+    await writeFile(outPath, bytes);
     return {
-      exit: content.length === 0 ? EXIT.NO_RESULTS : EXIT.OK,
+      exit: EXIT.OK,
       payload: {
         requestId: ctx.requestId,
         recordId,
         writtenTo: outPath,
-        bytes: Buffer.byteLength(content, "utf8"),
+        bytes: bytes.length,
+        mimeType: binary?.mimeType ?? "text/plain",
+        encoding: binary !== null ? "binary" : "utf8",
       },
     };
+  }
+
+  // Without --out there is nowhere sensible to put bytes: emitting base64 into
+  // an agent's context is worse than useless. Say so and point at the flag.
+  if (binary !== null) {
+    throw new CliError(
+      `record ${recordId} is ${binary.mimeType} — binary content cannot be `
+        + "printed. Re-run with --out <path> to save it to a file.",
+      EXIT.USAGE,
+    );
   }
 
   const clipped = clip(content, ctx.maxChars) as string;

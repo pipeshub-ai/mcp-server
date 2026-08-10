@@ -148,17 +148,38 @@ function resolveChatMode(mode: string): string {
   );
 }
 
-function emit(outcome: Outcome, json: boolean): void {
+/**
+ * Write and wait for the bytes to actually reach the pipe.
+ *
+ * `process.stdout` is asynchronous when it is a pipe — which is the normal
+ * case here, since the caller is an agent capturing output. `process.exit()`
+ * does not flush it, so a payload larger than the pipe buffer is silently cut
+ * off (measured: a 2,000,015-byte write delivered 1,048,576 bytes) while the
+ * exit code still reports success. The consumer then parses truncated JSON.
+ *
+ * The `write` callback fires once the chunk has been handed to the underlying
+ * resource, so exiting after it is safe — and unlike setting `process.exitCode`
+ * and returning, it does not wait on undici's keep-alive sockets.
+ */
+function writeFlushed(stream: NodeJS.WriteStream, text: string): Promise<void> {
+  return new Promise((resolve) => {
+    stream.write(text, () => resolve());
+  });
+}
+
+function emit(outcome: Outcome, json: boolean): Promise<void> {
   if (!json && outcome.text !== undefined) {
-    process.stdout.write(outcome.text + "\n");
-    return;
+    return writeFlushed(process.stdout, outcome.text + "\n");
   }
-  process.stdout.write(JSON.stringify(outcome.payload, null, 2) + "\n");
+  return writeFlushed(
+    process.stdout,
+    JSON.stringify(outcome.payload, null, 2) + "\n",
+  );
 }
 
 async function run(argv: string[]): Promise<number> {
   if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h" || argv[0] === "help") {
-    process.stdout.write(USAGE + "\n");
+    await writeFlushed(process.stdout, USAGE + "\n");
     return EXIT.OK;
   }
 
@@ -169,7 +190,8 @@ async function run(argv: string[]): Promise<number> {
   // Refuse the credential-mutating shapes explicitly, so the failure explains
   // itself instead of looking like a typo. These names must never work.
   if (command === "auth" && ["set", "import", "login", "add"].includes(sub)) {
-    process.stderr.write(
+    await writeFlushed(
+      process.stderr,
       `pipeshub auth ${sub} does not exist, deliberately.\n`
         + "Credentials come from your QM keychain — run "
         + "'pipeshub auth connect-help' for the steps.\n",
@@ -192,7 +214,7 @@ async function run(argv: string[]): Promise<number> {
       json: flags.json,
       maxChars: flags.maxChars,
     });
-    emit(outcome, flags.json);
+    await emit(outcome, flags.json);
     return outcome.exit;
   }
 
@@ -206,7 +228,7 @@ async function run(argv: string[]): Promise<number> {
     const result = await initQm(dir, flags.force);
     const report = renderInitReport(dir, result);
     if (flags.json) {
-      process.stdout.write(JSON.stringify({
+      await writeFlushed(process.stdout, JSON.stringify({
         requestId,
         target: dir,
         version: result.version,
@@ -215,7 +237,7 @@ async function run(argv: string[]): Promise<number> {
         dockerfile: result.dockerfileAction,
       }, null, 2) + "\n");
     } else {
-      process.stdout.write(report + "\n");
+      await writeFlushed(process.stdout, report + "\n");
     }
     return EXIT.OK;
   }
@@ -298,14 +320,14 @@ async function run(argv: string[]): Promise<number> {
       throw new CliError(`unknown command: ${command}`, EXIT.USAGE);
   }
 
-  emit(outcome, flags.json);
+  await emit(outcome, flags.json);
   return outcome.exit;
 }
 
-const code = await run(process.argv.slice(2)).catch((e: unknown) => {
+const code = await run(process.argv.slice(2)).catch(async (e: unknown) => {
   const err = e as CliError;
   const exit = typeof err.code === "number" ? err.code : EXIT.ERROR;
-  process.stderr.write(`pipeshub: ${err.message}\n`);
+  await writeFlushed(process.stderr, `pipeshub: ${err.message}\n`);
   return exit;
 });
 process.exit(code);

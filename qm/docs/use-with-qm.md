@@ -83,7 +83,7 @@ Under a minute, once.
 1. In PipesHub: **Developer Settings → Personal Access Tokens → Create**.
 2. **Deselect every scope**, then select only:
 
-   ```
+   ```text
    conversation:chat   semantic:write   kb:read   user:read   connector:read
    ```
 
@@ -92,7 +92,7 @@ Under a minute, once.
 3. Set expiry to 30 days.
 4. In QM, add it to **your own** keychain — not a shared room:
 
-   ```
+   ```text
    service: pipeshub
    kind:    env
    value:   the token value only, no URL and no variable name

@@ -157,10 +157,19 @@ export async function initQm(
     }
   }
 
-  const configFragment = await readFile(
-    join(bundle, "qm.config.fragment.jsonc"),
-    "utf8",
-  ).catch(() => "");
+  // Do not swallow this. The fragment carries the `sandbox.env` block the
+  // operator must merge in, so reporting a successful init without it leaves
+  // them with a scaffold that cannot reach PipesHub and no sign of why.
+  const fragmentPath = join(bundle, "qm.config.fragment.jsonc");
+  let configFragment: string;
+  try {
+    configFragment = await readFile(fragmentPath, "utf8");
+  } catch (e: unknown) {
+    throw new CliError(
+      `the QM bundle is incomplete — could not read ${fragmentPath} `
+        + `(${(e as Error).message}). Reinstall @pipeshub-ai/mcp.`,
+    );
+  }
 
   return { written, skipped, dockerfileAction, version, configFragment };
 }

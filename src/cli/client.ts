@@ -58,34 +58,92 @@ export function toolErrorToExit(message: string): number {
   return EXIT.ERROR;
 }
 
-/** Pull the JSON-RPC payload out of an SSE body. */
-function parseSseFrames(body: string): unknown {
-  const dataLines: string[] = [];
-  for (const rawLine of body.split("\n")) {
-    const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-    if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).replace(/^ /, ""));
-    }
-  }
-  const joined = dataLines.join("\n").trim();
-  const source = joined !== "" ? joined : body.trim();
-  if (source === "") {
-    throw new CliError("empty response from the MCP endpoint");
-  }
-  try {
-    return JSON.parse(source);
-  } catch {
-    throw new CliError(
-      `could not parse the MCP response as JSON: ${source.slice(0, 200)}`,
-    );
-  }
+/** True for an object that looks like a JSON-RPC response, not a notification. */
+function isJsonRpcResponse(v: unknown): boolean {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return "result" in o || "error" in o;
 }
 
-export async function callTool(
+/**
+ * Pull the JSON-RPC response out of an SSE body.
+ *
+ * Event boundaries matter. An earlier version concatenated every `data:` line
+ * in the body and parsed the result as one document, which works only while the
+ * endpoint emits exactly one event. The moment anything else appears on the
+ * stream — a keepalive, an MCP progress notification, a second `message` event
+ * — the concatenation is not valid JSON and the call fails with a confusing
+ * "could not parse the MCP response as JSON".
+ *
+ * So: split on blank lines, reassemble each event's own `data:` lines (multi-
+ * line data is per spec), and take the first event that is actually a response.
+ * Notifications are skipped rather than mistaken for the answer.
+ */
+function parseSseFrames(body: string): unknown {
+  const normalized = body.replace(/\r\n/g, "\n");
+  const events = normalized.split(/\n\n+/);
+  const parsed: unknown[] = [];
+
+  for (const event of events) {
+    const dataLines: string[] = [];
+    for (const line of event.split("\n")) {
+      if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+    if (dataLines.length === 0) continue;
+    const source = dataLines.join("\n").trim();
+    if (source === "") continue;
+    try {
+      const value = JSON.parse(source);
+      if (isJsonRpcResponse(value)) return value;
+      parsed.push(value);
+    } catch {
+      // Not JSON — a comment or a partial frame. Keep looking.
+    }
+  }
+
+  // No SSE framing at all: some deployments answer `application/json`.
+  const whole = normalized.trim();
+  if (whole !== "") {
+    try {
+      const value = JSON.parse(whole);
+      if (isJsonRpcResponse(value)) return value;
+    } catch {
+      // fall through to the errors below
+    }
+  }
+
+  if (whole === "") throw new CliError("empty response from the MCP endpoint");
+  if (parsed.length > 0) {
+    throw new CliError(
+      "the MCP endpoint sent no JSON-RPC response — only "
+        + `${parsed.length} notification frame(s)`,
+    );
+  }
+  throw new CliError(
+    `could not parse the MCP response as JSON: ${whole.slice(0, 200)}`,
+  );
+}
+
+/** One MCP content block, as far as this CLI cares about it. */
+export interface ContentBlock {
+  type: string;
+  text?: string;
+  data?: string;
+  mimeType?: string;
+  resource?: { uri?: string; mimeType?: string; blob?: string; text?: string };
+}
+
+/**
+ * `tools/call`, returning every content block.
+ *
+ * `callTool` folds these to text, which is right for the JSON-returning tools
+ * but silently discards binary. `pipeshub get --out` needs the raw blocks.
+ */
+export async function callToolBlocks(
   opts: ClientOptions,
   name: string,
   args: Record<string, unknown>,
-): Promise<unknown> {
+): Promise<ContentBlock[]> {
   assertTransport(opts.origin, opts.insecureHttp);
   const url = mcpEndpoint(opts.origin);
 
@@ -128,10 +186,7 @@ export async function callTool(
 
   const payload = parseSseFrames(await response.text()) as {
     error?: { message?: string };
-    result?: {
-      isError?: boolean;
-      content?: Array<{ type: string; text?: string }>;
-    };
+    result?: { isError?: boolean; content?: ContentBlock[] };
   };
 
   if (payload.error) {
@@ -142,15 +197,30 @@ export async function callTool(
   const result = payload.result;
   if (!result) throw new CliError("MCP response contained no result");
 
-  const text = (result.content ?? [])
+  const blocks = result.content ?? [];
+
+  if (result.isError) {
+    const text = joinText(blocks);
+    throw new CliError(text || "tool reported an error", toolErrorToExit(text));
+  }
+  return blocks;
+}
+
+/** Concatenate the text blocks, ignoring binary ones. */
+export function joinText(blocks: ContentBlock[]): string {
+  return blocks
     .filter((c) => c.type === "text" && typeof c.text === "string")
     .map((c) => c.text as string)
     .join("\n");
+}
 
-  if (result.isError) {
-    throw new CliError(text || "tool reported an error", toolErrorToExit(text));
-  }
-  return text;
+/** `tools/call` for the tools that answer with JSON in a text block. */
+export async function callTool(
+  opts: ClientOptions,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  return joinText(await callToolBlocks(opts, name, args));
 }
 
 /**
