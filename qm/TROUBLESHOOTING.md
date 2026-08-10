@@ -132,3 +132,35 @@ Check the skill reached the sandbox: `qm check` should list `pipeshub` under
 both `tools` and `skills`. If the tool is listed but the agent never reaches for
 it, the skill's `description` frontmatter is what QM matches against — that is
 the text to adjust, not the hints.
+
+## `qm doctor` passes, the stack is up, but no command ever runs
+
+This one is worth knowing before you debug PipesHub, because nothing about it
+points at PipesHub.
+
+**`qm doctor` passing is not evidence that agents can execute anything.** With
+`target: docker`, `doctor`'s sandbox step only runs `fly status -a <your
+sandbox app>` — it checks the Fly app exists and your account can see it, and
+nothing else (`backends/doctor.js:125-133`). It never verifies a sandbox
+backend can actually start a machine.
+
+Meanwhile the backend selection can silently land on `local`:
+
+- The `qm` CLI only emits `SANDBOX_BACKEND` when you set `sandbox.backend`
+  explicitly, or when `target` is `fly` (`config.js:100`).
+- With `SANDBOX_BACKEND` unset, the core defaults to **`local`**
+  (core `config.ts:475`).
+- `local` starts sandboxes by shelling out to a `docker` binary
+  (`sandbox/docker-exec.ts:8`), and the core **container** has neither a Docker
+  socket nor a `docker` CLI. `local` exists for running core outside a
+  container during QM's own development.
+
+So the stack boots, `doctor` is green, and `execute` fails at turn time.
+
+Set `sandbox.backend` explicitly to `sprites` or `aws` and supply that
+backend's credential. `sprites` needs `SPRITES_TOKEN`, which comes from Fly
+Sprites — a separate service from Fly, with its own identity (`secrets.js:88`,
+core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
+is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the
+backend unset gets you past every check and still leaves you with an agent that
+cannot run `pipeshub`.
