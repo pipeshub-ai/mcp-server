@@ -59,13 +59,18 @@ actually minted rather than assuming.
 
 ## Expiry
 
-Default is **90 days**, not 30 — verify what your instance does rather than
-trusting documentation, including this sentence. `never` is available and
-resolves to a century; a century-long bearer token in a sandbox that holds
-credentials in plaintext while in use is a bad pairing. Prefer 30 days.
+The default has been **90 days** on some builds and **30** on others — verify
+what your instance actually does rather than trusting documentation, including
+this sentence. `never` is available and resolves to a century; a century-long
+bearer token in a sandbox that holds credentials in plaintext while in use is a
+bad pairing. Prefer 30 days.
 
-Revocation is per-token from Developer Settings. Make sure whoever runs the
-rollout knows where that is *before* they need it under pressure.
+Revocation is per-token from Developer Settings. Newer builds also let an org
+admin list and revoke any member's token, which is the control you want for
+offboarding — a personal token in a departing employee's keychain otherwise
+keeps working until it expires. Confirm which of the two your instance has, and
+make sure whoever runs the rollout knows where it is *before* they need it
+under pressure.
 
 ## Retrieved text is hostile input
 
