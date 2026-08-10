@@ -4,8 +4,20 @@
 
 import * as z from "zod";
 
+// Encode in bounded chunks. Spreading the whole array into `String.fromCodePoint`
+// passes one argument per byte, so anything past the engine's argument limit
+// throws "Maximum call stack size exceeded" — measured here at 64 KB ok,
+// 128 KB throwing, which is under the size of essentially any real PDF or
+// image. 0x8000 keeps a wide margin below the limit, which varies by engine
+// and by how deep the stack already is at the call site.
+const BASE64_CHUNK = 0x8000;
+
 export function bytesToBase64(u8arr: Uint8Array): string {
-  return btoa(String.fromCodePoint(...u8arr));
+  let binary = "";
+  for (let i = 0; i < u8arr.length; i += BASE64_CHUNK) {
+    binary += String.fromCharCode(...u8arr.subarray(i, i + BASE64_CHUNK));
+  }
+  return btoa(binary);
 }
 
 export function bytesFromBase64(encoded: string): Uint8Array {
