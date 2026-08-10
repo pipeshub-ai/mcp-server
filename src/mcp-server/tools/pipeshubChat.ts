@@ -1,44 +1,13 @@
 // `POST /conversations/stream` (and
 // `POST /conversations/{conversationId}/messages/stream` for follow-ups),
 // accumulate the frames server-side, and hand the LLM a single trimmed
-// `CallToolResult` once the stream emits its terminal `complete` (or
-// `error`) frame.
+// `CallToolResult` once the stream reaches a terminal frame.
 //
-// The backend has shipped TWO stream vocabularies. We handle both: an
-// instance may be running either generation, and the tool must not break
-// against the one it wasn't written for. That is exactly what happened
-// once already — this file documented only the legacy set, the backend
-// moved to AG-UI, and every frame fell through to `default`, leaving the
-// drain loop to report "Stream ended without any usable frames" on runs
-// that had in fact completed successfully with citations.
-//
-// Legacy vocabulary:
-//   - connected        — handshake; ignored
-//   - status           — { status: "started" | "searching" | ... }; ignored
-//   - answer_chunk     — { content, accumulated, ... }; latest `accumulated`
-//                        kept as a fallback
-//   - tool_call        — observability breadcrumb; ignored
-//   - tool_success     — paired with tool_call; same treatment
-//   - complete         — terminal; `{ conversation, meta }`
-//   - error            — terminal; surfaced as a tool error
-//
-// AG-UI vocabulary:
-//   - RUN_STARTED         — handshake; ignored
-//   - CUSTOM              — e.g. conversation_created; ignored
-//   - HEARTBEAT           — keepalive; ignored
-//   - STATE_DELTA         — incremental run state; ignored
-//   - STATE_SNAPSHOT      — run state; the one with `snapshot.final === true`
-//                           carries the resolved answer, citations and
-//                           confidence, and is our preferred fallback
-//   - TEXT_MESSAGE_START  — ignored
-//   - TEXT_MESSAGE_CONTENT— { delta }; incremental answer text. WARNING: the
-//                           deltas contain unresolved citation placeholders
-//                           (`[source](ref4)`), resolved only in the terminal
-//                           frame — never treat accumulated deltas as cited
-//   - TEXT_MESSAGE_END    — ignored
-//   - RUN_FINISHED        — terminal; `{ result: { conversation, meta } }`
-//                           (one level deeper than legacy `complete`)
-//   - RUN_ERROR           — terminal; surfaced as a tool error
+// The wire protocol is AG-UI. The legacy `connected` / `answer_chunk` /
+// `complete` / `error` vocabulary was removed with the new agent loop and is
+// never emitted. The frames that matter — CUSTOM{conversation_created},
+// TEXT_MESSAGE_CONTENT, RUN_FINISHED, RUN_ERROR — are folded by `./_agui.js`,
+// which is kept separate so the fold stays a pure function over frames.
 
 import * as z from "zod";
 import { conversationsStreamConversation } from "../../funcs/conversationsStreamConversation.js";
@@ -46,6 +15,11 @@ import { conversationsStreamMessage } from "../../funcs/conversationsStreamMessa
 import { agentsStreamConversation } from "../../funcs/agentsStreamConversation.js";
 import { agentsStreamMessage } from "../../funcs/agentsStreamMessage.js";
 import { ToolDefinition } from "../tools.js";
+import {
+  applyAGUIFrame,
+  newChatStreamState,
+  salvagedText,
+} from "./_agui.js";
 import {
   errorResult,
   httpErrorResult,
@@ -56,9 +30,11 @@ import {
 
 const FiltersShape = z.object({
   apps: z.array(z.string()).optional().describe(
-    "Source-scoping ids. Mix connector instance UUIDs with the synthetic "
-      + "`knowledgeBase_<orgId>` id (use pipeshub_sources to discover them). "
-      + "Empty / omitted means no app-side restriction.",
+    "Source-scoping ids from `pipeshub_sources` — connector instance and / "
+      + "or knowledge base ids, mixed freely. The legacy org-wide "
+      + "`knowledgeBase_<orgId>` id is still accepted on deployments that "
+      + "predate per-KB sources. Empty / omitted means no app-side "
+      + "restriction.",
   ),
   kb: z.array(z.string()).optional().describe(
     "Legacy / unused. Leave empty.",
@@ -96,48 +72,53 @@ const args = {
   chatMode: z.enum([
     "internal_search",
     "web_search",
-    "auto",
     "quick",
-    "verification",
-    "deep",
   ]).optional().describe(
     "Response strategy. The valid values depend on whether `agentId` is set:\n"
       + "- WITHOUT `agentId` (plain chat): `internal_search` — answer from the "
       + "org's indexed knowledge (default) — or `web_search` — answer from the "
       + "live web.\n"
-      + "- WITH `agentId` (agent chat): `auto` (let the agent decide; default), "
-      + "`quick`, `verification`, or `deep`.",
+      + "- WITH `agentId` (agent chat): `quick` is the only supported mode and "
+      + "is sent automatically, so this argument can be omitted.",
   ),
 };
 
 export const tool$pipeshubChat: ToolDefinition<typeof args> = {
   name: "pipeshub_chat",
   description:
-    `**Primary chat tool — handles both internal knowledge queries and web search.**
+    `Ask a question, get an answer grounded in the org's indexed data with
+citations. It reads a few retrieved passages — never a whole document,
+never a complete list.
 
-**Internal search** (default, \`chatMode: "internal_search"\`): Use whenever
-the user asks about their documents, files, knowledge base, company policies,
-or anything that could plausibly be answered by content in their PipesHub-indexed
-sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, ...).
-Grounds the answer in the user's actual data and returns citations.
-Answers come from a few retrieved passages, not whole documents — for
-any task needing a document's full content, use
-\`pipeshub_get_record_content\` instead.
+**Three questions this tool gets WRONG. Check them first:**
+- **Structure** — "what's under this epic?", "which pages are in this
+  space?", "what links to this ticket?", "what's in this folder?" →
+  \`pipeshub_get_record_content\` \`mode:"navigate"\`. Ranking cannot see how
+  records relate.
+- **Exhaustive** — "how many X?", "list ALL the Y", "every Z" →
+  \`mode:"navigate"\`, which reports the group's real total. This tool
+  undercounts and will not say so.
+- **One named document** — summarize it, extract from it, what does it say
+  about X → \`pipeshub_search\` for the \`recordId\`, then \`mode:"content"\`.
 
-**Web search** (\`chatMode: "web_search"\`): Use when the user asks about
-current events, public information, or anything unlikely to be in the org's
-internal knowledge base. Pass \`chatMode: "web_search"\` and this tool will
-search the public web instead.
+Everything else about the org's knowledge belongs here: policies,
+processes, decisions, history, "what do we know about X", and any question
+spanning several documents.
 
-**When to pick this over other tools:**
-- "Summarize <doc>" / "key points of <doc>" / "what does <document> say
-  about X?" → NOT this tool. Use \`pipeshub_search\` →
-  \`pipeshub_get_record_content\`: answering for a specific document
-  requires its full content, and chat only sees a few retrieved
-  passages, never the whole document.
+**Internal search** (default, \`chatMode: "internal_search"\`): the user's
+documents, files, knowledge base, company policies — anything in their
+PipesHub-indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the
+org's KB, ...).
+
+**Web search** (\`chatMode: "web_search"\`): current events or public
+information unlikely to be in the org's knowledge base.
+
+Both are plain-chat modes. **Agent chat** — pass an \`agentId\` from
+\`pipeshub_agents\` — runs against that agent's own prompt, tools and knowledge;
+\`quick\` is its only mode, requires the \`agentId\`, and is sent automatically.
+
 - "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
 - "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
-- "What is the latest version of <library>?" → \`pipeshub_chat\` (web_search)
 - "Find / locate the file named X" → \`pipeshub_search\` (then
   \`pipeshub_download_record\` if the user wants the bytes).
 
@@ -167,11 +148,19 @@ cited document, take \`citations[*].recordId\` and call
   args,
   tool: async (client, args, ctx) => {
     const fetchOptions = { signal: ctx.signal };
+    // `quick` is agent-only. The plain stream schemas accept internal_search /
+    // web_search / agent, so collapse anything else to the default rather than
+    // forwarding a value that path would reject.
+    const plainChatMode = args.chatMode === "web_search"
+      ? "web_search"
+      : "internal_search";
     let response: Response;
 
     if (args.agentId) {
-      // Agent conversation. Agent chatMode vocabulary defaults to `auto`.
-      const agentChatMode = args.chatMode ?? "auto";
+      // `quick` is the only value the agent stream schemas accept, and it is
+      // required — so ignore whatever the caller passed rather than forwarding
+      // a value the gateway would reject.
+      const agentChatMode = "quick" as const;
       if (args.conversationId) {
         // Continue an existing agent conversation.
         const [result] = await agentsStreamMessage(client, {
@@ -212,7 +201,7 @@ cited document, take \`citations[*].recordId\` and call
           modelKey: args.modelKey,
           modelName: args.modelName,
           modelFriendlyName: args.modelFriendlyName,
-          chatMode: args.chatMode ?? "internal_search",
+          chatMode: plainChatMode,
         },
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
@@ -225,7 +214,7 @@ cited document, take \`citations[*].recordId\` and call
         modelKey: args.modelKey,
         modelName: args.modelName,
         modelFriendlyName: args.modelFriendlyName,
-        chatMode: args.chatMode ?? "internal_search",
+        chatMode: plainChatMode,
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
       response = result.value;
@@ -237,140 +226,44 @@ cited document, take \`citations[*].recordId\` and call
     const httpErr = await httpErrorResult(response, "PipesHub chat request");
     if (httpErr) return httpErr;
 
-    // Drain the SSE stream. We only need the terminal `complete` (or
-    // `error`) frame; everything else is observability and ignored.
-    let finalConversation: any = null;
-    let recordsUsed: number | undefined;
-    let lastAccumulated: string | null = null;
-    let errorMessage: string | null = null;
-    let finalSnapshot: any = null;
-
+    // Drain the AG-UI stream. `applyAGUIFrame` returns true only on a
+    // genuinely terminal frame — a sub-agent's RUN_FINISHED carries no
+    // `result` and must not end the loop.
+    const state = newChatStreamState();
     try {
       for await (const frame of iterateSSE(response)) {
-        switch (frame.event) {
-          // ---- Legacy vocabulary (backends before the AG-UI switch) ----
-          case "complete": {
-            const d = frame.data ?? {};
-            finalConversation = d.conversation ?? null;
-            recordsUsed = d.recordsUsed ?? d.meta?.recordsUsed;
-            break;
-          }
-          case "error": {
-            const d = frame.data ?? {};
-            errorMessage = typeof d === "string"
-              ? d
-              : (d.error ?? d.message ?? frame.raw ?? "Stream error");
-            break;
-          }
-          case "answer_chunk": {
-            const d = frame.data ?? {};
-            if (typeof d.accumulated === "string") {
-              lastAccumulated = d.accumulated;
-            } else if (typeof d.content === "string") {
-              lastAccumulated = (lastAccumulated ?? "") + d.content;
-            }
-            break;
-          }
-
-          // ---- AG-UI vocabulary ----
-          // The terminal frame. Its payload nests one level deeper than the
-          // legacy `complete` frame — `{ result: { conversation, meta } }`
-          // rather than `{ conversation, meta }` — but the conversation
-          // itself is the same shape, so `trimConversation` still applies.
-          case "RUN_FINISHED": {
-            const d = frame.data ?? {};
-            const r = d.result ?? {};
-            finalConversation = r.conversation ?? d.conversation ?? null;
-            recordsUsed = r.recordsUsed ?? r.meta?.recordsUsed
-              ?? d.recordsUsed ?? d.meta?.recordsUsed;
-            break;
-          }
-          case "RUN_ERROR": {
-            const d = frame.data ?? {};
-            errorMessage = typeof d === "string"
-              ? d
-              : (d.message ?? d.error ?? frame.raw ?? "Stream error");
-            break;
-          }
-          // Incremental answer text. Note these deltas carry UNRESOLVED
-          // citation refs (`[source](ref4)`); only the terminal frame has
-          // them resolved to real records. See the salvage branch below.
-          case "TEXT_MESSAGE_CONTENT": {
-            const d = frame.data ?? {};
-            if (typeof d.delta === "string") {
-              lastAccumulated = (lastAccumulated ?? "") + d.delta;
-            } else if (typeof d.content === "string") {
-              lastAccumulated = (lastAccumulated ?? "") + d.content;
-            }
-            break;
-          }
-          // The run emits a final STATE_SNAPSHOT carrying the resolved
-          // answer, citations and confidence. Strictly better than the raw
-          // deltas if the terminal frame is somehow missed.
-          case "STATE_SNAPSHOT": {
-            const s = (frame.data ?? {}).snapshot;
-            if (s && s.final === true) finalSnapshot = s;
-            break;
-          }
-
-          // Legacy status / tool_call / tool_success / connected and AG-UI
-          // RUN_STARTED / STATE_DELTA / TEXT_MESSAGE_START / TEXT_MESSAGE_END
-          // / HEARTBEAT / CUSTOM — observability only, ignored.
-          default:
-            break;
-        }
-        if (finalConversation || errorMessage) break;
+        if (applyAGUIFrame(state, frame)) break;
       }
     } catch (e: unknown) {
       return errorResult(`SSE stream failed: ${(e as Error).message}`);
     }
 
-    if (errorMessage) return errorResult(errorMessage);
+    if (state.error) return errorResult(state.error);
 
-    if (finalConversation) {
+    if (state.conversation) {
       return jsonResult({
-        ...trimConversation(finalConversation),
-        recordsUsed,
+        ...trimConversation(state.conversation),
+        recordsUsed: state.recordsUsed,
       });
     }
 
-    // No terminal frame, but the run published a final snapshot. This still
-    // carries resolved citations, so prefer it over the raw deltas.
-    if (finalSnapshot && typeof finalSnapshot.answer === "string") {
+    // Stream ended without a terminal frame — unusual, but salvage what we
+    // accumulated so the LLM has something to work with. `conversation_created`
+    // arrives before any answer text, so a follow-up turn can still resume.
+    const salvaged = salvagedText(state);
+    if (salvaged) {
       return jsonResult({
-        conversationId: null,
-        title: null,
-        status: "Complete",
-        answer: finalSnapshot.answer,
-        confidence: finalSnapshot.confidence ?? null,
-        citations: finalSnapshot.citations ?? [],
-        followUpQuestions: [],
-        messageCount: 0,
-        recordsUsed,
-        warning: "Stream ended without a terminal frame; answer and citations "
-          + "were recovered from the run's final state snapshot.",
-      });
-    }
-
-    // Last resort: the accumulated text deltas. Citations are genuinely
-    // unavailable here — the deltas carry placeholder refs like
-    // `[source](ref4)` that are only resolved in the terminal frame — so
-    // `citations` stays empty and the caller must not treat this as sourced.
-    if (lastAccumulated) {
-      return jsonResult({
-        conversationId: null,
-        title: null,
+        conversationId: state.conversationId,
+        title: state.title,
         status: "Inprogress",
-        answer: lastAccumulated,
+        answer: salvaged,
         confidence: null,
         citations: [],
         followUpQuestions: [],
         messageCount: 0,
-        recordsUsed,
-        warning: "Stream ended without a terminal frame; answer is the "
-          + "accumulated text chunks. Any bracketed references in it are "
-          + "UNRESOLVED placeholders, not citations — treat this answer as "
-          + "uncited.",
+        recordsUsed: state.recordsUsed,
+        warning: "Stream ended without a terminal RUN_FINISHED; answer is the "
+          + "accumulated TEXT_MESSAGE_CONTENT and citations are unavailable.",
       });
     }
 
