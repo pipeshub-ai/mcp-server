@@ -1,0 +1,17 @@
+# Forward guard for Speakeasy regeneration.
+#
+# This package no longer runs Speakeasy in CI (sdk_generation.yaml was
+# removed; see also f1241ff — "we don't generate mcp server anymore").
+# Keep this list anyway: if someone regenerates from a sibling tree that
+# still has `.speakeasy/`, these files must not be overwritten.
+#
+# Speakeasy's stock `bytesToBase64` is still
+#   btoa(String.fromCodePoint(...u8arr))
+# which overflows the stack on any binary payload ≳128 KB. The chunked
+# implementation lives in the hand-maintained helper; the two former
+# generated wrappers re-export / call through it.
+
+src/lib/bytes-to-base64.ts
+src/lib/base64.ts
+src/mcp-server/shared.ts
+__tests__/bytesToBase64.test.ts

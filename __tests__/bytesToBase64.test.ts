@@ -1,15 +1,17 @@
 import { describe, expect, test } from "bun:test";
+import { bytesToBase64 as canonical } from "../src/lib/bytes-to-base64.js";
 import { bytesToBase64 } from "../src/lib/base64.js";
 import { bytesToBase64 as sharedBytesToBase64 } from "../src/mcp-server/shared.js";
 
-// The previous implementation was `btoa(String.fromCodePoint(...u8arr))`, which
-// passes one argument per byte. Past the engine's argument limit that throws
-// "Maximum call stack size exceeded" — measured at 64 KB fine and 128 KB
-// throwing, i.e. below the size of essentially any real PDF or image.
+// Speakeasy's generated helper was `btoa(String.fromCodePoint(...u8arr))`,
+// which passes one argument per byte. Past the engine's argument limit that
+// throws "Maximum call stack size exceeded" — measured at 64 KB fine and
+// 128 KB throwing, i.e. below the size of essentially any real PDF or image.
 //
-// It surfaced as `pipeshub_download_record` returning `isError: true` with that
-// message for any non-text record, since `formatResult` base64-encodes image,
-// audio, and resource bodies.
+// It surfaced as `pipeshub_download_record` returning `isError: true` with
+// that message for any non-text record, since `formatResult` base64-encodes
+// image, audio, and resource bodies. The chunked implementation lives in
+// `src/lib/bytes-to-base64.ts`; the other two modules re-export it.
 
 const patterned = (n: number): Uint8Array => {
   const u8 = new Uint8Array(n);
@@ -21,6 +23,7 @@ const decode = (b64: string): Uint8Array =>
   Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 for (const [label, encode] of [
+  ["lib/bytes-to-base64", canonical],
   ["lib/base64", bytesToBase64],
   ["mcp-server/shared", sharedBytesToBase64],
 ] as const) {
@@ -54,3 +57,10 @@ for (const [label, encode] of [
     });
   });
 }
+
+describe("bytesToBase64 — wrappers share one implementation", () => {
+  test("lib/base64 and mcp-server/shared re-export the hand-maintained helper", () => {
+    expect(bytesToBase64).toBe(canonical);
+    expect(sharedBytesToBase64).toBe(canonical);
+  });
+});
