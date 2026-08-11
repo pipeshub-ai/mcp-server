@@ -1,0 +1,29 @@
+// Merge these into your existing qm.config.jsonc. This is a FRAGMENT, not a
+// complete config — do not copy it over your own file.
+{
+  // The PipesHub origin your sandboxes will reach. It is not a secret, so it
+  // belongs here rather than in .env.
+  //
+  // It must be an ORIGIN with no path. The CLI appends /mcp itself.
+  //
+  // It must also be reachable FROM THE SANDBOX, which is the part that
+  // surprises people: QM agent sandboxes do not run on the operator's machine.
+  // With the `sprites` backend they run on Fly; with `aws`, in Lambda MicroVMs.
+  // So `localhost`, `host.docker.internal`, and LAN addresses are all
+  // unreachable from a sandbox, and a self-hosted PipesHub needs a public
+  // HTTPS address or a tunnel. The CLI refuses cleartext to public hosts.
+  "sandbox": {
+    "env": {
+      "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com"
+    }
+  }
+
+  // Deliberately NOT set here: the per-person token.
+  //
+  // Do not add it to `sandbox.secretEnv`. That is delivered to every sandbox in
+  // the deployment, so one person's credential would be handed to everybody —
+  // which destroys both PipesHub's permission filtering and QM's per-scope
+  // isolation in a single move. Each person adds their own PAT to their own
+  // keychain (service "pipeshub", kind "env"); it arrives as $PIPESHUB_TOKEN in
+  // their scope only.
+}
