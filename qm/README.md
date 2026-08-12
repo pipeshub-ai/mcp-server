@@ -44,23 +44,37 @@ agents cannot run commands at all, so nothing here will work.
 
 Budget for both before you start.
 
-### This bundle requires the `sprites` backend
+### Neither sandbox backend can install the CLI today
 
-**It does not work on `sandbox.backend: "aws"` (Lambda MicroVMs).** The reason
-is structural, not a missing feature on our side: a tool's binary reaches a
-sandbox through the image, and only the `sprites` path builds one from your
-`sandbox/Dockerfile` — that is what `qm sandbox publish` does, and it is how
-`pipeshub` gets onto `PATH`.
+**Read this before you start.** As of QM CLI 0.1.4, there is no working path
+that gets the `pipeshub` program into a sandbox automatically. Both backends
+fail, for different reasons, and both are filed upstream:
 
-On the AWS backend the sandbox image is built from QM's own MicroVM template,
-and the deployment layer QM sends to it carries **tool descriptors and skills
-only** — no Dockerfile, and no other install hook (`ToolDescriptor.install` just
-names the binary for `PATH` and approval matching; it installs nothing).
+| Backend | What happens |
+| --- | --- |
+| `sprites` | You publish a sandbox image containing the CLI. It is **silently ignored** and the stock base boots instead — [qm#272](https://github.com/yc-software/qm/issues/272) |
+| `aws` | There is no mechanism to install a program into a Lambda MicroVM at all — [qm#350](https://github.com/yc-software/qm/issues/350) |
 
-So on AWS, QM will accept `tool.json`, tell the agent `pipeshub` exists, and the
-command will not be there. If you run the AWS backend, this bundle cannot work
-until QM provides a way to install deployment-layer binaries into a MicroVM
-image.
+We measured the sprites case rather than inferring it: we published a 3.7 GB
+image with the CLI installed at `/usr/local/bin/pipeshub`, and the sandbox came
+up with a **2.4 MB** overlay and an empty `/usr/local/bin`.
+
+**The workaround that does work** is to have the agent install the CLI on first
+use. Sandboxes have Node, npm, and access to the npm registry, and a global
+install persists between turns — so it happens once per person, not once per
+message:
+
+```bash
+npm install -g @pipeshub-ai/mcp
+```
+
+`SKILL.md` can carry that as a first-run step. It is not how this should work,
+and we are not documenting it as the supported path — but it does work, and it
+is enough to evaluate the integration today.
+
+Everything else in this guide is accurate. When either upstream issue is fixed,
+the `sandbox/Dockerfile` in this bundle installs the CLI the intended way and
+the workaround can be dropped.
 
 ## Setup — admin, once
 

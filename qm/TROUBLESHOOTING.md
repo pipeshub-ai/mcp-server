@@ -141,6 +141,23 @@ There is no command that accepts a credential as an argument, and there will not
 be one. Anything on a command line lands in shell history, process listings, and
 potentially a chat transcript. Use the keychain.
 
+## The agent says `pipeshub: command not found`
+
+The tool is configured correctly and the program simply is not in the sandbox.
+`qm check` passes, `qm sandbox publish` succeeds, and the binary still is not
+there — see the README section "Neither sandbox backend can install the CLI
+today", which covers both upstream causes and the first-use install workaround.
+
+To confirm it is this and not something else, have the agent run:
+
+```text
+df -h / | tail -1; ls /usr/local/bin | head
+```
+
+An overlay of a few megabytes against a multi-gigabyte published image, with an
+empty `/usr/local/bin`, means the sandbox booted the stock base rather than
+yours.
+
 ## The agent ignores the tool, or uses the wrong one
 
 Check the skill reached the sandbox: `qm check` should list `pipeshub` under
@@ -172,10 +189,14 @@ Meanwhile the backend selection can silently land on `local`:
 
 So the stack boots, `doctor` is green, and `execute` fails at turn time.
 
-Set `sandbox.backend` explicitly and supply that backend's credential. For
-this bundle that means **`sprites`** — the `aws` backend cannot install the
-`pipeshub` binary into a Lambda MicroVM (see README, "This bundle requires the
-sprites backend").
+Set `sandbox.backend` explicitly and supply that backend's credential.
+
+**But note that neither backend installs the CLI for you today** — `sprites`
+ignores your published image ([qm#272](https://github.com/yc-software/qm/issues/272))
+and `aws` has no install mechanism at all
+([qm#350](https://github.com/yc-software/qm/issues/350)). See the README section
+"Neither sandbox backend can install the CLI today" for the first-use install
+that does work.
 
 Changing the backend is not enough on its own — the sandbox image has to be
 rebuilt so it contains `pipeshub`:
