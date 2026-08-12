@@ -52,9 +52,17 @@ pipeshub: PIPESHUB_BASE_URL is not set — an admin sets it once for the
 deployment. Run 'pipeshub auth connect-help' for the steps.
 ```
 
-Admin-level, not yours. It goes in `qm.config.jsonc` under `sandbox.env`,
-followed by `qm up`. If the message *also* says your credential is missing, both
-need doing.
+Admin-level, not yours. If the message *also* says your credential is missing,
+both need doing.
+
+The admin sets it in `qm.config.jsonc` under `sandbox.env`, then runs
+`qm check && qm sandbox publish && qm up`.
+
+**If it is already set there and you still see this**, the value is not reaching
+your sandbox. On some QM builds `sandbox.env` is written but never read. The fix
+is to deliver it as an **org service credential** instead — in the admin UI, add
+one with delivery `env` and key `PIPESHUB_BASE_URL`. That is a deployment-wide,
+non-secret value, so org scope is right for it; your token stays personal.
 
 ## "refusing to send credentials in cleartext to a public host"
 
@@ -167,7 +175,14 @@ So the stack boots, `doctor` is green, and `execute` fails at turn time.
 Set `sandbox.backend` explicitly and supply that backend's credential. For
 this bundle that means **`sprites`** — the `aws` backend cannot install the
 `pipeshub` binary into a Lambda MicroVM (see README, "This bundle requires the
-sprites backend"). `sprites` needs `SPRITES_TOKEN`, which comes from Fly
+sprites backend").
+
+Changing the backend is not enough on its own — the sandbox image has to be
+rebuilt so it contains `pipeshub`:
+
+```bash
+qm check && qm sandbox publish && qm up
+``` `sprites` needs `SPRITES_TOKEN`, which comes from Fly
 Sprites — a separate service from Fly, with its own identity (`secrets.js:88`,
 core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
 is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the
