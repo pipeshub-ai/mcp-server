@@ -164,8 +164,10 @@ Meanwhile the backend selection can silently land on `local`:
 
 So the stack boots, `doctor` is green, and `execute` fails at turn time.
 
-Set `sandbox.backend` explicitly to `sprites` or `aws` and supply that
-backend's credential. `sprites` needs `SPRITES_TOKEN`, which comes from Fly
+Set `sandbox.backend` explicitly and supply that backend's credential. For
+this bundle that means **`sprites`** — the `aws` backend cannot install the
+`pipeshub` binary into a Lambda MicroVM (see README, "This bundle requires the
+sprites backend"). `sprites` needs `SPRITES_TOKEN`, which comes from Fly
 Sprites — a separate service from Fly, with its own identity (`secrets.js:88`,
 core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
 is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the

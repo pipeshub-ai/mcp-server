@@ -12,7 +12,18 @@
   // So `localhost`, `host.docker.internal`, and LAN addresses are all
   // unreachable from a sandbox, and a self-hosted PipesHub needs a public
   // HTTPS address or a tunnel. The CLI refuses cleartext to public hosts.
+  //
+  // "backend" must be "sprites": only that path builds the sandbox image from
+  // your sandbox/Dockerfile, which is how the `pipeshub` binary gets onto PATH.
+  // The "aws" backend builds MicroVMs from QM's own template and has no way to
+  // install a deployment-layer binary, so this bundle cannot work there.
+  //
+  // Verify PIPESHUB_BASE_URL actually reaches the sandbox — run
+  // `pipeshub auth status` there. On some QM builds sandbox.env is emitted but
+  // never read, in which case set PIPESHUB_BASE_URL as an ORG SERVICE
+  // CREDENTIAL (delivery "env") from the admin UI instead. See the README.
   "sandbox": {
+    "backend": "sprites",
     "env": {
       "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com"
     }

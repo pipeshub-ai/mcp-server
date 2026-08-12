@@ -44,6 +44,24 @@ agents cannot run commands at all, so nothing here will work.
 
 Budget for both before you start.
 
+### This bundle requires the `sprites` backend
+
+**It does not work on `sandbox.backend: "aws"` (Lambda MicroVMs).** The reason
+is structural, not a missing feature on our side: a tool's binary reaches a
+sandbox through the image, and only the `sprites` path builds one from your
+`sandbox/Dockerfile` — that is what `qm sandbox publish` does, and it is how
+`pipeshub` gets onto `PATH`.
+
+On the AWS backend the sandbox image is built from QM's own MicroVM template,
+and the deployment layer QM sends to it carries **tool descriptors and skills
+only** — no Dockerfile, and no other install hook (`ToolDescriptor.install` just
+names the binary for `PATH` and approval matching; it installs nothing).
+
+So on AWS, QM will accept `tool.json`, tell the agent `pipeshub` exists, and the
+command will not be there. If you run the AWS backend, this bundle cannot work
+until QM provides a way to install deployment-layer binaries into a MicroVM
+image.
+
 ## Setup — admin, once
 
 1. **Scaffold the folder** into your QM deployment directory:
@@ -67,11 +85,28 @@ Budget for both before you start.
 
    ```jsonc
    "sandbox": {
+     "backend": "sprites",
      "env": { "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com" }
    }
    ```
 
    An origin with no path — the CLI appends `/mcp` itself.
+
+   **Check that this variable actually arrives**, before assuming it did. Run
+   `pipeshub auth status` from a sandbox: if it reports `PIPESHUB_BASE_URL is
+   not set`, the value is not reaching the sandbox on your QM version and you
+   need the fallback below.
+
+   On the QM build we tested against, `sandbox.env` was emitted by the CLI as
+   `FLY_RESIDENT_ENV_*` on the core container but **nothing in core read those
+   variables**. What a sandbox actually receives is assembled from two sources
+   only: each person's keychain credentials, and org-level service credentials
+   with delivery `env`.
+
+   **Fallback if `sandbox.env` does not arrive:** add `PIPESHUB_BASE_URL` as an
+   org service credential (delivery `env`, key `PIPESHUB_BASE_URL`) from the
+   admin UI. It is a deployment-wide, non-secret value, so org scope is the
+   right home for it — unlike the token, which must stay per-person.
 
 3. **Set `egress`** in `sandbox/tools/pipeshub/tool.json` to your PipesHub
    hostname. It ships as `pipeshub.example.com` and **must be changed**.
