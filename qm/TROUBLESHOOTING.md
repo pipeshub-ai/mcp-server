@@ -151,12 +151,16 @@ today", which covers both upstream causes and the first-use install workaround.
 To confirm it is this and not something else, have the agent run:
 
 ```text
-df -h / | tail -1; ls /usr/local/bin | head
+command -v pipeshub || echo "pipeshub: absent"; df -h / | tail -1
 ```
 
-An overlay of a few megabytes against a multi-gigabyte published image, with an
-empty `/usr/local/bin`, means the sandbox booted the stock base rather than
-yours.
+`command -v` searches the whole `PATH`, so it settles the question directly —
+unlike listing one directory, which misses the binary if it landed elsewhere and
+truncates if the directory is large.
+
+The `df` line tells you *why*. An overlay of a few megabytes against a
+multi-gigabyte published image means the sandbox booted the stock base rather
+than yours, which is the `sprites` case in the README.
 
 ## The agent ignores the tool, or uses the wrong one
 
@@ -203,9 +207,12 @@ rebuilt so it contains `pipeshub`:
 
 ```bash
 qm check && qm sandbox publish && qm up
-``` `sprites` needs `SPRITES_TOKEN`, which comes from Fly
-Sprites — a separate service from Fly, with its own identity (`secrets.js:88`,
-core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
+```
+
+Be aware that rebuilding does **not** currently put `pipeshub` in the image —
+see the README section named above. `sprites` needs `SPRITES_TOKEN`, which comes
+from Fly Sprites — a separate service from Fly, with its own identity
+(`secrets.js:88`, core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
 is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the
 backend unset gets you past every check and still leaves you with an agent that
 cannot run `pipeshub`.

@@ -13,10 +13,12 @@
   // unreachable from a sandbox, and a self-hosted PipesHub needs a public
   // HTTPS address or a tunnel. The CLI refuses cleartext to public hosts.
   //
-  // "backend" must be "sprites": only that path builds the sandbox image from
-  // your sandbox/Dockerfile, which is how the `pipeshub` binary gets onto PATH.
-  // The "aws" backend builds MicroVMs from QM's own template and has no way to
-  // install a deployment-layer binary, so this bundle cannot work there.
+  // "backend" must be "sprites" — it is the only path that is *meant* to build
+  // the sandbox image from your sandbox/Dockerfile. Note that it does not
+  // currently do so: a published image is ignored and the stock base boots
+  // (qm#272), so the CLI still has to be installed on first use. The "aws"
+  // backend has no install mechanism at all (qm#350). See the README section
+  // "Neither sandbox backend can install the CLI today".
   //
   // Verify PIPESHUB_BASE_URL actually reaches the sandbox — run
   // `pipeshub auth status` there. On some QM builds sandbox.env is emitted but
