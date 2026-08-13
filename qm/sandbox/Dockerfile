@@ -13,7 +13,7 @@ FROM ghcr.io/yc-software/qm/sandbox-base
 # separate package. Pin the exact version: the sandbox image and the PipesHub
 # instance's MCP tool surface need to stay compatible, and an unpinned install
 # turns a remote release into a silent change in agent behaviour.
-ARG PIPESHUB_CLI_VERSION=2.2.0
+ARG PIPESHUB_CLI_VERSION=2.3.0
 RUN npm install -g "@pipeshub-ai/mcp@${PIPESHUB_CLI_VERSION}" \
  && pipeshub --help >/dev/null
 
