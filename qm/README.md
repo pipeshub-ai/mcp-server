@@ -44,6 +44,38 @@ agents cannot run commands at all, so nothing here will work.
 
 Budget for both before you start.
 
+### Neither sandbox backend can install the CLI today
+
+**Read this before you start.** As of QM CLI 0.1.4, there is no working path
+that gets the `pipeshub` program into a sandbox automatically. Both backends
+fail, for different reasons, and both are filed upstream:
+
+| Backend | What happens |
+| --- | --- |
+| `sprites` | You publish a sandbox image containing the CLI. It is **silently ignored** and the stock base boots instead — [qm#272](https://github.com/yc-software/qm/issues/272) |
+| `aws` | There is no mechanism to install a program into a Lambda MicroVM at all — [qm#350](https://github.com/yc-software/qm/issues/350) |
+
+We measured the sprites case rather than inferring it: we published a 3.7 GB
+image with the CLI installed at `/usr/local/bin/pipeshub`, and the sandbox came
+up with a **2.4 MB** overlay and an empty `/usr/local/bin`.
+
+**The workaround that does work** is to have the agent install the CLI on first
+use. Sandboxes have Node, npm, and access to the npm registry, and a global
+install persists between turns — so it happens once per person, not once per
+message:
+
+```bash
+npm install -g @pipeshub-ai/mcp
+```
+
+`SKILL.md` can carry that as a first-run step. It is not how this should work,
+and we are not documenting it as the supported path — but it does work, and it
+is enough to evaluate the integration today.
+
+Everything else in this guide is accurate. When either upstream issue is fixed,
+the `sandbox/Dockerfile` in this bundle installs the CLI the intended way and
+the workaround can be dropped.
+
 ## Setup — admin, once
 
 1. **Scaffold the folder** into your QM deployment directory:
@@ -67,11 +99,28 @@ Budget for both before you start.
 
    ```jsonc
    "sandbox": {
+     "backend": "sprites",
      "env": { "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com" }
    }
    ```
 
    An origin with no path — the CLI appends `/mcp` itself.
+
+   **Check that this variable actually arrives**, before assuming it did. Run
+   `pipeshub auth status` from a sandbox: if it reports `PIPESHUB_BASE_URL is
+   not set`, the value is not reaching the sandbox on your QM version and you
+   need the fallback below.
+
+   On the QM build we tested against, `sandbox.env` was emitted by the CLI as
+   `FLY_RESIDENT_ENV_*` on the core container but **nothing in core read those
+   variables**. What a sandbox actually receives is assembled from two sources
+   only: each person's keychain credentials, and org-level service credentials
+   with delivery `env`.
+
+   **Fallback if `sandbox.env` does not arrive:** add `PIPESHUB_BASE_URL` as an
+   org service credential (delivery `env`, key `PIPESHUB_BASE_URL`) from the
+   admin UI. It is a deployment-wide, non-secret value, so org scope is the
+   right home for it — unlike the token, which must stay per-person.
 
 3. **Set `egress`** in `sandbox/tools/pipeshub/tool.json` to your PipesHub
    hostname. It ships as `pipeshub.example.com` and **must be changed**.

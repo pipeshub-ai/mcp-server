@@ -52,9 +52,17 @@ pipeshub: PIPESHUB_BASE_URL is not set — an admin sets it once for the
 deployment. Run 'pipeshub auth connect-help' for the steps.
 ```
 
-Admin-level, not yours. It goes in `qm.config.jsonc` under `sandbox.env`,
-followed by `qm up`. If the message *also* says your credential is missing, both
-need doing.
+Admin-level, not yours. If the message *also* says your credential is missing,
+both need doing.
+
+The admin sets it in `qm.config.jsonc` under `sandbox.env`, then runs
+`qm check && qm sandbox publish && qm up`.
+
+**If it is already set there and you still see this**, the value is not reaching
+your sandbox. On some QM builds `sandbox.env` is written but never read. The fix
+is to deliver it as an **org service credential** instead — in the admin UI, add
+one with delivery `env` and key `PIPESHUB_BASE_URL`. That is a deployment-wide,
+non-secret value, so org scope is right for it; your token stays personal.
 
 ## "refusing to send credentials in cleartext to a public host"
 
@@ -133,6 +141,27 @@ There is no command that accepts a credential as an argument, and there will not
 be one. Anything on a command line lands in shell history, process listings, and
 potentially a chat transcript. Use the keychain.
 
+## The agent says `pipeshub: command not found`
+
+The tool is configured correctly and the program simply is not in the sandbox.
+`qm check` passes, `qm sandbox publish` succeeds, and the binary still is not
+there — see the README section "Neither sandbox backend can install the CLI
+today", which covers both upstream causes and the first-use install workaround.
+
+To confirm it is this and not something else, have the agent run:
+
+```text
+command -v pipeshub || echo "pipeshub: absent"; df -h / | tail -1
+```
+
+`command -v` searches the whole `PATH`, so it settles the question directly —
+unlike listing one directory, which misses the binary if it landed elsewhere and
+truncates if the directory is large.
+
+The `df` line tells you *why*. An overlay of a few megabytes against a
+multi-gigabyte published image means the sandbox booted the stock base rather
+than yours, which is the `sprites` case in the README.
+
 ## The agent ignores the tool, or uses the wrong one
 
 Check the skill reached the sandbox: `qm check` should list `pipeshub` under
@@ -164,10 +193,26 @@ Meanwhile the backend selection can silently land on `local`:
 
 So the stack boots, `doctor` is green, and `execute` fails at turn time.
 
-Set `sandbox.backend` explicitly to `sprites` or `aws` and supply that
-backend's credential. `sprites` needs `SPRITES_TOKEN`, which comes from Fly
-Sprites — a separate service from Fly, with its own identity (`secrets.js:88`,
-core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
+Set `sandbox.backend` explicitly and supply that backend's credential.
+
+**But note that neither backend installs the CLI for you today** — `sprites`
+ignores your published image ([qm#272](https://github.com/yc-software/qm/issues/272))
+and `aws` has no install mechanism at all
+([qm#350](https://github.com/yc-software/qm/issues/350)). See the README section
+"Neither sandbox backend can install the CLI today" for the first-use install
+that does work.
+
+Changing the backend is not enough on its own — the sandbox image has to be
+rebuilt so it contains `pipeshub`:
+
+```bash
+qm check && qm sandbox publish && qm up
+```
+
+Be aware that rebuilding does **not** currently put `pipeshub` in the image —
+see the README section named above. `sprites` needs `SPRITES_TOKEN`, which comes
+from Fly Sprites — a separate service from Fly, with its own identity
+(`secrets.js:88`, core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
 is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the
 backend unset gets you past every check and still leaves you with an agent that
 cannot run `pipeshub`.
