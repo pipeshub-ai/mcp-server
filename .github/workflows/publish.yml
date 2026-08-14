@@ -12,6 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The test step below invokes `bun` directly. `bun` is a dependency, so
+      # `npm run build` finds it via node_modules/.bin, but a bare `run:` step
+      # does not get that on PATH. CI installs it the same way.
+      - uses: oven-sh/setup-bun@v2
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -24,8 +29,7 @@ jobs:
       - run: npm run lint
 
       # A release that skips the checks CI already runs can ship a regression
-      # that every pull request would have caught. Tests run on `bun`, which
-      # the ubuntu runner image already provides.
+      # that every pull request would have caught.
       - run: bun test
 
       - run: npm publish --access public
