@@ -60,6 +60,24 @@ export async function readJson<T = unknown>(
   }
 }
 
+/**
+ * Reject an access token whose own expiry has already passed.
+ *
+ * Expiry is the one part of a credential's validity that can be established
+ * without asking the server, so it is worth checking before spending a
+ * round-trip — and it still answers when the server is unreachable. Returns
+ * `null` when the token is unexpired or carries no usable `exp`.
+ */
+export function expiredTokenError(exp: unknown): CallToolResult | null {
+  if (typeof exp !== "number" || !Number.isFinite(exp)) return null;
+  if (exp * 1000 > Date.now()) return null;
+  return errorResult(
+    `The access token expired on ${new Date(exp * 1000).toISOString()}. `
+      + "Mint a new personal access token in PipesHub under "
+      + "Developer Settings → Personal Access Tokens.",
+  );
+}
+
 /** Return a CallToolResult holding a single JSON-stringified text block. */
 export function jsonResult(value: unknown): CallToolResult {
   return {

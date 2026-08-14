@@ -22,7 +22,7 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_directory",
-    "description": "Look up people, groups, and teams in PipesHub. One tool with five\nactions — pick the right `action`:\n\n- `whoami` — who is the caller?  Use this whenever you need the\n  authenticated user's own id, email, or full name (e.g. before\n  `get_user` on themselves).\n- `list_users` — search / page through org users.\n- `get_user` — full `User` document for one user (requires `userId`).\n- `list_groups` — list user groups with `userCount`.\n- `list_my_teams` — teams the caller belongs to, with capability flags\n  (`canEdit` / `canDelete` / `canManageMembers`).\n\nOutput shape varies by action; see each action's docs above."
+    "description": "Look up people, groups, and teams in PipesHub. One tool with five\nactions — pick the right `action`:\n\n- `whoami` — who is the caller?  Use this whenever you need the\n  authenticated user's own id, email, or full name (e.g. before\n  `get_user` on themselves). Errors if the credential is expired\n  or revoked.\n- `list_users` — search / page through org users.\n- `get_user` — full `User` document for one user (requires `userId`).\n- `list_groups` — list user groups with `userCount`.\n- `list_my_teams` — teams the caller belongs to, with capability flags\n  (`canEdit` / `canDelete` / `canManageMembers`).\n\nOutput shape varies by action; see each action's docs above."
   },
   {
     "name": "pipeshub_agents",

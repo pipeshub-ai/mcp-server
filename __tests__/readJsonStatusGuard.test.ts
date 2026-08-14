@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { readJson, readValidated } from "../src/mcp-server/tools/_helpers.js";
+import {
+  expiredTokenError,
+  readJson,
+  readValidated,
+} from "../src/mcp-server/tools/_helpers.js";
 import * as z from "zod";
 
 // The SDK funcs are generated with `errorCodes: []`, so the request layer
@@ -109,5 +113,63 @@ describe("readValidated status guard", () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.value.items).toEqual(["a"]);
+  });
+});
+
+// PipesHub is polyglot: the Node API returns { error: { message } } while the
+// Python services return FastAPI's { detail }. `ask` printed the Python one
+// during the incident behind #60, so both shapes have to survive.
+describe("error shapes from both backends", () => {
+  test("the Python services' { detail } shape is reported", async () => {
+    const parsed = await readJson(
+      jsonResponse(401, { detail: "Could not validate credentials" }),
+      "PipesHub chat",
+    );
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    const text = textOf(parsed.result);
+    expect(text).toContain("Could not validate credentials");
+    expect(text).toContain("PipesHub chat");
+    expect(text).not.toContain("[object Object]");
+  });
+
+  test("a body that is not JSON at all still yields the status", async () => {
+    const parsed = await readJson(
+      new Response("<html>gateway timeout</html>", { status: 504 }),
+      "Knowledge base listing",
+    );
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(textOf(parsed.result)).toContain("504");
+  });
+});
+
+// whoami is the command someone runs to ask "is my login working?", so an
+// expired token must not come back looking like a healthy identity.
+describe("expiredTokenError", () => {
+  const hour = 3600;
+  const nowSec = () => Math.floor(Date.now() / 1000);
+
+  test("an expired token is rejected and the date is named", () => {
+    const exp = nowSec() - hour;
+    const result = expiredTokenError(exp);
+    expect(result).not.toBeNull();
+    expect(result!.isError).toBe(true);
+    const text = textOf(result!);
+    expect(text).toContain(new Date(exp * 1000).toISOString());
+    // Say what to do about it, not just what is wrong.
+    expect(text).toContain("Personal Access Tokens");
+  });
+
+  test("a live token passes", () => {
+    expect(expiredTokenError(nowSec() + hour)).toBeNull();
+  });
+
+  test("a token with no usable exp is not treated as expired", () => {
+    // Absent or malformed exp means unknown, which is not the same as expired
+    // — refusing here would lock out tokens that are perfectly good.
+    for (const exp of [undefined, null, "soon", NaN, Infinity]) {
+      expect(expiredTokenError(exp)).toBeNull();
+    }
   });
 });
