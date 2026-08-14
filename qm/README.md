@@ -146,15 +146,8 @@ yourself. `init-qm` does that for you.
 ## Setup — each person, once
 
 1. In PipesHub, go to **Developer Settings → Personal Access Tokens → Create**.
-2. **Deselect every scope**, then select only these five:
-
-   ```text
-   conversation:chat   semantic:write   kb:read   user:read   connector:read
-   ```
-
-   The create panel starts with everything selected, so accepting the default
-   grants far more than this integration needs.
-3. In QM, add **two** credentials to **your own** keychain — not a shared room:
+   Accept the defaults.
+2. In QM, add **two** credentials to **your own** keychain — not a shared room:
 
    ```text
    service: pipeshub

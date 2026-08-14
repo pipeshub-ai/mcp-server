@@ -54,9 +54,10 @@ visible. Filed upstream; the preset was left at five scopes rather than widened
 to paper over it.
 
 **The create panel pre-selects every scope**, and the backend does the same when
-a create request omits `scopes`. Accepting the defaults mints the full instance
-scope set. Tell people to deselect everything first, and check what your team
-actually minted rather than assuming.
+a create request omits `scopes`. The operator guide accepts that default: a
+full-scope PAT still only acts as that person, and fighting the panel is
+where setups stall. The five-scope list above is optional hardening, not a
+requirement to connect.
 
 ## Expiry
 

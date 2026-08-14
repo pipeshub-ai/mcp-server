@@ -97,21 +97,13 @@ the CLI on first use; that install persists on that Sprite.
 
 ## 3. Each person: PAT and keychain
 
-In PipesHub: **Developer Settings → Personal Access Tokens → Create**.
+In PipesHub: **Developer Settings → Personal Access Tokens → Create**. Accept
+the defaults. Keep the `phpat_` prefix if the token has one; it is for secret
+scanners, not a second secret.
 
-The panel pre-selects every scope. **Clear all**, then select only:
-
-```text
-conversation:chat
-semantic:write
-kb:read
-user:read
-connector:read
-```
-
-`semantic:write` is what *runs* a search. `semantic:read` is search *history*
-and is not on a stock instance — do not add it. Keep the `phpat_` prefix if
-the token has one; it is for secret scanners, not a second secret.
+Do not add `semantic:read` if the agent asks for it — that scope is search
+*history*, not search, and it is not on a stock instance. Search is
+`semantic:write`, and the CLI already uses it.
 
 In QM, add **two personal keychain credentials** (same form twice). Never paste
 the token into chat.
