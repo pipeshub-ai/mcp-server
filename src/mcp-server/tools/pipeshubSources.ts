@@ -57,7 +57,7 @@ are returned by default; pass \`include\` to override.`,
         limit: 200,
       }, { fetchOptions }).$inspect();
       if (!r.ok) return errorResult(`sources: ${r.error.message}`);
-      const parsed = await readJson<{ items?: any[] }>(r.value);
+      const parsed = await readJson<{ items?: any[] }>(r.value, "Knowledge base listing");
       if (!parsed.ok) return parsed.result;
       result["sources"] = (parsed.value.items ?? []).map((n: any) => ({
         id: n.id,
@@ -79,7 +79,7 @@ are returned by default; pass \`include\` to override.`,
         modelType,
       }, { fetchOptions }).$inspect();
       if (!r.ok) return errorResult(`${key}: ${r.error.message}`);
-      const parsed = await readJson<{ models?: any[] }>(r.value);
+      const parsed = await readJson<{ models?: any[] }>(r.value, "Model listing");
       if (!parsed.ok) return parsed.result;
       result[key] = (parsed.value.models ?? []).map((m: any) => ({
         modelKey: m.modelKey,
