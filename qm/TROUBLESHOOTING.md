@@ -48,21 +48,24 @@ Two specific traps:
 ## "PIPESHUB_BASE_URL is not set"
 
 ```text
-pipeshub: PIPESHUB_BASE_URL is not set — an admin sets it once for the
-deployment. Run 'pipeshub auth connect-help' for the steps.
+pipeshub: PIPESHUB_BASE_URL is not set — it must reach the sandbox as an env var
+(keychain or org service credential, not sandbox.env). Run 'pipeshub auth
+connect-help' for the steps.
 ```
 
-Admin-level, not yours. If the message *also* says your credential is missing,
-both need doing.
+If the message *also* says your credential is missing, both need doing.
 
-The admin sets it in `qm.config.jsonc` under `sandbox.env`, then runs
-`qm check && qm sandbox publish && qm up`.
+`sandbox.env` does not reach the sandbox
+([qm#351](https://github.com/yc-software/qm/issues/351)). Deliver the origin
+as:
 
-**If it is already set there and you still see this**, the value is not reaching
-your sandbox. On some QM builds `sandbox.env` is written but never read. The fix
-is to deliver it as an **org service credential** instead — in the admin UI, add
-one with delivery `env` and key `PIPESHUB_BASE_URL`. That is a deployment-wide,
-non-secret value, so org scope is right for it; your token stays personal.
+- a personal keychain entry: service `pipeshub`, environment variable
+  `PIPESHUB_BASE_URL`, or
+- an org service credential: delivery `env`, key `PIPESHUB_BASE_URL`
+
+The URL is not a secret. Org scope is the right home for a whole team; a
+personal keychain entry is enough to confirm the path. Your token stays
+personal either way.
 
 ## "refusing to send credentials in cleartext to a public host"
 
@@ -200,17 +203,10 @@ ignores your published image ([qm#272](https://github.com/yc-software/qm/issues/
 and `aws` has no install mechanism at all
 ([qm#350](https://github.com/yc-software/qm/issues/350)). See the README section
 "Neither sandbox backend can install the CLI today" for the first-use install
-that does work.
+that does work. Rebuilding and publishing the sandbox image does **not**
+currently put `pipeshub` on PATH.
 
-Changing the backend is not enough on its own — the sandbox image has to be
-rebuilt so it contains `pipeshub`:
-
-```bash
-qm check && qm sandbox publish && qm up
-```
-
-Be aware that rebuilding does **not** currently put `pipeshub` in the image —
-see the README section named above. `sprites` needs `SPRITES_TOKEN`, which comes
+`sprites` needs `SPRITES_TOKEN`, which comes
 from Fly Sprites — a separate service from Fly, with its own identity
 (`secrets.js:88`, core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
 is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the

@@ -50,8 +50,8 @@ export function tokenSource(env: NodeJS.ProcessEnv = process.env): string | null
 
 /**
  * The base URL, in priority order:
- *   PIPESHUB_BASE_URL — an ORIGIN with no path (what an admin sets in
- *                       QM's `sandbox.env`)
+ *   PIPESHUB_BASE_URL — an ORIGIN with no path (keychain or org credential;
+ *                       `sandbox.env` does not currently reach the sandbox)
  *   PIPESHUB_MCP_URL  — already INCLUDES `/mcp`, because it is meant for a
  *                       local MCP client
  *

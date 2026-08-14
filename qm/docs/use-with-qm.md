@@ -1,141 +1,195 @@
 # Use PipesHub with QM
 
-Draft for docs.pipeshub.com. Audience: an operator who already runs QM and wants
-their agents answering from company documents.
+When this is done, anyone in your QM org can ask the agent about company
+documents. Answers are limited to what that person's PipesHub account can
+see.
+
+If you **already run QM**, start at [Connect PipesHub](#connect-pipeshub).
+Standing up QM is the long part. The integration itself is short.
+
+This is not an MCP attachment. QM is an MCP *server* to its own harness; it
+cannot add PipesHub as an MCP client. The integration is a `pipeshub` CLI
+inside the agent sandbox.
+
+Each person uses **their own** PipesHub personal access token. Never share one
+token across the org.
+
+## What you need
+
+| You need | Why |
+| --- | --- |
+| A running PipesHub with indexed documents | That is what the agent searches |
+| A **public HTTPS** URL for that PipesHub | Agent sandboxes run on Fly Sprites, not on your laptop. `localhost` is unreachable from them. A Cloudflare tunnel is enough for a trial |
+| [Fly Sprites](https://fly.io/docs/sprites/) access (`sprite login`) | A Fly account alone is not enough. Sandboxes do not run locally |
+| A model API key (Anthropic, OpenRouter, …) | QM calls a model every turn |
+| Node **24+** and Docker | QM requires `engines.node` `>=24.0.0` |
+
+You do not need bun, and you do not need to build the CLI from source.
+Install `@pipeshub-ai/mcp@2.3.1` or later.
 
 ---
 
-QM agents can answer from your organization's Drive, Slack, Gmail, Jira,
-Confluence, and knowledge base — with each person's answers bounded by their own
-PipesHub permissions.
+## 1. Stand up QM (skip if it already runs)
 
-## How it fits together
+```bash
+npx @yc-software/qm init ./qm-deploy --org yourorg --target docker
+cd qm-deploy && npm install
+```
 
-QM's agent has a small, fixed tool surface, and the important one is `execute` —
-run a command inside that person's sandbox. So the integration is not a
-connector or a plugin. It is:
+`target: docker` runs QM's own services on your machine. **Agents still
+execute on Sprites.**
 
-1. A command-line program installed into the sandbox image.
-2. A `tool.json` telling QM the command exists and what rules govern it.
-3. A `SKILL.md` telling the agent when to reach for it.
+Set the sandbox backend in **both** places in `qm.config.jsonc`:
 
-Under the hood the CLI talks to the `/mcp` endpoint your PipesHub instance
-already exposes — one tool contract, not two.
+```jsonc
+"sandbox": { "backend": "sprites", "app": "your-sandboxes" },
+"env": { "core": { "HARNESS": "pi", "SANDBOX_BACKEND": "sprites" } }
+```
 
-**QM cannot attach PipesHub's MCP endpoint directly.** QM uses MCP in the
-opposite direction: it is an MCP *server* exposing its own tools to its harness,
-with `strictMcpConfig: true` forbidding external servers. There is no MCP
-attachment surface. Don't spend time looking for one.
+QM only loads `SPRITES_TOKEN` when `env.core.SANDBOX_BACKEND` is `"sprites"`.
+If you set it only under `sandbox`, `qm check` still passes and core fails at
+provision time. Confirm with `npx qm plan` — look for `.env keys not
+forwarded to any container`.
 
-## Before you start
+```bash
+npx qm setup .
+npx qm check && npx qm doctor
+npx qm up
+```
 
-Two prerequisites that are QM's shape rather than PipesHub's, and both surprise
-people:
+`qm setup` writes empty placeholders for values you skip. If you later append
+the real value, the key can appear twice. Search `.env` for duplicates before
+debugging anything else.
 
-**Your PipesHub must be reachable from the public internet over HTTPS.** QM
-agent sandboxes do not run on the operator's machine — with the `sprites`
-backend they run on Fly, with `aws` in Lambda MicroVMs. Even `target: docker`
-only makes QM's core and web UI local. So `localhost`, `host.docker.internal`,
-and LAN addresses are unreachable from a sandbox, and the CLI refuses to send
-credentials in cleartext to a public host.
+The first `qm up` can take 10–40 minutes (large image pulls). When it finishes
+it prints URLs.
 
-**Sandboxes need a Fly Sprites or AWS credential.** The `sprites` backend
-requires a `SPRITES_TOKEN` from Fly Sprites — a separate service from Fly, with
-its own identity system. A Fly account alone is not sufficient. Without a
-sandbox backend, QM agents cannot execute commands at all.
+---
 
-Neither is something PipesHub can remove. Budget for them before you start.
+## 2. Connect PipesHub
 
-## Admin setup
+From the QM deployment directory:
 
-Roughly ten minutes, once.
+```bash
+npm install -g @pipeshub-ai/mcp
+pipeshub init-qm .
+```
 
-1. Scaffold the bundle into your QM deployment directory:
+That writes the tool, the skill, and a Dockerfile pinned to the same CLI
+version. Re-running is safe: existing files are kept.
 
-   ```bash
-   npm install -g @pipeshub-ai/mcp
-   pipeshub init-qm /path/to/your-qm-deployment
-   ```
+Set `egress` in `sandbox/tools/pipeshub/tool.json` to your PipesHub hostname
+only — for example `pipeshub.your-company.com` or
+`your-subdomain.trycloudflare.com`. No scheme, no path.
 
-   The command stamps the Dockerfile's version pin from the package you just
-   installed, so the bundle and the CLI it configures cannot drift apart. It is
-   safe to re-run: existing files are kept rather than overwritten.
-2. In `qm.config.jsonc`, set the origin under `sandbox.env`:
+Then:
 
-   ```jsonc
-   "sandbox": {
-     "env": { "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com" }
-   }
-   ```
+```bash
+npx qm check && npx qm up
+```
 
-   An origin with no path — the CLI appends `/mcp` itself.
-3. Set `egress` in `sandbox/tools/pipeshub/tool.json` to your hostname.
-4. `qm check && qm sandbox publish && qm up`
+`qm sandbox publish` does **not** put `pipeshub` on PATH. On Sprites the
+published image is ignored
+([qm#272](https://github.com/yc-software/qm/issues/272)). The agent installs
+the CLI on first use; that install persists on that Sprite.
 
-Do **not** put anyone's token in `sandbox.secretEnv`. That is delivered to every
-sandbox in the deployment and would hand one person's credential to the whole
-organization.
+---
 
-## Per-person setup
+## 3. Each person: PAT and keychain
 
-Under a minute, once.
+In PipesHub: **Developer Settings → Personal Access Tokens → Create**.
 
-1. In PipesHub: **Developer Settings → Personal Access Tokens → Create**.
-2. **Deselect every scope**, then select only:
+The panel pre-selects every scope. **Clear all**, then select only:
 
-   ```text
-   conversation:chat   semantic:write   kb:read   user:read   connector:read
-   ```
+```text
+conversation:chat
+semantic:write
+kb:read
+user:read
+connector:read
+```
 
-   The panel pre-selects everything; accepting the default grants far more than
-   this integration needs.
-3. Set expiry to 30 days.
-4. In QM, add it to **your own** keychain — not a shared room:
+`semantic:write` is what *runs* a search. `semantic:read` is search *history*
+and is not on a stock instance — do not add it. Keep the `phpat_` prefix if
+the token has one; it is for secret scanners, not a second secret.
 
-   ```text
-   service: pipeshub
-   kind:    env
-   value:   the token value only, no URL and no variable name
-   ```
+In QM, add **two personal keychain credentials** (same form twice). Never paste
+the token into chat.
 
-It arrives as `$PIPESHUB_TOKEN` in your sandbox on the next turn. No grant
-ceremony: in your own scope, your own keychain credentials materialize
-automatically.
+| Service | Environment variable | Value |
+| --- | --- | --- |
+| `pipeshub` | `PIPESHUB_TOKEN` | The PAT only — no `KEY=`, no URL |
+| `pipeshub` | `PIPESHUB_BASE_URL` | Public HTTPS origin, no `/mcp` path |
 
-> **If you copied our two-line paste block, that's the wrong shape here.** The
-> block containing `PIPESHUB_MCP_URL=` and `PIPESHUB_MCP_TOKEN=` is for a local
-> MCP client. A QM keychain entry is one secret value, and the base URL is the
-> admin's job.
+Service must be exactly `pipeshub`. The environment-variable field is marked
+optional; fill it in. If you leave it blank on the token entry, QM derives
+`PIPESHUB_TOKEN` from the service name. It will not derive `PIPESHUB_BASE_URL`.
 
-**Never paste a token into a chat message.** Transcripts are durable and pass
-through the model provider. The keychain exists precisely so credentials never
-take that path — and the CLI has no command that accepts one as an argument.
+Do **not** put the PAT in `sandbox.secretEnv` — that is org-wide and would
+apply one person's permissions to everyone. Do **not** rely on `sandbox.env`
+for the URL — it does not reach the sandbox
+([qm#351](https://github.com/yc-software/qm/issues/351)). For a whole team,
+the URL can instead be an org service credential (delivery `env`, key
+`PIPESHUB_BASE_URL`).
 
-## What your agents can do
+The MCP paste block (`PIPESHUB_MCP_URL=` / `PIPESHUB_MCP_TOKEN=`) is for a
+local MCP client, not for this keychain.
 
-| Someone asks | The agent runs |
+---
+
+## 4. First message
+
+In a new QM chat: “What do we know about X? Cite the document.”
+
+If `pipeshub` is missing on that Sprite, the agent should run, **once**:
+
+```bash
+pipeshub --version || npm install -g @pipeshub-ai/mcp
+```
+
+Use the `pipeshub` CLI (`ask`, `search`, `get`, `sources`). Do not call
+`GET /api/v1/search`, and do not reissue the PAT with `semantic:read`.
+
+A grounded answer includes citations with `recordId` and `webUrl`. An `ask`
+with **no citations** is not a retrieved fact, even if confidence is high.
+
+If the CLI says it is not connected, have the agent run
+`pipeshub auth connect-help` and follow that. Never paste a token into the
+thread.
+
+---
+
+## Check that it worked
+
+| Check | Expect |
 | --- | --- |
-| "What does the Q4 report say about ARR?" | `pipeshub ask` |
-| "Find security-review.pdf" | `pipeshub search` |
-| "Summarize the onboarding doc" | `pipeshub search` then `pipeshub get` |
-| "Download that file" | `pipeshub get --out` |
+| `pipeshub auth status --json` | Connected; your user and org; no token printed |
+| `pipeshub search "a term you know is indexed" --json` | `hits` with `recordId` / `webUrl`, or exit `6` if nothing matches |
+| `pipeshub ask "…" --json` | An answer **with citations**, or exit `6` if uncited |
+| A document you cannot access | Denial — not a leak |
 
-Every result carries `recordId` and `webUrl`, so answers cite their sources.
+---
 
-## Two behaviours worth understanding
+## If something fails
 
-**Permissions are enforced, not approximated.** A person asking for a document
-they cannot access gets a `403` — not a vague empty result — and that holds even
-when they name the record directly.
+| Symptom | Cause | What to do |
+| --- | --- | --- |
+| Agent says it needs `semantic:read` | It called `GET /api/v1/search` (history) instead of the CLI | New chat. Tell it to use `pipeshub ask` / `search`. Do not widen the PAT |
+| `sources: []` and `ask` 401 with a `phpat_` token | PipesHub older than the prefix-forwarding fix | Upgrade PipesHub. Until then you can store the PAT without `phpat_`; put the prefix back after upgrade |
+| `localhost` / connection refused from the agent | The sandbox is not on your machine | Use public HTTPS; put that origin in the keychain |
+| `PIPESHUB_TOKEN` set, `PIPESHUB_BASE_URL` missing | `sandbox.env` does not reach Sprites | Second keychain entry (or org credential) for the URL |
+| `pipeshub: command not found` | Stock Sprite image, no first-run install | `npm install -g @pipeshub-ai/mcp` once on that Sprite |
+| `qm doctor` rejects a Resend *sending-only* key | [qm#353](https://github.com/yc-software/qm/issues/353) | Known false complaint; the key is the right kind |
 
-**An uncited answer is treated as unsupported.** If `ask` produces prose with no
-citations, the CLI exits `6` and the agent is instructed to say the documents do
-not appear to contain it. This matters because such an answer can read fluently
-and even carry a high server-side confidence score; confidence does not track
-groundedness, so citations are what the rule keys off.
+Full failure messages live in [`../TROUBLESHOOTING.md`](../TROUBLESHOOTING.md).
+Security rationale is in [`../SECURITY.md`](../SECURITY.md).
 
-## Cost
+---
 
-`ask` runs a language model on the PipesHub side. That spend sits outside QM's
-budget windows and rate limits. Prefer `search` when locating something is
-enough, and cache `sources`.
+## Do not
+
+- Put a PAT in `sandbox.secretEnv` or in the prompt
+- Mint `semantic:read` or `conversation:read` (unmintable on stock `MCP_SCOPES`)
+- Point the sandbox at `http://localhost:…`
+- Treat an uncited `ask` as grounded
+- Expect `qm sandbox publish` to put `pipeshub` on PATH (Sprites)

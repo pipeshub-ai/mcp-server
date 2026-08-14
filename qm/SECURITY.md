@@ -16,7 +16,8 @@ Two places this can go wrong by accident:
 
 - `sandbox.secretEnv` is delivered to **every** sandbox in the deployment.
   Putting a PAT there hands one person's credential to the whole org. Use the
-  per-person keychain instead; only the base URL belongs in `sandbox.env`.
+  per-person keychain instead. The base URL belongs in a keychain or org
+  service credential — `sandbox.env` does not reach the sandbox.
 - Shared rooms. A personal keychain credential does not materialize in a shared
   scope — that is QM's default, not something this bundle adds — so rooms are
   simply unsupported in v1 rather than silently using someone's token.

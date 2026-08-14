@@ -6,6 +6,19 @@ description: Search and ask questions about the organization's documents — Dri
 `pipeshub` answers questions from the organization's own indexed content. Every
 result is filtered by the permissions of the person you are acting for.
 
+Use this CLI. Do not call PipesHub over REST, and do not ask anyone to add
+`semantic:read` — that scope is search history, not search, and it is not
+mintable on a stock instance.
+
+## First run on this machine
+
+If `pipeshub` is not on PATH, install it once. The install persists on this
+Sprite; do not repeat it every message.
+
+```bash
+pipeshub --version || npm install -g @pipeshub-ai/mcp
+```
+
 ## Which command
 
 | The person says | Use |
