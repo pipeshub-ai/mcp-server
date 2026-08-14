@@ -144,8 +144,13 @@ In a new QM chat: “What do we know about X? Cite the document.”
 If `pipeshub` is missing on that Sprite, the agent should run, **once**:
 
 ```bash
-pipeshub --version || npm install -g @pipeshub-ai/mcp
+command -v pipeshub >/dev/null 2>&1 || npm install -g @pipeshub-ai/mcp
 ```
+
+That install is unpinned on purpose. The Dockerfile pins an exact version for
+when [qm#272](https://github.com/yc-software/qm/issues/272) is fixed and the
+image actually boots. Until then this is the only install that runs, and
+leaving it unpinned means a Sprite picks up patches without a skill edit.
 
 Use the `pipeshub` CLI (`ask`, `search`, `get`, `sources`). Do not call
 `GET /api/v1/search`, and do not reissue the PAT with `semantic:read`.

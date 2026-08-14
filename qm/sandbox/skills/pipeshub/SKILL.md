@@ -16,8 +16,14 @@ If `pipeshub` is not on PATH, install it once. The install persists on this
 Sprite; do not repeat it every message.
 
 ```bash
-pipeshub --version || npm install -g @pipeshub-ai/mcp
+command -v pipeshub >/dev/null 2>&1 || npm install -g @pipeshub-ai/mcp
 ```
+
+Unpinned on purpose: the Dockerfile pin does not run until
+[qm#272](https://github.com/yc-software/qm/issues/272) is fixed, and this
+line is how a Sprite picks up CLI patches without a skill edit. Do not
+replace it with `pipeshub --version` — that prints `command not found` on a
+fresh sandbox before the install.
 
 ## Which command
 

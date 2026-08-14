@@ -67,11 +67,19 @@ npm, and access to the npm registry, and a global install persists between
 turns — once per Sprite, not once per message. `SKILL.md` carries:
 
 ```bash
-pipeshub --version || npm install -g @pipeshub-ai/mcp
+command -v pipeshub >/dev/null 2>&1 || npm install -g @pipeshub-ai/mcp
 ```
 
-When either upstream issue is fixed, `sandbox/Dockerfile` installs the CLI the
-intended way and the first-run step can be dropped.
+Use `command -v`, not `pipeshub --version` — a missing binary would otherwise
+print `command not found` to stderr before the install that fixes it.
+
+The first-run install is **unpinned on purpose**. `sandbox/Dockerfile` pins an
+exact version because an image that actually booted should not silently
+change agent behaviour on a remote release. That image does not boot today
+([qm#272](https://github.com/yc-software/qm/issues/272)), so the unpinned
+line is the only install that runs. Leaving it unpinned means a Sprite picks
+up CLI patches without a skill edit. When the upstream issue is fixed, the
+Dockerfile is the install path and this first-run step can be dropped.
 
 ## Setup — admin, once
 
