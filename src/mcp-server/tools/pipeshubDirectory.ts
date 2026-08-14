@@ -86,6 +86,20 @@ Output shape varies by action; see each action's docs above.`,
               + "their email and use `list_users` with `search`.",
           );
         }
+        // These claims are read out of the local token; nothing here proves
+        // the server still accepts it. A revoked token carries a perfectly
+        // good name and org, so an unqualified answer reads as confirmation
+        // that the credential works — the one thing whoami cannot establish.
+        // Expiry is the part that IS checkable offline, so check it.
+        const exp = claims["exp"];
+        if (typeof exp === "number" && exp * 1000 <= Date.now()) {
+          return errorResult(
+            `The access token expired on ${new Date(exp * 1000).toISOString()}. `
+              + "Mint a new personal access token in PipesHub under "
+              + "Developer Settings → Personal Access Tokens.",
+          );
+        }
+
         return jsonResult({
           userId: claims["userId"],
           orgId: claims["orgId"],
@@ -93,6 +107,14 @@ Output shape varies by action; see each action's docs above.`,
           fullName: claims["fullName"],
           mobile: claims["mobile"],
           userSlug: claims["userSlug"],
+          tokenExpiresAt: typeof exp === "number"
+            ? new Date(exp * 1000).toISOString()
+            : undefined,
+          identityVerified: false,
+          note:
+            "Decoded from the local access token and not checked against the "
+            + "server. It does not confirm the token is still valid — a revoked "
+            + "token returns these same claims. Run another action to confirm.",
         });
       }
 
@@ -103,7 +125,7 @@ Output shape varies by action; see each action's docs above.`,
           search: args.search,
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
-        const parsed = await readJson(result.value);
+        const parsed = await readJson(result.value, "User listing");
         if (!parsed.ok) return parsed.result;
         return jsonResult(parsed.value);
       }
@@ -120,7 +142,7 @@ Output shape varies by action; see each action's docs above.`,
           id: args.userId,
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
-        const parsed = await readJson(result.value);
+        const parsed = await readJson(result.value, "User lookup");
         if (!parsed.ok) return parsed.result;
         return jsonResult(parsed.value);
       }
@@ -132,7 +154,7 @@ Output shape varies by action; see each action's docs above.`,
           search: args.search,
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
-        const parsed = await readJson(result.value);
+        const parsed = await readJson(result.value, "Group listing");
         if (!parsed.ok) return parsed.result;
         return jsonResult(parsed.value);
       }
@@ -144,7 +166,7 @@ Output shape varies by action; see each action's docs above.`,
           search: args.search,
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
-        const parsed = await readJson(result.value);
+        const parsed = await readJson(result.value, "Team listing");
         if (!parsed.ok) return parsed.result;
         return jsonResult(parsed.value);
       }

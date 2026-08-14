@@ -15,11 +15,23 @@ import {
 
 /**
  * Parse a fetch Response as JSON, returning a CallToolResult error when the
- * body is missing / malformed.
+ * status is not ok, or the body is missing / malformed.
+ *
+ * The status check has to happen here rather than in each caller. The SDK funcs
+ * are generated with `errorCodes: []`, so `result.ok` reports transport
+ * failures only and a 401 arrives looking exactly like a success. Parsing that
+ * body yields an envelope with no results in it, which every caller then
+ * reports as an empty corpus — a failed credential becomes "no documents
+ * found". Guarding at the single point where a body is turned into a value
+ * closes that for every present and future caller.
  */
 export async function readJson<T = unknown>(
   response: Response,
+  context = "PipesHub request",
 ): Promise<{ ok: true; value: T } | { ok: false; result: CallToolResult }> {
+  const httpErr = await httpErrorResult(response, context);
+  if (httpErr) return { ok: false, result: httpErr };
+
   const text = await response.text();
   if (!text) {
     return {
@@ -105,7 +117,12 @@ export async function httpErrorResult(
     }
   }
 
-  const detail = message ? ` ${message.slice(0, 400)}` : "";
+  // The server's reason rarely ends in punctuation, which runs it straight
+  // into the hint below ("Invalid token Check that ...").
+  const reason = message.slice(0, 400).trim();
+  const detail = reason
+    ? ` ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
+    : "";
   const auth = (response.status === 401 || response.status === 403)
     ? " Check that the bearer token / credentials are valid and not expired."
     : "";
@@ -122,7 +139,12 @@ export async function httpErrorResult(
 export async function readValidated<T>(
   response: Response,
   schema: z.ZodType<T>,
+  context = "PipesHub request",
 ): Promise<{ ok: true; value: T } | { ok: false; result: CallToolResult }> {
+  // Same reasoning as readJson: never let a non-2xx body reach the parser.
+  const httpErr = await httpErrorResult(response, context);
+  if (httpErr) return { ok: false, result: httpErr };
+
   const text = await response.text();
   if (!text) {
     return { ok: false, result: errorResult("Empty response from server") };

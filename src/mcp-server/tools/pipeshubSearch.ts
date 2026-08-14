@@ -80,7 +80,7 @@ When presenting results to the user, link each record using its
         status?: string;
         message?: string;
       };
-    }>(result.value);
+    }>(result.value, "PipesHub search");
     if (!parsed.ok) return parsed.result;
 
     const sr = parsed.value.searchResponse ?? {};
