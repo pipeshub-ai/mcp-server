@@ -21,6 +21,13 @@ jobs:
 
       - run: npm run build
 
+      - run: npm run lint
+
+      # A release that skips the checks CI already runs can ship a regression
+      # that every pull request would have caught. Tests run on `bun`, which
+      # the ubuntu runner image already provides.
+      - run: bun test
+
       - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

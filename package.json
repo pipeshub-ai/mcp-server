@@ -1,6 +1,6 @@
 {
   "name": "@pipeshub-ai/mcp",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "author": "Pipeshub",
   "type": "module",
   "sideEffects": false,
