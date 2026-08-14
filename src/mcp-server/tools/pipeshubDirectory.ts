@@ -123,10 +123,10 @@ Output shape varies by action; see each action's docs above.`,
               + `from the token itself.`;
           } else if (probe.value.status === 401) {
             return errorResult(
-              "PipesHub rejected this access token, so the identity in it is "
-                + "no longer valid — it has most likely been revoked. Mint a "
-                + "new personal access token under Developer Settings → "
-                + "Personal Access Tokens.",
+              "PipesHub rejected this access token (HTTP 401 Unauthorized), "
+                + "so the identity in it is no longer valid — it has most "
+                + "likely been revoked. Mint a new personal access token "
+                + "under Developer Settings → Personal Access Tokens.",
             );
           } else if (probe.value.ok) {
             verified = true;

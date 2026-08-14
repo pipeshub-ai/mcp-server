@@ -48,7 +48,14 @@ function statusToExit(status: number): number {
 export function toolErrorToExit(message: string): number {
   const m = message.match(/\(HTTP\s+(\d{3})/i);
   if (m && m[1] !== undefined) return statusToExit(Number(m[1]));
-  if (/\b401\b|unautheni?ticated|no token provided/i.test(message)) {
+  // `token expired` / `been revoked` cover the credential failures that are
+  // established without an HTTP round-trip — whoami checks the token's own
+  // expiry offline, so there is no status code to key off, but "your
+  // credential is not valid" is exactly what exit 3 means.
+  if (
+    /\b401\b|unautheni?ticated|no token provided|token expired|been revoked/i
+      .test(message)
+  ) {
     return EXIT.UNAUTHENTICATED;
   }
   if (/\b403\b|not have permission|forbidden/i.test(message)) {
