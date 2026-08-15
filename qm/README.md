@@ -204,13 +204,12 @@ explicit list of what has and has not been verified.
 | `3` | not authenticated |
 | `4` | forbidden — this person cannot see it |
 | `5` | rate limited |
-| `6` | nothing retrieved, **or an `ask` answer with no citations** |
+| `6` | no results, **or an `ask` answer with no sources** |
 
-Exit `6` on an uncited `ask` means nothing was retrieved. Two measured
-shapes: a refusal ("could not find it"), and assertive prose with no
-citations — an aggregate question produced a full inventory at
-`confidence: Very High` and exit `6`. Either way, do not treat the call as
-a retrieved fact. Ignore `confidence`; it reads Very High on both.
+Exit `6` on an uncited `ask` means no sources, so nothing in it can be
+verified. Relay a refusal. If it asserts facts, do not repeat them — say it
+came back unsourced. Ignore `confidence` — it takes every value on both
+sides.
 
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) lists every failure message with its
 cause. Start there when someone says "it says I'm not connected" — usually a
