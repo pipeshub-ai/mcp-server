@@ -10,7 +10,7 @@ deployment. If you see something not listed here, the exit code narrows it:
 | `3` | not authenticated |
 | `4` | forbidden — this person cannot see it |
 | `5` | rate limited |
-| `6` | nothing retrieved, **or an `ask` answer with no citations** |
+| `6` | no results, **or an `ask` answer with no sources** |
 
 ## "No PipesHub credential found"
 
@@ -48,21 +48,24 @@ Two specific traps:
 ## "PIPESHUB_BASE_URL is not set"
 
 ```text
-pipeshub: PIPESHUB_BASE_URL is not set — an admin sets it once for the
-deployment. Run 'pipeshub auth connect-help' for the steps.
+pipeshub: PIPESHUB_BASE_URL is not set — it must reach the sandbox as an env var
+(keychain or org service credential, not sandbox.env). Run 'pipeshub auth
+connect-help' for the steps.
 ```
 
-Admin-level, not yours. If the message *also* says your credential is missing,
-both need doing.
+If the message *also* says your credential is missing, both need doing.
 
-The admin sets it in `qm.config.jsonc` under `sandbox.env`, then runs
-`qm check && qm sandbox publish && qm up`.
+`sandbox.env` does not reach the sandbox
+([qm#351](https://github.com/yc-software/qm/issues/351)). Deliver the origin
+as:
 
-**If it is already set there and you still see this**, the value is not reaching
-your sandbox. On some QM builds `sandbox.env` is written but never read. The fix
-is to deliver it as an **org service credential** instead — in the admin UI, add
-one with delivery `env` and key `PIPESHUB_BASE_URL`. That is a deployment-wide,
-non-secret value, so org scope is right for it; your token stays personal.
+- a personal keychain entry: service `pipeshub`, environment variable
+  `PIPESHUB_BASE_URL`, or
+- an org service credential: delivery `env`, key `PIPESHUB_BASE_URL`
+
+The URL is not a secret. Org scope is the right home for a whole team; a
+personal keychain entry is enough to confirm the path. Your token stays
+personal either way.
 
 ## "refusing to send credentials in cleartext to a public host"
 
@@ -111,7 +114,7 @@ integration working: PipesHub filters by the token's identity, and a denial is a
 `403`, not an empty result. Do not retry through a different command — `search`,
 `ask`, and `get` all enforce the same permissions.
 
-## Exit 6 — nothing retrieved
+## Exit 6 — no results, or unsourced `ask`
 
 Two different situations share this code:
 
@@ -119,12 +122,21 @@ Two different situations share this code:
   nearest neighbours, so an unrelated query still produces low-scoring matches.
 - **`ask` returned an answer with no citations.** Common, and the important one.
 
-An uncited answer means the model produced prose the documents do not support.
-It can read fluently and the server may report high confidence for it — an
-answer to a question the corpus could not support has been observed returning
-`confidence: "Very High"` with zero citations. Do not treat it as fact. The
-answer text is still in the output so a human can read it; `cited: false` and
-the `warning` field say why it should not be trusted.
+No citations means no sources, so nothing in the answer can be verified.
+Two measured shapes share that signal:
+
+- **A refusal** ("I could not find any information…"). Relay it. Do not invent
+  a source.
+- **Assertive prose with no citations.** Observed on aggregate questions
+  (~2-in-3): a full inventory of documents, `confidence: Very High`, exit `6`.
+  Content may still have been retrieved
+  ([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975));
+  only the attribution is missing. Do not repeat it as fact; say it came
+  back unsourced and could not be confirmed.
+
+Ignore `confidence` — it takes every value on both sides. The answer text is
+still in the output; `cited: false` and the `warning` field mark it as
+unsourced.
 
 ## `pipeshub sources` shows `llmModels: []`
 
@@ -200,17 +212,10 @@ ignores your published image ([qm#272](https://github.com/yc-software/qm/issues/
 and `aws` has no install mechanism at all
 ([qm#350](https://github.com/yc-software/qm/issues/350)). See the README section
 "Neither sandbox backend can install the CLI today" for the first-use install
-that does work.
+that does work. Rebuilding and publishing the sandbox image does **not**
+currently put `pipeshub` on PATH.
 
-Changing the backend is not enough on its own — the sandbox image has to be
-rebuilt so it contains `pipeshub`:
-
-```bash
-qm check && qm sandbox publish && qm up
-```
-
-Be aware that rebuilding does **not** currently put `pipeshub` in the image —
-see the README section named above. `sprites` needs `SPRITES_TOKEN`, which comes
+`sprites` needs `SPRITES_TOKEN`, which comes
 from Fly Sprites — a separate service from Fly, with its own identity
 (`secrets.js:88`, core `sandbox/sprites-sandbox.ts:79`). Note that the `SPRITES_TOKEN` requirement
 is itself conditional on `SANDBOX_BACKEND=sprites`, which is why leaving the

@@ -1,42 +1,21 @@
 // Merge these into your existing qm.config.jsonc. This is a FRAGMENT, not a
 // complete config — do not copy it over your own file.
 {
-  // The PipesHub origin your sandboxes will reach. It is not a secret, so it
-  // belongs here rather than in .env.
+  // "backend" must be "sprites". A published image is ignored and the stock
+  // base boots (qm#272), so the CLI is installed on first use. The "aws"
+  // backend has no install mechanism at all (qm#350).
   //
-  // It must be an ORIGIN with no path. The CLI appends /mcp itself.
-  //
-  // It must also be reachable FROM THE SANDBOX, which is the part that
-  // surprises people: QM agent sandboxes do not run on the operator's machine.
-  // With the `sprites` backend they run on Fly; with `aws`, in Lambda MicroVMs.
-  // So `localhost`, `host.docker.internal`, and LAN addresses are all
-  // unreachable from a sandbox, and a self-hosted PipesHub needs a public
-  // HTTPS address or a tunnel. The CLI refuses cleartext to public hosts.
-  //
-  // "backend" must be "sprites" — it is the only path that is *meant* to build
-  // the sandbox image from your sandbox/Dockerfile. Note that it does not
-  // currently do so: a published image is ignored and the stock base boots
-  // (qm#272), so the CLI still has to be installed on first use. The "aws"
-  // backend has no install mechanism at all (qm#350). See the README section
-  // "Neither sandbox backend can install the CLI today".
-  //
-  // Verify PIPESHUB_BASE_URL actually reaches the sandbox — run
-  // `pipeshub auth status` there. On some QM builds sandbox.env is emitted but
-  // never read, in which case set PIPESHUB_BASE_URL as an ORG SERVICE
-  // CREDENTIAL (delivery "env") from the admin UI instead. See the README.
+  // sandbox.env does NOT reach the sandbox (qm#351). Do not expect
+  // PIPESHUB_BASE_URL here to arrive. Deliver the origin (public HTTPS, no
+  // path) as a keychain or org service credential — see docs/use-with-qm.md.
   "sandbox": {
-    "backend": "sprites",
-    "env": {
-      "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com"
-    }
+    "backend": "sprites"
   }
 
-  // Deliberately NOT set here: the per-person token.
+  // Deliberately NOT set here: the per-person token, and the origin.
   //
-  // Do not add it to `sandbox.secretEnv`. That is delivered to every sandbox in
-  // the deployment, so one person's credential would be handed to everybody —
-  // which destroys both PipesHub's permission filtering and QM's per-scope
-  // isolation in a single move. Each person adds their own PAT to their own
-  // keychain (service "pipeshub", kind "env"); it arrives as $PIPESHUB_TOKEN in
-  // their scope only.
+  // Do not add a token to `sandbox.secretEnv`. That is delivered to every
+  // sandbox in the deployment, so one person's credential would be handed to
+  // everybody. Each person adds PIPESHUB_TOKEN (and, until qm#351 is fixed,
+  // PIPESHUB_BASE_URL) to their own keychain.
 }

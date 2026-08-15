@@ -157,9 +157,8 @@ export async function initQm(
     }
   }
 
-  // Do not swallow this. The fragment carries the `sandbox.env` block the
-  // operator must merge in, so reporting a successful init without it leaves
-  // them with a scaffold that cannot reach PipesHub and no sign of why.
+  // Do not swallow this. The fragment is part of the bundle contract; a
+  // successful init that cannot read it means the package was assembled wrong.
   const fragmentPath = join(bundle, "qm.config.fragment.jsonc");
   let configFragment: string;
   try {
@@ -195,20 +194,20 @@ export function renderInitReport(dest: string, r: InitResult): string {
   lines.push("");
   lines.push("Two things left to do:");
   lines.push("");
-  lines.push("1. Set your PipesHub origin in qm.config.jsonc. It must be a PUBLIC");
-  lines.push("   HTTPS address — QM sandboxes do not run on your machine, so");
-  lines.push("   localhost and LAN addresses are unreachable from them:");
+  lines.push("1. Set `egress` in sandbox/tools/pipeshub/tool.json to your PipesHub");
+  lines.push("   hostname (no scheme, no path). It must be reachable over public HTTPS");
+  lines.push("   — QM sandboxes do not run on your machine, so localhost is unreachable.");
   lines.push("");
-  lines.push('     "sandbox": {');
-  lines.push('       "env": { "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com" }');
-  lines.push("     }");
+  lines.push("2. Each person adds two personal keychain entries (service: pipeshub):");
+  lines.push("     PIPESHUB_TOKEN     → their PAT (never paste it into chat)");
+  lines.push("     PIPESHUB_BASE_URL  → public HTTPS origin, no /mcp path");
+  lines.push("   Do NOT put a token in sandbox.secretEnv (org-wide). Do NOT rely on");
+  lines.push("   sandbox.env for the URL — it does not reach the sandbox.");
   lines.push("");
-  lines.push("   Do NOT put anyone's token in sandbox.secretEnv — that is org-wide and");
-  lines.push("   would hand one person's credential to everybody. Each person adds");
-  lines.push("   their own to their own keychain (service: pipeshub, kind: env).");
+  lines.push("Then:  qm check && qm up");
   lines.push("");
-  lines.push("2. Set `egress` in sandbox/tools/pipeshub/tool.json to your hostname,");
-  lines.push("   then run:  qm check && qm sandbox publish && qm up");
+  lines.push("On Sprites, `qm sandbox publish` does not put pipeshub on PATH.");
+  lines.push("The skill installs the CLI on first use.");
   return lines.join("\n");
 }
 

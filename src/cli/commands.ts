@@ -5,7 +5,8 @@
 //   - Every hit carries `recordId` and `webUrl`.
 //   - Retrieved text is explicitly delimited, because it is attacker-writable
 //     data (indexed Slack / email / Jira), never instructions.
-//   - Empty retrieval exits 6. For `ask`, "empty" means NO CITATIONS.
+//   - Empty search exits 6. For `ask`, no citations exits 6 (unsourced —
+//     not necessarily empty retrieval).
 
 import { writeFile } from "node:fs/promises";
 import {
@@ -131,19 +132,25 @@ export function connectHelp(ctx: Ctx): Outcome {
     "Add your Personal Access Token to your own QM keychain:",
     "",
     "  1. In PipesHub, open Developer Settings → Personal Access Tokens.",
-    "  2. Create a token. Deselect every scope, then select only:",
-    "       conversation:chat  semantic:write  kb:read  user:read  connector:read",
-    "  3. In QM, add it to YOUR keychain (not a shared room) as:",
+    "  2. Create a token. The panel defaults are fine — do not deselect scopes,",
+    "     and do not add semantic:read if asked.",
+    "  3. In QM, add two personal keychain credentials (not a shared room):",
     "       service: pipeshub",
-    "       kind:    env",
-    "       value:   <the token value only — no URL, no KEY= prefix>",
+    "       environment variable: PIPESHUB_TOKEN",
+    "       value: the token only — no URL, no KEY= prefix",
+    "     and",
+    "       service: pipeshub",
+    "       environment variable: PIPESHUB_BASE_URL",
+    "       value: public HTTPS origin, no /mcp path",
     "",
-    "It arrives in your sandbox as $PIPESHUB_TOKEN on the next turn.",
+    "They arrive in your sandbox on the next turn.",
     "",
     "Never paste the token into a chat message: chat transcripts are durable",
     "and pass through the model provider. The keychain exists to avoid that.",
     "",
-    `The base URL is set by your admin and is currently: ${ctx.origin || "(unset)"}`,
+    `The base URL currently visible here is: ${ctx.origin || "(unset)"}`,
+    "If it is unset, sandbox.env did not reach this sandbox — use the",
+    "PIPESHUB_BASE_URL keychain entry (or an org service credential).",
   ].join("\n");
   return { exit: EXIT.OK, payload: { requestId: ctx.requestId, help: text }, text };
 }
@@ -253,12 +260,10 @@ export async function ask(
 
   const answer = typeof obj["answer"] === "string" ? obj["answer"] : null;
 
-  // The rule that matters. An uncited answer may read fluently and carry a
-  // high `confidence` — measured: a question the corpus could not answer came
-  // back with confidence "Very High" and zero citations. Confidence does not
-  // track groundedness, so citations are the only sound signal. The answer is
-  // still passed through so a human can see it; the exit code is what stops an
-  // agent treating it as retrieved fact.
+  // No citations means unsourced, not "nothing was retrieved" — a correct
+  // inventory can arrive with citations stripped (pipeshub-ai#2975). Exit 6
+  // so the agent does not treat it as verified. Pass the answer through; do
+  // not repeat uncited assertions, and do not report the corpus as empty.
   const exit = citations.length === 0 ? EXIT.NO_RESULTS : EXIT.OK;
 
   return {
@@ -274,8 +279,9 @@ export async function ask(
       citations,
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
-        ? "No citations. Treat this answer as ungrounded — it is not supported "
-          + "by any retrieved document."
+        ? "No citations — unsourced, so nothing in it can be verified. If "
+          + "this is a refusal, relay it. If it asserts facts, do not repeat "
+          + "them. Ignore confidence."
         : null,
     },
   };

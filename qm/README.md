@@ -4,6 +4,9 @@ Let your QM agents answer from your company's documents — Drive, Slack, Gmail,
 Jira, Confluence, and your knowledge base — with each person seeing only what
 they are already allowed to see in PipesHub.
 
+**Start here:** [`docs/use-with-qm.md`](docs/use-with-qm.md) is the short
+operator guide. This file is the bundle reference.
+
 ## What this is
 
 Three files that teach a QM agent to use PipesHub:
@@ -15,7 +18,7 @@ Three files that teach a QM agent to use PipesHub:
 | `sandbox/skills/pipeshub/SKILL.md` | tells the agent when to reach for it and how to read its results |
 
 This is a **deployment-layer folder** — you copy it into your QM deployment
-directory and publish it. It is *not* a git skill pack. QM supports both, they
+directory and `qm up`. It is *not* a git skill pack. QM supports both, they
 are different mechanisms, and only the deployment layer can carry a tool
 descriptor and a Dockerfile. Importing it as a skill pack will not work.
 
@@ -59,22 +62,24 @@ We measured the sprites case rather than inferring it: we published a 3.7 GB
 image with the CLI installed at `/usr/local/bin/pipeshub`, and the sandbox came
 up with a **2.4 MB** overlay and an empty `/usr/local/bin`.
 
-**The workaround that does work** is to have the agent install the CLI on first
-use. Sandboxes have Node, npm, and access to the npm registry, and a global
-install persists between turns — so it happens once per person, not once per
-message:
+**Until those are fixed, first-run install is the path.** Sandboxes have Node,
+npm, and access to the npm registry, and a global install persists between
+turns — once per Sprite, not once per message. `SKILL.md` carries:
 
 ```bash
-npm install -g @pipeshub-ai/mcp
+command -v pipeshub >/dev/null 2>&1 || npm install -g @pipeshub-ai/mcp
 ```
 
-`SKILL.md` can carry that as a first-run step. It is not how this should work,
-and we are not documenting it as the supported path — but it does work, and it
-is enough to evaluate the integration today.
+Use `command -v`, not `pipeshub --version` — a missing binary would otherwise
+print `command not found` to stderr before the install that fixes it.
 
-Everything else in this guide is accurate. When either upstream issue is fixed,
-the `sandbox/Dockerfile` in this bundle installs the CLI the intended way and
-the workaround can be dropped.
+The first-run install is **unpinned on purpose**. `sandbox/Dockerfile` pins an
+exact version because an image that actually booted should not silently
+change agent behaviour on a remote release. That image does not boot today
+([qm#272](https://github.com/yc-software/qm/issues/272)), so the unpinned
+line is the only install that runs. Leaving it unpinned means a Sprite picks
+up CLI patches without a skill edit. When the upstream issue is fixed, the
+Dockerfile is the install path and this first-run step can be dropped.
 
 ## Setup — admin, once
 
@@ -94,42 +99,32 @@ the workaround can be dropped.
    appended to, not replaced — and left alone entirely if it already installs
    the CLI.
 
-2. **Set your PipesHub origin** in `qm.config.jsonc`, merging in
-   `qm.config.fragment.jsonc`:
+2. **Deliver the PipesHub origin** as an environment variable that actually
+   reaches the sandbox. An origin with no path — the CLI appends `/mcp`
+   itself.
 
-   ```jsonc
-   "sandbox": {
-     "backend": "sprites",
-     "env": { "PIPESHUB_BASE_URL": "https://pipeshub.your-company.com" }
-   }
-   ```
+   `sandbox.env` looks like the right home and **does not arrive**. QM writes
+   it onto the core container as `FLY_RESIDENT_ENV_*`; nothing reads those
+   variables back ([qm#351](https://github.com/yc-software/qm/issues/351)).
+   What a sandbox receives is each person's keychain, plus org service
+   credentials with delivery `env`.
 
-   An origin with no path — the CLI appends `/mcp` itself.
-
-   **Check that this variable actually arrives**, before assuming it did. Run
-   `pipeshub auth status` from a sandbox: if it reports `PIPESHUB_BASE_URL is
-   not set`, the value is not reaching the sandbox on your QM version and you
-   need the fallback below.
-
-   On the QM build we tested against, `sandbox.env` was emitted by the CLI as
-   `FLY_RESIDENT_ENV_*` on the core container but **nothing in core read those
-   variables**. What a sandbox actually receives is assembled from two sources
-   only: each person's keychain credentials, and org-level service credentials
-   with delivery `env`.
-
-   **Fallback if `sandbox.env` does not arrive:** add `PIPESHUB_BASE_URL` as an
-   org service credential (delivery `env`, key `PIPESHUB_BASE_URL`) from the
-   admin UI. It is a deployment-wide, non-secret value, so org scope is the
-   right home for it — unlike the token, which must stay per-person.
+   Put `PIPESHUB_BASE_URL` in a personal keychain entry (service `pipeshub`,
+   environment variable `PIPESHUB_BASE_URL`) or, for a whole team, as an org
+   service credential (delivery `env`, key `PIPESHUB_BASE_URL`). Confirm with
+   `pipeshub auth status` from a sandbox before debugging anything else.
 
 3. **Set `egress`** in `sandbox/tools/pipeshub/tool.json` to your PipesHub
    hostname. It ships as `pipeshub.example.com` and **must be changed**.
 
-4. **Publish it:**
+4. **Bring it up:**
 
    ```bash
-   qm check && qm sandbox publish && qm up
+   qm check && qm up
    ```
+
+   `qm sandbox publish` is optional and, on Sprites, does not install the CLI
+   ([qm#272](https://github.com/yc-software/qm/issues/272)).
 
 ### If you would rather copy the files by hand
 
@@ -151,28 +146,26 @@ yourself. `init-qm` does that for you.
 ## Setup — each person, once
 
 1. In PipesHub, go to **Developer Settings → Personal Access Tokens → Create**.
-2. **Deselect every scope**, then select only these five:
-
-   ```text
-   conversation:chat   semantic:write   kb:read   user:read   connector:read
-   ```
-
-   The create panel starts with everything selected, so accepting the default
-   grants far more than this integration needs.
-3. In QM, add the token to **your own** keychain — not a shared room:
+   Accept the defaults.
+2. In QM, add **two** credentials to **your own** keychain — not a shared room:
 
    ```text
    service: pipeshub
-   kind:    env
-   value:   the token value only — no URL, no "PIPESHUB_TOKEN=" prefix
+   environment variable: PIPESHUB_TOKEN
+   value: the token only — no URL, no "PIPESHUB_TOKEN=" prefix
+
+   service: pipeshub
+   environment variable: PIPESHUB_BASE_URL
+   value: public HTTPS origin, no /mcp path
    ```
 
-   The service name matters: QM derives the variable name from it, so
-   `pipeshub` is what produces `$PIPESHUB_TOKEN`.
+   Service must be exactly `pipeshub`. Fill in the environment-variable field
+   on both entries. If you leave it blank on the token, QM derives
+   `PIPESHUB_TOKEN` from the service name; it will not derive the URL.
 
-It reaches your sandbox as `$PIPESHUB_TOKEN` on your next turn — personal
-keychain credentials materialize on their own, with no grant step. Run
-`pipeshub auth connect-help` to print these steps at any time.
+They reach your sandbox on the next turn — personal keychain credentials
+materialize on their own, with no grant step. Run `pipeshub auth connect-help`
+to print these steps at any time.
 
 ## Security
 
@@ -211,16 +204,12 @@ explicit list of what has and has not been verified.
 | `3` | not authenticated |
 | `4` | forbidden — this person cannot see it |
 | `5` | rate limited |
-| `6` | nothing retrieved, **or an `ask` answer with no citations** |
+| `6` | no results, **or an `ask` answer with no sources** |
 
-Exit `6` on an uncited answer is the one worth understanding. An answer with no
-sources is more dangerous than an empty result, because by then the fabrication
-has already happened upstream — and it can read perfectly fluently.
-
-The rule counts citations and ignores the server's own confidence score,
-because the two do not track each other: an answer the corpus could not support
-has been observed coming back with `confidence: "Very High"` and zero
-citations.
+Exit `6` on an uncited `ask` means no sources, so nothing in it can be
+verified. Relay a refusal. If it asserts facts, do not repeat them — say it
+came back unsourced. Ignore `confidence` — it takes every value on both
+sides.
 
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) lists every failure message with its
 cause. Start there when someone says "it says I'm not connected" — usually a

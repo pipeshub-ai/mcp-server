@@ -6,6 +6,25 @@ description: Search and ask questions about the organization's documents — Dri
 `pipeshub` answers questions from the organization's own indexed content. Every
 result is filtered by the permissions of the person you are acting for.
 
+Use this CLI. Do not call PipesHub over REST, and do not ask anyone to add
+`semantic:read` — that scope is search history, not search, and it is not
+mintable on a stock instance.
+
+## First run on this machine
+
+If `pipeshub` is not on PATH, install it once. The install persists on this
+Sprite; do not repeat it every message.
+
+```bash
+command -v pipeshub >/dev/null 2>&1 || npm install -g @pipeshub-ai/mcp
+```
+
+Unpinned on purpose: the Dockerfile pin does not run until
+[qm#272](https://github.com/yc-software/qm/issues/272) is fixed, and this
+line is how a Sprite picks up CLI patches without a skill edit. Do not
+replace it with `pipeshub --version` — that prints `command not found` on a
+fresh sandbox before the install.
+
 ## Which command
 
 | The person says | Use |
@@ -30,13 +49,14 @@ Check it. It carries information the text does not.
 | `3` | not authenticated | run `pipeshub auth connect-help` and relay the steps |
 | `4` | forbidden | this person cannot access it. Say so plainly; do not retry another way |
 | `5` | rate limited | wait and retry once, then report |
-| `6` | **nothing retrieved** | see below |
+| `6` | **no sources** | see below |
 
-**Exit `6` is the one that matters.** It means either no results, or — for
-`ask` — that the answer arrived with **no citations**. An uncited answer can
-read fluently and still be ungrounded; the server may even report high
-confidence for one. Never present an uncited answer as fact. Say the documents
-do not appear to contain it, and offer to search differently.
+**Exit `6` is the one that matters.** It means the answer came back with no
+sources, so nothing in it can be verified. If the answer says the documents
+do not contain it, relay that. If it asserts facts, do not repeat them —
+say it came back unsourced and could not be confirmed. Ignore `confidence`
+— it takes every value on both sides, so it tells you nothing about whether
+anything was cited.
 
 ## Citations
 

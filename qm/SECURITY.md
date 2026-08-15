@@ -16,7 +16,8 @@ Two places this can go wrong by accident:
 
 - `sandbox.secretEnv` is delivered to **every** sandbox in the deployment.
   Putting a PAT there hands one person's credential to the whole org. Use the
-  per-person keychain instead; only the base URL belongs in `sandbox.env`.
+  per-person keychain instead. The base URL belongs in a keychain or org
+  service credential — `sandbox.env` does not reach the sandbox.
 - Shared rooms. A personal keychain credential does not materialize in a shared
   scope — that is QM's default, not something this bundle adds — so rooms are
   simply unsupported in v1 rather than silently using someone's token.
@@ -53,9 +54,10 @@ visible. Filed upstream; the preset was left at five scopes rather than widened
 to paper over it.
 
 **The create panel pre-selects every scope**, and the backend does the same when
-a create request omits `scopes`. Accepting the defaults mints the full instance
-scope set. Tell people to deselect everything first, and check what your team
-actually minted rather than assuming.
+a create request omits `scopes`. The operator guide accepts that default: a
+full-scope PAT still only acts as that person, and fighting the panel is
+where setups stall. The five-scope list above is optional hardening, not a
+requirement to connect.
 
 ## Expiry
 
@@ -103,7 +105,7 @@ Honesty about the difference between designed and tested:
 |---|---|
 | A second user cannot read another's document — including by naming its `recordId` directly | **Verified.** `403`, not an empty result, on all four access paths |
 | The 5-scope preset is sufficient for every shipped command | **Verified.** No `403` on any call |
-| An uncited answer is distinguishable and exits `6` | **Verified.** Including a case the server rated `confidence: "Very High"` |
+| An uncited answer is distinguishable and exits `6` | **Verified.** Refusal (Gate 5); assertive uncited (~2-in-3 on an aggregate question); and a correct inventory with citations stripped ([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975)) |
 | The token never appears in CLI output | **Verified.** All output greped for the token and for JWT-shaped strings |
 | Cleartext is refused to public hosts | **Verified** |
 | Agent treats retrieved instructions as data | **Not verified.** Needs a working sandbox |

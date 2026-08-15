@@ -244,13 +244,14 @@ async function run(argv: string[]): Promise<number> {
 
   if (origin === null) {
     // Report the missing credential too when both are absent. Otherwise a
-    // person whose actual problem is "I never added my token" is told about an
-    // admin-level setting, and goes looking in the wrong place.
+    // person whose actual problem is "I never added my token" is told about a
+    // missing URL, and goes looking in the wrong place.
     const alsoNoToken = token === null
       ? " Your PipesHub credential is also missing ($PIPESHUB_TOKEN is unset)."
       : "";
     throw new CliError(
-      "PIPESHUB_BASE_URL is not set — an admin sets it once for the deployment."
+      "PIPESHUB_BASE_URL is not set — it must reach the sandbox as an env var "
+        + "(keychain or org service credential, not sandbox.env)."
         + alsoNoToken
         + " Run 'pipeshub auth connect-help' for the steps.",
       EXIT.USAGE,
