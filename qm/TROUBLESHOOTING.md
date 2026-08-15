@@ -119,12 +119,11 @@ Two different situations share this code:
   nearest neighbours, so an unrelated query still produces low-scoring matches.
 - **`ask` returned an answer with no citations.** Common, and the important one.
 
-An uncited answer means the model produced prose the documents do not support.
-It can read fluently and the server may report high confidence for it — an
-answer to a question the corpus could not support has been observed returning
-`confidence: "Very High"` with zero citations. Do not treat it as fact. The
-answer text is still in the output so a human can read it; `cited: false` and
-the `warning` field say why it should not be trusted.
+No citations means nothing was retrieved. Often the answer text already says
+the information could not be found — that is the correct response, and
+`confidence: "Very High"` on it is certainty of absence. Relay that; do not
+invent a source. The answer text is still in the output; `cited: false` and
+the `warning` field mark it as not a retrieved fact.
 
 ## `pipeshub sources` shows `llmModels: []`
 

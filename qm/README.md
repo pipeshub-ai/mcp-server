@@ -213,14 +213,15 @@ explicit list of what has and has not been verified.
 | `5` | rate limited |
 | `6` | nothing retrieved, **or an `ask` answer with no citations** |
 
-Exit `6` on an uncited answer is the one worth understanding. An answer with no
-sources is more dangerous than an empty result, because by then the fabrication
-has already happened upstream — and it can read perfectly fluently.
+Exit `6` on an uncited `ask` means nothing was retrieved. The usual case is
+the corpus cannot support the question — PipesHub says it could not find the
+information, with zero citations. That is a correct negative, not a
+fabrication. The exit code stops the agent treating a successful-looking call
+as a retrieved fact.
 
-The rule counts citations and ignores the server's own confidence score,
-because the two do not track each other: an answer the corpus could not support
-has been observed coming back with `confidence: "Very High"` and zero
-citations.
+Citations are the retrieval signal. Confidence is how sure the model is of its
+reply, including being sure of an absence; do not read Very High as "found in
+a document."
 
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) lists every failure message with its
 cause. Start there when someone says "it says I'm not connected" — usually a

@@ -128,11 +128,11 @@ Every result carries `recordId` and `webUrl`, so answers cite their sources.
 they cannot access gets a `403` — not a vague empty result — and that holds even
 when they name the record directly.
 
-**An uncited answer is treated as unsupported.** If `ask` produces prose with no
-citations, the CLI exits `6` and the agent is instructed to say the documents do
-not appear to contain it. This matters because such an answer can read fluently
-and even carry a high server-side confidence score; confidence does not track
-groundedness, so citations are what the rule keys off.
+**No citations means nothing was retrieved.** If `ask` returns prose with no
+citations, the CLI exits `6` and the agent should say the documents do not
+appear to contain it. That is often the correct answer — PipesHub is sure of
+the absence (`confidence: Very High` with nothing to cite). Do not invent a
+source.
 
 ## Cost
 
