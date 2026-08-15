@@ -51,12 +51,11 @@ Check it. It carries information the text does not.
 | `5` | rate limited | wait and retry once, then report |
 | `6` | **nothing retrieved** | see below |
 
-**Exit `6` is the one that matters.** It means either no results, or — for
-`ask` — that the answer arrived with **no citations**. Nothing was retrieved.
-
-If the answer says the documents do not contain it, relay that. If it
-instead asserts facts with no citations, do not repeat them — report that
-nothing was retrieved. Do not invent a source.
+**Exit `6` is the one that matters.** It means nothing was retrieved. Usually
+the documents genuinely do not contain it — say so, and do not invent a
+source. Sometimes the answer instead asserts facts with no citations; do not
+repeat them, report that nothing was retrieved. Ignore `confidence` either
+way: it reads `Very High` on both.
 
 ## Citations
 

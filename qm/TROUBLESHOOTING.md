@@ -122,15 +122,17 @@ Two different situations share this code:
   nearest neighbours, so an unrelated query still produces low-scoring matches.
 - **`ask` returned an answer with no citations.** Common, and the important one.
 
-No citations means nothing was retrieved. Two shapes share that signal:
+No citations means nothing was retrieved. Two measured shapes share that
+signal:
 
-- **A refusal** ("I could not find any information…") — the case we measured.
-  Relay it. Do not invent a source.
-- **Assertive prose with no citations** — not observed. Do not repeat it as
-  fact; report that nothing was retrieved.
+- **A refusal** ("I could not find any information…"). Relay it. Do not invent
+  a source.
+- **Assertive prose with no citations.** Observed on aggregate questions
+  (~2-in-3): a full inventory of documents, `confidence: Very High`, exit `6`.
+  Do not repeat it as fact; report that nothing was retrieved.
 
-The answer text is still in the output; `cited: false` and the `warning` field
-mark it as not a retrieved fact.
+Ignore `confidence` either way. The answer text is still in the output;
+`cited: false` and the `warning` field mark it as not a retrieved fact.
 
 ## `pipeshub sources` shows `llmModels: []`
 
