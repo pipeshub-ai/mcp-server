@@ -10,7 +10,7 @@ deployment. If you see something not listed here, the exit code narrows it:
 | `3` | not authenticated |
 | `4` | forbidden — this person cannot see it |
 | `5` | rate limited |
-| `6` | nothing retrieved, **or an `ask` answer with no citations** |
+| `6` | no results, **or an `ask` answer with no sources** |
 
 ## "No PipesHub credential found"
 
@@ -111,7 +111,7 @@ integration working: PipesHub filters by the token's identity, and a denial is a
 `403`, not an empty result. Do not retry through a different command — `search`,
 `ask`, and `get` all enforce the same permissions.
 
-## Exit 6 — nothing retrieved
+## Exit 6 — no results, or unsourced `ask`
 
 Two different situations share this code:
 
@@ -119,17 +119,21 @@ Two different situations share this code:
   nearest neighbours, so an unrelated query still produces low-scoring matches.
 - **`ask` returned an answer with no citations.** Common, and the important one.
 
-No citations means nothing was retrieved. Two measured shapes share that
-signal:
+No citations means no sources, so nothing in the answer can be verified.
+Two measured shapes share that signal:
 
 - **A refusal** ("I could not find any information…"). Relay it. Do not invent
   a source.
 - **Assertive prose with no citations.** Observed on aggregate questions
   (~2-in-3): a full inventory of documents, `confidence: Very High`, exit `6`.
-  Do not repeat it as fact; report that nothing was retrieved.
+  Content may still have been retrieved
+  ([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975));
+  only the attribution is missing. Do not repeat it as fact; say it came
+  back unsourced and could not be confirmed.
 
-Ignore `confidence` either way. The answer text is still in the output;
-`cited: false` and the `warning` field mark it as not a retrieved fact.
+Ignore `confidence` — it takes every value on both sides. The answer text is
+still in the output; `cited: false` and the `warning` field mark it as
+unsourced.
 
 ## `pipeshub sources` shows `llmModels: []`
 

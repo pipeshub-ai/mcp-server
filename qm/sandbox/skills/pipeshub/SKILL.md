@@ -30,13 +30,14 @@ Check it. It carries information the text does not.
 | `3` | not authenticated | run `pipeshub auth connect-help` and relay the steps |
 | `4` | forbidden | this person cannot access it. Say so plainly; do not retry another way |
 | `5` | rate limited | wait and retry once, then report |
-| `6` | **nothing retrieved** | see below |
+| `6` | **no sources** | see below |
 
-**Exit `6` is the one that matters.** It means nothing was retrieved. Usually
-the documents genuinely do not contain it — say so, and do not invent a
-source. Sometimes the answer instead asserts facts with no citations; do not
-repeat them, report that nothing was retrieved. Ignore `confidence` either
-way: it reads `Very High` on both.
+**Exit `6` is the one that matters.** It means the answer came back with no
+sources, so nothing in it can be verified. If the answer says the documents
+do not contain it, relay that. If it asserts facts, do not repeat them —
+say it came back unsourced and could not be confirmed. Ignore `confidence`
+— it takes every value on both sides, so it tells you nothing about whether
+anything was cited.
 
 ## Citations
 

@@ -103,7 +103,7 @@ Honesty about the difference between designed and tested:
 |---|---|
 | A second user cannot read another's document — including by naming its `recordId` directly | **Verified.** `403`, not an empty result, on all four access paths |
 | The 5-scope preset is sufficient for every shipped command | **Verified.** No `403` on any call |
-| An uncited answer is distinguishable and exits `6` | **Verified.** Refusal (Gate 5) and assertive uncited prose (aggregate question, ~2-in-3, `confidence: "Very High"`, 0 citations) |
+| An uncited answer is distinguishable and exits `6` | **Verified.** Refusal (Gate 5); assertive uncited (~2-in-3 on an aggregate question); and a correct inventory with citations stripped ([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975)) |
 | The token never appears in CLI output | **Verified.** All output greped for the token and for JWT-shaped strings |
 | Cleartext is refused to public hosts | **Verified** |
 | Agent treats retrieved instructions as data | **Not verified.** Needs a working sandbox |

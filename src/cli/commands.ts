@@ -5,7 +5,8 @@
 //   - Every hit carries `recordId` and `webUrl`.
 //   - Retrieved text is explicitly delimited, because it is attacker-writable
 //     data (indexed Slack / email / Jira), never instructions.
-//   - Empty retrieval exits 6. For `ask`, "empty" means NO CITATIONS.
+//   - Empty search exits 6. For `ask`, no citations exits 6 (unsourced —
+//     not necessarily empty retrieval).
 
 import { writeFile } from "node:fs/promises";
 import {
@@ -253,11 +254,10 @@ export async function ask(
 
   const answer = typeof obj["answer"] === "string" ? obj["answer"] : null;
 
-  // No citations means nothing was retrieved. Exit 6 so the agent does not
-  // treat a successful-looking call as a retrieved fact. Two measured shapes:
-  // a refusal, and assertive uncited prose (aggregate questions; Very High on
-  // both). The answer text is still passed through; the agent must not repeat
-  // uncited assertions as fact.
+  // No citations means unsourced, not "nothing was retrieved" — a correct
+  // inventory can arrive with citations stripped (pipeshub-ai#2975). Exit 6
+  // so the agent does not treat it as verified. Pass the answer through; do
+  // not repeat uncited assertions, and do not report the corpus as empty.
   const exit = citations.length === 0 ? EXIT.NO_RESULTS : EXIT.OK;
 
   return {
@@ -273,8 +273,9 @@ export async function ask(
       citations,
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
-        ? "No citations — nothing was retrieved. If this is a refusal, relay "
-          + "it. If it asserts facts, do not repeat them. Ignore confidence."
+        ? "No citations — unsourced, so nothing in it can be verified. If "
+          + "this is a refusal, relay it. If it asserts facts, do not repeat "
+          + "them. Ignore confidence."
         : null,
     },
   };
