@@ -13,9 +13,26 @@ Three files that teach a QM agent to use PipesHub:
 
 | File | Job |
 | --- | --- |
-| `sandbox/Dockerfile` | installs the `pipeshub` command into the agent's sandbox |
-| `sandbox/tools/pipeshub/tool.json` | tells QM the command exists, and which uses need approval |
+| `sandbox/tools/pipeshub/tool.json` | tells QM the command exists, which hosts it may reach, and which uses need approval |
 | `sandbox/skills/pipeshub/SKILL.md` | tells the agent when to reach for it and how to read its results |
+| `sandbox/Dockerfile` | installs the `pipeshub` command — **only on deployments that can boot a custom image**, see below |
+
+`init-qm` writes the Dockerfile only where it would actually run. On Fly
+Sprites and AWS MicroVM sandboxes it is skipped, because a file that looks
+like the install path but never executes sends you debugging the wrong
+thing when the command turns up missing. There, `SKILL.md` installs the CLI
+on first use.
+
+That reflects how QM behaves today. If
+[qm#272](https://github.com/yc-software/qm/issues/272) is fixed so Sprites
+boot a published image, the Dockerfile becomes the install path again and
+this changes with it.
+
+**If you scaffolded with an earlier version**, you already have a
+`sandbox/Dockerfile` on a deployment that cannot use it. Delete it — or
+remove just the PipesHub install block if the rest of the file is yours.
+Upcoming QM validation rejects that file rather than ignoring it, so
+leaving it will fail `qm check`. Re-running `init-qm` points this out.
 
 This is a **deployment-layer folder** — you copy it into your QM deployment
 directory and `qm up`. It is *not* a git skill pack. QM supports both, they
@@ -90,14 +107,15 @@ Dockerfile is the install path and this first-run step can be dropped.
    pipeshub init-qm /path/to/your-qm-deployment
    ```
 
-   Use this rather than copying by hand: it stamps the Dockerfile's version pin
-   from the package you just installed, so the folder and the CLI it describes
-   cannot end up on different versions.
+   Use this rather than copying by hand: it reads your `qm.config.jsonc` to
+   decide whether a Dockerfile is worth writing, and where it is, stamps the
+   version pin from the package you just installed — so the folder and the CLI
+   it describes cannot end up on different versions.
 
    Re-running is safe. Files that already exist are kept and listed rather than
-   overwritten (`--force` overrides). An existing `sandbox/Dockerfile` is
-   appended to, not replaced — and left alone entirely if it already installs
-   the CLI.
+   overwritten (`--force` overrides). Where a Dockerfile does apply, an existing
+   `sandbox/Dockerfile` is appended to, not replaced — and left alone entirely
+   if it already installs the CLI.
 
 2. **Deliver the PipesHub origin** as an environment variable that actually
    reaches the sandbox. An origin with no path — the CLI appends `/mcp`
@@ -216,6 +234,12 @@ cause. Start there when someone says "it says I'm not connected" — usually a
 keychain entry under the wrong service name.
 
 ## Air-gapped and locked-down networks
+
+Both install paths reach the public npm registry — `sandbox/Dockerfile` at
+build time where one is written, and the skill's first-run step at turn time
+on Sprites. On a locked-down network the first-run step is the one to think
+about, because it runs inside the sandbox with whatever egress that sandbox
+has.
 
 `sandbox/Dockerfile` installs the CLI from the public npm registry at build
 time. If your network blocks that, you can point it at an internal registry
