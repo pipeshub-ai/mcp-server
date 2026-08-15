@@ -75,8 +75,14 @@ npm install -g @pipeshub-ai/mcp
 pipeshub init-qm .
 ```
 
-That writes the tool, the skill, and a Dockerfile pinned to the same CLI
-version. Re-running is safe: existing files are kept.
+That writes the tool and the skill. On Sprites it deliberately does **not**
+write a `sandbox/Dockerfile`: Sprites cannot boot a custom image
+([qm#272](https://github.com/yc-software/qm/issues/272)), so the file would
+look like the install path while never running — the skill's first-run step
+is what actually installs the CLI. On a deployment that can build its own
+image, the Dockerfile is written and pinned to the CLI version you installed.
+
+Re-running is safe: existing files are kept.
 
 Set `egress` in `sandbox/tools/pipeshub/tool.json` to your PipesHub hostname
 only — for example `pipeshub.your-company.com` or
