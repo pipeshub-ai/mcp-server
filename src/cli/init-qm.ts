@@ -126,6 +126,34 @@ export function stripJsonComments(src: string): string {
   return out;
 }
 
+/**
+ * Drop trailing commas before `}` or `]`. JSONC allows them and hand-edited
+ * configs collect them; `JSON.parse` does not. Without this a stray comma makes
+ * the config unreadable, which fails open and writes the Dockerfile we were
+ * trying not to write.
+ */
+export function dropTrailingCommas(src: string): string {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inString) {
+      out += c;
+      if (c === "\\") { out += src[i + 1] ?? ""; i++; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; out += c; continue; }
+    if (c === ",") {
+      let j = i + 1;
+      while (j < src.length && /\s/.test(src[j] as string)) j++;
+      if (src[j] === "}" || src[j] === "]") continue; // drop it
+    }
+    out += c;
+  }
+  return out;
+}
+
 export interface DeploymentShape {
   target?: string | undefined;
   backend?: string | undefined;
@@ -142,7 +170,7 @@ export async function readDeploymentShape(
 ): Promise<DeploymentShape | null> {
   try {
     const raw = await readFile(join(dest, "qm.config.jsonc"), "utf8");
-    const cfg = JSON.parse(stripJsonComments(raw)) as {
+    const cfg = JSON.parse(dropTrailingCommas(stripJsonComments(raw))) as {
       target?: unknown;
       sandbox?: { backend?: unknown };
     };
@@ -158,21 +186,40 @@ export async function readDeploymentShape(
 }
 
 /**
- * Whether a custom sandbox image can actually boot for this deployment.
+ * Why a custom sandbox image cannot boot for this deployment, or null when it
+ * can. A reason rather than a boolean so the report can never describe a
+ * deployment as something it is not.
  *
- * Writing a Dockerfile that cannot run is not harmless. It reads as the
- * supported install path, so when the binary is missing the operator debugs
- * the Dockerfile rather than learning the image was never used
- * (yc-software/qm#272 on Sprites, #350 on AWS MicroVM).
+ * `backend` is what decides where sandboxes run, not `target`: the CLI requires
+ * `"backend": "aws"` to have `target: "aws"` but not the reverse, so an AWS
+ * control plane running Sprites sandboxes is a supported and different thing
+ * from Lambda MicroVMs (`config.js:1106-1112`).
  *
- * Unknown shapes scaffold as before: guessing wrong in the other direction
- * would remove a file someone needs.
+ * This describes QM as it behaves today. If yc-software/qm#272 is fixed so
+ * Sprites boot a published image, the Sprites case here stops being true.
+ */
+export type ImageSkipReason = "sprites-ignores-image" | "aws-microvm" | null;
+
+export function imageSkipReason(shape: DeploymentShape | null): ImageSkipReason {
+  if (!shape) return null;
+  // Lambda MicroVMs have no install mechanism at all (qm#350).
+  if (shape.backend === "aws") return "aws-microvm";
+  // Sprites boot the stock base and ignore a published image (qm#272).
+  if (shape.backend === "sprites" || shape.target === "fly") {
+    return "sprites-ignores-image";
+  }
+  // An AWS target with no backend declared cannot run agents yet; skip rather
+  // than write a file whose fate depends on a choice not made.
+  if (shape.target === "aws") return "sprites-ignores-image";
+  return null;
+}
+
+/**
+ * Whether to scaffold a Dockerfile. Unknown shapes scaffold as before:
+ * guessing wrong in that direction removes a file someone needs.
  */
 export function customImageBoots(shape: DeploymentShape | null): boolean {
-  if (!shape) return true;
-  if (shape.backend === "sprites" || shape.backend === "aws") return false;
-  if (shape.target === "fly" || shape.target === "aws") return false;
-  return true;
+  return imageSkipReason(shape) === null;
 }
 
 export interface InitResult {
@@ -180,6 +227,9 @@ export interface InitResult {
   skipped: string[];
   dockerfileAction: "created" | "appended" | "manual" | "skipped-unusable";
   shape: DeploymentShape | null;
+  skipReason: ImageSkipReason;
+  /** A Dockerfile an earlier version already wrote, on a deploy that cannot use it. */
+  staleDockerfile: boolean;
   version: string;
   configFragment: string;
 }
@@ -221,9 +271,15 @@ export async function initQm(
   // has no PipesHub block yet, and otherwise leave it entirely alone.
   const dockerfile = join(dest, "sandbox", "Dockerfile");
   let dockerfileAction: InitResult["dockerfileAction"];
-  if (!customImageBoots(shape)) {
+  const skipReason = imageSkipReason(shape);
+  // An earlier version wrote this unconditionally. Leaving it is not neutral:
+  // upcoming QM validation rejects it outright, so the operator needs telling.
+  // Not deleted here — it is their file and may carry their own build steps.
+  let staleDockerfile = false;
+  if (skipReason !== null) {
     // Deliberately not written. The skill installs the CLI on first use, which
     // is the path that actually runs on these deployments.
+    staleDockerfile = await exists(dockerfile);
     dockerfileAction = "skipped-unusable";
   } else if (!await exists(dockerfile)) {
     await copyFile(join(bundle, "sandbox", "Dockerfile"), dockerfile);
@@ -262,7 +318,16 @@ export async function initQm(
     );
   }
 
-  return { written, skipped, dockerfileAction, version, configFragment, shape };
+  return {
+    written,
+    skipped,
+    dockerfileAction,
+    version,
+    configFragment,
+    shape,
+    skipReason,
+    staleDockerfile,
+  };
 }
 
 export function renderInitReport(dest: string, r: InitResult): string {
@@ -275,21 +340,34 @@ export function renderInitReport(dest: string, r: InitResult): string {
   lines.push("");
 
   if (r.dockerfileAction === "skipped-unusable") {
-    const where = r.shape?.backend === "aws" || r.shape?.target === "aws"
-      ? "AWS MicroVM sandboxes"
-      : "Fly Sprites";
-    lines.push(`No sandbox/Dockerfile was written: ${where} cannot boot a custom`);
-    lines.push("image, so one would look like the install path while never running.");
+    if (r.skipReason === "aws-microvm") {
+      lines.push("No sandbox/Dockerfile was written: AWS Lambda MicroVM sandboxes");
+      lines.push("have no way to install a binary, so the file could never run.");
+    } else {
+      lines.push("No sandbox/Dockerfile was written: Fly Sprites boot the stock");
+      lines.push("image and ignore a published one, so the file would look like the");
+      lines.push("install path while never running.");
+    }
     lines.push("The skill installs the CLI on first use instead — that is the line");
     lines.push("that actually executes, and it needs nothing from you.");
     lines.push("");
   }
 
-  if (r.shape?.backend === "aws" || r.shape?.target === "aws") {
-    lines.push("Heads up on AWS: the CLI cannot be installed into a MicroVM sandbox");
-    lines.push("at all (yc-software/qm#350). The tool's guidance, network allowlist,");
-    lines.push("and approval rules still apply, but the binary will be missing. The");
-    lines.push("sprites backend is the one this bundle is tested against.");
+  if (r.staleDockerfile) {
+    lines.push("ACTION NEEDED: sandbox/Dockerfile already exists here, written by an");
+    lines.push("earlier version. This deployment cannot use it, and upcoming QM");
+    lines.push("validation rejects it rather than ignoring it — `qm check` will fail");
+    lines.push("with an error naming that file. Delete it, or remove the PipesHub");
+    lines.push("install block if the rest of it is yours.");
+    lines.push("");
+  }
+
+  if (r.skipReason === "aws-microvm") {
+    lines.push("Heads up on AWS: with Lambda MicroVM sandboxes the CLI cannot be");
+    lines.push("installed at all (yc-software/qm#350). The tool's guidance, network");
+    lines.push("allowlist, and approval rules still apply, but the binary will be");
+    lines.push("missing. The sprites backend is what this bundle is tested against.");
+    lines.push("");
   }
 
   if (r.dockerfileAction === "appended") {

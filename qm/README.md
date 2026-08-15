@@ -23,6 +23,17 @@ like the install path but never executes sends you debugging the wrong
 thing when the command turns up missing. There, `SKILL.md` installs the CLI
 on first use.
 
+That reflects how QM behaves today. If
+[qm#272](https://github.com/yc-software/qm/issues/272) is fixed so Sprites
+boot a published image, the Dockerfile becomes the install path again and
+this changes with it.
+
+**If you scaffolded with an earlier version**, you already have a
+`sandbox/Dockerfile` on a deployment that cannot use it. Delete it — or
+remove just the PipesHub install block if the rest of the file is yours.
+Upcoming QM validation rejects that file rather than ignoring it, so
+leaving it will fail `qm check`. Re-running `init-qm` points this out.
+
 This is a **deployment-layer folder** — you copy it into your QM deployment
 directory and `qm up`. It is *not* a git skill pack. QM supports both, they
 are different mechanisms, and only the deployment layer can carry a tool

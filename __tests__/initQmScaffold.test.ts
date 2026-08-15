@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   customImageBoots,
+  dropTrailingCommas,
+  imageSkipReason,
   stripJsonComments,
 } from "../src/cli/init-qm.js";
 
@@ -35,6 +37,51 @@ describe("stripJsonComments", () => {
   test("an escaped quote inside a string does not end it", () => {
     const src = '{ "note": "a \\" then // not a comment", "target": "docker" }';
     expect(JSON.parse(stripJsonComments(src)).target).toBe("docker");
+  });
+});
+
+describe("dropTrailingCommas", () => {
+  test("a hand-edited config with trailing commas still parses", () => {
+    // Without this the config is unreadable, which fails open and writes the
+    // Dockerfile we were trying not to write — the opposite of the intent.
+    const src = '{ "target": "docker", "sandbox": { "backend": "sprites", }, }';
+    expect(JSON.parse(dropTrailingCommas(src))).toEqual({
+      target: "docker",
+      sandbox: { backend: "sprites" },
+    });
+  });
+
+  test("a comma inside a string is left alone", () => {
+    const src = '{ "note": "a, b, ]", "target": "docker" }';
+    expect(JSON.parse(dropTrailingCommas(src)).note).toBe("a, b, ]");
+  });
+});
+
+describe("the deployment shapes that actually ship", () => {
+  test("v1: target docker with the sprites backend skips the Dockerfile", () => {
+    // This is the combination our own guide documents, so it is the one that
+    // must not regress. `target` says where the control plane runs; `backend`
+    // says where sandboxes run, and only the latter decides this.
+    expect(customImageBoots({ target: "docker", backend: "sprites" })).toBe(false);
+    expect(imageSkipReason({ target: "docker", backend: "sprites" }))
+      .toBe("sprites-ignores-image");
+  });
+
+  test("an AWS control plane with Sprites sandboxes is NOT MicroVM", () => {
+    // `backend: "aws"` requires `target: "aws"`, but not the reverse
+    // (config.js:1106). Reporting this shape as MicroVM would tell the operator
+    // the CLI can never be installed, which is false — Sprites install it on
+    // first use.
+    expect(imageSkipReason({ target: "aws", backend: "sprites" }))
+      .toBe("sprites-ignores-image");
+  });
+
+  test("Lambda MicroVM is reported as itself", () => {
+    expect(imageSkipReason({ target: "aws", backend: "aws" })).toBe("aws-microvm");
+  });
+
+  test("a plain local docker deploy still gets a Dockerfile", () => {
+    expect(imageSkipReason({ target: "docker" })).toBeNull();
   });
 });
 
