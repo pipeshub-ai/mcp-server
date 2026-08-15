@@ -259,12 +259,11 @@ export async function ask(
 
   const answer = typeof obj["answer"] === "string" ? obj["answer"] : null;
 
-  // No citations means nothing was retrieved. That includes the correct
-  // negative: the corpus cannot support the question ("I could not find any
-  // information…", 0 citations, confidence Very High). Very High there is
-  // certainty of absence, not a grounded positive. Exit 6 so the agent
-  // relays that instead of treating exit 0 as a retrieved fact. The answer
-  // text is still passed through.
+  // No citations means nothing was retrieved. Exit 6 so the agent does not
+  // treat a successful-looking call as a retrieved fact. The measured case is
+  // a correct negative ("I could not find any information…", 0 citations).
+  // An assertive uncited answer has not been observed; the same exit covers it.
+  // The answer text is still passed through.
   const exit = citations.length === 0 ? EXIT.NO_RESULTS : EXIT.OK;
 
   return {

@@ -206,15 +206,11 @@ explicit list of what has and has not been verified.
 | `5` | rate limited |
 | `6` | nothing retrieved, **or an `ask` answer with no citations** |
 
-Exit `6` on an uncited `ask` means nothing was retrieved. The usual case is
-the corpus cannot support the question — PipesHub says it could not find the
-information, with zero citations. That is a correct negative, not a
-fabrication. The exit code stops the agent treating a successful-looking call
-as a retrieved fact.
-
-Citations are the retrieval signal. Confidence is how sure the model is of its
-reply, including being sure of an absence; do not read Very High as "found in
-a document."
+Exit `6` on an uncited `ask` means nothing was retrieved. The case we
+measured is a correct negative — PipesHub says it could not find the
+information, with zero citations. The same exit covers an assertive answer
+with no citations, which we have not observed. Either way, the agent must
+not treat the call as a retrieved fact.
 
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) lists every failure message with its
 cause. Start there when someone says "it says I'm not connected" — usually a

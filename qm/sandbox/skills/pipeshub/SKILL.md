@@ -52,10 +52,11 @@ Check it. It carries information the text does not.
 | `6` | **nothing retrieved** | see below |
 
 **Exit `6` is the one that matters.** It means either no results, or — for
-`ask` — that the answer arrived with **no citations**. That includes the
-correct case: the documents do not contain it, so there is nothing to cite.
-Relay that. Do not invent a document. High confidence on that reply is
-certainty of absence, not evidence that something was found.
+`ask` — that the answer arrived with **no citations**. Nothing was retrieved.
+
+If the answer says the documents do not contain it, relay that. If it
+instead asserts facts with no citations, do not repeat them — report that
+nothing was retrieved. Do not invent a source.
 
 ## Citations
 

@@ -148,8 +148,9 @@ Use the `pipeshub` CLI (`ask`, `search`, `get`, `sources`). Do not call
 `GET /api/v1/search`, and do not reissue the PAT with `semantic:read`.
 
 A grounded answer includes citations with `recordId` and `webUrl`. An `ask`
-with **no citations** means nothing was retrieved — often the correct
-answer: the documents do not contain it. Do not invent a source.
+with **no citations** means nothing was retrieved. If it says the documents
+do not contain it, that is often the correct answer. If it asserts facts
+anyway, do not repeat them. Do not invent a source.
 
 If the CLI says it is not connected, have the agent run
 `pipeshub auth connect-help` and follow that. Never paste a token into the
