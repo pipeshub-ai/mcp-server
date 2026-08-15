@@ -254,10 +254,10 @@ export async function ask(
   const answer = typeof obj["answer"] === "string" ? obj["answer"] : null;
 
   // No citations means nothing was retrieved. Exit 6 so the agent does not
-  // treat a successful-looking call as a retrieved fact. The measured case is
-  // a correct negative ("I could not find any information…", 0 citations).
-  // An assertive uncited answer has not been observed; the same exit covers it.
-  // The answer text is still passed through.
+  // treat a successful-looking call as a retrieved fact. Two measured shapes:
+  // a refusal, and assertive uncited prose (aggregate questions; Very High on
+  // both). The answer text is still passed through; the agent must not repeat
+  // uncited assertions as fact.
   const exit = citations.length === 0 ? EXIT.NO_RESULTS : EXIT.OK;
 
   return {
@@ -273,8 +273,8 @@ export async function ask(
       citations,
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
-        ? "No citations — nothing was retrieved. Say the documents do not "
-          + "appear to contain this. Do not invent a source."
+        ? "No citations — nothing was retrieved. If this is a refusal, relay "
+          + "it. If it asserts facts, do not repeat them. Ignore confidence."
         : null,
     },
   };
