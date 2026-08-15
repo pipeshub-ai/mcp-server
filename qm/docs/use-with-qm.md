@@ -148,7 +148,8 @@ Use the `pipeshub` CLI (`ask`, `search`, `get`, `sources`). Do not call
 `GET /api/v1/search`, and do not reissue the PAT with `semantic:read`.
 
 A grounded answer includes citations with `recordId` and `webUrl`. An `ask`
-with **no citations** is not a retrieved fact, even if confidence is high.
+with **no citations** means nothing was retrieved — often the correct
+answer: the documents do not contain it. Do not invent a source.
 
 If the CLI says it is not connected, have the agent run
 `pipeshub auth connect-help` and follow that. Never paste a token into the
@@ -188,5 +189,5 @@ Security rationale is in [`../SECURITY.md`](../SECURITY.md).
 - Put a PAT in `sandbox.secretEnv` or in the prompt
 - Mint `semantic:read` or `conversation:read` (unmintable on stock `MCP_SCOPES`)
 - Point the sandbox at `http://localhost:…`
-- Treat an uncited `ask` as grounded
+- Treat an uncited `ask` as a retrieved fact
 - Expect `qm sandbox publish` to put `pipeshub` on PATH (Sprites)

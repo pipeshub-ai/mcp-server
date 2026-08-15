@@ -259,12 +259,12 @@ export async function ask(
 
   const answer = typeof obj["answer"] === "string" ? obj["answer"] : null;
 
-  // The rule that matters. An uncited answer may read fluently and carry a
-  // high `confidence` — measured: a question the corpus could not answer came
-  // back with confidence "Very High" and zero citations. Confidence does not
-  // track groundedness, so citations are the only sound signal. The answer is
-  // still passed through so a human can see it; the exit code is what stops an
-  // agent treating it as retrieved fact.
+  // No citations means nothing was retrieved. That includes the correct
+  // negative: the corpus cannot support the question ("I could not find any
+  // information…", 0 citations, confidence Very High). Very High there is
+  // certainty of absence, not a grounded positive. Exit 6 so the agent
+  // relays that instead of treating exit 0 as a retrieved fact. The answer
+  // text is still passed through.
   const exit = citations.length === 0 ? EXIT.NO_RESULTS : EXIT.OK;
 
   return {
@@ -280,8 +280,8 @@ export async function ask(
       citations,
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
-        ? "No citations. Treat this answer as ungrounded — it is not supported "
-          + "by any retrieved document."
+        ? "No citations — nothing was retrieved. Say the documents do not "
+          + "appear to contain this. Do not invent a source."
         : null,
     },
   };
