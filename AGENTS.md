@@ -38,7 +38,7 @@ The published binary is `bin/pipeshub.js`, not the `tsc` output under `esm/`. CI
 | `skills/pipeshub/` | Skill for *customer* repos. Not auto-loaded here |
 | `server.json` | Official MCP registry manifest |
 
-Agent-facing copy for QM lives in `qm/sandbox/skills/pipeshub/SKILL.md`. Operator/security copy lives in `qm/SECURITY.md` and `qm/TROUBLESHOOTING.md`. Do not "fix" citation behavior by softening product copy; unsourced `ask` is exit `6`.
+Agent-facing copy for QM lives in `qm/sandbox/skills/pipeshub/SKILL.md`. Operator/security copy lives in `qm/SECURITY.md` and `qm/TROUBLESHOOTING.md`. Exit `6` on `ask` means no citation objects; do not tell the agent to ignore `confidence` or to discard the answer.
 
 ## CLI contract (v1)
 

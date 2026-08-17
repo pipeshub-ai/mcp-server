@@ -49,14 +49,12 @@ Check it. It carries information the text does not.
 | `3` | not authenticated | run `pipeshub auth connect-help` and relay the steps |
 | `4` | forbidden | this person cannot access it. Say so plainly; do not retry another way |
 | `5` | rate limited | wait and retry once, then report |
-| `6` | **no sources** | see below |
+| `6` | **no citation objects, or no search hits** | see below |
 
-**Exit `6` is the one that matters.** It means the answer came back with no
-sources, so nothing in it can be verified. If the answer says the documents
-do not contain it, relay that. If it asserts facts, do not repeat them —
-say it came back unsourced and could not be confirmed. Ignore `confidence`
-— it takes every value on both sides, so it tells you nothing about whether
-anything was cited.
+**Exit `6` on `ask`** means this response had no `recordId` / `webUrl`
+objects. The answer text is still in the output — read it. Cite those
+fields when they are present; do not invent a source. `confidence` is the
+model's self-score, not a stand-in for citations.
 
 ## Citations
 

@@ -114,29 +114,21 @@ integration working: PipesHub filters by the token's identity, and a denial is a
 `403`, not an empty result. Do not retry through a different command — `search`,
 `ask`, and `get` all enforce the same permissions.
 
-## Exit 6 — no results, or unsourced `ask`
+## Exit 6 — no search hits, or `ask` with no citation objects
 
 Two different situations share this code:
 
 - **`search` returned no hits.** Rare in practice: semantic search returns
   nearest neighbours, so an unrelated query still produces low-scoring matches.
-- **`ask` returned an answer with no citations.** Common, and the important one.
+- **`ask` returned an answer with no citations.** Common. The answer text is
+  still in the output (`cited: false`, plus a `warning`). Cite `recordId` /
+  `webUrl` when they are present; do not invent a source.
 
-No citations means no sources, so nothing in the answer can be verified.
-Two measured shapes share that signal:
-
-- **A refusal** ("I could not find any information…"). Relay it. Do not invent
-  a source.
-- **Assertive prose with no citations.** Observed on aggregate questions
-  (~2-in-3): a full inventory of documents, `confidence: Very High`, exit `6`.
-  Content may still have been retrieved
-  ([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975));
-  only the attribution is missing. Do not repeat it as fact; say it came
-  back unsourced and could not be confirmed.
-
-Ignore `confidence` — it takes every value on both sides. The answer text is
-still in the output; `cited: false` and the `warning` field mark it as
-unsourced.
+`confidence` is the model's self-score. It is not a proxy for whether
+citations exist — it has been `Very High` both with citations and without
+([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975)).
+Read the answer; do not discard it because the field is high, or because
+citations are missing.
 
 ## `pipeshub sources` shows `llmModels: []`
 
