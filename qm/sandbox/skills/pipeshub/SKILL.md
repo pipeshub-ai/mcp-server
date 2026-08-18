@@ -3,12 +3,12 @@ name: pipeshub
 description: Search and ask questions about the organization's documents — Drive, Slack, Gmail, Jira, Confluence, and the knowledge base. Use whenever a question could be answered by company content rather than general knowledge.
 ---
 
-`pipeshub` answers questions from the organization's own indexed content. Every
-result is filtered by the permissions of the person you are acting for.
+`pipeshub` answers questions from the organization's own indexed content.
+Every result is filtered by the permissions of the person you are acting for.
 
 Use this CLI. Do not call PipesHub over REST, and do not ask anyone to add
 `semantic:read` — that scope is search history, not search, and it is not
-mintable on a stock instance.
+mintable on a stock instance. There is no MCP attachment from inside QM.
 
 ## First run on this machine
 
