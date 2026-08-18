@@ -36,17 +36,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Install mcp-publisher
-        run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
-
-      - name: Publish to the official MCP registry
-        run: |
-          VERSION=$(jq -r .version package.json)
-          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
-          ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
-
       - name: Read version from package.json
         id: version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
@@ -59,3 +48,21 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # After the GitHub release, not before: if OIDC onto
+      # io.github.pipeshub-ai/* is not granted yet, mcp-publisher fails.
+      # Putting this first would leave npm published with no tag. continue-on-error
+      # so a registry miss does not fail the release; re-run mcp-publisher by hand
+      # (npm publish will refuse the same version on a full re-run).
+      - name: Install mcp-publisher
+        continue-on-error: true
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to the official MCP registry
+        continue-on-error: true
+        run: |
+          VERSION=$(jq -r .version package.json)
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

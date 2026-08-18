@@ -1,5 +1,7 @@
 # AGENTS.md — @pipeshub-ai/mcp
 
+This file is for coding agents working **in this repository**. It exists so they do not invent `auth set`, put a PAT in QM `sandbox.secretEnv`, or treat QM as an MCP client.
+
 This repository is two products in one package:
 
 - **Remote MCP client library / local stdio server** — `npx @pipeshub-ai/mcp start` talks to a PipesHub instance's `/mcp`.
@@ -38,7 +40,7 @@ The published binary is `bin/pipeshub.js`, not the `tsc` output under `esm/`. CI
 | `skills/pipeshub/` | Skill for *customer* repos. Not auto-loaded here |
 | `server.json` | Official MCP registry manifest |
 
-Agent-facing copy for QM lives in `qm/sandbox/skills/pipeshub/SKILL.md`. Operator/security copy lives in `qm/SECURITY.md` and `qm/TROUBLESHOOTING.md`. Exit `6` on `ask` means no citation objects; do not tell the agent to ignore `confidence` or to discard the answer.
+Agent-facing copy for QM lives in `qm/sandbox/skills/pipeshub/SKILL.md`. Operator/security copy lives in `qm/SECURITY.md` and `qm/TROUBLESHOOTING.md`. Exit `6` on `ask` means no citation objects: relay the answer as unsourced and not confirmed; do not restate its claims as fact. `confidence` is a self-score, not a citation proxy.
 
 ## CLI contract (v1)
 

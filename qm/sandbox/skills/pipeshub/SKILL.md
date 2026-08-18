@@ -30,6 +30,7 @@ fresh sandbox before the install.
 | The person says | Use |
 | --- | --- |
 | "What does the Q4 report say about ARR?" | `pipeshub ask "..."` |
+| "How many / list all / every X" | Do not use `ask` (it undercounts). `search` to locate, then `get` |
 | "Summarize the onboarding doc" | `pipeshub search` to find it, then `pipeshub get <recordId>` |
 | "Find the file called security-review.pdf" | `pipeshub search "security-review"` |
 | "Download that file" | `pipeshub get <recordId> --out <path>` |
@@ -52,9 +53,10 @@ Check it. It carries information the text does not.
 | `6` | **no citation objects, or no search hits** | see below |
 
 **Exit `6` on `ask`** means this response had no `recordId` / `webUrl`
-objects. The answer text is still in the output — read it. Cite those
-fields when they are present; do not invent a source. `confidence` is the
-model's self-score, not a stand-in for citations.
+objects. The answer text is still in the output — relay it as **unsourced
+and not confirmed**; do not restate its claims as fact. Do not invent a
+source. `confidence` is the model's self-score, not a proxy for whether
+citations exist.
 
 ## Citations
 

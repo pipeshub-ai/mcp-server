@@ -278,8 +278,8 @@ export async function ask(
       citations,
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
-        ? "No citations in this response. The answer text is still below. "
-          + "Cite recordId/webUrl when they are present; do not invent a source."
+        ? "No citations in this response. Relay the answer as unsourced and not "
+          + "confirmed; do not restate its claims as fact. Do not invent a source."
         : null,
     },
   };

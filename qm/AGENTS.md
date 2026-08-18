@@ -12,4 +12,4 @@ The Dockerfile pin, `tool.json` approval `command`s, CLI subcommands, and `SKILL
 - Approval `command` **excludes** the binary — QM prepends it.
 - Never put a PAT in `sandbox.secretEnv` or `sandbox.env`. Personal keychain, service name exactly `pipeshub` → `PIPESHUB_TOKEN`.
 - Sprites/AWS MicroVM: do not write `sandbox/Dockerfile` (`init-qm` already skips it). The skill installs `@pipeshub-ai/mcp` on first use.
-- Agent-facing copy: `sandbox/skills/pipeshub/SKILL.md`. Operator copy: `SECURITY.md`, `TROUBLESHOOTING.md`, `docs/use-with-qm.md`. Exit `6` on `ask` means no citation objects; the answer text is still there. Do not tell the agent to ignore `confidence` or to discard uncited answers.
+- Agent-facing copy: `sandbox/skills/pipeshub/SKILL.md`. Operator copy: `SECURITY.md`, `TROUBLESHOOTING.md`, `docs/use-with-qm.md`. Exit `6` on `ask` means no citation objects: relay the answer as unsourced and not confirmed; do not restate its claims as fact. `confidence` is a self-score, not a citation proxy — do not treat it as one, and do not discard the answer because of it.

@@ -121,14 +121,16 @@ Two different situations share this code:
 - **`search` returned no hits.** Rare in practice: semantic search returns
   nearest neighbours, so an unrelated query still produces low-scoring matches.
 - **`ask` returned an answer with no citations.** Common. The answer text is
-  still in the output (`cited: false`, plus a `warning`). Cite `recordId` /
-  `webUrl` when they are present; do not invent a source.
+  still in the output (`cited: false`, plus a `warning`). Relay it as
+  **unsourced and not confirmed**; do not restate its claims as fact. Do not
+  invent a source. Missing citations are not the same as empty retrieval
+  ([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975)
+  can strip attribution from a real inventory).
 
-`confidence` is the model's self-score. It is not a proxy for whether
-citations exist — it has been `Very High` both with citations and without
-([pipeshub-ai#2975](https://github.com/pipeshub-ai/pipeshub-ai/issues/2975)).
-Read the answer; do not discard it because the field is high, or because
-citations are missing.
+`confidence` is the model's self-score, not a proxy for whether citations
+exist — it has been `Very High` both with citations and without. Do not
+treat a high score as proof, and do not discard the answer because the
+field is high or because citations are missing.
 
 ## `pipeshub sources` shows `llmModels: []`
 

@@ -130,6 +130,18 @@ Discover available chat sources and AI models in one call. Call this once at the
 
 ---
 
+### `pipeshub_agents`
+
+List the PipesHub **agents** configured for this org. To converse with one, take its `agentId` and pass it to `pipeshub_chat`.
+
+Each agent is returned as `{ agentId, name, description, systemPrompt, startMessage, tags, webSearch, isActive, toolsets, knowledge }`.
+
+**Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, say so.
+
+The list **may be empty**. For plain Q&A, use `pipeshub_chat` without `agentId`.
+
+---
+
 ## Quick Decision Guide
 
 | User says... | Use this tool |
@@ -138,9 +150,11 @@ Discover available chat sources and AI models in one call. Call this once at the
 | "Summarize the onboarding doc" | `pipeshub_search` → top hit → `pipeshub_get_record_content` |
 | "What do we know about X?" (spans many docs) | `pipeshub_chat` |
 | "What's our PTO policy?" (no single named file) | `pipeshub_chat` |
+| "How many / list all / every X" | `pipeshub_get_record_content` `mode:"navigate"` — not `pipeshub_chat` |
 | "Find the file called *security-review.pdf*" | `pipeshub_search` |
 | "Download that file" (after a search or chat citation) | `pipeshub_download_record` |
 | "Show me the full content of that record" | `pipeshub_get_record_content` |
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) |
 | First call of a session, before chat or search | `pipeshub_sources` (cache the result) |
+| "Create a Jira ticket" / talk to a configured agent | `pipeshub_agents` → `pipeshub_chat` with that `agentId` |
