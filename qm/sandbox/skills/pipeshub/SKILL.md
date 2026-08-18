@@ -30,7 +30,7 @@ fresh sandbox before the install.
 | The person says | Use |
 | --- | --- |
 | "What does the Q4 report say about ARR?" | `pipeshub ask "..."` |
-| "How many / list all / every X" | Do not use `ask` (it undercounts). `search` to locate, then `get` |
+| "How many / list all / every X" | Neither command can count. `ask` undercounts (and may exit 6). `search` is a ranked sample (default 10 hits, no total). Report what was found and say it is not exhaustive. |
 | "Summarize the onboarding doc" | `pipeshub search` to find it, then `pipeshub get <recordId>` |
 | "Find the file called security-review.pdf" | `pipeshub search "security-review"` |
 | "Download that file" | `pipeshub get <recordId> --out <path>` |
@@ -38,7 +38,9 @@ fresh sandbox before the install.
 
 `ask` sees a few retrieved passages, not whole documents. For anything that
 needs a document's full text — summarizing it, quoting it exactly — locate it
-with `search` and pull it with `get`.
+with `search` and pull it with `get`. There is no CLI equivalent of MCP
+`mode:"navigate"`, so this skill cannot produce a trustworthy "how many /
+list all / every" count.
 
 ## Reading the exit code
 

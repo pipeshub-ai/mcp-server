@@ -56,7 +56,7 @@ const args = {
       + "Only meaningful on the FIRST turn (when starting a new conversation).",
   ),
   modelKey: z.string().optional().describe(
-    "Model id to use (from `pipeshub_sources` `models[*].modelKey`). "
+    "Model id to use (from `pipeshub_sources` `llmModels[*].modelKey`). "
       + "Defaults to the org's default LLM.",
   ),
   modelName: z.string().optional(),

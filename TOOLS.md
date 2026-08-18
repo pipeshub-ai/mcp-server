@@ -15,7 +15,7 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 | `query` | string | yes | The user's question or message for this turn. |
 | `conversationId` | string | no | Existing conversation id to continue. Omit on the first turn; pass it back on every subsequent turn so the server-side history is preserved. |
 | `filters` | object | no | Source scoping — `{ apps: string[] }` of connector instance UUIDs and/or `knowledgeBase_<orgId>`. Get ids from `pipeshub_sources`. Only meaningful on the first turn. |
-| `modelKey` | string | no | Model id from `pipeshub_sources` `models[*].modelKey`. Defaults to the org's default LLM. |
+| `modelKey` | string | no | Model id from `pipeshub_sources` `llmModels[*].modelKey`. Defaults to the org's default LLM. |
 | `agentId` | string | no | PipesHub agent to converse with (`agentId` from `pipeshub_agents`). Runs the turn against that agent's prompt, tools and knowledge. Pass the same `agentId` on every follow-up turn. Omit for plain chat. |
 | `chatMode` | enum | no | `internal_search` (default) or `web_search` — the plain-chat modes. `quick` is agent-only; see below. |
 
