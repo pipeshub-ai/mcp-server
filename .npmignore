@@ -21,5 +21,8 @@
 # operator who installs the CLI is not something to do by accident.
 /qm/docs
 
+# Contributor-only. init-qm does not copy it.
+/qm/AGENTS.md
+
 /eslint.config.mjs
 /__tests__

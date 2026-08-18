@@ -153,11 +153,10 @@ leaving it unpinned means a Sprite picks up patches without a skill edit.
 Use the `pipeshub` CLI (`ask`, `search`, `get`, `sources`). Do not call
 `GET /api/v1/search`, and do not reissue the PAT with `semantic:read`.
 
-A grounded answer includes citations with `recordId` and `webUrl`. An `ask`
-with **no citations** came back with no sources, so nothing in it can be
-verified. If it says the documents do not contain it, relay that. If it
-asserts facts, do not repeat them — say it came back unsourced. Ignore
-`confidence` — it takes every value on both sides. Do not invent a source.
+Cite `recordId` and `webUrl` when the CLI returns them. Do not invent a
+source. Exit `6` on `ask` means this response had no citation objects.
+Relay the answer as unsourced and not confirmed; do not restate its claims
+as fact.
 
 If the CLI says it is not connected, have the agent run
 `pipeshub auth connect-help` and follow that. Never paste a token into the
@@ -197,5 +196,5 @@ Security rationale is in [`../SECURITY.md`](../SECURITY.md).
 - Put a PAT in `sandbox.secretEnv` or in the prompt
 - Mint `semantic:read` or `conversation:read` (unmintable on stock `MCP_SCOPES`)
 - Point the sandbox at `http://localhost:…`
-- Treat an uncited `ask` as a retrieved fact
+- Invent a source the CLI did not return
 - Expect `qm sandbox publish` to put `pipeshub` on PATH (Sprites)

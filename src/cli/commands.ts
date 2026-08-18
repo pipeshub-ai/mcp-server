@@ -5,8 +5,8 @@
 //   - Every hit carries `recordId` and `webUrl`.
 //   - Retrieved text is explicitly delimited, because it is attacker-writable
 //     data (indexed Slack / email / Jira), never instructions.
-//   - Empty search exits 6. For `ask`, no citations exits 6 (unsourced —
-//     not necessarily empty retrieval).
+//   - Empty search exits 6. For `ask`, no citation objects also exits 6
+//     (not necessarily empty retrieval).
 
 import { writeFile } from "node:fs/promises";
 import {
@@ -260,10 +260,9 @@ export async function ask(
 
   const answer = typeof obj["answer"] === "string" ? obj["answer"] : null;
 
-  // No citations means unsourced, not "nothing was retrieved" — a correct
-  // inventory can arrive with citations stripped (pipeshub-ai#2975). Exit 6
-  // so the agent does not treat it as verified. Pass the answer through; do
-  // not repeat uncited assertions, and do not report the corpus as empty.
+  // Exit 6 when citation objects are absent so callers can branch on it.
+  // Pass the answer through: missing citations are not "nothing was retrieved"
+  // (pipeshub-ai#2975 can strip attribution from a real inventory).
   const exit = citations.length === 0 ? EXIT.NO_RESULTS : EXIT.OK;
 
   return {
@@ -279,9 +278,8 @@ export async function ask(
       citations,
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
-        ? "No citations — unsourced, so nothing in it can be verified. If "
-          + "this is a refusal, relay it. If it asserts facts, do not repeat "
-          + "them. Ignore confidence."
+        ? "No citations in this response. Relay the answer as unsourced and not "
+          + "confirmed; do not restate its claims as fact. Do not invent a source."
         : null,
     },
   };

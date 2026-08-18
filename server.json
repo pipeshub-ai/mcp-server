@@ -1,0 +1,54 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.pipeshub-ai/mcp",
+  "title": "PipesHub",
+  "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, Confluence, SharePoint, and 50+ workplace sources. Connects to your self-hosted PipesHub instance.",
+  "version": "2.3.2",
+  "websiteUrl": "https://docs.pipeshub.com/for-agents",
+  "repository": {
+    "url": "https://github.com/pipeshub-ai/mcp-server",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "{instance_url}/mcp",
+      "variables": {
+        "instance_url": {
+          "description": "Origin of your PipesHub instance, no trailing slash (e.g. https://pipeshub.example.com)",
+          "isRequired": true
+        }
+      }
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@pipeshub-ai/mcp",
+      "version": "2.3.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "start"
+        },
+        {
+          "type": "named",
+          "name": "--server-url",
+          "description": "PipesHub instance origin (e.g. https://pipeshub.example.com)",
+          "isRequired": true
+        },
+        {
+          "type": "named",
+          "name": "--bearer-auth",
+          "description": "Personal access token (or other user-identity bearer). Never client_credentials.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

@@ -3,12 +3,12 @@ name: pipeshub
 description: Search and ask questions about the organization's documents — Drive, Slack, Gmail, Jira, Confluence, and the knowledge base. Use whenever a question could be answered by company content rather than general knowledge.
 ---
 
-`pipeshub` answers questions from the organization's own indexed content. Every
-result is filtered by the permissions of the person you are acting for.
+`pipeshub` answers questions from the organization's own indexed content.
+Every result is filtered by the permissions of the person you are acting for.
 
 Use this CLI. Do not call PipesHub over REST, and do not ask anyone to add
 `semantic:read` — that scope is search history, not search, and it is not
-mintable on a stock instance.
+mintable on a stock instance. There is no MCP attachment from inside QM.
 
 ## First run on this machine
 
@@ -30,6 +30,7 @@ fresh sandbox before the install.
 | The person says | Use |
 | --- | --- |
 | "What does the Q4 report say about ARR?" | `pipeshub ask "..."` |
+| "How many / list all / every X" | Neither command can count. `ask` undercounts (and may exit 6). `search` is a ranked sample (default 10 hits, no total). Report what was found and say it is not exhaustive. |
 | "Summarize the onboarding doc" | `pipeshub search` to find it, then `pipeshub get <recordId>` |
 | "Find the file called security-review.pdf" | `pipeshub search "security-review"` |
 | "Download that file" | `pipeshub get <recordId> --out <path>` |
@@ -37,7 +38,9 @@ fresh sandbox before the install.
 
 `ask` sees a few retrieved passages, not whole documents. For anything that
 needs a document's full text — summarizing it, quoting it exactly — locate it
-with `search` and pull it with `get`.
+with `search` and pull it with `get`. There is no CLI equivalent of MCP
+`mode:"navigate"`, so this skill cannot produce a trustworthy "how many /
+list all / every" count.
 
 ## Reading the exit code
 
@@ -49,14 +52,13 @@ Check it. It carries information the text does not.
 | `3` | not authenticated | run `pipeshub auth connect-help` and relay the steps |
 | `4` | forbidden | this person cannot access it. Say so plainly; do not retry another way |
 | `5` | rate limited | wait and retry once, then report |
-| `6` | **no sources** | see below |
+| `6` | **no citation objects, or no search hits** | see below |
 
-**Exit `6` is the one that matters.** It means the answer came back with no
-sources, so nothing in it can be verified. If the answer says the documents
-do not contain it, relay that. If it asserts facts, do not repeat them —
-say it came back unsourced and could not be confirmed. Ignore `confidence`
-— it takes every value on both sides, so it tells you nothing about whether
-anything was cited.
+**Exit `6` on `ask`** means this response had no `recordId` / `webUrl`
+objects. The answer text is still in the output — relay it as **unsourced
+and not confirmed**; do not restate its claims as fact. Do not invent a
+source. `confidence` is the model's self-score, not a proxy for whether
+citations exist.
 
 ## Citations
 

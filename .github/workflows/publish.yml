@@ -32,6 +32,19 @@ jobs:
       # that every pull request would have caught.
       - run: bun test
 
+      # The registry publishes the committed server.json. Rewriting it on
+      # the runner after the GitHub release would ship a manifest that the
+      # tag cannot reproduce. Bump both files in the same commit.
+      - name: Check server.json version matches package.json
+        run: |
+          PKG=$(jq -r .version package.json)
+          MANIFEST=$(jq -r .version server.json)
+          PKG_ENTRY=$(jq -r '.packages[0].version' server.json)
+          if [ "$PKG" != "$MANIFEST" ] || [ "$PKG" != "$PKG_ENTRY" ]; then
+            echo "server.json version ($MANIFEST, packages[0]=$PKG_ENTRY) must equal package.json ($PKG) before release"
+            exit 1
+          fi
+
       - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -48,3 +61,19 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # After the GitHub release, not before: if OIDC onto
+      # io.github.pipeshub-ai/* is not granted yet, mcp-publisher fails.
+      # Putting this first would leave npm published with no tag. continue-on-error
+      # so a registry miss does not fail the release; re-run mcp-publisher by hand
+      # (npm publish will refuse the same version on a full re-run).
+      - name: Install mcp-publisher
+        continue-on-error: true
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to the official MCP registry
+        continue-on-error: true
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

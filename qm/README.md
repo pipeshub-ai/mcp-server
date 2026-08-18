@@ -224,10 +224,9 @@ explicit list of what has and has not been verified.
 | `5` | rate limited |
 | `6` | no results, **or an `ask` answer with no sources** |
 
-Exit `6` on an uncited `ask` means no sources, so nothing in it can be
-verified. Relay a refusal. If it asserts facts, do not repeat them — say it
-came back unsourced. Ignore `confidence` — it takes every value on both
-sides.
+Exit `6` on `ask` means this response had no citation objects. The answer
+text is still in the output — relay it as unsourced and not confirmed; do
+not restate its claims as fact. Do not invent a source.
 
 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) lists every failure message with its
 cause. Start there when someone says "it says I'm not connected" — usually a
