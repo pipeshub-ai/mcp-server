@@ -31,7 +31,7 @@ Do not invent `tool.json` field names. Bind to `@yc-software/qm/contract` types.
 
 Do not use OAuth `client_credentials`. That grant has no user identity, so permission filters collapse.
 
-Do not add PAT scopes beyond the five-scope preset to make something work. If a command needs more, stop and report — it may be unmintable. Search needs `semantic:write`, not `semantic:read`.
+Do not add PAT scopes beyond the five-scope preset to make something work. If a command needs more, stop and report — it may be unmintable. Search needs `semantic:write` (`src/funcs/semanticSearchSearch.ts:125`), not `semantic:read` (search history, `src/hooks/oauth2scopes.ts:90-97`).
 
 Cite `file:line` for claims about how PipesHub or QM behaves. Prefer stopping over guessing.
 
