@@ -1,6 +1,7 @@
 import * as z from "zod";
 import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
 import { aiModelsProvidersGetAvailableModelsByType } from "../../funcs/aiModelsProvidersGetAvailableModelsByType.js";
+import { APIError } from "../../models/errors/apierror.js";
 import { ToolDefinition } from "../tools.js";
 import { errorResult, jsonResult, readJson } from "./_helpers.js";
 
@@ -27,9 +28,12 @@ Returns up to three sections:
 - \`llmModels\` — chat / generation models. Each item's \`modelKey\`
   is the value to pass on \`pipeshub_chat\` / \`pipeshub_search\` as
   \`modelKey\`. Pick \`isDefault: true\` unless the user asks for a
-  specific model.
+  specific model. If the caller lacks \`config:read\`, this comes back
+  empty with \`llmModelsRestricted: true\` instead of looking identical
+  to "nothing configured".
 - \`embeddingModels\` — vector embedding models (only fetched when
-  explicitly requested via \`include\`).
+  explicitly requested via \`include\`). Same \`config:read\` restriction
+  behavior applies.
 
 Call this once at the start of a session and cache the result —
 sources and models change infrequently. \`sources\` and \`llmModels\`
@@ -78,7 +82,22 @@ are returned by default; pass \`include\` to override.`,
       const [r] = await aiModelsProvidersGetAvailableModelsByType(client, {
         modelType,
       }, { fetchOptions }).$inspect();
-      if (!r.ok) return errorResult(`${key}: ${r.error.message}`);
+      if (!r.ok) {
+        // `llmModels`/`embeddingModels` are gated by config:read, which a
+        // caller's token may not have. That denial degrades silently to an
+        // empty array rather than a 403. Reporting the distinction keeps
+        // "nothing configured" from looking the same as "not authorized to
+        // see it" (see issue #2942).
+        const status = r.error instanceof APIError
+          ? r.error.httpMeta.response.status
+          : undefined;
+        if (status === 403) {
+          result[key] = [];
+          result[`${key}Restricted`] = true;
+          continue;
+        }
+        return errorResult(`${key}: ${r.error.message}`);
+      }
       const parsed = await readJson<{ models?: any[] }>(r.value, "Model listing");
       if (!parsed.ok) return parsed.result;
       result[key] = (parsed.value.models ?? []).map((m: any) => ({
