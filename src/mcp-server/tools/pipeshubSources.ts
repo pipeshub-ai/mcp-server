@@ -27,17 +27,13 @@ Returns up to three sections:
   \`pipeshub_search\`'s \`apps\` filter.
 - \`llmModels\` — chat / generation models. Each item's \`modelKey\`
   is the value to pass on \`pipeshub_chat\` / \`pipeshub_search\` as
-  \`modelKey\`. Pick \`isDefault: true\` unless the user asks for a
-  specific model. If the caller lacks \`config:read\`, this comes back
-  empty with \`llmModelsRestricted: true\` instead of looking identical
-  to "nothing configured".
-- \`embeddingModels\` — vector embedding models (only fetched when
-  explicitly requested via \`include\`). Same \`config:read\` restriction
-  behavior applies.
+  \`modelKey\`. Pick \`isDefault: true\` unless specified. Missing
+  \`config:read\` returns \`[]\` plus \`llmModelsRestricted: true\`.
+- \`embeddingModels\` — vector embedding models (fetched only via
+  \`include\`). Same restriction applies.
 
-Call this once at the start of a session and cache the result —
-sources and models change infrequently. \`sources\` and \`llmModels\`
-are returned by default; pass \`include\` to override.`,
+Call once per session and cache — sources/models change rarely.
+\`sources\`/\`llmModels\` return by default; pass \`include\` to override.`,
   scopes: ["read"],
   annotations: {
     title: "List PipesHub sources and AI models",
