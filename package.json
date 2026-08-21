@@ -1,6 +1,6 @@
 {
   "name": "@pipeshub-ai/mcp",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "mcpName": "io.github.pipeshub-ai/mcp",
   "author": "Pipeshub",
   "type": "module",
