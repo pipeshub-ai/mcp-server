@@ -3,7 +3,7 @@
   "name": "io.github.pipeshub-ai/mcp",
   "title": "PipesHub",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, Confluence, SharePoint, and 50+ workplace sources. Connects to your self-hosted PipesHub instance.",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "websiteUrl": "https://docs.pipeshub.com/for-agents",
   "repository": {
     "url": "https://github.com/pipeshub-ai/mcp-server",
@@ -26,7 +26,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@pipeshub-ai/mcp",
-      "version": "2.3.2",
+      "version": "2.3.3",
       "transport": {
         "type": "stdio"
       },
