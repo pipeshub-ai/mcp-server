@@ -32,11 +32,8 @@ jobs:
       # that every pull request would have caught.
       - run: bun test
 
-      # The registry publishes the committed server.json. Rewriting it on
-      # the runner after the GitHub release would ship a manifest that the
-      # tag cannot reproduce. Bump both files in the same commit.
-      # Validate against the live registry before npm publish — 2.3.3 shipped
-      # then failed twice on schema the jq length check did not cover.
+      # server.json is the MCP registry listing. Validate it with the
+      # official CLI before npm publish so a rejected manifest cannot ship.
       - name: Install mcp-publisher
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
@@ -66,7 +63,7 @@ jobs:
       # Putting this first would leave npm published with no tag. continue-on-error
       # so a registry miss does not fail the release. Do not re-run this
       # workflow after npm has published; use "Publish to MCP registry".
-      # Binary was installed before npm publish.
+      # mcp-publisher was installed and validated before npm publish.
       - name: Publish to the official MCP registry
         continue-on-error: true
         run: |
