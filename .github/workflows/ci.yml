@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  server-json:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Live registry 422 on 2.3.3: description maxLength 100.
+      - name: Check server.json description length
+        run: |
+          DESC=$(jq -r .description server.json)
+          if [ ${#DESC} -gt 100 ]; then
+            echo "server.json description is ${#DESC} chars; registry max is 100"
+            exit 1
+          fi
+
   build-and-test:
     runs-on: ubuntu-latest
 
