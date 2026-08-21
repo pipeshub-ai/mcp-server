@@ -12,13 +12,21 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "{instance_url}/mcp",
+      "url": "https://{instance_host}/mcp",
       "variables": {
-        "instance_url": {
-          "description": "Origin of your PipesHub instance, no trailing slash (e.g. https://pipeshub.example.com)",
+        "instance_host": {
+          "description": "PipesHub hostname, no scheme (e.g. pipeshub.example.com)",
           "isRequired": true
         }
-      }
+      },
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer PAT. Value is 'Bearer <token>'. Never client_credentials.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
     }
   ],
   "packages": [

@@ -35,22 +35,14 @@ jobs:
       # The registry publishes the committed server.json. Rewriting it on
       # the runner after the GitHub release would ship a manifest that the
       # tag cannot reproduce. Bump both files in the same commit.
-      # Description maxLength 100 is a live registry 422 (2.3.3); catch it
-      # here so npm is not published with a listing that then fails.
-      - name: Check server.json version matches package.json
+      # Validate against the live registry before npm publish — 2.3.3 shipped
+      # then failed twice on schema the jq length check did not cover.
+      - name: Install mcp-publisher
         run: |
-          PKG=$(jq -r .version package.json)
-          MANIFEST=$(jq -r .version server.json)
-          PKG_ENTRY=$(jq -r '.packages[0].version' server.json)
-          if [ "$PKG" != "$MANIFEST" ] || [ "$PKG" != "$PKG_ENTRY" ]; then
-            echo "server.json version ($MANIFEST, packages[0]=$PKG_ENTRY) must equal package.json ($PKG) before release"
-            exit 1
-          fi
-          DESC=$(jq -r .description server.json)
-          if [ ${#DESC} -gt 100 ]; then
-            echo "server.json description is ${#DESC} chars; registry max is 100"
-            exit 1
-          fi
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Validate server.json
+        run: bash scripts/validate-server-json.sh
 
       - run: npm publish --access public
         env:
@@ -74,11 +66,7 @@ jobs:
       # Putting this first would leave npm published with no tag. continue-on-error
       # so a registry miss does not fail the release. Do not re-run this
       # workflow after npm has published; use "Publish to MCP registry".
-      - name: Install mcp-publisher
-        continue-on-error: true
-        run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
-
+      # Binary was installed before npm publish.
       - name: Publish to the official MCP registry
         continue-on-error: true
         run: |

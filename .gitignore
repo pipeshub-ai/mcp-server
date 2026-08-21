@@ -1,3 +1,5 @@
+# Downloaded by CI/publish; never commit the binary.
+mcp-publisher
 **/.speakeasy/logs/
 **/.speakeasy/reports/
 **/.speakeasy/temp/
