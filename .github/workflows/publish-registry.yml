@@ -14,17 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check server.json description length
-        run: |
-          DESC=$(jq -r .description server.json)
-          if [ ${#DESC} -gt 100 ]; then
-            echo "server.json description is ${#DESC} chars; registry max is 100"
-            exit 1
-          fi
-
       - name: Install mcp-publisher
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Validate server.json
+        run: bash scripts/validate-server-json.sh
 
       - name: Publish to the official MCP registry
         run: |
