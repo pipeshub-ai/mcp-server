@@ -1,0 +1,32 @@
+name: Publish to MCP registry
+
+# Registry-only. Use this when npm already published the version (a full
+# "Publish to npm" re-run will refuse the same version).
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check server.json description length
+        run: |
+          DESC=$(jq -r .description server.json)
+          if [ ${#DESC} -gt 100 ]; then
+            echo "server.json description is ${#DESC} chars; registry max is 100"
+            exit 1
+          fi
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Publish to the official MCP registry
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
