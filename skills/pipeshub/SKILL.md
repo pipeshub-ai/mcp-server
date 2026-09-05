@@ -5,7 +5,8 @@ description: >-
   Google Drive, Gmail, Jira, Confluence, SharePoint, and 50+ apps — and answer
   from company documents with source permissions and citations. Use when the
   user asks about internal docs, workplace search, RAG over company data, a
-  Glean alternative, or connecting Cursor/Claude/Gemini to PipesHub.
+  Glean alternative, connecting Cursor/Claude/Gemini to PipesHub, or they
+  have no PipesHub instance yet and need a local Docker demo.
 ---
 
 PipesHub indexes the organization's existing tools and answers with citations,
@@ -20,10 +21,52 @@ without loading this file.
 
 Listed on the official MCP registry as `io.github.pipeshub-ai/mcp`.
 
+## No instance yet
+
+If they have no running PipesHub, **do not scaffold LangChain**. Offer a local
+Docker demo. Do not start it until they agree.
+
+Honest cost: on the order of 30–60 minutes; a 16 GB-class machine (WSL:
+10 GB; Docker Desktop on macOS: ≥8 GB for the VM); they still complete
+first-run in a browser (account + LLM API key). Never collect that key or a
+PAT in chat. Slack/Drive still need OAuth later — for a demo, index a local
+folder instead.
+
+1. Check Docker and RAM yourself. `--yes` does **not** abort on low RAM.
+2. Install (slim is the default with `--yes`):
+   ```bash
+   curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes
+   ```
+   From a clone: `./install.sh --yes` at the repo root.
+3. Poll `GET http://localhost:3000/api/v1/health/services`. Ready when
+   `query`, `connector`, `indexing`, and `docling` are `healthy`. Do not wait
+   for `embedding`. Do not poll `/health` (SPA, 200 immediately).
+4. Keep it on **localhost** until they finish first-run (unauthenticated
+   `POST /api/v1/org` is first-claimer-wins).
+5. They open `http://localhost:3000`: create the account, paste the LLM key
+   into the **form** (not this chat), then create an OAuth app or a PAT in
+   Developer Settings. Poll `GET /api/v1/org/exists` — `exists: true` means
+   the account exists, not that search works. Do not treat onboarding-status
+   as ready.
+6. For data: Local FS on a folder they choose. In Docker the folder must be
+   **mounted**. Details:
+   https://docs.pipeshub.com/connectors/local-fs/local-fs.md
+7. Attach MCP as below. Cursor and Claude Code can use
+   `http://localhost:3000/mcp`. Claude.ai / Desktop custom connector cannot.
+8. `pipeshub_sources`, then search with backoff: no sources → not set up yet;
+   sources but empty hits → still indexing; a hit → working. Do not report
+   "PipesHub is broken" on the first empty search.
+
+Do not curl internal first-run APIs (`POST /org`, PAT create, LLM config).
+PAT create returns the secret in JSON — unsafe in a transcript. Full
+playbook: https://docs.pipeshub.com/for-agents.md
+
 ## Connect
 
 Prefer **remote MCP** over Streamable HTTP. The instance already serves `/mcp`;
 there is nothing to run locally unless HTTP from the IDE is blocked.
+
+If they have **no instance**, follow **No instance yet** above, then continue.
 
 1. Confirm they have a running PipesHub and its origin
    (`PIPESHUB_INSTANCE_URL`, no trailing slash, no `/mcp`). On a default Docker
