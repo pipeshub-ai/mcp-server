@@ -5,7 +5,8 @@ description: >-
   Google Drive, Gmail, Jira, Confluence, SharePoint, and 50+ apps — and answer
   from company documents with source permissions and citations. Use when the
   user asks about internal docs, workplace search, RAG over company data, a
-  Glean alternative, or connecting Cursor/Claude/Gemini to PipesHub.
+  Glean alternative, connecting Cursor/Claude/Gemini to PipesHub, or they
+  have no PipesHub instance yet and need a local Docker demo.
 ---
 
 PipesHub indexes the organization's existing tools and answers with citations,
@@ -20,10 +21,63 @@ without loading this file.
 
 Listed on the official MCP registry as `io.github.pipeshub-ai/mcp`.
 
+## No instance yet
+
+If they have no running PipesHub, **do not scaffold LangChain**. Offer a local
+Docker demo. Do not start it until they agree. Full playbook:
+https://docs.pipeshub.com/for-agents-local-demo.md
+
+Honest cost: 30–60 minutes; 16 GB-class RAM (WSL 10 GB; Docker Desktop on
+macOS ≥8 GB VM); first-run still in a browser (account + an LLM — vendor
+key in the **form**, never this chat, **or** Ollama on the host). Search
+and chat both 500 until that LLM exists. Slack/Drive need OAuth; for a
+demo upload files to the Knowledge Base (no mount) or Local FS with a
+bind-mount.
+
+1. `docker info` must work. Check RAM yourself (`MemTotal` ≥15000 MB, or
+   10240 on WSL). `--yes` does **not** abort on low RAM.
+2. If `docker ps` already shows PipesHub, **do not** run a bare `--yes` —
+   that updates project `pipeshub-ai` and can clobber an existing corpus. Use
+   a new project:
+   ```bash
+   PIPESHUB_DIR="$PWD/pipeshub-demo" \
+   PIPESHUB_PROJECT=pipeshub-demo \
+   PIPESHUB_PORT=3200 \
+   PIPESHUB_DEPLOY_TYPE=slim \
+     curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes
+   ```
+   Empty machine: `curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes`
+3. Poll `GET http://localhost:$PORT/api/v1/health/services` until `query`,
+   `connector`, `indexing`, and `docling` are `healthy` (up to ~420s). Do
+   not wait for `embedding`. Do not poll `/health` (SPA, 200 immediately).
+4. Keep it on **localhost** until first-run (`POST /api/v1/org` is
+   first-claimer-wins). They open the UI: account, then an LLM (vendor key
+   in the form, **or** Ollama: a model from `ollama list`, endpoint default
+   `http://host.docker.internal:11434`). Then OAuth app or PAT in Developer
+   Settings (PAT goes in a local env file, not chat). Poll
+   `GET /api/v1/org/exists` — `exists: true` is **account only**. Do not treat
+   onboarding-status as ready. A search 500 about missing LLM config means
+   they skipped the LLM step, not that the index is empty.
+5. Data: Knowledge Base upload in the UI, **or** Local FS after mounting
+   the folder into the container (`docker-compose.override.yml` →
+   `/data/demo`). Host paths that are not mounted are invisible.
+6. Attach MCP as below. Cursor / Claude Code can use localhost. Claude.ai /
+   Desktop custom connector cannot.
+7. `pipeshub_sources`, then search with backoff (15s / 30s / 60s): no
+   sources → not set up; 500 missing LLM config → they skipped the form;
+   empty hits → still indexing; a hit → working. Do not report
+   "PipesHub is broken" on the first empty search.
+
+Do not curl internal first-run APIs. PAT create returns the secret in JSON.
+The supported mint-to-file script is
+https://docs.pipeshub.com/for-agents-bootstrap.md
+
 ## Connect
 
 Prefer **remote MCP** over Streamable HTTP. The instance already serves `/mcp`;
 there is nothing to run locally unless HTTP from the IDE is blocked.
+
+If they have **no instance**, follow **No instance yet** above, then continue.
 
 1. Confirm they have a running PipesHub and its origin
    (`PIPESHUB_INSTANCE_URL`, no trailing slash, no `/mcp`). On a default Docker
