@@ -69,6 +69,8 @@ bind-mount.
    "PipesHub is broken" on the first empty search.
 
 Do not curl internal first-run APIs. PAT create returns the secret in JSON.
+The supported mint-to-file script is
+https://docs.pipeshub.com/for-agents-bootstrap.md
 
 ## Connect
 
