@@ -25,7 +25,7 @@ Listed on the official MCP registry as `io.github.pipeshub-ai/mcp`.
 
 If they have no running PipesHub, **do not scaffold LangChain**. Offer a local
 Docker demo. Do not start it until they agree. Full playbook:
-https://docs.pipeshub.com/for-agents.md
+https://docs.pipeshub.com/for-agents-local-demo.md
 
 Honest cost: 30–60 minutes; 16 GB-class RAM (WSL 10 GB; Docker Desktop on
 macOS ≥8 GB VM); first-run still in a browser (account + an LLM — vendor

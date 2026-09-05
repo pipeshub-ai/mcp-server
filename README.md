@@ -12,7 +12,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
 
 ## Prerequisites
 
-- A running PipesHub instance (self-hosted or cloud). If they have none yet, the [for-agents](https://docs.pipeshub.com/for-agents.md) page covers a local Docker demo — do not scaffold LangChain. First-run (account + LLM) is still in the browser; search 500s until an LLM is configured.
+- A running PipesHub instance (self-hosted or cloud). If they have none yet, the [local Docker demo](https://docs.pipeshub.com/for-agents-local-demo.md) playbook covers install and first-run — do not scaffold LangChain. First-run (account + LLM) is still in the browser; search 500s until an LLM is configured.
 - An OAuth app created in PipesHub (see [Step 1](#step-1-create-an-oauth-app-in-pipeshub))
 
 ## Step 1: Create an OAuth App in PipesHub
