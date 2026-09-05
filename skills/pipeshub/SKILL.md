@@ -24,42 +24,51 @@ Listed on the official MCP registry as `io.github.pipeshub-ai/mcp`.
 ## No instance yet
 
 If they have no running PipesHub, **do not scaffold LangChain**. Offer a local
-Docker demo. Do not start it until they agree.
+Docker demo. Do not start it until they agree. Full playbook:
+https://docs.pipeshub.com/for-agents.md
 
-Honest cost: on the order of 30–60 minutes; a 16 GB-class machine (WSL:
-10 GB; Docker Desktop on macOS: ≥8 GB for the VM); they still complete
-first-run in a browser (account + LLM API key). Never collect that key or a
-PAT in chat. Slack/Drive still need OAuth later — for a demo, index a local
-folder instead.
+Honest cost: 30–60 minutes; 16 GB-class RAM (WSL 10 GB; Docker Desktop on
+macOS ≥8 GB VM); first-run still in a browser (account + an LLM — vendor
+key in the **form**, never this chat, **or** Ollama on the host). Search
+and chat both 500 until that LLM exists. Slack/Drive need OAuth; for a
+demo upload files to the Knowledge Base (no mount) or Local FS with a
+bind-mount.
 
-1. Check Docker and RAM yourself. `--yes` does **not** abort on low RAM.
-2. Install (slim is the default with `--yes`):
+1. `docker info` must work. Check RAM yourself (`MemTotal` ≥15000 MB, or
+   10240 on WSL). `--yes` does **not** abort on low RAM.
+2. If `docker ps` already shows PipesHub, **do not** run a bare `--yes` —
+   that updates project `pipeshub-ai` and can clobber an existing corpus. Use
+   a new project:
    ```bash
-   curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes
+   PIPESHUB_DIR="$PWD/pipeshub-demo" \
+   PIPESHUB_PROJECT=pipeshub-demo \
+   PIPESHUB_PORT=3200 \
+   PIPESHUB_DEPLOY_TYPE=slim \
+     curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes
    ```
-   From a clone: `./install.sh --yes` at the repo root.
-3. Poll `GET http://localhost:3000/api/v1/health/services`. Ready when
-   `query`, `connector`, `indexing`, and `docling` are `healthy`. Do not wait
-   for `embedding`. Do not poll `/health` (SPA, 200 immediately).
-4. Keep it on **localhost** until they finish first-run (unauthenticated
-   `POST /api/v1/org` is first-claimer-wins).
-5. They open `http://localhost:3000`: create the account, paste the LLM key
-   into the **form** (not this chat), then create an OAuth app or a PAT in
-   Developer Settings. Poll `GET /api/v1/org/exists` — `exists: true` means
-   the account exists, not that search works. Do not treat onboarding-status
-   as ready.
-6. For data: Local FS on a folder they choose. In Docker the folder must be
-   **mounted**. Details:
-   https://docs.pipeshub.com/connectors/local-fs/local-fs.md
-7. Attach MCP as below. Cursor and Claude Code can use
-   `http://localhost:3000/mcp`. Claude.ai / Desktop custom connector cannot.
-8. `pipeshub_sources`, then search with backoff: no sources → not set up yet;
-   sources but empty hits → still indexing; a hit → working. Do not report
+   Empty machine: `curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes`
+3. Poll `GET http://localhost:$PORT/api/v1/health/services` until `query`,
+   `connector`, `indexing`, and `docling` are `healthy` (up to ~420s). Do
+   not wait for `embedding`. Do not poll `/health` (SPA, 200 immediately).
+4. Keep it on **localhost** until first-run (`POST /api/v1/org` is
+   first-claimer-wins). They open the UI: account, then an LLM (vendor key
+   in the form, **or** Ollama: a model from `ollama list`, endpoint default
+   `http://host.docker.internal:11434`). Then OAuth app or PAT in Developer
+   Settings (PAT goes in a local env file, not chat). Poll
+   `GET /api/v1/org/exists` — `exists: true` is **account only**. Do not treat
+   onboarding-status as ready. A search 500 about missing LLM config means
+   they skipped the LLM step, not that the index is empty.
+5. Data: Knowledge Base upload in the UI, **or** Local FS after mounting
+   the folder into the container (`docker-compose.override.yml` →
+   `/data/demo`). Host paths that are not mounted are invisible.
+6. Attach MCP as below. Cursor / Claude Code can use localhost. Claude.ai /
+   Desktop custom connector cannot.
+7. `pipeshub_sources`, then search with backoff (15s / 30s / 60s): no
+   sources → not set up; 500 missing LLM config → they skipped the form;
+   empty hits → still indexing; a hit → working. Do not report
    "PipesHub is broken" on the first empty search.
 
-Do not curl internal first-run APIs (`POST /org`, PAT create, LLM config).
-PAT create returns the secret in JSON — unsafe in a transcript. Full
-playbook: https://docs.pipeshub.com/for-agents.md
+Do not curl internal first-run APIs. PAT create returns the secret in JSON.
 
 ## Connect
 
