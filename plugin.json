@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pipeshub",
+  "version": "2.3.3",
+  "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, and 50+ workplace sources.",
+  "author": {
+    "name": "PipesHub",
+    "url": "https://www.pipeshub.com"
+  },
+  "homepage": "https://docs.pipeshub.com/for-agents",
+  "repository": "https://github.com/pipeshub-ai/mcp-server",
+  "keywords": ["mcp", "pipeshub", "workplace-search", "rag"]
+}
