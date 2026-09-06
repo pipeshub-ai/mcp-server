@@ -22,6 +22,14 @@ if [ "$MCP_NAME" != "$SERVER_NAME" ]; then
   exit 1
 fi
 
+if [ -f plugin.json ]; then
+  PLUGIN=$(jq -r .version plugin.json)
+  if [ "$PKG" != "$PLUGIN" ]; then
+    echo "plugin.json version ($PLUGIN) must equal package.json ($PKG)"
+    exit 1
+  fi
+fi
+
 if [ ${#DESC} -gt 100 ]; then
   echo "server.json description is ${#DESC} chars; registry max is 100"
   exit 1
