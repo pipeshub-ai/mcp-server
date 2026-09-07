@@ -19,6 +19,11 @@ When you connect MCP, also append the Company knowledge block below to their
 without loading this file.
 
 Listed on the official MCP registry as `io.github.pipeshub-ai/mcp`.
+Cursor Directory listing is a **human submit** of this repo
+(https://cursor.directory/plugins/new — paste
+`https://github.com/pipeshub-ai/mcp-server`). Do not curl first-run APIs;
+PAT create returns the secret in JSON. Scripted first-run is
+https://docs.pipeshub.com/for-agents-bootstrap.md
 
 ## Connect
 
