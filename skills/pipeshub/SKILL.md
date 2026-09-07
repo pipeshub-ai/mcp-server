@@ -38,13 +38,13 @@ bind-mount.
    10240 on WSL). `--yes` does **not** abort on low RAM.
 2. If `docker ps` already shows PipesHub, **do not** run a bare `--yes` —
    that updates project `pipeshub-ai` and can clobber an existing corpus. Use
-   a new project:
+   a new project. Export the knobs *before* the pipe so bash receives them:
    ```bash
-   PIPESHUB_DIR="$PWD/pipeshub-demo" \
-   PIPESHUB_PROJECT=pipeshub-demo \
-   PIPESHUB_PORT=3200 \
-   PIPESHUB_DEPLOY_TYPE=slim \
-     curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes
+   export PIPESHUB_DIR="$PWD/pipeshub-demo"
+   export PIPESHUB_PROJECT=pipeshub-demo
+   export PIPESHUB_PORT=3200
+   export PIPESHUB_DEPLOY_TYPE=slim
+   curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes
    ```
    Empty machine: `curl -fsSL https://get.pipeshub.com/install | bash -s -- --yes`
 3. Poll `GET http://localhost:$PORT/api/v1/health/services` until `query`,
