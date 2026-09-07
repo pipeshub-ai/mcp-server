@@ -29,7 +29,7 @@ https://docs.pipeshub.com/for-agents-local-demo.md
 
 Honest cost: 30–60 minutes; 16 GB-class RAM (WSL 10 GB; Docker Desktop on
 macOS ≥8 GB VM); first-run still in a browser (account + an LLM — vendor
-key in the **form**, never this chat, **or** Ollama on the host). Search
+key in the **form**, never pasted into a conversation, **or** Ollama on the host). Search
 and chat both 500 until that LLM exists. Slack/Drive need OAuth; for a
 demo upload files to the Knowledge Base (no mount) or Local FS with a
 bind-mount.
