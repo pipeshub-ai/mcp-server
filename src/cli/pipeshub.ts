@@ -47,7 +47,7 @@ COMMANDS
 OPTIONS
   --json                      JSON output (default)
   --text                      human-readable output where available
-  --limit <n>                 search: max hits returned, 1-100 (default 10)
+  --limit <n>                 search: result limit, 1-100 (default 10)
   --app <id>                  search: restrict to a connector id (repeatable)
   --kb <id>                   search: restrict to a collection id (repeatable)
   --conversation <id>         ask: continue an existing conversation

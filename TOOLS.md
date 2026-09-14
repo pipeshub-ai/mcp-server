@@ -41,13 +41,13 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Maximum number of results. Default 10. Use 5–10 when you only need a `recordId`. |
+| `limit` | number (1–100) | no | Result limit, passed to the backend as is. Default 10. Use 5–10 when you only need a `recordId`. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
 
 Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
 
-**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score, at most `limit`, with `hitsBeforeLimit` and `truncated`; `uniqueRecords[]` for the records behind the returned hits; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
+**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score; `uniqueRecords[]` for the records behind the returned hits; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
 > Hits are the top-scoring **blocks** from the best-matching records — not all blocks of any record, and not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
 >

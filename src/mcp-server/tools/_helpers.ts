@@ -769,30 +769,3 @@ export async function resolveSourceScope(
   };
 }
 
-/**
- * Keep the top `limit` hits. The backend expands the query and applies its
- * limit to each expansion, so it can return many times `limit`. Hits arrive
- * sorted by score, so a slice keeps the best ones. Records are filtered only
- * when hits were cut, so an uncut response passes through unchanged.
- */
-export function capSearchResults<
-  H extends { recordId?: unknown },
-  R extends { recordId?: unknown },
->(
-  hits: H[],
-  records: R[],
-  limit: number,
-): { hits: H[]; records: R[]; hitsBeforeLimit: number; truncated: boolean } {
-  const hitsBeforeLimit = hits.length;
-  if (hitsBeforeLimit <= limit) {
-    return { hits, records, hitsBeforeLimit, truncated: false };
-  }
-  const kept = hits.slice(0, limit);
-  const keptIds = new Set(kept.map((h) => h.recordId));
-  return {
-    hits: kept,
-    records: records.filter((r) => keptIds.has(r.recordId)),
-    hitsBeforeLimit,
-    truncated: true,
-  };
-}
