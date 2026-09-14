@@ -25,7 +25,7 @@ import {
   httpErrorResult,
   iterateSSE,
   jsonResult,
-  searchFilters,
+  resolveSourceScope,
   trimConversation,
 } from "./_helpers.js";
 
@@ -155,13 +155,24 @@ cited document, take \`citations[*].recordId\` and call
       : "internal_search";
     let response: Response;
 
-    // Filters apply only when a conversation starts. Ids go where the caller
-    // put them: connector ids in `apps`, collection ids in `kb`. Both keys go
-    // out: on agent chat a missing key falls back to the agent's own sources.
-    // An explicit empty `{ apps: [], kb: [] }` passes through unchanged.
+    // Filters apply only when a conversation starts. Each id is sent in the
+    // list the backend reads it from (collection ids in `kb`, connector ids in
+    // `apps`). Both keys go out: on agent chat a missing key falls back to the
+    // agent's own sources. An explicit empty `{ apps: [], kb: [] }` passes
+    // through unchanged.
     let filters = args.filters;
+    let notes: string[] = [];
     if (!args.conversationId && filters) {
-      filters = searchFilters(filters.apps, filters.kb) ?? filters;
+      const resolved = await resolveSourceScope(
+        client,
+        filters.apps,
+        filters.kb,
+        { signal: ctx.signal },
+      );
+      notes = resolved.notes;
+      if (resolved.scope.apps.length > 0 || resolved.scope.kb.length > 0) {
+        filters = { apps: resolved.scope.apps, kb: resolved.scope.kb };
+      }
     }
 
     if (args.agentId) {
@@ -252,6 +263,7 @@ cited document, take \`citations[*].recordId\` and call
       return jsonResult({
         ...trimConversation(state.conversation),
         recordsUsed: state.recordsUsed,
+        ...(notes.length > 0 ? { notes } : {}),
       });
     }
 
@@ -272,6 +284,7 @@ cited document, take \`citations[*].recordId\` and call
         recordsUsed: state.recordsUsed,
         warning: "Stream ended without a terminal RUN_FINISHED; answer is the "
           + "accumulated TEXT_MESSAGE_CONTENT and citations are unavailable.",
+        ...(notes.length > 0 ? { notes } : {}),
       });
     }
 

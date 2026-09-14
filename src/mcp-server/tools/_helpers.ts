@@ -571,10 +571,12 @@ export function toSource(n: any): SourceItem {
 /**
  * Fetch every root source (connectors and collections), paginating
  * `GET /knowledgeBase/knowledge-hub/nodes` the same way `listAllAgents` does.
- * A partial listing would hide sources from `pipeshub_sources`, so this does
- * not stop at the first page.
+ * A partial listing would let a misplaced id slip past the scope router, so
+ * this does not stop at the first page.
  *
- * `reason` is a short cause; `result` carries the full message.
+ * `reason` is a short cause for callers that report the failure as a note
+ * rather than an error — `result` carries the full message, including an auth
+ * hint that would mislead inside a search that otherwise succeeded.
  */
 export async function listAllSources(
   client: PipeshubCore,
@@ -637,20 +639,134 @@ export async function listAllSources(
 
 const dedupe = (ids: readonly string[]): string[] => [...new Set(ids)];
 
+export interface SourceScope {
+  apps: string[];
+  kb: string[];
+  /** Collection ids that arrived in `apps` and were moved to `kb`. */
+  movedToKb: string[];
+  /** Connector ids that arrived in `kb` and were moved to `apps`. */
+  movedToApps: string[];
+}
+
 /**
- * The `filters` body for `POST /search` and chat. Ids go where the caller put
- * them: connector ids in `apps`, collection ids in `kb`. Nothing is moved.
- * Duplicates collapse. Omitted when nothing is scoped, which searches
- * everything.
+ * Put each id in the list the backend reads it from, whichever list the
+ * caller used. `kinds` maps a source id to what the listing says it is. An id
+ * the listing does not know stays where the caller put it. Order is kept:
+ * ids from `apps` first, then ids from `kb`. Duplicates collapse.
  */
-export function searchFilters(
+export function routeSourceScope(
   apps: readonly string[] | undefined,
   kb: readonly string[] | undefined,
-): { apps: string[]; kb: string[] } | undefined {
+  kinds: ReadonlyMap<string, SourceKind>,
+): SourceScope {
   const appIds = dedupe(apps ?? []);
   const kbIds = dedupe(kb ?? []);
-  if (appIds.length === 0 && kbIds.length === 0) return undefined;
-  return { apps: appIds, kb: kbIds };
+  const movedToKb = appIds.filter((id) => kinds.get(id) === "knowledgeBase");
+  const movedToApps = kbIds.filter((id) => kinds.get(id) === "connector");
+  return {
+    apps: dedupe([
+      ...appIds.filter((id) => kinds.get(id) !== "knowledgeBase"),
+      ...movedToApps,
+    ]),
+    kb: dedupe([
+      ...movedToKb,
+      ...kbIds.filter((id) => kinds.get(id) !== "connector"),
+    ]),
+    movedToKb,
+    movedToApps,
+  };
+}
+
+/** The `filters` body for `POST /search`; omitted when nothing is scoped. */
+export function searchFilters(
+  scope: { apps: string[]; kb: string[] },
+): { apps: string[]; kb: string[] } | undefined {
+  if (scope.apps.length === 0 && scope.kb.length === 0) return undefined;
+  return { apps: scope.apps, kb: scope.kb };
+}
+
+/** Notes telling the model what the router did, or could not do. */
+export function sourceScopeNotes(input: {
+  movedToKb: string[];
+  movedToApps: string[];
+  lookupError?: string | undefined;
+  unlisted?: string[] | undefined;
+}): string[] {
+  const notes: string[] = [];
+  if (input.movedToKb.length > 0) {
+    notes.push(
+      `Moved ${input.movedToKb.length} collection id(s) from apps to kb: `
+        + `${input.movedToKb.join(", ")}. Collection ids belong in kb.`,
+    );
+  }
+  if (input.movedToApps.length > 0) {
+    notes.push(
+      `Moved ${input.movedToApps.length} connector id(s) from kb to apps: `
+        + `${input.movedToApps.join(", ")}. Connector ids belong in apps.`,
+    );
+  }
+  if (input.lookupError) {
+    notes.push(
+      "Could not check the ids against the source list "
+        + `(${input.lookupError}); sent them unchanged. If this finds nothing, `
+        + "check that collection ids are in kb and connector ids in apps.",
+    );
+  }
+  if (input.unlisted && input.unlisted.length > 0) {
+    notes.push(
+      `Source list was incomplete; ${input.unlisted.join(", ")} were not `
+        + "found and were sent unchanged.",
+    );
+  }
+  return notes;
+}
+
+/**
+ * Route `apps` / `kb` for one request. Every id in either list is checked
+ * against the source listing and sent in the list the backend reads it from:
+ * collection ids in `kb`, connector ids in `apps`. The lookup costs a request,
+ * so it runs only when something is scoped. A failed lookup sends the ids
+ * unchanged and says so in `notes`.
+ */
+export async function resolveSourceScope(
+  client: PipeshubCore,
+  apps: readonly string[] | undefined,
+  kb: readonly string[] | undefined,
+  opts: {
+    signal?: AbortSignal | undefined;
+    maxPages?: number | undefined;
+  } = {},
+): Promise<{ scope: SourceScope; notes: string[] }> {
+  const unchecked = routeSourceScope(apps, kb, new Map());
+  if (unchecked.apps.length === 0 && unchecked.kb.length === 0) {
+    return { scope: unchecked, notes: [] };
+  }
+
+  const listed = await listAllSources(client, opts);
+  if (!listed.ok) {
+    return {
+      scope: unchecked,
+      notes: sourceScopeNotes({
+        movedToKb: [],
+        movedToApps: [],
+        lookupError: listed.reason,
+      }),
+    };
+  }
+
+  const kinds = new Map(listed.sources.map((s) => [s.id, s.kind] as const));
+  const scope = routeSourceScope(apps, kb, kinds);
+  const unlisted = listed.truncated
+    ? [...scope.apps, ...scope.kb].filter((id) => !kinds.has(id))
+    : [];
+  return {
+    scope,
+    notes: sourceScopeNotes({
+      movedToKb: scope.movedToKb,
+      movedToApps: scope.movedToApps,
+      unlisted,
+    }),
+  };
 }
 
 /**

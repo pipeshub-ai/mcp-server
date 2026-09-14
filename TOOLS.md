@@ -30,7 +30,7 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 - "Summarize *a specific doc*" or "What does *document* say about X?" → `pipeshub_search` → top hit's `recordId` → `pipeshub_get_record_content` (not `pipeshub_chat`).
 - "Find / locate the file named X" → `pipeshub_search` (then `pipeshub_download_record` if the user wants the bytes).
 
-**Response:** the AI's `answer`, `citations[]` (each with `recordId`), `followUpQuestions`, plus the `conversationId` to use for follow-ups.
+**Response:** the AI's `answer`, `citations[]` (each with `recordId`), `followUpQuestions`, plus the `conversationId` to use for follow-ups; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
 ---
 
@@ -47,7 +47,7 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 
 Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
 
-**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score, at most `limit`, with `hitsBeforeLimit` and `truncated`; `uniqueRecords[]` for the records behind the returned hits.
+**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score, at most `limit`, with `hitsBeforeLimit` and `truncated`; `uniqueRecords[]` for the records behind the returned hits; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
 > Hits are the top-scoring **blocks** from the best-matching records — not all blocks of any record, and not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
 >

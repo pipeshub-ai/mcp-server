@@ -257,6 +257,7 @@ export async function search(
       hitsBeforeLimit: typeof obj["hitsBeforeLimit"] === "number"
         ? obj["hitsBeforeLimit"]
         : null,
+      notes: arr(obj["notes"]).filter((n): n is string => typeof n === "string"),
       hits,
       records,
     },
