@@ -14,7 +14,7 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 |---|---|---|---|
 | `query` | string | yes | The user's question or message for this turn. |
 | `conversationId` | string | no | Existing conversation id to continue. Omit on the first turn; pass it back on every subsequent turn so the server-side history is preserved. |
-| `filters` | object | no | Source scoping — `{ apps: string[] }` of connector instance UUIDs and/or `knowledgeBase_<orgId>`. Get ids from `pipeshub_sources`. Only meaningful on the first turn. |
+| `filters` | object | no | Which sources the answer may use: `{ apps, kb }`. Connector ids go in `apps`, collection ids go in `kb`; get both from `pipeshub_sources`. Leave out to use all sources. Only works on the first turn. |
 | `modelKey` | string | no | Model id from `pipeshub_sources` `llmModels[*].modelKey`. Defaults to the org's default LLM. |
 | `agentId` | string | no | PipesHub agent to converse with (`agentId` from `pipeshub_agents`). Runs the turn against that agent's prompt, tools and knowledge. Pass the same `agentId` on every follow-up turn. Omit for plain chat. |
 | `chatMode` | enum | no | `internal_search` (default) or `web_search` — the plain-chat modes. `quick` is agent-only; see below. |
@@ -41,10 +41,13 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Max number of result chunks. Default 10. Use 5–10 when resolving a filename to a `recordId`. |
-| `apps` | string[] | no | Source-scoping ids — connector instance UUIDs and/or `knowledgeBase_<orgId>`. Get them from `pipeshub_sources`. |
+| `limit` | number (1–100) | no | Maximum number of results. Default 10. Use 5–10 when you only need a `recordId`. |
+| `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
+| `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
 
-**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score, plus `uniqueRecords[]` for deduped record-level info.
+Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
+
+**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score, at most `limit`, with `hitsBeforeLimit` and `truncated`; `uniqueRecords[]` for the records behind the returned hits.
 
 > Hits are the top-scoring **blocks** from the best-matching records — not all blocks of any record, and not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
 >
@@ -124,8 +127,8 @@ Discover available chat sources and AI models in one call. Call this once at the
 | `include` | enum[] | no | Which sections to fetch. Default: `["sources", "llmModels"]`. Add `"embeddingModels"` if configuring re-embedding. |
 
 **Response:** up to three sections.
-- `sources` — every connector instance plus the synthetic `knowledgeBase_<orgId>` entry. Each `id` is the value to put in `pipeshub_chat`'s or `pipeshub_search`'s `apps` filter.
-- `llmModels` — chat / generation models. Each `modelKey` is the value to pass as `modelKey` to chat/search. Pick `isDefault: true` unless the user asks for a specific model.
+- `sources` — connectors (`kind: "connector"`) and collections (`kind: "knowledgeBase"`). For `pipeshub_search` and `pipeshub_chat`, pass connector ids in `apps` and collection ids in `kb`. `sourcesTruncated: true` means the listing stopped at 1,000 sources.
+- `llmModels` — chat / generation models. Each `modelKey` is the value to pass as `modelKey` to `pipeshub_chat`. Pick `isDefault: true` unless the user asks for a specific model.
 - `embeddingModels` — vector embedding models (only when explicitly requested).
 
 ---

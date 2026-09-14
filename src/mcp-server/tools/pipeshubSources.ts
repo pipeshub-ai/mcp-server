@@ -1,8 +1,12 @@
 import * as z from "zod";
-import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
 import { aiModelsProvidersGetAvailableModelsByType } from "../../funcs/aiModelsProvidersGetAvailableModelsByType.js";
 import { ToolDefinition } from "../tools.js";
-import { errorResult, jsonResult, readJson } from "./_helpers.js";
+import {
+  errorResult,
+  jsonResult,
+  listAllSources,
+  readJson,
+} from "./_helpers.js";
 
 const args = {
   include: z.array(z.enum(["sources", "llmModels", "embeddingModels"]))
@@ -20,20 +24,19 @@ export const tool$pipeshubSources: ToolDefinition<typeof args> = {
 
 Returns up to three sections:
 
-- \`sources\` — every connector instance the org has wired up plus the
-  synthetic \`knowledgeBase_<orgId>\` entry for the org's KB. Each
-  item's \`id\` is exactly the value to put in \`pipeshub_chat\`'s or
-  \`pipeshub_search\`'s \`apps\` filter.
+- \`sources\` — connectors (\`kind: "connector"\`) and collections
+  (\`kind: "knowledgeBase"\`). For \`pipeshub_search\` and
+  \`pipeshub_chat\`, put a connector \`id\` in \`apps\` and a collection
+  \`id\` in \`kb\`. \`sourcesTruncated: true\` means the list stopped at
+  1,000 sources.
 - \`llmModels\` — chat / generation models. Each item's \`modelKey\`
-  is the value to pass on \`pipeshub_chat\` / \`pipeshub_search\` as
-  \`modelKey\`. Pick \`isDefault: true\` unless the user asks for a
-  specific model.
+  is the value to pass on \`pipeshub_chat\` as \`modelKey\`. Pick
+  \`isDefault: true\` unless the user asks for a specific model.
 - \`embeddingModels\` — vector embedding models (only fetched when
   explicitly requested via \`include\`).
 
 Call this once at the start of a session and cache the result —
-sources and models change infrequently. \`sources\` and \`llmModels\`
-are returned by default; pass \`include\` to override.`,
+sources and models change infrequently.`,
   scopes: ["read"],
   annotations: {
     title: "List PipesHub sources and AI models",
@@ -52,20 +55,10 @@ are returned by default; pass \`include\` to override.`,
     const result: Record<string, unknown> = {};
 
     if (want("sources")) {
-      const [r] = await knowledgeHubGetKnowledgeHubRootNodes(client, {
-        page: 1,
-        limit: 200,
-      }, { fetchOptions }).$inspect();
-      if (!r.ok) return errorResult(`sources: ${r.error.message}`);
-      const parsed = await readJson<{ items?: any[] }>(r.value, "Knowledge base listing");
-      if (!parsed.ok) return parsed.result;
-      result["sources"] = (parsed.value.items ?? []).map((n: any) => ({
-        id: n.id,
-        name: n.name,
-        kind: n.connector === "KB" ? "knowledgeBase" : "connector",
-        connector: n.connector,
-        hasChildren: n.hasChildren,
-      }));
+      const listed = await listAllSources(client, { signal: ctx.signal });
+      if (!listed.ok) return listed.result;
+      result["sources"] = listed.sources;
+      if (listed.truncated) result["sourcesTruncated"] = true;
     }
 
     for (

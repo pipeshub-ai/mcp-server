@@ -2,19 +2,34 @@
 import * as z from "zod";
 import { semanticSearchSearch } from "../../funcs/semanticSearchSearch.js";
 import { ToolDefinition } from "../tools.js";
-import { errorResult, jsonResult, readJson, trimSearchHit } from "./_helpers.js";
+import {
+  capSearchResults,
+  errorResult,
+  jsonResult,
+  readJson,
+  searchFilters,
+  trimSearchHit,
+} from "./_helpers.js";
+
+/** Matches the SDK request default (`src/models/semanticsearchrequest.ts`). */
+const DEFAULT_LIMIT = 10;
 
 const args = {
   query: z.string().min(1).describe(
     "Natural language query. Vector search across the org's indexed records.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Max number of result chunks. Default 10. Use a small value (5–10) "
-      + "when the goal is to resolve a filename / topic into a recordId.",
+    "Maximum number of results. Default 10. Use 5–10 when you only need "
+      + "a `recordId`.",
   ),
   apps: z.array(z.string()).optional().describe(
-    "Source-scoping ids — connector instance UUIDs and / or "
-      + "`knowledgeBase_<orgId>`. Get them from `pipeshub_sources`.",
+    "Connector ids to search (for example a Jira or Google Drive connection). "
+      + "Get them from `pipeshub_sources`, where `kind` is \"connector\". "
+      + "Collection ids go in `kb`, not here.",
+  ),
+  kb: z.array(z.string()).optional().describe(
+    "Collection (knowledge base) ids to search. Get them from "
+      + "`pipeshub_sources`, where `kind` is \"knowledgeBase\".",
   ),
 };
 
@@ -48,13 +63,12 @@ not every record that matches. Never count them to answer "how many" /
 "all" / "every"; navigate the record group instead, which reports its
 real total.
 
-The response is trimmed to one row per hit:
-\`{ recordId, recordName, score, snippet, mimeType, webUrl, ... }\`.
-Highest \`score\` first; multiple hits may share the same \`recordId\`
-(different blocks of the same record).
+By default it searches everything. To search only some sources, pass
+connector ids in \`apps\` and collection ids in \`kb\`.
 
-When presenting results to the user, link each record using its
-\`webUrl\` (when present).`,
+Each hit is one matching passage, best match first:
+\`{ recordId, recordName, score, snippet, mimeType, webUrl, ... }\`.
+One record can appear in several hits. Link a record by its \`webUrl\`.`,
   scopes: ["read"],
   annotations: {
     title: "Semantic search",
@@ -65,10 +79,11 @@ When presenting results to the user, link each record using its
   },
   args,
   tool: async (client, args, ctx) => {
+    const limit = args.limit ?? DEFAULT_LIMIT;
     const [result] = await semanticSearchSearch(client, {
       query: args.query,
-      limit: args.limit,
-      filters: args.apps ? { apps: args.apps, kb: [] } : undefined,
+      limit,
+      filters: searchFilters(args.apps, args.kb),
     }, { fetchOptions: { signal: ctx.signal } }).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
@@ -84,16 +99,23 @@ When presenting results to the user, link each record using its
     if (!parsed.ok) return parsed.result;
 
     const sr = parsed.value.searchResponse ?? {};
-    return jsonResult({
-      searchId: parsed.value.searchId,
-      hits: (sr.searchResults ?? []).map(trimSearchHit),
-      uniqueRecords: (sr.records ?? []).map((r: any) => ({
+    const capped = capSearchResults(
+      (sr.searchResults ?? []).map(trimSearchHit),
+      (sr.records ?? []).map((r: any) => ({
         recordId: r._key,
         recordName: r.recordName,
         connector: r.connectorName,
         mimeType: r.mimeType,
         webUrl: r.webUrl,
       })),
+      limit,
+    );
+    return jsonResult({
+      searchId: parsed.value.searchId,
+      hits: capped.hits,
+      hitsBeforeLimit: capped.hitsBeforeLimit,
+      truncated: capped.truncated,
+      uniqueRecords: capped.records,
     });
   },
 };

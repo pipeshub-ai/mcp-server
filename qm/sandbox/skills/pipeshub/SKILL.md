@@ -35,6 +35,7 @@ fresh sandbox before the install.
 | "Find the file called security-review.pdf" | `pipeshub search "security-review"` |
 | "Download that file" | `pipeshub get <recordId> --out <path>` |
 | First call of a session | `pipeshub sources` (cache the ids) |
+| "Search only the <X> collection / connector" | `pipeshub sources`, then `pipeshub search "..." --kb <id>` for `kind: knowledgeBase`, or `--app <id>` for `kind: connector` |
 
 `ask` sees a few retrieved passages, not whole documents. For anything that
 needs a document's full text — summarizing it, quoting it exactly — locate it

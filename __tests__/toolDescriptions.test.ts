@@ -1,12 +1,40 @@
 import { describe, expect, test } from "bun:test";
+import * as z from "zod";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
 import { PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
+import { tool$pipeshubAgents } from "../src/mcp-server/tools/pipeshubAgents.js";
+import { tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
+import { tool$pipeshubDirectory } from "../src/mcp-server/tools/pipeshubDirectory.js";
+import { tool$pipeshubDownloadRecord } from "../src/mcp-server/tools/pipeshubDownloadRecord.js";
+import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
+import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
+import { tool$pipeshubSources } from "../src/mcp-server/tools/pipeshubSources.js";
 
 const { tools } = createMCPServer({ logger: createConsoleLogger("error") });
 
 const byName = new Map(tools.map((t: any) => [t.name, t.description as string]));
 const names = new Set(byName.keys());
+
+// `tools` carries only name and description, so arg text comes from the
+// definitions. A test below keeps this list equal to the registered tools.
+const definitions: any[] = [
+  tool$pipeshubSources,
+  tool$pipeshubChat,
+  tool$pipeshubSearch,
+  tool$pipeshubDownloadRecord,
+  tool$pipeshubGetRecordContent,
+  tool$pipeshubDirectory,
+  tool$pipeshubAgents,
+];
+
+/** The JSON schema a host sees for a tool's args, which carries each `.describe()`. */
+const argSchema = (name: string): any => {
+  const def = definitions.find((d) => d.name === name);
+  return def?.args
+    ? z.toJSONSchema(z.object(def.args), { unrepresentable: "any" })
+    : {};
+};
 
 describe("tool descriptions", () => {
   // navigate and lookup have no tool name of their own to be selected on, so
@@ -32,6 +60,44 @@ describe("tool descriptions", () => {
   // model counts hits to answer "how many" and is silently wrong.
   test("search declares that its result set is incomplete", () => {
     expect(byName.get("pipeshub_search")).toContain("ranked sample");
+  });
+
+  // Collection ids in `apps` are dropped by the backend. The description has
+  // to name `kb` or the model keeps putting every id in `apps`.
+  test("search names the kb scope for collections", () => {
+    expect(byName.get("pipeshub_search")).toContain("`kb`");
+  });
+
+  // Chat retrieval drops collection ids from `apps` the same way. Its `kb` arg
+  // once said "Legacy / unused", which sent every id to `apps`.
+  test("chat names the kb scope for collections", () => {
+    const filters = argSchema("pipeshub_chat").properties?.filters;
+    expect(filters?.properties?.kb?.description).toContain("knowledgeBase");
+    expect(filters?.properties?.apps?.description).toContain("`kb`");
+  });
+
+  test("the arg checks see every registered tool", () => {
+    expect(definitions.map((d) => d.name).sort()).toEqual([...names].sort());
+  });
+
+  // The org-wide `knowledgeBase_<orgId>` hub app is deleted by the KB
+  // migration and is not a UUID, so the gateway rejects it. Arg text counts
+  // too: the chat `apps` arg carried it after every description was clean.
+  test("no description, arg, or the instructions points at knowledgeBase_<orgId>", () => {
+    const texts: Array<[string, string]> = [
+      ...byName.entries(),
+      ...definitions.map((d) =>
+        [`${d.name} args`, JSON.stringify(argSchema(d.name))] as [string, string]
+      ),
+      ["instructions", PIPESHUB_INSTRUCTIONS],
+    ];
+    for (const [where, text] of texts) {
+      expect(`${where}: ${text.includes("knowledgeBase_")}`).toBe(`${where}: false`);
+    }
+  });
+
+  test("sources does not send modelKey to search, which has no such argument", () => {
+    expect(byName.get("pipeshub_sources")).not.toMatch(/pipeshub_search`\s+as\s+`modelKey/);
   });
 
   // The descriptions form a mutually-referential routing graph. A rename or a

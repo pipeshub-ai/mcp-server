@@ -8,6 +8,7 @@ import { Security } from "../../models/security.js";
 import { PipeshubCore } from "../../core.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { agentsListAgents } from "../../funcs/agentsListAgents.js";
+import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
 import {
   AgentListEnvelope$zodSchema,
   AgentSummary,
@@ -534,5 +535,148 @@ export function trimSearchHit(hit: any) {
     connector: md.connector,
     webUrl: md.webUrl,
     pageNum: md.pageNum,
+  };
+}
+
+// ─── Sources and search scoping ──────────────────────────────────────────────
+//
+// Search and chat each take two scoping lists, and they are not interchangeable.
+// `apps` holds connector ids; `kb` holds collection (knowledge base) ids. When
+// `apps` is set and `kb` is empty, the backend drops every collection id from
+// `apps` and searches no collection at all — so a collection id in the wrong
+// list silently returns nothing. Both kinds are UUIDs, so only the source
+// listing can tell them apart.
+
+export type SourceKind = "knowledgeBase" | "connector";
+
+export interface SourceItem {
+  id: string;
+  name: string | undefined;
+  kind: SourceKind;
+  connector: string | undefined;
+  hasChildren: boolean | undefined;
+}
+
+/** A knowledge-hub root node as a source. Collections carry `connector: "KB"`. */
+export function toSource(n: any): SourceItem {
+  return {
+    id: n?.id,
+    name: n?.name,
+    kind: n?.connector === "KB" ? "knowledgeBase" : "connector",
+    connector: n?.connector,
+    hasChildren: n?.hasChildren,
+  };
+}
+
+/**
+ * Fetch every root source (connectors and collections), paginating
+ * `GET /knowledgeBase/knowledge-hub/nodes` the same way `listAllAgents` does.
+ * A partial listing would hide sources from `pipeshub_sources`, so this does
+ * not stop at the first page.
+ *
+ * `reason` is a short cause; `result` carries the full message.
+ */
+export async function listAllSources(
+  client: PipeshubCore,
+  opts: {
+    signal?: AbortSignal | undefined;
+    maxPages?: number | undefined;
+  } = {},
+): Promise<
+  | { ok: true; sources: SourceItem[]; truncated: boolean }
+  | { ok: false; result: CallToolResult; reason: string }
+> {
+  const PAGE_SIZE = 200;
+  const maxPages = opts.maxPages ?? 5;
+  // Only set `signal` when present (exactOptionalPropertyTypes).
+  const reqOptions = opts.signal
+    ? { fetchOptions: { signal: opts.signal } }
+    : {};
+
+  const all: SourceItem[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    const [r] = await knowledgeHubGetKnowledgeHubRootNodes(client, {
+      page,
+      limit: PAGE_SIZE,
+    }, reqOptions).$inspect();
+    if (!r.ok) {
+      return {
+        ok: false,
+        result: errorResult(`sources: ${r.error.message}`),
+        reason: r.error.message,
+      };
+    }
+
+    const status = r.value.status;
+    const httpOk = r.value.ok;
+    const parsed = await readJson<{
+      items?: any[];
+      pagination?: { hasNext?: boolean | null } | null;
+    }>(r.value, "Knowledge base listing");
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        result: parsed.result,
+        reason: httpOk ? "unreadable response" : `HTTP ${status}`,
+      };
+    }
+
+    const items = parsed.value.items ?? [];
+    all.push(...items.map(toSource));
+
+    const hasNext = parsed.value.pagination?.hasNext ?? (items.length >= PAGE_SIZE);
+    if (!hasNext || items.length === 0) {
+      return { ok: true, sources: all, truncated: false };
+    }
+  }
+
+  // Hit the page cap with more pages still available.
+  return { ok: true, sources: all, truncated: true };
+}
+
+const dedupe = (ids: readonly string[]): string[] => [...new Set(ids)];
+
+/**
+ * The `filters` body for `POST /search` and chat. Ids go where the caller put
+ * them: connector ids in `apps`, collection ids in `kb`. Nothing is moved.
+ * Duplicates collapse. Omitted when nothing is scoped, which searches
+ * everything.
+ */
+export function searchFilters(
+  apps: readonly string[] | undefined,
+  kb: readonly string[] | undefined,
+): { apps: string[]; kb: string[] } | undefined {
+  const appIds = dedupe(apps ?? []);
+  const kbIds = dedupe(kb ?? []);
+  if (appIds.length === 0 && kbIds.length === 0) return undefined;
+  return { apps: appIds, kb: kbIds };
+}
+
+/**
+ * Keep the top `limit` hits. The backend expands the query and applies its
+ * limit to each expansion, so it can return many times `limit`. Hits arrive
+ * sorted by score, so a slice keeps the best ones. Records are filtered only
+ * when hits were cut, so an uncut response passes through unchanged.
+ */
+export function capSearchResults<
+  H extends { recordId?: unknown },
+  R extends { recordId?: unknown },
+>(
+  hits: H[],
+  records: R[],
+  limit: number,
+): { hits: H[]; records: R[]; hitsBeforeLimit: number; truncated: boolean } {
+  const hitsBeforeLimit = hits.length;
+  if (hitsBeforeLimit <= limit) {
+    return { hits, records, hitsBeforeLimit, truncated: false };
+  }
+  const kept = hits.slice(0, limit);
+  const keptIds = new Set(kept.map((h) => h.recordId));
+  return {
+    hits: kept,
+    records: records.filter((r) => keptIds.has(r.recordId)),
+    hitsBeforeLimit,
+    truncated: true,
   };
 }
