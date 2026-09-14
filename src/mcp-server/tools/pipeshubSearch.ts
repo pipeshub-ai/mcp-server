@@ -19,8 +19,8 @@ const args = {
     "Natural language query. Vector search across the org's indexed records.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Result limit, passed to the backend as is. Default 10. Use 5–10 when "
-      + "you only need a `recordId`.",
+    "Number of results. Default 10. Use 5–10 when you only need a "
+      + "`recordId`.",
   ),
   apps: z.array(z.string()).optional().describe(
     "Connector ids to search (for example a Jira or Google Drive connection). "

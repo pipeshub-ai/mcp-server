@@ -41,7 +41,7 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Result limit, passed to the backend as is. Default 10. Use 5–10 when you only need a `recordId`. |
+| `limit` | number (1–100) | no | Number of results. Default 10. Use 5–10 when you only need a `recordId`. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
 
