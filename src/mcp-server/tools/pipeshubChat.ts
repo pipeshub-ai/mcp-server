@@ -25,19 +25,18 @@ import {
   httpErrorResult,
   iterateSSE,
   jsonResult,
+  searchFilters,
   trimConversation,
 } from "./_helpers.js";
 
 const FiltersShape = z.object({
   apps: z.array(z.string()).optional().describe(
-    "Source-scoping ids from `pipeshub_sources` — connector instance and / "
-      + "or knowledge base ids, mixed freely. The legacy org-wide "
-      + "`knowledgeBase_<orgId>` id is still accepted on deployments that "
-      + "predate per-KB sources. Empty / omitted means no app-side "
-      + "restriction.",
+    "Connector ids to use. Get them from `pipeshub_sources`, where `kind` is "
+      + "\"connector\". Collection ids go in `kb`, not here.",
   ),
   kb: z.array(z.string()).optional().describe(
-    "Legacy / unused. Leave empty.",
+    "Collection (knowledge base) ids to use. Get them from "
+      + "`pipeshub_sources`, where `kind` is \"knowledgeBase\".",
   ),
 }).optional();
 
@@ -52,8 +51,8 @@ const args = {
       + "prior messages.",
   ),
   filters: FiltersShape.describe(
-    "Source scoping for retrieval. Pass `apps` ids from `pipeshub_sources`. "
-      + "Only meaningful on the FIRST turn (when starting a new conversation).",
+    "Which sources the answer may use. Leave out to use all sources. Only "
+      + "works on the FIRST turn; later turns keep the first turn's sources.",
   ),
   modelKey: z.string().optional().describe(
     "Model id to use (from `pipeshub_sources` `llmModels[*].modelKey`). "
@@ -156,6 +155,15 @@ cited document, take \`citations[*].recordId\` and call
       : "internal_search";
     let response: Response;
 
+    // Filters apply only when a conversation starts. Ids go where the caller
+    // put them: connector ids in `apps`, collection ids in `kb`. Both keys go
+    // out: on agent chat a missing key falls back to the agent's own sources.
+    // An explicit empty `{ apps: [], kb: [] }` passes through unchanged.
+    let filters = args.filters;
+    if (!args.conversationId && filters) {
+      filters = searchFilters(filters.apps, filters.kb) ?? filters;
+    }
+
     if (args.agentId) {
       // `quick` is the only value the agent stream schemas accept, and it is
       // required — so ignore whatever the caller passed rather than forwarding
@@ -182,7 +190,7 @@ cited document, take \`citations[*].recordId\` and call
           agentKey: args.agentId,
           body: {
             query: args.query,
-            filters: args.filters,
+            filters,
             modelKey: args.modelKey,
             modelName: args.modelName,
             modelFriendlyName: args.modelFriendlyName,
@@ -210,7 +218,7 @@ cited document, take \`citations[*].recordId\` and call
       // Start a new (non-agent) conversation.
       const [result] = await conversationsStreamConversation(client, {
         query: args.query,
-        filters: args.filters,
+        filters,
         modelKey: args.modelKey,
         modelName: args.modelName,
         modelFriendlyName: args.modelFriendlyName,

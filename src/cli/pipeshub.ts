@@ -38,7 +38,7 @@ COMMANDS
   auth status                 show connection, user, org, scopes, expiry
   auth connect-help           print the keychain setup steps
   init-qm <dir>               scaffold the QM deployment-layer bundle (admin)
-  sources                     list searchable sources (ids for --app)
+  sources                     list searchable sources (ids for --app / --kb)
   search <query>              locate records
   ask <question>              ask a grounded question; returns citations
   get <recordId>              fetch a record's content
@@ -47,8 +47,9 @@ COMMANDS
 OPTIONS
   --json                      JSON output (default)
   --text                      human-readable output where available
-  --limit <n>                 search: max results (default 10)
-  --app <id>                  search: restrict to a source id (repeatable)
+  --limit <n>                 search: max hits returned, 1-100 (default 10)
+  --app <id>                  search: restrict to a connector id (repeatable)
+  --kb <id>                   search: restrict to a collection id (repeatable)
   --conversation <id>         ask: continue an existing conversation
   --mode <internal|web>       ask: retrieval strategy (default internal)
   --as <format>               get: server-side conversion, e.g. pdf
@@ -73,6 +74,7 @@ interface Flags {
   json: boolean;
   limit: number;
   apps: string[];
+  kb: string[];
   conversation: string | null;
   mode: string;
   as: string | null;
@@ -87,6 +89,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     json: true,
     limit: 10,
     apps: [],
+    kb: [],
     conversation: null,
     mode: "internal",
     as: null,
@@ -114,6 +117,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--force": flags.force = true; break;
       case "--limit": flags.limit = Number(needValue(a, argv[++i])); break;
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
+      case "--kb": flags.kb.push(needValue(a, argv[++i])); break;
       case "--conversation": flags.conversation = needValue(a, argv[++i]); break;
       case "--mode": flags.mode = needValue(a, argv[++i]); break;
       case "--as": flags.as = needValue(a, argv[++i]); break;
@@ -127,8 +131,10 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
         positional.push(a);
     }
   }
-  if (!Number.isFinite(flags.limit) || flags.limit <= 0) {
-    throw new CliError("--limit must be a positive number", EXIT.USAGE);
+  // The tool rejects anything outside 1-100; catching it here makes it a usage
+  // error (exit 2) instead of a generic tool failure.
+  if (!Number.isInteger(flags.limit) || flags.limit < 1 || flags.limit > 100) {
+    throw new CliError("--limit must be a whole number from 1 to 100", EXIT.USAGE);
   }
   if (!Number.isFinite(flags.maxChars) || flags.maxChars <= 0) {
     throw new CliError("--max-chars must be a positive number", EXIT.USAGE);
@@ -290,7 +296,7 @@ async function run(argv: string[]): Promise<number> {
     case "search": {
       const query = positional.slice(1).join(" ").trim();
       if (query === "") throw new CliError("search requires a query", EXIT.USAGE);
-      outcome = await search(ctx, query, flags.limit, flags.apps);
+      outcome = await search(ctx, query, flags.limit, flags.apps, flags.kb);
       break;
     }
     case "ask": {

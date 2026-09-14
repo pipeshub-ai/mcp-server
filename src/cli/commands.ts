@@ -186,16 +186,40 @@ export async function sources(ctx: Ctx): Promise<Outcome> {
 
 // ─── search ──────────────────────────────────────────────────────────────────
 
+/**
+ * Refuse a `--kb` search that the server did not restrict.
+ *
+ * The MCP server validates tool args against a zod shape, so a server older
+ * than the `kb` argument drops it without an error and searches everything.
+ * Returning those hits would look like a scoped answer. Only servers that know
+ * `kb` also return a boolean `truncated`, so its absence identifies the old one.
+ */
+export function assertScopeHonored(
+  obj: Record<string, unknown>,
+  kbRequested: boolean,
+): void {
+  if (kbRequested && typeof obj["truncated"] !== "boolean") {
+    throw new CliError(
+      "this PipesHub instance's MCP server predates --kb and ignored it, so the "
+        + "search was not restricted. Upgrade @pipeshub-ai/mcp on the instance.",
+      EXIT.ERROR,
+    );
+  }
+}
+
 export async function search(
   ctx: Ctx,
   query: string,
   limit: number,
   apps: string[],
+  kb: string[],
 ): Promise<Outcome> {
   const args: Record<string, unknown> = { query, limit };
   if (apps.length > 0) args["apps"] = apps;
+  if (kb.length > 0) args["kb"] = kb;
   const raw = decodeToolJson(await callTool(ctx, "pipeshub_search", args));
   const obj = asRecord(raw);
+  assertScopeHonored(obj, kb.length > 0);
 
   const records = arr(obj["uniqueRecords"]).map((r) => {
     const rec = asRecord(r);
@@ -229,6 +253,10 @@ export async function search(
       query,
       contentWarning: CONTENT_WARNING,
       hitCount: hits.length,
+      truncated: typeof obj["truncated"] === "boolean" ? obj["truncated"] : false,
+      hitsBeforeLimit: typeof obj["hitsBeforeLimit"] === "number"
+        ? obj["hitsBeforeLimit"]
+        : null,
       hits,
       records,
     },

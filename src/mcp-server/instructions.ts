@@ -97,8 +97,9 @@ external ID → \`mode:"lookup"\` FIRST. It returns that record's metadata (for 
 ticket: status, assignee, priority, dates) plus its \`recordId\`, which often
 answers the question outright. Never guess a \`recordId\`.
 
-Pass a source's id from \`pipeshub_sources\` as \`apps: ["<id>"]\` to search or
-chat, and as \`nodeId\` to navigate. Navigate and lookup end in a \`Next:\` line
+For search, pass a connector id from \`pipeshub_sources\` as \`apps: ["<id>"]\`
+and a collection id (\`kind: "knowledgeBase"\`) as \`kb: ["<id>"]\`. Any source
+id works as \`nodeId\` to navigate. Navigate and lookup end in a \`Next:\` line
 naming the exact follow-up call — follow it.
 
 ## Agents
