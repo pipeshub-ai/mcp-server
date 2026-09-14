@@ -3,10 +3,12 @@ import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import {
   listAllSources,
+  resolveSourceScope,
 } from "../src/mcp-server/tools/_helpers.js";
 
 const COLL = "11111111-1111-4111-8111-111111111111";
 const CONN = "33333333-3333-4333-8333-333333333333";
+const UNKNOWN = "55555555-5555-4555-8555-555555555555";
 
 type Page = { status?: number; body: unknown };
 
@@ -96,5 +98,59 @@ describe("listAllSources", () => {
     expect(listed.ok).toBe(false);
     if (listed.ok) return;
     expect(listed.reason).toBe("HTTP 500");
+  });
+});
+
+describe("resolveSourceScope", () => {
+  test("nothing scoped, no lookup", async () => {
+    const { client, requested } = listingClient([]);
+    const { scope, notes } = await resolveSourceScope(client, undefined, []);
+    expect(requested).toEqual([]);
+    expect(scope).toEqual({ apps: [], kb: [], movedToKb: [], movedToApps: [] });
+    expect(notes).toEqual([]);
+  });
+
+  test("a collection id in apps moves to kb and the note names it", async () => {
+    const { client } = listingClient([
+      { body: { items: [node(COLL, "KB"), node(CONN)], pagination: { hasNext: false } } },
+    ]);
+    const { scope, notes } = await resolveSourceScope(client, [CONN, COLL], undefined);
+    expect(scope).toEqual({ apps: [CONN], kb: [COLL], movedToKb: [COLL], movedToApps: [] });
+    expect(notes.join("\n")).toContain(COLL);
+  });
+
+  test("a connector id in kb moves to apps and the note names it", async () => {
+    const { client } = listingClient([
+      { body: { items: [node(COLL, "KB"), node(CONN)], pagination: { hasNext: false } } },
+    ]);
+    const { scope, notes } = await resolveSourceScope(client, undefined, [CONN, COLL]);
+    expect(scope).toEqual({ apps: [CONN], kb: [COLL], movedToKb: [], movedToApps: [CONN] });
+    expect(notes.join("\n")).toContain(CONN);
+  });
+
+  test("ids in the right lists produce no note", async () => {
+    const { client } = listingClient([
+      { body: { items: [node(COLL, "KB"), node(CONN)], pagination: { hasNext: false } } },
+    ]);
+    const { scope, notes } = await resolveSourceScope(client, [CONN], [COLL]);
+    expect(scope).toEqual({ apps: [CONN], kb: [COLL], movedToKb: [], movedToApps: [] });
+    expect(notes).toEqual([]);
+  });
+
+  test("a failed lookup sends the ids unchanged and says why", async () => {
+    const { client } = listingClient([
+      { status: 500, body: { error: { message: "boom" } } },
+    ]);
+    const { scope, notes } = await resolveSourceScope(client, [COLL], [CONN]);
+    expect(scope).toEqual({ apps: [COLL], kb: [CONN], movedToKb: [], movedToApps: [] });
+    expect(notes.join("\n")).toContain("HTTP 500");
+  });
+
+  test("an id missing from a truncated listing is named", async () => {
+    const { client } = listingClient([
+      { body: { items: [node(CONN)], pagination: { hasNext: true } } },
+    ]);
+    const { notes } = await resolveSourceScope(client, undefined, [UNKNOWN], { maxPages: 1 });
+    expect(notes.join("\n")).toContain(UNKNOWN);
   });
 });

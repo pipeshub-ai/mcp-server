@@ -3,10 +3,10 @@ import * as z from "zod";
 import { semanticSearchSearch } from "../../funcs/semanticSearchSearch.js";
 import { ToolDefinition } from "../tools.js";
 import {
-  capSearchResults,
   errorResult,
   jsonResult,
   readJson,
+  resolveSourceScope,
   searchFilters,
   trimSearchHit,
 } from "./_helpers.js";
@@ -19,8 +19,8 @@ const args = {
     "Natural language query. Vector search across the org's indexed records.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Maximum number of results. Default 10. Use 5–10 when you only need "
-      + "a `recordId`.",
+    "Number of results. Default 10. Use 5–10 when you only need a "
+      + "`recordId`.",
   ),
   apps: z.array(z.string()).optional().describe(
     "Connector ids to search (for example a Jira or Google Drive connection). "
@@ -80,10 +80,19 @@ One record can appear in several hits. Link a record by its \`webUrl\`.`,
   args,
   tool: async (client, args, ctx) => {
     const limit = args.limit ?? DEFAULT_LIMIT;
+    // Each id is sent in the list the backend reads it from: a collection id
+    // in `apps` or a connector id in `kb` is dropped by the backend.
+    const { scope, notes } = await resolveSourceScope(
+      client,
+      args.apps,
+      args.kb,
+      { signal: ctx.signal },
+    );
+
     const [result] = await semanticSearchSearch(client, {
       query: args.query,
       limit,
-      filters: searchFilters(args.apps, args.kb),
+      filters: searchFilters(scope),
     }, { fetchOptions: { signal: ctx.signal } }).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
@@ -99,23 +108,17 @@ One record can appear in several hits. Link a record by its \`webUrl\`.`,
     if (!parsed.ok) return parsed.result;
 
     const sr = parsed.value.searchResponse ?? {};
-    const capped = capSearchResults(
-      (sr.searchResults ?? []).map(trimSearchHit),
-      (sr.records ?? []).map((r: any) => ({
+    return jsonResult({
+      searchId: parsed.value.searchId,
+      hits: (sr.searchResults ?? []).map(trimSearchHit),
+      uniqueRecords: (sr.records ?? []).map((r: any) => ({
         recordId: r._key,
         recordName: r.recordName,
         connector: r.connectorName,
         mimeType: r.mimeType,
         webUrl: r.webUrl,
       })),
-      limit,
-    );
-    return jsonResult({
-      searchId: parsed.value.searchId,
-      hits: capped.hits,
-      hitsBeforeLimit: capped.hitsBeforeLimit,
-      truncated: capped.truncated,
-      uniqueRecords: capped.records,
+      ...(notes.length > 0 ? { notes } : {}),
     });
   },
 };
