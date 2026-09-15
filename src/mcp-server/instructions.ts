@@ -67,7 +67,7 @@ the user can verify.
   the document's text) without downloading the original file. Prefer this
   over download when the question is about what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
-  Not for documents.
+  Not for documents or files — that is \`pipeshub_search\`.
 - \`pipeshub_sources\` — call once at the start of a session to discover
   which connectors / KB / models are available, then cache the result.
 - \`pipeshub_agents\` — list the org's configured **agents** (specialized

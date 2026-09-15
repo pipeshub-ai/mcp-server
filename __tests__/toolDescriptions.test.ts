@@ -110,6 +110,23 @@ describe("tool descriptions", () => {
     expect(desc).not.toMatch(/opaque/i);
     expect(desc).toContain("application/pdf");
   });
+
+  // Directory looks like "search" to a host. If a rewrite drops the sibling,
+  // "find the file" and "who is X" collapse onto the same tool.
+  test("directory routes documents to search and names list defaults", () => {
+    const desc = byName.get("pipeshub_directory") ?? "";
+    expect(desc).toContain("pipeshub_search");
+    expect(desc).toContain("documents");
+    expect(desc).toContain("50");
+    expect(desc).toContain("25");
+    expect(desc).toContain("100");
+    expect(desc).toContain("empty");
+    expect(desc).toContain("hasNextPage");
+    const search = argSchema("pipeshub_directory").properties?.search?.description
+      ?? "";
+    expect(search).toContain("list_groups");
+    expect(search).toContain("list_my_teams");
+  });
   test("every tool named in a description or in the instructions exists", () => {
     const sources: Array<[string, string]> = [
       ...tools.map((t: any) => [t.name, t.description as string] as [string, string]),
@@ -143,7 +160,9 @@ describe("description budget", () => {
   // Without those, hosts count search hits to answer "how many" and never
   // reach for navigate at all.
   const PER_TOOL_MAX = 4000;
-  const TOTAL_MAX = 11200;
+  // Raised 2026-09-15 so directory can name pipeshub_search, list defaults,
+  // and empty-list behaviour without cutting routing text on other tools.
+  const TOTAL_MAX = 11400;
   const INSTRUCTIONS_MAX = 8000;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
