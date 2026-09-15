@@ -10,6 +10,11 @@ import { tool$pipeshubDownloadRecord } from "../src/mcp-server/tools/pipeshubDow
 import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import { tool$pipeshubSources } from "../src/mcp-server/tools/pipeshubSources.js";
+import { GetAllUsersRequest$zodSchema } from "../src/models/getallusersop.js";
+import { GetAllUserGroupsRequest$zodSchema } from "../src/models/getallusergroupsop.js";
+import { GetUserTeamsRequest$zodSchema } from "../src/models/getuserteamsop.js";
+import { PaginationInfo$zodSchema } from "../src/models/paginationinfo.js";
+import { CompactPaginationInfo$zodSchema } from "../src/models/compactpaginationinfo.js";
 
 const { tools } = createMCPServer({ logger: createConsoleLogger("error") });
 
@@ -113,19 +118,43 @@ describe("tool descriptions", () => {
 
   // Directory looks like "search" to a host. If a rewrite drops the sibling,
   // "find the file" and "who is X" collapse onto the same tool.
-  test("directory routes documents to search and names list defaults", () => {
+  test("directory routes documents to search", () => {
     const desc = byName.get("pipeshub_directory") ?? "";
     expect(desc).toContain("pipeshub_search");
     expect(desc).toContain("documents");
-    expect(desc).toContain("50");
-    expect(desc).toContain("25");
-    expect(desc).toContain("100");
     expect(desc).toContain("empty");
-    expect(desc).toContain("hasNextPage");
     const search = argSchema("pipeshub_directory").properties?.search?.description
       ?? "";
     expect(search).toContain("list_groups");
     expect(search).toContain("list_my_teams");
+  });
+
+  test("directory list defaults and next-page flags come from the SDK schemas", () => {
+    const usersLimit = GetAllUsersRequest$zodSchema.parse({}).limit;
+    const groupsLimit = GetAllUserGroupsRequest$zodSchema.parse({}).limit;
+    const teamsLimit = GetUserTeamsRequest$zodSchema.parse({}).limit;
+    expect(typeof usersLimit).toBe("number");
+    expect(typeof groupsLimit).toBe("number");
+    expect(typeof teamsLimit).toBe("number");
+
+    const limit = argSchema("pipeshub_directory").properties?.limit?.description
+      ?? "";
+    expect(limit).toContain(`${usersLimit} users`);
+    expect(limit).toContain(`${groupsLimit} groups`);
+    expect(limit).toContain(`${teamsLimit} teams`);
+
+    const userPageKeys = Object.keys(
+      z.toJSONSchema(PaginationInfo$zodSchema).properties ?? {},
+    );
+    const teamPageKeys = Object.keys(
+      z.toJSONSchema(CompactPaginationInfo$zodSchema).properties ?? {},
+    );
+    expect(userPageKeys).toContain("hasNextPage");
+    expect(teamPageKeys).toContain("hasNext");
+
+    const desc = byName.get("pipeshub_directory") ?? "";
+    expect(desc).toContain("hasNextPage");
+    expect(desc).toContain("`hasNext`");
   });
   test("every tool named in a description or in the instructions exists", () => {
     const sources: Array<[string, string]> = [
@@ -160,9 +189,10 @@ describe("description budget", () => {
   // Without those, hosts count search hits to answer "how many" and never
   // reach for navigate at all.
   const PER_TOOL_MAX = 4000;
-  // Raised 2026-09-15 so directory can name pipeshub_search, list defaults,
-  // and empty-list behaviour without cutting routing text on other tools.
-  const TOTAL_MAX = 11400;
+  // Raised 2026-09-15 by ~100 so directory can name pipeshub_search and
+  // empty-list / next-page behaviour. Limit defaults live on the arg, not
+  // in this budget.
+  const TOTAL_MAX = 11320;
   const INSTRUCTIONS_MAX = 8000;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {

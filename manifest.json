@@ -107,7 +107,7 @@
     },
     {
       "name": "pipeshub_directory",
-      "description": "Look up people, groups, and teams in PipesHub. Five actions — pick\n`action`. Not for documents or files: that is `pipeshub_search`.\n\n- `whoami` — the caller's id, email, full name. Use before `get_user`\n  on yourself. Errors if the credential is expired or revoked.\n- `list_users` — page org users; `search` matches name or email.\n- `get_user` — full `User` for one `userId`.\n- `list_groups` — org groups with `userCount`; `search` matches name.\n- `list_my_teams` — teams the caller is on, with `canEdit` /\n  `canDelete` / `canManageMembers`; `search` matches name.\n\nOmit `page`/`limit` for the first page (`page` 1). Defaults: users\n50, groups 25, teams 100. No match is an empty `users`/`groups`/\n`teams` array, not an error. `pagination.hasNextPage` (teams:\n`hasNext`) says whether to request the next page."
+      "description": "Look up people, groups, and teams in PipesHub. Five actions — pick\n`action`. Not for documents or files: that is `pipeshub_search`.\n\n- `whoami` — the caller's id, email, full name. Use before `get_user`\n  on yourself. Errors if the credential is expired or revoked.\n- `list_users` — page org users; `search` matches name or email.\n- `get_user` — full `User` for one `userId`.\n- `list_groups` — org groups with `userCount`; `search` matches name.\n- `list_my_teams` — teams the caller is on, with `canEdit` /\n  `canDelete` / `canManageMembers`; `search` matches name.\n\nOmit `page`/`limit` for the first page (`page` 1). No match is an\nempty `users`/`groups`/`teams` array, not an error.\n`pagination.hasNextPage` (teams: `hasNext`) says whether to request\nthe next page."
     },
     {
       "name": "pipeshub_agents",

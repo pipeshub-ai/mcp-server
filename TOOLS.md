@@ -108,7 +108,7 @@ Look up people, groups, and teams in PipesHub. One tool with five `action`s. Not
 | `action` | enum | yes | One of `whoami`, `list_users`, `get_user`, `list_groups`, `list_my_teams`. |
 | `userId` | string | conditional | Required when `action` is `get_user`. 24-char ObjectId. From `whoami` or a `list_users` hit. |
 | `page` | number | no | 1-based page for `list_*`. Omit for page 1. |
-| `limit` | number (1–100) | no | Items per page for `list_*`. Omit for the action default: 50 users, 25 groups, 100 teams. |
+| `limit` | number (1–100) | no | Items per page for `list_*`. Omit for the per-action SDK default. |
 | `search` | string | no | Substring match on `list_users` (name / email), `list_groups` (name), and `list_my_teams` (name). |
 
 **Actions:**

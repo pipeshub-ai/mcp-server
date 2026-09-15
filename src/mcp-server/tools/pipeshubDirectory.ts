@@ -7,6 +7,9 @@ import { usersGetAllUsers } from "../../funcs/usersGetAllUsers.js";
 import { usersGetUserById } from "../../funcs/usersGetUserById.js";
 import { userGroupsGetAllUserGroups } from "../../funcs/userGroupsGetAllUserGroups.js";
 import { teamsGetUserTeams } from "../../funcs/teamsGetUserTeams.js";
+import { GetAllUsersRequest$zodSchema } from "../../models/getallusersop.js";
+import { GetAllUserGroupsRequest$zodSchema } from "../../models/getallusergroupsop.js";
+import { GetUserTeamsRequest$zodSchema } from "../../models/getuserteamsop.js";
 import { ToolDefinition } from "../tools.js";
 import {
   decodeBearer,
@@ -15,6 +18,20 @@ import {
   expiredTokenError,
   readJson,
 } from "./_helpers.js";
+
+function defaultLimit(
+  schema: { parse: (value: Record<string, never>) => { limit?: number } },
+): number {
+  const limit = schema.parse({}).limit;
+  if (typeof limit !== "number") {
+    throw new Error("list request schema is missing a numeric limit default");
+  }
+  return limit;
+}
+
+const listUsersLimit = defaultLimit(GetAllUsersRequest$zodSchema);
+const listGroupsLimit = defaultLimit(GetAllUserGroupsRequest$zodSchema);
+const listTeamsLimit = defaultLimit(GetUserTeamsRequest$zodSchema);
 
 const args = {
   action: z.enum([
@@ -45,7 +62,8 @@ const args = {
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
     "Items per page for list_* (1–100). Omit for the action default: "
-      + "50 users, 25 groups, 100 teams.",
+      + `${listUsersLimit} users, ${listGroupsLimit} groups, `
+      + `${listTeamsLimit} teams.`,
   ),
   search: z.string().optional().describe(
     "Substring match on list_users (name or email), list_groups (name), "
@@ -67,10 +85,10 @@ export const tool$pipeshubDirectory: ToolDefinition<typeof args> = {
 - \`list_my_teams\` — teams the caller is on, with \`canEdit\` /
   \`canDelete\` / \`canManageMembers\`; \`search\` matches name.
 
-Omit \`page\`/\`limit\` for the first page (\`page\` 1). Defaults: users
-50, groups 25, teams 100. No match is an empty \`users\`/\`groups\`/
-\`teams\` array, not an error. \`pagination.hasNextPage\` (teams:
-\`hasNext\`) says whether to request the next page.`,
+Omit \`page\`/\`limit\` for the first page (\`page\` 1). No match is an
+empty \`users\`/\`groups\`/\`teams\` array, not an error.
+\`pagination.hasNextPage\` (teams: \`hasNext\`) says whether to request
+the next page.`,
   scopes: ["read"],
   annotations: {
     title: "PipesHub directory (users / groups / teams / whoami)",
