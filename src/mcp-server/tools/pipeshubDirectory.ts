@@ -7,6 +7,9 @@ import { usersGetAllUsers } from "../../funcs/usersGetAllUsers.js";
 import { usersGetUserById } from "../../funcs/usersGetUserById.js";
 import { userGroupsGetAllUserGroups } from "../../funcs/userGroupsGetAllUserGroups.js";
 import { teamsGetUserTeams } from "../../funcs/teamsGetUserTeams.js";
+import { GetAllUsersRequest$zodSchema } from "../../models/getallusersop.js";
+import { GetAllUserGroupsRequest$zodSchema } from "../../models/getallusergroupsop.js";
+import { GetUserTeamsRequest$zodSchema } from "../../models/getuserteamsop.js";
 import { ToolDefinition } from "../tools.js";
 import {
   decodeBearer,
@@ -15,6 +18,20 @@ import {
   expiredTokenError,
   readJson,
 } from "./_helpers.js";
+
+function defaultLimit(
+  schema: z.ZodType<{ limit?: number | undefined }>,
+): number {
+  const limit = schema.parse({}).limit;
+  if (typeof limit !== "number") {
+    throw new Error("list request schema is missing a numeric limit default");
+  }
+  return limit;
+}
+
+const listUsersLimit = defaultLimit(GetAllUsersRequest$zodSchema);
+const listGroupsLimit = defaultLimit(GetAllUserGroupsRequest$zodSchema);
+const listTeamsLimit = defaultLimit(GetUserTeamsRequest$zodSchema);
 
 const args = {
   action: z.enum([
@@ -31,41 +48,47 @@ const args = {
       + "`limit`, `search` (substring match against name or email).\n"
       + "- `get_user` — full profile for one user. Required `userId`. "
       + "Use `whoami` to find your own id first if needed.\n"
-      + "- `list_groups` — paginated list of user groups (with `userCount`).\n"
+      + "- `list_groups` — paginated list of user groups (with `userCount`). "
+      + "Optional `search` matches group name.\n"
       + "- `list_my_teams` — teams the authenticated user belongs to, with "
-      + "capability flags.",
+      + "capability flags. Optional `search` matches team name.",
   ),
   userId: z.string().optional().describe(
-    "Required when `action` is `get_user`. 24-character ObjectId.",
+    "Required when `action` is `get_user`. 24-character ObjectId. "
+      + "Take it from `whoami` (yourself) or from a `list_users` hit.",
   ),
   page: z.number().int().min(1).optional().describe(
-    "Pagination — 1-based page number. Used by list_* actions.",
+    "1-based page for list_* actions. Omit for page 1.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Pagination — items per page. Used by list_* actions.",
+    "Items per page for list_* (1–100). Omit for the action default: "
+      + `${listUsersLimit} users, ${listGroupsLimit} groups, `
+      + `${listTeamsLimit} teams.`,
   ),
   search: z.string().optional().describe(
-    "Substring match against name / email. Used by list_users.",
+    "Substring match on list_users (name or email), list_groups (name), "
+      + "and list_my_teams (name). An empty list means no match, not an error.",
   ),
 };
 
 export const tool$pipeshubDirectory: ToolDefinition<typeof args> = {
   name: "pipeshub_directory",
   description:
-    `Look up people, groups, and teams in PipesHub. One tool with five
-actions — pick the right \`action\`:
+    `Look up people, groups, and teams in PipesHub. Five actions — pick
+\`action\`. Not for documents or files: that is \`pipeshub_search\`.
 
-- \`whoami\` — who is the caller?  Use this whenever you need the
-  authenticated user's own id, email, or full name (e.g. before
-  \`get_user\` on themselves). Errors if the credential is expired
-  or revoked.
-- \`list_users\` — search / page through org users.
-- \`get_user\` — full \`User\` document for one user (requires \`userId\`).
-- \`list_groups\` — list user groups with \`userCount\`.
-- \`list_my_teams\` — teams the caller belongs to, with capability flags
-  (\`canEdit\` / \`canDelete\` / \`canManageMembers\`).
+- \`whoami\` — the caller's id, email, full name. Use before \`get_user\`
+  on yourself. Errors if the credential is expired or revoked.
+- \`list_users\` — page org users; \`search\` matches name or email.
+- \`get_user\` — full \`User\` for one \`userId\`.
+- \`list_groups\` — org groups with \`userCount\`; \`search\` matches name.
+- \`list_my_teams\` — teams the caller is on, with \`canEdit\` /
+  \`canDelete\` / \`canManageMembers\`; \`search\` matches name.
 
-Output shape varies by action; see each action's docs above.`,
+Omit \`page\`/\`limit\` for the first page (\`page\` 1). No match is an
+empty \`users\`/\`groups\`/\`teams\` array, not an error.
+\`pagination.hasNextPage\` (teams: \`hasNext\`) says whether to request
+the next page.`,
   scopes: ["read"],
   annotations: {
     title: "PipesHub directory (users / groups / teams / whoami)",

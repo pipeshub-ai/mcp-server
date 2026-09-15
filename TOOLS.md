@@ -101,22 +101,24 @@ Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *
 
 ### `pipeshub_directory`
 
-Look up people, groups, and teams in PipesHub. One tool with five `action`s.
+Look up people, groups, and teams in PipesHub. One tool with five `action`s. Not for documents or files — that is `pipeshub_search`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `action` | enum | yes | One of `whoami`, `list_users`, `get_user`, `list_groups`, `list_my_teams`. |
-| `userId` | string | conditional | Required when `action` is `get_user`. 24-char ObjectId. |
-| `page` | number | no | 1-based page number for `list_*` actions. |
-| `limit` | number (1–100) | no | Items per page for `list_*` actions. |
-| `search` | string | no | Substring match against name / email. Used by `list_users`. |
+| `userId` | string | conditional | Required when `action` is `get_user`. 24-char ObjectId. From `whoami` or a `list_users` hit. |
+| `page` | number | no | 1-based page for `list_*`. Omit for page 1. |
+| `limit` | number (1–100) | no | Items per page for `list_*`. Omit for the per-action SDK default. |
+| `search` | string | no | Substring match on `list_users` (name / email), `list_groups` (name), and `list_my_teams` (name). |
 
 **Actions:**
-- `whoami` — return the authenticated user's identity (decoded from the bearer JWT). No other args.
+- `whoami` — the authenticated user's identity. Errors if the credential is expired or revoked. No other args.
 - `list_users` — paginated list of org users.
 - `get_user` — full profile for one user (requires `userId`).
 - `list_groups` — paginated list of user groups, with `userCount`.
 - `list_my_teams` — teams the caller belongs to, with `canEdit` / `canDelete` / `canManageMembers` flags.
+
+`list_*` returns an empty `users` / `groups` / `teams` array when nothing matches — that is not an error. `pagination.hasNextPage` (teams: `hasNext`) says whether to request the next page.
 
 ---
 
@@ -161,6 +163,6 @@ The list **may be empty**. For plain Q&A, use `pipeshub_chat` without `agentId`.
 | "What does this PDF say?" / summarize a named file | `pipeshub_get_record_content` `mode:"content"` — not download |
 | "Show me the full content of that record" | `pipeshub_get_record_content` |
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
-| "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) |
+| "Who is X?" / "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) — not `pipeshub_search` |
 | First call of a session, before chat or search | `pipeshub_sources` (cache the result) |
 | "Create a Jira ticket" / talk to a configured agent | `pipeshub_agents` → `pipeshub_chat` with that `agentId` |
