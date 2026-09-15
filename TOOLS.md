@@ -57,14 +57,16 @@ Leave out `apps` and `kb` to search everything. If you set either one, only the 
 
 ### `pipeshub_download_record`
 
-Stream the binary content of a single record. Use it when the user wants the actual file bytes (download, attach, open).
+Download the file as stored for one record — not PipesHub's parsed content, metadata header, or summary.
+
+**Use it when the user wants the file itself** (download, attach, open, or a PDF preview). **Do not use it to read, summarize, or quote a document** regardless of format — that is `pipeshub_get_record_content` `mode:"content"`. Text formats come back inline; images, audio, and other binary as base64.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `recordId` | string | yes | Record identifier — UUID for connector-sourced records or 24-char ObjectId for uploaded ones. Get it from a chat citation or `pipeshub_search` hit. |
-| `convertTo` | string | no | Optional server-side format conversion target (e.g. `pdf`). Omit for the original bytes. |
+| `convertTo` | string | no | The only conversion target connectors honour is `application/pdf` (the MIME type, not `pdf`). A bare `pdf` is ignored with no error. Omit for the file as stored. |
 
-**Response:** the file content. `Content-Type` is forwarded from the upstream service. Binary content is base64-encoded; text is inline.
+**Response:** the file as stored. `Content-Type` is forwarded from the upstream service. Text formats (`text/*`, JSON, XML, YAML) are inline; images, audio, and other binary are base64.
 
 ---
 
@@ -156,6 +158,7 @@ The list **may be empty**. For plain Q&A, use `pipeshub_chat` without `agentId`.
 | "How many / list all / every X" | `pipeshub_get_record_content` `mode:"navigate"` — not `pipeshub_chat` |
 | "Find the file called *security-review.pdf*" | `pipeshub_search` |
 | "Download that file" (after a search or chat citation) | `pipeshub_download_record` |
+| "What does this PDF say?" / summarize a named file | `pipeshub_get_record_content` `mode:"content"` — not download |
 | "Show me the full content of that record" | `pipeshub_get_record_content` |
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) |

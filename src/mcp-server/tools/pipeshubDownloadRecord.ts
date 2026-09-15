@@ -10,26 +10,29 @@ const args = {
       + "citation (`citations[*].recordId`) or from a `pipeshub_search` hit.",
   ),
   convertTo: z.string().optional().describe(
-    "Optional server-side format conversion target (e.g. `pdf`). When "
-      + "omitted, the original file bytes are returned.",
+    "The only conversion target connectors honour is `application/pdf` "
+      + "(the MIME type, not `pdf`). A bare `pdf` is ignored and the "
+      + "original file is returned with no error. Omit for the file as "
+      + "stored. Does not parse the document — use "
+      + "`pipeshub_get_record_content` `mode:\"content\"` for that.",
   ),
 };
 
 export const tool$pipeshubDownloadRecord: ToolDefinition<typeof args> = {
   name: "pipeshub_download_record",
   description:
-    `Stream the binary content of a single record from PipesHub.
+    `Download the file as stored for one record — not PipesHub's parsed
+content, metadata header, or summary.
 
-Typical sources for the \`recordId\`:
-- A chat citation:
-  \`pipeshub_chat\` response → \`citations[*].recordId\`.
-- A search result:
-  \`pipeshub_search\` response → \`hits[*].recordId\` /
-  \`uniqueRecords[*].recordId\`.
+Use this when the user wants the file itself (download, attach, open).
+Get \`recordId\` from a chat citation or a \`pipeshub_search\` hit.
 
-Response \`Content-Type\` is forwarded from the upstream service —
-\`application/pdf\`, \`application/octet-stream\`, etc. Binary content is
-returned base64-encoded; text content is returned inline.`,
+Do not use this to read, summarize, or answer "what does this doc
+say?" regardless of format. That is \`pipeshub_get_record_content\`
+\`mode:"content"\`. Text formats come back inline; images, audio, and
+binary as base64.
+
+\`convertTo\` accepts only \`application/pdf\`; anything else is ignored.`,
   scopes: ["read"],
   annotations: {
     title: "Download a document by record id",

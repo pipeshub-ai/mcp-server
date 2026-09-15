@@ -14,7 +14,7 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_download_record",
-    "description": "Stream the binary content of a single record from PipesHub.\n\nTypical sources for the `recordId`:\n- A chat citation:\n  `pipeshub_chat` response → `citations[*].recordId`.\n- A search result:\n  `pipeshub_search` response → `hits[*].recordId` /\n  `uniqueRecords[*].recordId`.\n\nResponse `Content-Type` is forwarded from the upstream service —\n`application/pdf`, `application/octet-stream`, etc. Binary content is\nreturned base64-encoded; text content is returned inline."
+    "description": "Download the file as stored for one record — not PipesHub's parsed\ncontent, metadata header, or summary.\n\nUse this when the user wants the file itself (download, attach, open).\nGet `recordId` from a chat citation or a `pipeshub_search` hit.\n\nDo not use this to read, summarize, or answer \"what does this doc\nsay?\" regardless of format. That is `pipeshub_get_record_content`\n`mode:\"content\"`. Text formats come back inline; images, audio, and\nbinary as base64.\n\n`convertTo` accepts only `application/pdf`; anything else is ignored."
   },
   {
     "name": "pipeshub_get_record_content",
