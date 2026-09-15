@@ -20,7 +20,7 @@ import {
 } from "./_helpers.js";
 
 function defaultLimit(
-  schema: { parse: (value: Record<string, never>) => { limit?: number } },
+  schema: z.ZodType<{ limit?: number | undefined }>,
 ): number {
   const limit = schema.parse({}).limit;
   if (typeof limit !== "number") {
