@@ -57,16 +57,16 @@ Leave out `apps` and `kb` to search everything. If you set either one, only the 
 
 ### `pipeshub_download_record`
 
-Download the original file bytes of a single record (PDF, Office, image, …) — not the extracted text.
+Download the file as stored for one record — not PipesHub's parsed content, metadata header, or summary.
 
-**Use it when the user wants the file itself** (download, attach, open, convert). **Do not use it to read, summarize, or quote a document** — that is `pipeshub_get_record_content` `mode:"content"`. This tool returns opaque bytes; it cannot answer "what does this doc say?"
+**Use it when the user wants the file itself** (download, attach, open, or a PDF preview). **Do not use it to read, summarize, or quote a document** regardless of format — that is `pipeshub_get_record_content` `mode:"content"`. Text formats come back inline; images, audio, and other binary as base64.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `recordId` | string | yes | Record identifier — UUID for connector-sourced records or 24-char ObjectId for uploaded ones. Get it from a chat citation or `pipeshub_search` hit. |
-| `convertTo` | string | no | Optional server-side conversion before streaming (e.g. `pdf` to preview an Office file). Omit for the original bytes. Does not extract text. |
+| `convertTo` | string | no | The only conversion target connectors honour is `application/pdf` (the MIME type, not `pdf`). A bare `pdf` is ignored with no error. Omit for the file as stored. |
 
-**Response:** the file content. `Content-Type` is forwarded from the upstream service. Binary content is base64-encoded; text is inline.
+**Response:** the file as stored. `Content-Type` is forwarded from the upstream service. Text formats (`text/*`, JSON, XML, YAML) are inline; images, audio, and other binary are base64.
 
 ---
 

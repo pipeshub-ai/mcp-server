@@ -56,10 +56,12 @@ the user can verify.
 - \`pipeshub_search\` — locate a document by name or topic and resolve it
   to a \`recordId\`. To read or summarize one specific document, search,
   then pass the top hit's \`recordId\` to \`pipeshub_get_record_content\`.
-- \`pipeshub_download_record\` — when the user wants the actual file
-  bytes (download, attach, open). Never to read or summarize a document
-  — that is \`pipeshub_get_record_content\` \`mode:"content"\`. Get the
-  \`recordId\` from a chat citation or from \`pipeshub_search\`.
+- \`pipeshub_download_record\` — when the user wants the file as stored
+  (download, attach, open). Never to read or summarize — that is
+  \`pipeshub_get_record_content\` \`mode:"content"\`, which returns
+  parsed text with a metadata header. Get the \`recordId\` from a chat
+  citation or from \`pipeshub_search\`. \`convertTo\` is only
+  \`application/pdf\`.
 - \`pipeshub_get_record_content\` — when you need a record's full parsed
   content (returned as a single \`content\` string: metadata header plus
   the document's text) without downloading the original file. Prefer this

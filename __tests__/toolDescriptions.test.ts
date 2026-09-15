@@ -100,13 +100,15 @@ describe("tool descriptions", () => {
     expect(byName.get("pipeshub_sources")).not.toMatch(/pipeshub_search`\s+as\s+`modelKey/);
   });
 
-  // Download returns opaque bytes. If a rewrite drops the sibling, hosts
-  // download a file to answer "what does this doc say?"
+  // Download is the file as stored, not parsed text. If a rewrite drops the
+  // sibling, hosts download a file to answer "what does this doc say?"
   test("download_record routes reading to get_record_content", () => {
     const desc = byName.get("pipeshub_download_record") ?? "";
     expect(desc).toContain("pipeshub_get_record_content");
     expect(desc).toContain('mode:"content"');
     expect(desc.toLowerCase()).toContain("summarize");
+    expect(desc).not.toMatch(/opaque/i);
+    expect(desc).toContain("application/pdf");
   });
   test("every tool named in a description or in the instructions exists", () => {
     const sources: Array<[string, string]> = [

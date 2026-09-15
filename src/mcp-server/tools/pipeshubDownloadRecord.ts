@@ -10,29 +10,29 @@ const args = {
       + "citation (`citations[*].recordId`) or from a `pipeshub_search` hit.",
   ),
   convertTo: z.string().optional().describe(
-    "Optional server-side conversion before streaming (e.g. `pdf` to "
-      + "preview an Office file as PDF). Omit for the original bytes. "
-      + "Does not extract text — use `pipeshub_get_record_content` "
-      + "`mode:\"content\"` to read what the document says.",
+    "The only conversion target connectors honour is `application/pdf` "
+      + "(the MIME type, not `pdf`). A bare `pdf` is ignored and the "
+      + "original file is returned with no error. Omit for the file as "
+      + "stored. Does not parse the document — use "
+      + "`pipeshub_get_record_content` `mode:\"content\"` for that.",
   ),
 };
 
 export const tool$pipeshubDownloadRecord: ToolDefinition<typeof args> = {
   name: "pipeshub_download_record",
   description:
-    `Download the original file of one record — the bytes, not extracted
-text.
+    `Download the file as stored for one record — not PipesHub's parsed
+content, metadata header, or summary.
 
-Use this when the user wants the file itself (download, attach, open,
-convert). Get \`recordId\` from a chat citation or a \`pipeshub_search\`
-hit.
+Use this when the user wants the file itself (download, attach, open).
+Get \`recordId\` from a chat citation or a \`pipeshub_search\` hit.
 
 Do not use this to read, summarize, or answer "what does this doc
-say?" That is \`pipeshub_get_record_content\` \`mode:"content"\`.
-Returns opaque bytes (base64 for binary).
+say?" regardless of format. That is \`pipeshub_get_record_content\`
+\`mode:"content"\`. Text formats come back inline; images, audio, and
+binary as base64.
 
-\`convertTo\` (e.g. \`pdf\`) converts on the server before streaming;
-omit it for the original bytes.`,
+\`convertTo\` accepts only \`application/pdf\`; anything else is ignored.`,
   scopes: ["read"],
   annotations: {
     title: "Download a document by record id",
