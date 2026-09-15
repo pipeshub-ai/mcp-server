@@ -57,12 +57,14 @@ Leave out `apps` and `kb` to search everything. If you set either one, only the 
 
 ### `pipeshub_download_record`
 
-Stream the binary content of a single record. Use it when the user wants the actual file bytes (download, attach, open).
+Download the original file bytes of a single record (PDF, Office, image, …) — not the extracted text.
+
+**Use it when the user wants the file itself** (download, attach, open, convert). **Do not use it to read, summarize, or quote a document** — that is `pipeshub_get_record_content` `mode:"content"`. This tool returns opaque bytes; it cannot answer "what does this doc say?"
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `recordId` | string | yes | Record identifier — UUID for connector-sourced records or 24-char ObjectId for uploaded ones. Get it from a chat citation or `pipeshub_search` hit. |
-| `convertTo` | string | no | Optional server-side format conversion target (e.g. `pdf`). Omit for the original bytes. |
+| `convertTo` | string | no | Optional server-side conversion before streaming (e.g. `pdf` to preview an Office file). Omit for the original bytes. Does not extract text. |
 
 **Response:** the file content. `Content-Type` is forwarded from the upstream service. Binary content is base64-encoded; text is inline.
 
@@ -156,6 +158,7 @@ The list **may be empty**. For plain Q&A, use `pipeshub_chat` without `agentId`.
 | "How many / list all / every X" | `pipeshub_get_record_content` `mode:"navigate"` — not `pipeshub_chat` |
 | "Find the file called *security-review.pdf*" | `pipeshub_search` |
 | "Download that file" (after a search or chat citation) | `pipeshub_download_record` |
+| "What does this PDF say?" / summarize a named file | `pipeshub_get_record_content` `mode:"content"` — not download |
 | "Show me the full content of that record" | `pipeshub_get_record_content` |
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) |

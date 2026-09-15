@@ -57,9 +57,9 @@ the user can verify.
   to a \`recordId\`. To read or summarize one specific document, search,
   then pass the top hit's \`recordId\` to \`pipeshub_get_record_content\`.
 - \`pipeshub_download_record\` — when the user wants the actual file
-  bytes (download, attach, open). Get the \`recordId\` either from
-  citations on a prior \`pipeshub_chat\` response or from
-  \`pipeshub_search\`.
+  bytes (download, attach, open). Never to read or summarize a document
+  — that is \`pipeshub_get_record_content\` \`mode:"content"\`. Get the
+  \`recordId\` from a chat citation or from \`pipeshub_search\`.
 - \`pipeshub_get_record_content\` — when you need a record's full parsed
   content (returned as a single \`content\` string: metadata header plus
   the document's text) without downloading the original file. Prefer this
