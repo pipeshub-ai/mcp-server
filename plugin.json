@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pipeshub",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, and 50+ workplace sources.",
   "author": {
     "name": "PipesHub",
