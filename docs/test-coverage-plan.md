@@ -76,7 +76,7 @@ pattern transfers.
 repository, or `pipeshub-openapi.yaml` in the platform repo — and how a version
 skew between a deployed platform and this client is meant to be expressed.
 
-## 3. The hand-written tool layer — **not started**
+## 3. The hand-written tool layer — **in progress**
 
 Eight tools, each wrapping several API calls. Current line coverage:
 
@@ -86,13 +86,27 @@ Eight tools, each wrapping several API calls. Current line coverage:
 | `pipeshubDirectory.ts` | 34.50% | everything past argument parsing |
 | `pipeshubSources.ts` | 39.68% | response shaping |
 | `pipeshubSearch.ts` | 45.33% | response shaping |
-| `_helpers.ts` | 56.39% | most error paths |
+| `_helpers.ts` | 59.33% | the SSE drain, agent and source listing |
 | `pipeshubGetRecordContent.ts` | 56.43% | the content path |
 | `pipeshubChat.ts` | 80.47% | streaming edges |
 
 These are pure functions over fixtures — no infrastructure, no decisions
-needed. The highest value is the error mapping, because that is what decides
-the exit code an agent branches on, and §1 cannot check every branch of it.
+needed. The highest value is the error mapping, because it is what a client is
+told when PipesHub does not answer, and §1 cannot reach every branch of it.
+
+**Done so far.** `httpErrorResult`, `readValidated`, `expiredTokenError`,
+`jsonResult` and `errorResult` — 20 tests. These matter more than their size
+suggests: the streaming funcs set `errorCodes: []`, so a 401 or a 502 arrives
+as an ordinary `Response` and `httpErrorResult` is the only thing between it
+and the useless "stream ended without usable frames". The tests pin the
+envelope shapes it lifts a message out of, that a nested object never renders
+as `[object Object]`, that the credentials hint appears on 401 and 403 and not
+on 404, 429 or 500, and that a 5000-character body is truncated instead of
+filling the client's context.
+
+**Next**, in order: `listAllSources` and `listAllAgents` paging (`_helpers.ts`
+466–537), the SSE drain in `_agui.ts` against recorded frames, then
+`tools.ts` registration and flag handling.
 
 ## 4. The CLI contract — **done**
 
