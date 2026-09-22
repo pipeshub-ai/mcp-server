@@ -73,7 +73,13 @@ export function originSource(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export function resolveOrigin(env: NodeJS.ProcessEnv = process.env): string | null {
-  const raw = (env["PIPESHUB_BASE_URL"] ?? env["PIPESHUB_MCP_URL"] ?? "").trim();
+  // Each variable judged after trimming, for the same reason `resolveToken`
+  // does it: `??` only falls through on unset, so a variable left blank hid a
+  // working value in the other one -- and `originSource`, which already trims,
+  // then named the variable holding the value this function had just refused.
+  const raw = ["PIPESHUB_BASE_URL", "PIPESHUB_MCP_URL"]
+    .map((name) => (env[name] ?? "").trim())
+    .find((value) => value !== "") ?? "";
   if (raw === "") return null;
   // Name the variable that actually supplied the value. Reporting
   // PIPESHUB_BASE_URL unconditionally sends anyone using PIPESHUB_MCP_URL to

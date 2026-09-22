@@ -82,6 +82,16 @@ describe("resolveOrigin", () => {
     }))).toBe("https://base.example.com");
   });
 
+  test("a variable set to blank is the same as not set", () => {
+    // The mirror of the token case, and the same bug: `??` only falls through
+    // on unset, so a blank PIPESHUB_BASE_URL hid a working PIPESHUB_MCP_URL and
+    // the CLI reported the wrong variable as missing.
+    expect(resolveOrigin(env({
+      PIPESHUB_BASE_URL: "   ",
+      PIPESHUB_MCP_URL: "https://ph.example.com/mcp",
+    }))).toBe("https://ph.example.com");
+  });
+
   test("nothing set is null", () => {
     expect(resolveOrigin(env({}))).toBeNull();
   });
@@ -118,6 +128,17 @@ describe("originSource", () => {
     expect(originSource(env({ PIPESHUB_BASE_URL: "  ", PIPESHUB_MCP_URL: "https://b" })))
       .toBe("PIPESHUB_MCP_URL");
     expect(originSource(env({}))).toBe("PIPESHUB_MCP_URL");
+  });
+
+  test("agrees with resolveOrigin about which variable supplied the value", () => {
+    // Pinning only the name is what let the bug through: this said
+    // PIPESHUB_MCP_URL while resolveOrigin returned null for the same input.
+    const blankFirst = env({
+      PIPESHUB_BASE_URL: " ",
+      PIPESHUB_MCP_URL: "https://ph.example.com/mcp",
+    });
+    expect(originSource(blankFirst)).toBe("PIPESHUB_MCP_URL");
+    expect(resolveOrigin(blankFirst)).not.toBeNull();
   });
 });
 
