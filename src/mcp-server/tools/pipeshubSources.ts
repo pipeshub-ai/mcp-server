@@ -72,7 +72,10 @@ sources and models change infrequently.`,
         modelType,
       }, { fetchOptions }).$inspect();
       if (!r.ok) return errorResult(`${key}: ${r.error.message}`);
-      const parsed = await readJson<{ models?: any[] }>(r.value, "Model listing");
+      // Named per listing: both the chat and the embedding models are fetched
+      // here, so a bare "Model listing failed" leaves the reader unable to tell
+      // which of the two is unavailable.
+      const parsed = await readJson<{ models?: any[] }>(r.value, `${key} listing`);
       if (!parsed.ok) return parsed.result;
       result[key] = (parsed.value.models ?? []).map((m: any) => ({
         modelKey: m.modelKey,

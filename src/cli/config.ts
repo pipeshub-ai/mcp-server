@@ -36,9 +36,16 @@ export class CliError extends Error {
  * up with a CLI that reports "not connected" while holding a valid token.
  */
 export function resolveToken(env: NodeJS.ProcessEnv = process.env): string | null {
-  const raw = env["PIPESHUB_TOKEN"] ?? env["PIPESHUB_MCP_TOKEN"] ?? "";
-  const token = raw.trim();
-  return token === "" ? null : token;
+  // Each variable is judged after trimming, not with `??`: a variable left set
+  // to blank -- a stray `export PIPESHUB_TOKEN=`, or a keychain that wrote an
+  // empty value -- is not a value, and falling through on it is the whole point
+  // of accepting both names. Before this, blank in the first one hid a working
+  // token in the second, and `tokenSource` then named the variable that held it.
+  for (const name of ["PIPESHUB_TOKEN", "PIPESHUB_MCP_TOKEN"]) {
+    const token = (env[name] ?? "").trim();
+    if (token !== "") return token;
+  }
+  return null;
 }
 
 /** Which variable supplied the token — for diagnostics, never the value. */
@@ -66,7 +73,13 @@ export function originSource(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export function resolveOrigin(env: NodeJS.ProcessEnv = process.env): string | null {
-  const raw = (env["PIPESHUB_BASE_URL"] ?? env["PIPESHUB_MCP_URL"] ?? "").trim();
+  // Each variable judged after trimming, for the same reason `resolveToken`
+  // does it: `??` only falls through on unset, so a variable left blank hid a
+  // working value in the other one -- and `originSource`, which already trims,
+  // then named the variable holding the value this function had just refused.
+  const raw = ["PIPESHUB_BASE_URL", "PIPESHUB_MCP_URL"]
+    .map((name) => (env[name] ?? "").trim())
+    .find((value) => value !== "") ?? "";
   if (raw === "") return null;
   // Name the variable that actually supplied the value. Reporting
   // PIPESHUB_BASE_URL unconditionally sends anyone using PIPESHUB_MCP_URL to
@@ -147,6 +160,11 @@ export function cleartextAllowed(host: string): boolean {
   if (isLoopback(h)) return true;
   if (isPrivateLiteral(h)) return true;
   if (h === "host.docker.internal") return true;
+  // An IPv6 literal has no dot, so it has to be decided before the single-label
+  // rule or every address in the world reads as a compose short name -- which
+  // is how `http://[2606:4700:4700::1111]` used to be handed the bearer token
+  // in cleartext. Past this point the private ranges have already returned.
+  if (h.replace(/^\[|\]$/g, "").includes(":")) return false;
   if (!h.includes(".")) return true; // single-label: compose / k8s short name
   return CLEARTEXT_SUFFIXES.some((s) => h.endsWith(s));
 }
