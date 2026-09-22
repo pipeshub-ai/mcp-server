@@ -34,7 +34,7 @@ describe("trimAgent", () => {
     systemPrompt: "be helpful",
     startMessage: "hello",
     tags: ["support"],
-    webSearch: { enabled: true },
+    webSearch: { provider: "tavily", providerLabel: "Tavily" },
     isActive: true,
     toolsets: [{ name: "jira", tools: [{ fullName: "jira.search" }, { name: "jira.create" }] }],
     knowledge: [{ name: "Runbooks", type: "kb" }],
@@ -56,11 +56,15 @@ describe("trimAgent", () => {
   });
 
   test("webSearch is reported as a plain yes or no", () => {
-    // The server sends a configuration object. Handing that to a model invites
-    // it to reason about fields it cannot act on; the only useful fact is
-    // whether the agent can reach the web.
-    expect(trimAgent({ ...agent, webSearch: undefined } as never).webSearch).toBe(false);
-    expect(trimAgent({ ...agent, webSearch: { enabled: false } } as never).webSearch).toBe(true);
+    // The server sends the provider configuration, or nothing at all. Handing
+    // that object to a model invites it to reason about settings it cannot act
+    // on; the only useful fact is whether the agent can reach the web, and that
+    // is exactly whether a provider was configured.
+    expect(trimAgent({ ...agent, webSearch: { provider: "tavily" } } as never).webSearch)
+      .toBe(true);
+    for (const none of [undefined, null]) {
+      expect(trimAgent({ ...agent, webSearch: none } as never).webSearch).toBe(false);
+    }
   });
 
   test("a tool with neither name is dropped rather than listed as nothing", () => {
