@@ -401,7 +401,15 @@ function resolveHeader<T>(
   if (val != null) {
     return schema.parse(val);
   }
-  return disableStaticAuth ? undefined : schema.parse(cliFlagValue);
+  if (disableStaticAuth) return undefined;
+  // safeParse, not parse: an optional flag that was never passed arrives as
+  // undefined, and `z.string().parse(undefined)` throws. Every one of these is
+  // optional, so `serve` with only a bearer token -- no client id, no client
+  // secret, which is the documented setup -- threw a raw ZodError out of
+  // getSDK() on the first tool call. A schema that supplies a default (token
+  // URL) still gets to apply it, because undefined parses successfully there.
+  const parsed = schema.safeParse(cliFlagValue);
+  return parsed.success ? parsed.data : undefined;
 }
 
 export function buildSDK(
