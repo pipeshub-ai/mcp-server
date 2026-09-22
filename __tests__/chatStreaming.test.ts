@@ -75,9 +75,14 @@ describe("a stream that ends badly", () => {
     // person asked a question and the assistant has most of the reply. But it
     // has to say so, because the citations are missing and a model that assumes
     // otherwise will present an unsourced answer as a sourced one.
+    // The conversation id arrives as a CUSTOM frame named `conversation_created`
+    // carrying a `value`, not as an event of that name. Sending the wrong shape
+    // is silently ignored, and the assertions on the answer still pass -- so the
+    // id has to be asserted too, or the test says nothing about the one thing
+    // this path exists for.
     const out = await ask(streaming([
       ["RUN_STARTED", { threadId: "t-1" }],
-      ["conversation_created", { conversationId: "c-9", title: "Leave" }],
+      ["CUSTOM", { name: "conversation_created", value: { conversationId: "c-9", title: "Leave" } }],
       ["TEXT_MESSAGE_CONTENT", { delta: "Twenty-five " }],
       ["TEXT_MESSAGE_CONTENT", { delta: "days." }],
     ]));
@@ -88,6 +93,10 @@ describe("a stream that ends badly", () => {
     expect(body.status).toBe("Inprogress");
     expect(body.citations).toEqual([]);
     expect(body.warning).toContain("RUN_FINISHED");
+    // What makes the partial answer useful: a follow-up turn can resume the
+    // same conversation instead of starting a new one.
+    expect(body.conversationId).toBe("c-9");
+    expect(body.title).toBe("Leave");
   });
 
   test("a stream carrying nothing at all says so rather than answering emptily", async () => {
