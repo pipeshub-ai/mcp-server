@@ -261,8 +261,14 @@ export async function listTools(opts: ClientOptions): Promise<string[]> {
     );
   }
   const payload = parseSseFrames(await response.text()) as {
+    error?: { message?: string };
     result?: { tools?: Array<{ name?: string }> };
   };
+  // Without this a JSON-RPC error read as an empty tool list, and `auth status`
+  // reported a working connection.
+  if (payload.error) {
+    throw new CliError(`MCP error: ${payload.error.message ?? "unknown"}`);
+  }
   return (payload.result?.tools ?? [])
     .map((t) => t.name)
     .filter((n): n is string => typeof n === "string");

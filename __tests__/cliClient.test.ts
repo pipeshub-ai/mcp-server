@@ -6,6 +6,7 @@ import {
   listTools,
   type ClientOptions,
 } from "../src/cli/client.js";
+import { authStatus } from "../src/cli/commands.js";
 import { CliError, EXIT } from "../src/cli/config.js";
 
 // The `pipeshub` CLI's whole network surface: one POST to `{origin}/mcp`, an SSE
@@ -230,6 +231,22 @@ describe("listTools", () => {
   test("HTTP 401 is exit 3", async () => {
     reply = { status: 401, body: "", contentType: "text/plain" };
     expect((await cliError(listTools(opts()))).code).toBe(EXIT.UNAUTHENTICATED);
+  });
+
+  test("a JSON-RPC error is an error, not an empty tool list", async () => {
+    // `auth status` treats a successful listTools as "connected". A server
+    // that answers tools/list with an error must not read as a working login
+    // with zero tools.
+    reply = {
+      body: sse({ jsonrpc: "2.0", id: 1, error: { code: -32603, message: "internal error" } }),
+    };
+    const err = await cliError(listTools(opts()));
+    expect(err.message).toBe("MCP error: internal error");
+
+    const status = await authStatus({ ...opts(), json: true, maxChars: 1000 });
+    expect(status.payload["connected"]).toBe(false);
+    expect(status.payload["error"]).toBe("MCP error: internal error");
+    expect(status.exit).toBe(EXIT.ERROR);
   });
 });
 
