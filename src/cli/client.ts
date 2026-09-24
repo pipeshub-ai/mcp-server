@@ -269,7 +269,9 @@ export async function listTools(opts: ClientOptions): Promise<string[]> {
   if (payload.error) {
     throw new CliError(`MCP error: ${payload.error.message ?? "unknown"}`);
   }
-  return (payload.result?.tools ?? [])
+  // Same for a reply with no result: an empty list here is not a live server.
+  if (!payload.result) throw new CliError("MCP response contained no result");
+  return (payload.result.tools ?? [])
     .map((t) => t.name)
     .filter((n): n is string => typeof n === "string");
 }

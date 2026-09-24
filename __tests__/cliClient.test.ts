@@ -248,6 +248,16 @@ describe("listTools", () => {
     expect(status.payload["error"]).toBe("MCP error: internal error");
     expect(status.exit).toBe(EXIT.ERROR);
   });
+
+  test("a reply with no result is an error, not an empty tool list", async () => {
+    reply = { body: sse({ jsonrpc: "2.0", id: 1, result: null }) };
+    const err = await cliError(listTools(opts()));
+    expect(err.message).toBe("MCP response contained no result");
+
+    const status = await authStatus({ ...opts(), json: true, maxChars: 1000 });
+    expect(status.payload["connected"]).toBe(false);
+    expect(status.exit).toBe(EXIT.ERROR);
+  });
 });
 
 describe("decodeToolJson", () => {
