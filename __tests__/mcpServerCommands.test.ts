@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { serveCommand } from "../src/mcp-server/cli/serve/command.js";
 import { startCommand } from "../src/mcp-server/cli/start/command.js";
 
@@ -83,12 +84,15 @@ afterEach(async () => {
   while (launched.length > 0) await launched.pop()?.();
 });
 
-function context(): { ctx: CommandContext & { process: { exitCode?: number | string | null } }; out: string[] } {
+interface TestContext extends CommandContext {
+  readonly process: CommandContext["process"] & { exitCode?: number | string | null };
+}
+
+function context(): { ctx: TestContext; out: string[] } {
   const out: string[] = [];
-  const proc = {
+  const proc: TestContext["process"] = {
     stdout: { write: (s: string) => void out.push(s) },
     stderr: { write: (s: string) => void out.push(s) },
-    exitCode: undefined as number | string | null | undefined,
   };
   return { ctx: { process: proc }, out };
 }
@@ -154,9 +158,11 @@ async function launch(cmd: typeof serveCommand | typeof startCommand, argv: stri
 
 async function httpClient(port: number, headers: Record<string, string> = {}): Promise<Client> {
   const c = new Client({ name: "test", version: "1" });
+  // The same cast serve/impl.ts makes: the SDK's transport classes do not
+  // satisfy its own Transport type under exactOptionalPropertyTypes.
   await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
     requestInit: { headers },
-  }));
+  }) as Transport);
   return c;
 }
 
