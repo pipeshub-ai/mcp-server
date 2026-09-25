@@ -176,6 +176,19 @@ describe("commands against an instance", () => {
     expect(r.stdout).toBe("");
   });
 
+  test("a server that echoes the bearer back does not get it printed", async () => {
+    // `cli` itself fails the test if TOKEN reaches stdout or stderr.
+    mcp.reply("pipeshub_sources", { status: 400, body: `bad request; authorization: Bearer ${TOKEN}` });
+    const failed = await cli(["sources"], connected());
+    expect(failed.code).toBe(1);
+    expect(failed.stderr).toContain("authorization: Bearer [redacted]");
+
+    mcp.reply("pipeshub_get_record_content", textReply(`a record that quotes ${TOKEN}`));
+    const got = await cli(["get", "rec-echo", "--text"], connected());
+    expect(got.code).toBe(0);
+    expect(got.stdout).toContain("a record that quotes [redacted]");
+  });
+
   test("a payload larger than the pipe buffer arrives whole", async () => {
     // process.exit() does not flush a piped stdout. Before writes waited for
     // the flush, a 2 MB answer was cut at 1 MB and still exited 0.

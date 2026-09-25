@@ -81,6 +81,17 @@ function describeFetchFailure(e: unknown): string {
     : err.message;
 }
 
+/**
+ * Everything the server sends is printed, errors on stderr and results on
+ * stdout, so a proxy or error page that echoes the request's Authorization
+ * header would print the token. It is taken out before anything reads it.
+ * A value too short to be a real token is left alone rather than blanking
+ * every occurrence of, say, "1" in the output.
+ */
+function withoutToken(text: string, token: string): string {
+  return token.length < 8 ? text : text.split(token).join("[redacted]");
+}
+
 /** True for an object that looks like a JSON-RPC response, not a notification. */
 function isJsonRpcResponse(v: unknown): boolean {
   if (typeof v !== "object" || v === null) return false;
@@ -194,7 +205,7 @@ async function postMcp(
   }
 
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
+    const text = withoutToken(await response.text().catch(() => ""), opts.token);
     throw new CliError(
       `MCP request failed (HTTP ${response.status} ${response.statusText})`
         + (text ? `: ${text.slice(0, 300)}` : ""),
@@ -202,7 +213,9 @@ async function postMcp(
     );
   }
 
-  const payload = parseSseFrames(await response.text()) as {
+  const payload = parseSseFrames(
+    withoutToken(await response.text(), opts.token),
+  ) as {
     error?: { message?: string };
     result?: unknown;
   };

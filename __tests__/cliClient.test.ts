@@ -464,3 +464,47 @@ describe("network failures say why", () => {
     expect(err.message).toBe("MCP request failed (HTTP 401 Unauthorized): token revoked");
   });
 });
+
+describe("the token never comes back out", () => {
+  // Whatever the server sends is printed: errors on stderr, results on
+  // stdout. A proxy or error page that echoes the request's headers would
+  // otherwise put the bearer into an agent's transcript.
+  const token = "tok-123456";
+
+  test("an HTTP error page that echoes the Authorization header", async () => {
+    reply = { status: 400, body: `Bad request. Headers: authorization: Bearer ${token}`, contentType: "text/plain" };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.message).toBe("MCP request failed (HTTP 400 Bad Request): Bad request. Headers: authorization: Bearer [redacted]");
+  });
+
+  test("a JSON-RPC error, a tool error and an unparseable body that quote it", async () => {
+    reply = { body: sse({ jsonrpc: "2.0", id: 1, error: { code: -32000, message: `bad token ${token}` } }) };
+    expect((await cliError(callToolBlocks(opts(), "t", {}))).message).toBe("MCP error: bad token [redacted]");
+
+    reply = { body: sse(result([{ type: "text", text: `Search failed (HTTP 401). Token ${token} revoked.` }], true)) };
+    const toolErr = await cliError(callToolBlocks(opts(), "t", {}));
+    expect(toolErr.message).toBe("Search failed (HTTP 401). Token [redacted] revoked.");
+    expect(toolErr.code).toBe(EXIT.UNAUTHENTICATED);
+
+    reply = { body: `<html>you sent ${token}</html>`, contentType: "text/html" };
+    expect((await cliError(callToolBlocks(opts(), "t", {}))).message)
+      .toBe("could not parse the MCP response as JSON: <html>you sent [redacted]</html>");
+  });
+
+  test("a result that contains it, and auth status's error field", async () => {
+    reply = { body: sse(result([{ type: "text", text: `debug: bearer=${token}` }])) };
+    expect(await callTool(opts(), "t", {})).toBe("debug: bearer=[redacted]");
+
+    reply = { status: 401, body: `rejected ${token}`, contentType: "text/plain" };
+    const status = await authStatus({ ...opts(), json: true, maxChars: 1000 });
+    expect(JSON.stringify(status.payload)).not.toContain(token);
+    expect(status.payload["error"]).toBe("MCP request failed (HTTP 401 Unauthorized): rejected [redacted]");
+  });
+
+  test("a placeholder too short to be a token is not scrubbed out of the output", async () => {
+    reply = { body: sse(result([{ type: "text", text: "1 of 1" }])) };
+    expect(await callTool(opts({ token: "1" }), "t", {})).toBe("1 of 1");
+  });
+});
