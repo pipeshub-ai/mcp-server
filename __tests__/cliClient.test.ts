@@ -468,6 +468,22 @@ describe("redirects", () => {
     }
   });
 
+  test("a same-origin 303 is reported, not replayed: the call must not run twice", async () => {
+    requests = [];
+    reply = { status: 303, body: "", contentType: "text/plain", headers: { location: "/mcp/result/1" } };
+
+    const err = await cliError(callToolBlocks(opts(), "pipeshub_search", { query: "q" }));
+
+    expect(requests.map((r) => [r.method, r.path])).toEqual([["POST", "/mcp"]]);
+    expect(err.code).toBe(EXIT.ERROR);
+    expect(err.message).toBe(
+      `${origin}/mcp answered 303 See Other, pointing at ${origin}/mcp/result/1. `
+        + "pipeshub does not follow it: a 303 asks for a GET, and sending the request "
+        + "again could run it twice. Check that PIPESHUB_BASE_URL is the address PipesHub "
+        + "itself answers on.",
+    );
+  });
+
   test("a same-origin 301 or 302 sends the same POST again rather than a GET", async () => {
     for (const status of [301, 302]) {
       requests = [];

@@ -255,6 +255,19 @@ async function postMcp(
     if (next.origin !== from) {
       throw new CliError(redirectedElsewhere(from, next, opts.token), EXIT.USAGE);
     }
+    // 303 means "GET this other resource". Replaying the POST could run the
+    // call twice, and a JSON-RPC call has no GET form, so it is not followed.
+    // 301 and 302 keep the POST, which RFC 9110 allows (the switch to GET is
+    // a historical browser habit), for the usual `/mcp` to `/mcp/` move.
+    if (response.status === 303) {
+      throw new CliError(
+        `${url} answered 303 See Other, pointing at `
+          + `${withoutToken(`${next.origin}${next.pathname}`, opts.token)}. `
+          + "pipeshub does not follow it: a 303 asks for a GET, and sending "
+          + "the request again could run it twice. Check that "
+          + "PIPESHUB_BASE_URL is the address PipesHub itself answers on.",
+      );
+    }
     if (hop >= MAX_REDIRECTS) {
       throw new CliError(
         `${url} redirected more than ${MAX_REDIRECTS} times; check the proxy `

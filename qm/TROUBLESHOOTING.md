@@ -121,6 +121,9 @@ usually a sign-in page or a proxy in front of PipesHub. Do not copy that address
 into `PIPESHUB_BASE_URL`: the token would go there. Use the address PipesHub
 itself answers on.
 
+A `303 See Other` on the same address is not followed either, since sending the
+request again could run it twice (exit 1).
+
 ## "MCP request failed (HTTP …)"
 
 The endpoint answered with an HTTP error. The first line has the status and
