@@ -5,6 +5,7 @@ import { PipeshubCore } from "../core.js";
 import { bindNewRequestId } from "../hooks/request-context.js";
 import { SDKOptions } from "../lib/config.js";
 import type { ConsoleLogger } from "./console-logger.js";
+import { stderrDebugLogger } from "./debug-logger.js";
 import { createRegisterPrompt } from "./prompts.js";
 import {
   createRegisterResource,
@@ -49,11 +50,7 @@ export function createMCPServer(deps: {
       serverIdx: deps.serverIdx,
       instance_url: deps.instance_url,
       debugLogger: deps.logger.level === "debug"
-        ? {
-          log: (...args) => console.log(...args),
-          group: (...args) => console.group(...args),
-          groupEnd: (...args) => console.groupEnd(...args),
-        }
+        ? stderrDebugLogger()
         : undefined,
     }));
 

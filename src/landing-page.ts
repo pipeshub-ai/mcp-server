@@ -18,8 +18,21 @@ export function landingPage(req: Request): Response {
 
 // express wrapper
 export function landingPageExpress(req: ExpressRequest, res: ExpressResponse) {
-  const origin = new URL(req.host).href;
+  // req.host is "host[:port]" with no scheme, so it is not a URL on its own.
+  const origin = `${req.protocol}://${req.host}`;
   res.type("html").send(landingPageHTML(origin));
+}
+
+// The origin comes from the request's Host header, which Node accepts with
+// "<" and '"' in it, so everything derived from it is escaped before it goes
+// into the page.
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export function landingPageHTML(origin: string): string {
@@ -868,7 +881,7 @@ http_headers = { "server-index" = "YOUR_SERVER_INDEX", "instance-url" = "YOUR_IN
                 <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
               </svg>
             </button>
-            <code class="code-snippet" id="server-url">${o}/mcp</code>
+            <code class="code-snippet" id="server-url">${escapeHtml(`${o}/mcp`)}</code>
           </div>
         </section>
 
@@ -890,7 +903,7 @@ http_headers = { "server-index" = "YOUR_SERVER_INDEX", "instance-url" = "YOUR_IN
               </svg>
             </button>
             <code class="code-snippet language-json" id="raw-config">${
-    JSON.stringify(mcpConfig, null, 2)
+    escapeHtml(JSON.stringify(mcpConfig, null, 2))
   }</code>
           </div>
         </section>
@@ -1003,7 +1016,7 @@ http_headers = { "server-index" = "YOUR_SERVER_INDEX", "instance-url" = "YOUR_IN
               <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
             </svg>
           </button>
-          <code class="code-snippet language-toml" id="codex-config">${codexConfig}</code>
+          <code class="code-snippet language-toml" id="codex-config">${escapeHtml(codexConfig)}</code>
         </div>
       </div>
     </div>

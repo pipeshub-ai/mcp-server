@@ -15,3 +15,16 @@ src/lib/bytes-to-base64.ts
 src/lib/base64.ts
 src/mcp-server/shared.ts
 __tests__/bytesToBase64.test.ts
+
+# Carry fixes a regeneration would silently undo: --server-url as an origin,
+# an instance URL with a scheme, credential redaction in debug logs, debug
+# logs on stderr (server.ts for `start`, tools.ts for `serve`), plain-language
+# flag errors, and the escaped landing page origin. Every one of these was in
+# the last .speakeasy/gen.lock; src/cli/ and the new helper files never were.
+src/lib/config.ts
+src/lib/sdks.ts
+src/landing-page.ts
+src/mcp-server/cli/start/command.ts
+src/mcp-server/cli/serve/command.ts
+src/mcp-server/server.ts
+src/mcp-server/tools.ts

@@ -56,12 +56,13 @@ export type SDKOptions = {
 export function serverURLFromOptions(options: SDKOptions): URL | null {
   let serverURL = options.serverURL;
 
+  const instanceURL = options.instance_url ?? "https://app.pipeshub.com";
   const serverParams: Params[] = [
     {
-      "instance_url": options.instance_url ?? "https://app.pipeshub.com",
+      "instance_url": instanceURL,
     },
     {
-      "instance_url": options.instance_url ?? "https://app.pipeshub.com",
+      "instance_url": instanceURL,
     },
   ];
   let params: Params = {};
@@ -73,10 +74,34 @@ export function serverURLFromOptions(options: SDKOptions): URL | null {
     }
     serverURL = ServerList[serverIdx] || "";
     params = serverParams[serverIdx] || {};
+    // The templates add "https://" themselves, but the default above, the
+    // Claude Desktop manifest and the landing page all pass a full URL, which
+    // substituted literally gives the host "https".
+    if (/^https?:\/\//i.test(instanceURL)) {
+      return instanceServerURL(serverURL, instanceURL);
+    }
   }
 
   const u = pathToFunc(serverURL)(params);
   return new URL(u);
+}
+
+/**
+ * A server template filled from an instance URL that carries its own scheme,
+ * which is kept so a local http:// instance is not forced onto https. The
+ * template's path goes after any path the instance URL has, unless that path
+ * already ends with it: README documents the /api/v1 form, and a doubled
+ * /api/v1 lands every call on the web app's HTML shell.
+ */
+function instanceServerURL(template: string, instanceURL: string): URL {
+  const prefix = "https://{instance_url}";
+  const suffix = template.startsWith(prefix) ? template.slice(prefix.length) : "";
+  const url = new URL(instanceURL);
+  let path = url.pathname.replace(/\/+$/, "");
+  if (suffix !== "" && !path.endsWith(suffix)) path += suffix;
+  url.pathname = path === "" ? "/" : path;
+  url.hash = "";
+  return url;
 }
 
 export const SDK_METADATA = {

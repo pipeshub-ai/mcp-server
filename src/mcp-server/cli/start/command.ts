@@ -7,6 +7,11 @@ import { numberParser } from "@stricli/core";
 import * as z from "zod";
 import { consoleLoggerLevels } from "../../console-logger.js";
 import { mcpScopes } from "../../scopes.js";
+import {
+  parseEnvFlag,
+  parsePortFlag,
+  parseServerURLFlag,
+} from "../flag-parsers.js";
 
 export const startCommand = buildCommand({
   loader: async () => {
@@ -25,8 +30,7 @@ export const startCommand = buildCommand({
         kind: "parsed",
         brief: "The port to use when the SSE transport is enabled",
         default: "2718",
-        parse: (val: string) =>
-          z.coerce.number().int().gte(0).lt(65536).parse(val),
+        parse: parsePortFlag,
       },
       tool: {
         kind: "parsed",
@@ -85,9 +89,9 @@ export const startCommand = buildCommand({
       },
       "server-url": {
         kind: "parsed",
-        brief: "Overrides the default server URL used by the SDK",
+        brief: "Your PipesHub address, e.g. https://pipeshub.example.com",
         optional: true,
-        parse: (value) => new URL(value).toString(),
+        parse: parseServerURLFlag,
       },
       "server-index": {
         kind: "parsed",
@@ -112,24 +116,7 @@ export const startCommand = buildCommand({
         brief: "Environment variables made available to the server",
         optional: true,
         variadic: true,
-        parse: (val: string) => {
-          const sepIdx = val.indexOf("=");
-          if (sepIdx === -1) {
-            throw new Error("Invalid environment variable format");
-          }
-
-          const key = val.slice(0, sepIdx);
-          const value = val.slice(sepIdx + 1);
-
-          return [
-            z.string().nonempty({
-              message: "Environment variable key must be a non-empty string",
-            }).parse(key),
-            z.string().nonempty({
-              message: "Environment variable value must be a non-empty string",
-            }).parse(value),
-          ] satisfies [string, string];
-        },
+        parse: parseEnvFlag,
       },
     },
   },
