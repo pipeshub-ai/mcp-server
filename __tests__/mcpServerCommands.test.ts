@@ -354,3 +354,18 @@ describe("--server-url given as the instance origin", () => {
     }
   });
 });
+
+describe("--instance-url given as a full URL", () => {
+  test("start (stdio) reaches the API, as the Claude Desktop manifest configures it", async () => {
+    // manifest.json passes --server-index and --instance-url, with a default
+    // of "https://app.pipeshub.com": a full URL, not a bare host.
+    const c = await stdioClient(["--server-index", "0", "--instance-url", apiOrigin, "--bearer-auth", BEARER]);
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls).toEqual([{ path: `/api/v1/users/${USER_ID}`, authorization: `Bearer ${BEARER}` }]);
+    } finally {
+      await c.close();
+    }
+  }, 20_000);
+});

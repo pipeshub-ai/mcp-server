@@ -56,12 +56,13 @@ export type SDKOptions = {
 export function serverURLFromOptions(options: SDKOptions): URL | null {
   let serverURL = options.serverURL;
 
+  const instanceURL = options.instance_url ?? "https://app.pipeshub.com";
   const serverParams: Params[] = [
     {
-      "instance_url": options.instance_url ?? "https://app.pipeshub.com",
+      "instance_url": instanceURL,
     },
     {
-      "instance_url": options.instance_url ?? "https://app.pipeshub.com",
+      "instance_url": instanceURL,
     },
   ];
   let params: Params = {};
@@ -73,6 +74,16 @@ export function serverURLFromOptions(options: SDKOptions): URL | null {
     }
     serverURL = ServerList[serverIdx] || "";
     params = serverParams[serverIdx] || {};
+    // The templates add "https://" themselves, but the default above, the
+    // Claude Desktop manifest and the landing page all pass a full URL, which
+    // substituted literally gives the host "https". Keep the given scheme, so
+    // a local http:// instance is not forced onto https.
+    if (/^https?:\/\//i.test(instanceURL)) {
+      serverURL = serverURL.replace(
+        "https://{instance_url}",
+        instanceURL.replace(/\/+$/, ""),
+      );
+    }
   }
 
   const u = pathToFunc(serverURL)(params);
