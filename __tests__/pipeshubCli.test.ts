@@ -126,7 +126,8 @@ describe("missing configuration", () => {
     const r = await cli(["search", "x"], { PIPESHUB_TOKEN: mcp.origin, PIPESHUB_BASE_URL: TOKEN });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("pipeshub: PIPESHUB_BASE_URL is not a valid URL.");
-    expect(r.stderr).toContain("e.g. https://pipeshub.example.com");
+    expect(r.stderr).toContain("it belongs in PIPESHUB_TOKEN");
+    expect(r.stderr).not.toContain("It needs to start with https://");
   });
 
   test("connect-help works with nothing configured", async () => {

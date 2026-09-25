@@ -132,6 +132,54 @@ describe("resolveOrigin", () => {
     }
   });
 
+  test("an opaque token in the URL variable is not told to add https:// in front", () => {
+    // Following that advice would turn the token into a valid origin, and the
+    // next "could not reach https://<token>/mcp" would print it.
+    for (const raw of ["fake-cli-token-0000", "pat_4f9a2c1e8b7d", "Bearer abc123def456"]) {
+      try {
+        resolveOrigin(env({ PIPESHUB_BASE_URL: raw }));
+        throw new Error(`expected a CliError for ${raw}`);
+      } catch (e) {
+        const { message } = e as CliError;
+        expect(message).not.toContain("https:// (or");
+        expect(message).not.toContain(raw);
+        expect(message).toBe(
+          "PIPESHUB_BASE_URL is not a valid URL. It does not look like an address; "
+            + "if it is your token, it belongs in PIPESHUB_TOKEN. Set it to your "
+            + "PipesHub origin, e.g. https://pipeshub.example.com",
+        );
+      }
+    }
+  });
+
+  test("host-shaped values without a scheme are told to add one", () => {
+    for (const raw of [
+      "pipeshub.example.com",
+      "pipeshub.example.com/mcp",
+      "localhost",
+      "127.0.0.1:3000",
+      "10.0.0.5",
+      "[::1]:3000",
+      "host.docker.internal",
+    ]) {
+      try {
+        resolveOrigin(env({ PIPESHUB_BASE_URL: raw }));
+        throw new Error(`expected a CliError for ${raw}`);
+      } catch (e) {
+        expect((e as CliError).message).toContain("It needs to start with https://");
+      }
+    }
+    // `localhost:3000` parses as a URL with the scheme "localhost:", so it is
+    // refused as a scheme, and still not as a possible token.
+    try {
+      resolveOrigin(env({ PIPESHUB_BASE_URL: "localhost:3000" }));
+      throw new Error("expected a CliError");
+    } catch (e) {
+      expect((e as CliError).message).toContain("must be an http:// or https:// URL");
+      expect((e as CliError).message).not.toContain("PIPESHUB_TOKEN");
+    }
+  });
+
   test("a host with no scheme is told to add one, without the value repeated", () => {
     try {
       resolveOrigin(env({ PIPESHUB_MCP_URL: "pipeshub.example.com/mcp" }));

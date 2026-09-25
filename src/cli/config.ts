@@ -91,12 +91,17 @@ export function resolveOrigin(env: NodeJS.ProcessEnv = process.env): string | nu
   } catch {
     // The value is not repeated back: the likeliest unparseable value is the
     // token itself, pasted into the wrong one of the two keychain entries, and
-    // this message is printed.
+    // this message is printed. Scheme advice goes only to host-shaped values:
+    // said to an opaque token, it makes `https://<token>` a valid origin that
+    // the next "could not reach" error prints.
     const hint = /^(bearer\s+)?eyJ/i.test(raw)
       ? " It holds what looks like a token, which belongs in PIPESHUB_TOKEN."
       : raw.includes("://")
       ? ""
-      : " It needs to start with https:// (or http:// for a private address).";
+      : looksLikeHost(raw)
+      ? " It needs to start with https:// (or http:// for a private address)."
+      : " It does not look like an address; if it is your token, it belongs in "
+        + "PIPESHUB_TOKEN.";
     throw new CliError(
       `${name} is not a valid URL.${hint} `
         + "Set it to your PipesHub origin, e.g. https://pipeshub.example.com",
@@ -118,6 +123,19 @@ export function resolveOrigin(env: NodeJS.ProcessEnv = process.env): string | nu
   }
   // Strip path, query, and fragment — keep scheme, host, and port only.
   return parsed.origin;
+}
+
+/**
+ * Whether a value with no scheme reads as `host[:port][/path]`: localhost, an
+ * IP literal, or a dotted name ending in an alphabetic label.
+ */
+function looksLikeHost(raw: string): boolean {
+  const authority = raw.split(/[/?#]/, 1)[0] ?? "";
+  const host = authority.replace(/:\d+$/, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+  if (/^\[[0-9a-f:.]+\]$/.test(host)) return true;
+  return /^([a-z0-9-]+\.)+[a-z]{2,}$/.test(host);
 }
 
 /** The MCP endpoint is always `{origin}/mcp`. Stated once, used everywhere. */
