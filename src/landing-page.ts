@@ -18,7 +18,8 @@ export function landingPage(req: Request): Response {
 
 // express wrapper
 export function landingPageExpress(req: ExpressRequest, res: ExpressResponse) {
-  const origin = new URL(req.host).href;
+  // req.host is "host[:port]" with no scheme, so it is not a URL on its own.
+  const origin = `${req.protocol}://${req.host}`;
   res.type("html").send(landingPageHTML(origin));
 }
 

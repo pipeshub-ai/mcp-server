@@ -369,3 +369,26 @@ describe("--instance-url given as a full URL", () => {
     }
   }, 20_000);
 });
+
+describe("the landing page at /", () => {
+  // It built the page's origin with `new URL(req.host)`. A host such as
+  // "127.0.0.1:2718" or "mcp.example.com" is not a URL on its own, so the
+  // page was a 500; "localhost:2718" parsed as a URL whose scheme is
+  // "localhost:", and the page showed an address with no http:// in it.
+  test("renders with the address the browser used", async () => {
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`]);
+    for (const host of [`127.0.0.1:${s.port}`, `localhost:${s.port}`, "mcp.example.com"]) {
+      const res = await fetch(`http://127.0.0.1:${s.port}/`, { headers: { host } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/html");
+      expect(await res.text()).toContain(`http://${host}/sse`);
+    }
+  });
+
+  test("renders for start --transport sse too", async () => {
+    const s = await launch(startCommand, ["--transport", "sse"]);
+    const res = await fetch(`http://127.0.0.1:${s.port}/`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain(`http://127.0.0.1:${s.port}/sse`);
+  });
+});
