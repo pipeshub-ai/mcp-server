@@ -22,6 +22,22 @@ describe("serverURLFromOptions", () => {
     expect(url({ instance_url: "https://pipeshub.example.com", serverIdx: 1 })).toBe("https://pipeshub.example.com/");
   });
 
+  test("an instance URL that already ends in /api/v1 does not get it twice", () => {
+    // README documents the /api/v1 form for --server-url, so people pass it
+    // here too. Doubled, every call lands on the web app's HTML shell.
+    expect(url({ instance_url: "https://pipeshub.example.com/api/v1" })).toBe("https://pipeshub.example.com/api/v1");
+    expect(url({ instance_url: "https://pipeshub.example.com/api/v1/" })).toBe("https://pipeshub.example.com/api/v1");
+  });
+
+  test("an instance under a path prefix keeps the prefix before /api/v1", () => {
+    expect(url({ instance_url: "https://example.com/pipeshub" })).toBe("https://example.com/pipeshub/api/v1");
+  });
+
+  test("a query string stays a query string, and $ is not a replacement pattern", () => {
+    expect(url({ instance_url: "https://pipeshub.example.com/?tenant=a" })).toBe("https://pipeshub.example.com/api/v1?tenant=a");
+    expect(url({ instance_url: "https://pipeshub.example.com/$&x" })).toBe("https://pipeshub.example.com/$&x/api/v1");
+  });
+
   test("a bare host name still fills the template as before", () => {
     expect(url({ instance_url: "pipeshub.example.com" })).toBe("https://pipeshub.example.com/api/v1");
     expect(url({ instance_url: "pipeshub.example.com", serverIdx: 1 })).toBe("https://pipeshub.example.com/");
