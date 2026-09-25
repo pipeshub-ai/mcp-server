@@ -7,6 +7,7 @@ import { numberParser } from "@stricli/core";
 import * as z from "zod";
 import { consoleLoggerLevels } from "../../console-logger.js";
 import { mcpScopes } from "../../scopes.js";
+import { parseServerURLFlag } from "../../server-url.js";
 
 export const serveCommand = buildCommand({
   loader: async () => {
@@ -85,9 +86,9 @@ export const serveCommand = buildCommand({
       },
       "server-url": {
         kind: "parsed",
-        brief: "Overrides the default server URL used by the SDK",
+        brief: "Your PipesHub address, e.g. https://pipeshub.example.com",
         optional: true,
-        parse: (value) => new URL(value).toString(),
+        parse: parseServerURLFlag,
       },
       "server-index": {
         kind: "parsed",

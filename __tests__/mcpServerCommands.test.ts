@@ -324,3 +324,33 @@ describe("start (stdio)", () => {
     }
   }, 20_000);
 });
+
+describe("--server-url given as the instance origin", () => {
+  // README, server.json and the customer skill all say to pass the origin,
+  // e.g. https://pipeshub.example.com. Every API path is under /api/v1, and
+  // PipesHub answers any other path with the web app's HTML shell, so
+  // taking the origin literally broke every tool call in the documented setup.
+
+  test("start (stdio) sends API calls under /api/v1", async () => {
+    const c = await stdioClient(["--server-url", apiOrigin, "--bearer-auth", BEARER]);
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls.map((a) => a.path)).toEqual([`/api/v1/users/${USER_ID}`]);
+    } finally {
+      await c.close();
+    }
+  }, 20_000);
+
+  test("serve does the same, with or without a trailing slash", async () => {
+    for (const url of [apiOrigin, `${apiOrigin}/`]) {
+      const s = await launch(serveCommand, ["--server-url", url, "--bearer-auth", BEARER]);
+      const c = await httpClient(s.port);
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls.map((a) => a.path)).toEqual([`/api/v1/users/${USER_ID}`]);
+      await c.close();
+      await s.terminate();
+    }
+  });
+});
