@@ -379,7 +379,7 @@ export async function get(
     payload: {
       requestId: ctx.requestId,
       recordId,
-      truncated: clipped.length < content.length,
+      truncated: clipped !== content,
       content: delimit(clipped),
     },
   };

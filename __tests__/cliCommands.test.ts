@@ -224,6 +224,16 @@ describe("get", () => {
     expect(String(out.payload["content"])).toContain("y".repeat(10) + "…[truncated]");
   });
 
+  test("content only slightly longer than --max-chars is still reported as truncated", async () => {
+    // The clipped string carries a 12-character marker, so comparing its
+    // length with the original's said "not truncated" whenever fewer than 12
+    // characters were cut. An agent then treats a partial record as complete.
+    mcp.reply("pipeshub_get_record_content", textReply("z".repeat(15)));
+    const out = await get(ctx({ maxChars: 10 }), "rec-1", null, null);
+    expect(String(out.payload["content"])).toContain("z".repeat(10) + "…[truncated]");
+    expect(out.payload["truncated"]).toBe(true);
+  });
+
   test("an empty record is exit 6", async () => {
     mcp.reply("pipeshub_get_record_content", { content: [] });
     expect((await get(ctx(), "rec-1", null, null)).exit).toBe(EXIT.NO_RESULTS);
