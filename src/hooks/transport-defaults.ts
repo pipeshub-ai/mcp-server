@@ -11,7 +11,7 @@
 import { SDKOptions } from "../lib/config.js";
 import { HTTPClient } from "../lib/http.js";
 import { withoutToken } from "../lib/redact.js";
-import { SDKInitHook } from "./types.js";
+import { BeforeRequestContext, BeforeRequestHook, SDKInitHook } from "./types.js";
 
 export interface TransportSettings {
   /** Tries per request, the first one included. 1 turns retries off. */
@@ -27,6 +27,13 @@ export const DEFAULT_TRANSPORT: TransportSettings = {
 
 export const MAX_ATTEMPTS_ENV = "PIPESHUB_MCP_MAX_ATTEMPTS";
 export const TIMEOUT_ENV = "PIPESHUB_MCP_TIMEOUT_MS";
+
+/**
+ * Set on a request whose operation runs the SDK's own retry loop, and removed
+ * before it is sent. The loop wraps this client, so retrying here as well
+ * would make every SDK attempt several.
+ */
+const SDK_RETRIES_HEADER = "x-pipeshub-sdk-retries";
 
 /** Statuses that say "try again later" rather than "this request is wrong". */
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
@@ -183,7 +190,9 @@ async function send(
   req: Request,
   settings: TransportSettings,
 ): Promise<Response> {
-  const tries = IDEMPOTENT_METHODS.has(req.method.toUpperCase())
+  const sdkRetries = req.headers.has(SDK_RETRIES_HEADER);
+  req.headers.delete(SDK_RETRIES_HEADER);
+  const tries = IDEMPOTENT_METHODS.has(req.method.toUpperCase()) && !sdkRetries
     ? settings.maxAttempts
     : 1;
   for (let n = 1; ; n++) {
@@ -216,14 +225,22 @@ export function withTransportDefaults(
   });
 }
 
-export class TransportDefaultsHook implements SDKInitHook {
+export class TransportDefaultsHook implements SDKInitHook, BeforeRequestHook {
+  beforeRequest(hookCtx: BeforeRequestContext, request: Request): Request {
+    // Per-call `retries` or the client's `retryConfig`, whichever applies.
+    if (hookCtx.retryConfig.strategy === "backoff") {
+      request.headers.set(SDK_RETRIES_HEADER, "1");
+    }
+    return request;
+  }
+
   sdkInit(opts: SDKOptions): SDKOptions {
     const settings = transportSettingsFromEnv();
     return {
       ...opts,
       httpClient: withTransportDefaults(opts.httpClient ?? new HTTPClient(), {
-        // A caller's own retryConfig, even `strategy: "none"`, replaces these
-        // retries; running both would multiply the tries.
+        // A client-wide retryConfig, even `strategy: "none"`, replaces these
+        // retries; per-call `retries` are caught in beforeRequest.
         maxAttempts: opts.retryConfig ? 1 : settings.maxAttempts,
         timeoutMs: settings.timeoutMs,
       }),

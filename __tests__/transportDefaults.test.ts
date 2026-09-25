@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
+import { SDKHooks } from "../src/hooks/hooks.js";
 import { semanticSearchSearch } from "../src/funcs/semanticSearchSearch.js";
 import { usersGetUserById } from "../src/funcs/usersGetUserById.js";
 import { RequestAbortedError, RequestTimeoutError } from "../src/models/errors/httpclienterrors.js";
@@ -155,6 +156,51 @@ describe("default retries", () => {
     await getUser(sdk({ retryConfig: { strategy: "none" } }));
 
     expect(seen).toHaveLength(1);
+  });
+
+  test("per-call retries replace the default ones rather than running inside them", async () => {
+    // Counted by an SDK hook, which runs once per SDK attempt; the server
+    // counts what went over the wire. Stacked, each SDK attempt was three.
+    steps = [status(503, { "retry-after": "0" })];
+    let sdkAttempts = 0;
+    const hooks = new SDKHooks();
+    hooks.registerBeforeRequestHook({
+      beforeRequest: (_ctx, req) => {
+        sdkAttempts += 1;
+        return req;
+      },
+    });
+
+    const res = await getUser(sdk({ hooks } as ConstructorParameters<typeof PipeshubCore>[0]), {
+      retries: {
+        strategy: "backoff",
+        backoff: { initialInterval: 1, maxInterval: 5, exponent: 1, maxElapsedTime: 150 },
+        retryConnectionErrors: true,
+      },
+    });
+
+    expect(res.ok && res.value.status).toBe(503);
+    expect(sdkAttempts).toBeGreaterThan(1);
+    expect(seen).toHaveLength(sdkAttempts);
+    expect(seen.every((s) => s.authorization === `Bearer ${TOKEN}`)).toBe(true);
+  });
+
+  test("the marker that switches the default retries off never reaches PipesHub", async () => {
+    steps = [ok];
+    const headers: string[][] = [];
+    const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(req) {
+      headers.push([...req.headers.keys()]);
+      return Response.json({ _id: USER_ID });
+    } });
+    try {
+      await getUser(sdk({ serverURL: `http://127.0.0.1:${probe.port}/api/v1` }), {
+        retries: { strategy: "backoff", backoff: { initialInterval: 1, maxInterval: 5, exponent: 1, maxElapsedTime: 50 } },
+      });
+      expect(headers).toHaveLength(1);
+      expect(headers[0]!.filter((h) => h.startsWith("x-pipeshub-sdk"))).toEqual([]);
+    } finally {
+      probe.stop(true);
+    }
   });
 
   test("cancelling during the wait between tries ends the call as an abort", async () => {
