@@ -165,3 +165,45 @@ describe("backend error text reaches the model without the bearer", () => {
     }
   });
 });
+
+describe("a rate limit tells the model how long to wait", () => {
+  async function limited(headers: Record<string, string>, status = 429) {
+    const api = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () => new Response(JSON.stringify({ message: "Too many requests" }), {
+        status,
+        headers: { "content-type": "application/json", ...headers },
+      }),
+    });
+    try {
+      return await agentsTool(`http://127.0.0.1:${api.port}`);
+    } finally {
+      api.stop(true);
+    }
+  }
+
+  test("a Retry-After too long to wait out is handed back with the wait in it", async () => {
+    const res = await limited({ "retry-after": "60" });
+
+    expect(res.isError).toBe(true);
+    expect(res.text).toBe(
+      "Agent list request failed (HTTP 429 Too Many Requests). Too many requests. "
+        + "Rate limited: PipesHub asked to wait 60 s before retrying.",
+    );
+  });
+
+  test("an HTTP-date Retry-After is turned into seconds, on a 503 too", async () => {
+    const at = new Date(Date.now() + 90_000).toUTCString();
+    const res = await limited({ "retry-after": at }, 503);
+
+    expect(res.text).toMatch(/Service Unavailable\)\. Too many requests\. PipesHub asked to wait (8[89]|9[01]) s before retrying\.$/);
+  });
+
+  test("a 429 with no Retry-After still says to wait", async () => {
+    // Three tries with backoff happen first; the last 429 is what is shown.
+    const res = await limited({});
+
+    expect(res.text).toEndWith("Rate limited: wait before retrying.");
+  });
+});

@@ -798,7 +798,7 @@ npx @pipeshub-ai/mcp --help
 
 ### Retries and Timeouts
 
-The local server (`start` and `serve`) retries a PipesHub request that is refused with 429, 502, 503 or 504. It waits for as long as the `Retry-After` header asks, up to 30 seconds, or backs off for half a second and then a second. It stops after three tries in all and passes the last answer on. Only requests that are safe to repeat are retried (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`). Search and chat are `POST`s and are never retried, because a repeat would be a second search or a second answer.
+The local server (`start` and `serve`) retries a PipesHub request that is refused with 429, 502, 503 or 504. It waits for as long as the `Retry-After` header asks, or, without one, backs off for half a second and then a second. It stops after three tries in all and passes the last answer on. A `Retry-After` of more than 30 seconds is not waited out: that answer is passed on at once, and the tool's error says how long PipesHub asked to wait. Only requests that are safe to repeat are retried (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`). Search and chat are `POST`s and are never retried, because a repeat would be a second search or a second answer.
 
 A request that gets no response within 60 seconds is abandoned. The limit covers the wait for PipesHub to start answering, not the whole answer, so a long chat response that is already streaming is not cut off.
 
