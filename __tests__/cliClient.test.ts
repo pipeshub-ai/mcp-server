@@ -435,6 +435,40 @@ describe("network failures say why", () => {
     }
   });
 
+  test("a dual-stack failure, whose own message is empty, names each address or its code", async () => {
+    // `localhost`, or any host with an IPv4 and an IPv6 address, makes Node try
+    // both. When both fail, `cause` is an AggregateError with message "" and
+    // the per-address reasons on `errors`; this is the shape Node 22 and 24
+    // produce, measured with a two-address lookup.
+    const refused = (address: string) =>
+      Object.assign(new Error(`connect ECONNREFUSED ${address}:9`), { code: "ECONNREFUSED" });
+    const aggregate = (errors: Error[], code: string) =>
+      new TypeError("fetch failed", { cause: Object.assign(new AggregateError(errors, ""), { code }) });
+    const cases: Array<[TypeError, string]> = [
+      [
+        aggregate([refused("::1"), refused("127.0.0.1"), refused("127.0.0.1")], "ECONNREFUSED"),
+        "fetch failed (connect ECONNREFUSED ::1:9; connect ECONNREFUSED 127.0.0.1:9)",
+      ],
+      [aggregate([], "ETIMEDOUT"), "fetch failed (ETIMEDOUT)"],
+      [
+        aggregate(["::1", "10.0.0.1", "10.0.0.2", "10.0.0.3"].map(refused), "ECONNREFUSED"),
+        "fetch failed (connect ECONNREFUSED ::1:9; connect ECONNREFUSED 10.0.0.1:9; "
+          + "connect ECONNREFUSED 10.0.0.2:9; and 1 more)",
+      ],
+    ];
+    for (const [failure, detail] of cases) {
+      const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+        (() => Promise.reject(failure)) as unknown as typeof fetch,
+      );
+      try {
+        expect((await cliError(callToolBlocks(opts(), "t", {}))).message)
+          .toBe(`could not reach ${origin}/mcp: ${detail}`);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    }
+  });
+
   test("a message that already carries its reason is left as it is", async () => {
     const closed = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("") });
     const deadOrigin = `http://127.0.0.1:${closed.port}`;
