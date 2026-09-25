@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import {
   callTool,
   callToolBlocks,
@@ -403,5 +403,47 @@ describe("redirects", () => {
       expect(elsewhereSeen[0]!.headers.get("authorization")).toBeNull();
       expect(JSON.stringify(elsewhereSeen[0]!.body)).not.toContain("tok-123456");
     }
+  });
+});
+
+describe("network failures say why", () => {
+  // The published binary runs on Node, whose fetch reports every network
+  // failure as a TypeError "fetch failed" and keeps the reason (refused, no
+  // such host, a certificate it does not trust) on `cause`. Bun, which runs
+  // these tests, puts the reason in the message instead, so Node's shape is
+  // reproduced here exactly as Node 24 throws it.
+  const nodeFailure = (code: string, message: string) =>
+    new TypeError("fetch failed", { cause: Object.assign(new Error(message), { code }) });
+
+  test("an unreachable instance names the cause, from both tools/call and tools/list", async () => {
+    const cases: Array<[string, string]> = [
+      ["ECONNREFUSED", "connect ECONNREFUSED 127.0.0.1:9"],
+      ["ENOTFOUND", "getaddrinfo ENOTFOUND pipeshub.invalid"],
+      ["SELF_SIGNED_CERT_IN_CHAIN", "self-signed certificate in certificate chain"],
+    ];
+    for (const [code, message] of cases) {
+      const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+        (() => Promise.reject(nodeFailure(code, message))) as unknown as typeof fetch,
+      );
+      try {
+        const expected = `could not reach ${origin}/mcp: fetch failed (${message})`;
+        expect((await cliError(callToolBlocks(opts(), "t", {}))).message).toBe(expected);
+        expect((await cliError(listTools(opts()))).message).toBe(expected);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    }
+  });
+
+  test("a message that already carries its reason is left as it is", async () => {
+    const closed = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("") });
+    const deadOrigin = `http://127.0.0.1:${closed.port}`;
+    closed.stop(true);
+
+    const err = await cliError(callToolBlocks(opts({ origin: deadOrigin }), "t", {}));
+
+    expect(err.message).toStartWith(`could not reach ${deadOrigin}/mcp: `);
+    expect(err.message).not.toContain("(undefined)");
+    expect(err.message).not.toEndWith("()");
   });
 });

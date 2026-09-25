@@ -65,6 +65,22 @@ export function toolErrorToExit(message: string): number {
   return EXIT.ERROR;
 }
 
+/**
+ * Why a fetch never got a response, in words a person can act on.
+ *
+ * Node's fetch, which the published binary runs on, reports every network
+ * failure as a bare "fetch failed" and keeps the reason (connection refused,
+ * no such host, an untrusted certificate) on `cause`. Printing only the
+ * message dropped the one detail that says what to fix.
+ */
+function describeFetchFailure(e: unknown): string {
+  const err = e as Error & { cause?: unknown };
+  const cause = err.cause instanceof Error ? err.cause.message : "";
+  return cause && !err.message.includes(cause)
+    ? `${err.message} (${cause})`
+    : err.message;
+}
+
 /** True for an object that looks like a JSON-RPC response, not a notification. */
 function isJsonRpcResponse(v: unknown): boolean {
   if (typeof v !== "object" || v === null) return false;
@@ -178,7 +194,7 @@ export async function callToolBlocks(
     const err = e as Error;
     const detail = err.name === "TimeoutError"
       ? "request timed out"
-      : err.message;
+      : describeFetchFailure(err);
     throw new CliError(`could not reach ${url}: ${detail}`);
   }
 
@@ -252,7 +268,7 @@ export async function listTools(opts: ClientOptions): Promise<string[]> {
       signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
     });
   } catch (e: unknown) {
-    throw new CliError(`could not reach ${url}: ${(e as Error).message}`);
+    throw new CliError(`could not reach ${url}: ${describeFetchFailure(e)}`);
   }
   if (!response.ok) {
     throw new CliError(
