@@ -309,6 +309,22 @@ export class ClientSDK {
 const jsonLikeContentTypeRE = /^(application|text)\/([^+]+\+)*json.*/;
 const jsonlLikeContentTypeRE =
   /^(application|text)\/([^+]+\+)*(jsonl|x-ndjson)\b.*/;
+// Debug logs end up in terminals, CI output and bug reports; a bearer or
+// session cookie printed there is a leaked credential.
+const credentialHeaders = new Set([
+  "authorization",
+  "proxy-authorization",
+  "cookie",
+  "set-cookie",
+  "x-api-key",
+]);
+
+function loggableHeader(name: string, value: string): string {
+  return credentialHeaders.has(name.toLowerCase()) && value !== ""
+    ? "[redacted]"
+    : value;
+}
+
 async function logRequest(logger: Logger | undefined, req: Request) {
   if (!logger) {
     return;
@@ -321,7 +337,7 @@ async function logRequest(logger: Logger | undefined, req: Request) {
 
   logger.group("Headers:");
   for (const [k, v] of req.headers.entries()) {
-    logger.log(`${k}: ${v}`);
+    logger.log(`${k}: ${loggableHeader(k, v)}`);
   }
   logger.groupEnd();
 
@@ -367,7 +383,7 @@ async function logResponse(
 
   logger.group("Headers:");
   for (const [k, v] of res.headers.entries()) {
-    logger.log(`${k}: ${v}`);
+    logger.log(`${k}: ${loggableHeader(k, v)}`);
   }
   logger.groupEnd();
 
