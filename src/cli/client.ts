@@ -186,14 +186,18 @@ const MAX_REDIRECTS = 5;
 /**
  * Why a redirect to another origin is not followed, and what to set instead.
  * Only origin and path are shown: a sign-in redirect carries state in its query.
+ * The target is offered as the new base URL only when it is the same host on
+ * another scheme or port (http to https): anything else would have the next
+ * command send the token to whichever host the redirect named.
  */
 function redirectedElsewhere(from: string, to: URL, token: string): string {
   const shown = withoutToken(`${to.origin}${to.pathname}`, token);
-  const advice = /\/mcp\/?$/.test(to.pathname)
+  const sameHost = new URL(from).hostname === to.hostname;
+  const advice = sameHost && /\/mcp\/?$/.test(to.pathname)
     ? `. Set PIPESHUB_BASE_URL to ${withoutToken(to.origin, token)}.`
-    : ", which is not a PipesHub MCP endpoint: something, often a sign-in "
-      + "page or a proxy, is in front of PipesHub. Set PIPESHUB_BASE_URL to "
-      + "the address PipesHub itself answers on.";
+    : ", which is not this instance's MCP endpoint: something, often a "
+      + "sign-in page or a proxy, is in front of PipesHub. Set "
+      + "PIPESHUB_BASE_URL to the address PipesHub itself answers on.";
   return `The server at ${from} redirected to ${shown}${advice} `
     + "The token was not sent there.";
 }

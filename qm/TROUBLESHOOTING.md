@@ -114,9 +114,12 @@ different origin, most often `http://` to `https://`. `pipeshub` does not
 follow it: the token is only for the address you configured. Set the variable to
 the address the message names.
 
-If the message says the target "is not a PipesHub MCP endpoint", the redirect
-leads somewhere else, usually a sign-in page or a proxy in front of PipesHub.
-Use the address PipesHub itself answers on.
+The address is offered only when the redirect stays on the same host and only
+the scheme or port changes. If the message says the target "is not this
+instance's MCP endpoint", the redirect leads to another host or another path,
+usually a sign-in page or a proxy in front of PipesHub. Do not copy that address
+into `PIPESHUB_BASE_URL`: the token would go there. Use the address PipesHub
+itself answers on.
 
 ## "MCP request failed (HTTP …)"
 

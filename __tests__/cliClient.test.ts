@@ -437,11 +437,35 @@ describe("redirects", () => {
 
     expect(err.code).toBe(EXIT.USAGE);
     expect(err.message).toBe(
-      `The server at ${origin} redirected to https://sso.example.com/login, which is not a `
-        + "PipesHub MCP endpoint: something, often a sign-in page or a proxy, is in front of "
-        + "PipesHub. Set PIPESHUB_BASE_URL to the address PipesHub itself answers on. "
-        + "The token was not sent there.",
+      `The server at ${origin} redirected to https://sso.example.com/login, which is not `
+        + "this instance's MCP endpoint: something, often a sign-in page or a proxy, is in "
+        + "front of PipesHub. Set PIPESHUB_BASE_URL to the address PipesHub itself answers "
+        + "on. The token was not sent there.",
     );
+  });
+
+  test("a redirect to an /mcp on another host is not offered as the new base URL", async () => {
+    // Following that advice would send the token to whatever host the
+    // redirect named. Only a change of scheme or port on the same host is.
+    for (const target of [
+      `http://localhost:${elsewhere.port}/mcp`,
+      "https://pipeshub.attacker.example/mcp",
+    ]) {
+      elsewhereSeen = [];
+      reply = { status: 307, body: "", contentType: "text/plain", headers: { location: target } };
+
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+      expect(err.code).toBe(EXIT.USAGE);
+      expect(err.message).not.toContain("Set PIPESHUB_BASE_URL to http");
+      expect(err.message).toBe(
+        `The server at ${origin} redirected to ${target}, which is not this instance's `
+          + "MCP endpoint: something, often a sign-in page or a proxy, is in front of "
+          + "PipesHub. Set PIPESHUB_BASE_URL to the address PipesHub itself answers on. "
+          + "The token was not sent there.",
+      );
+      expect(elsewhereSeen).toHaveLength(0);
+    }
   });
 
   test("a same-origin 301 or 302 sends the same POST again rather than a GET", async () => {
