@@ -88,6 +88,7 @@ message means you need a real public HTTPS address, not an override.
 
 ```text
 pipeshub: could not reach http://…/mcp: fetch failed (connect ECONNREFUSED 10.0.0.5:80)
+Check that PIPESHUB_BASE_URL is your PipesHub instance's address and that it is reachable from here. From a sandbox, localhost and LAN addresses are not.
 ```
 
 Network, not auth. The part in brackets says what went wrong: `ECONNREFUSED`
@@ -116,6 +117,19 @@ the address the message names.
 If the message says the target "is not a PipesHub MCP endpoint", the redirect
 leads somewhere else, usually a sign-in page or a proxy in front of PipesHub.
 Use the address PipesHub itself answers on.
+
+## "MCP request failed (HTTP …)"
+
+The endpoint answered with an HTTP error. The first line has the status and
+the server's reason; the second says what to do:
+
+| Status | Exit | Second line |
+| --- | --- | --- |
+| 401 | 3 | the token may be expired, revoked, or made for a different instance; run `pipeshub auth status`, then `pipeshub auth connect-help` |
+| 403 | 4 | this person cannot access it (see Exit 4 below) |
+| 429 | 5 | wait (for as long as PipesHub asked, when it says), then retry once |
+| 404 | 1 | nothing answers at `/mcp`; `PIPESHUB_BASE_URL` is the wrong address |
+| 5xx | 1 | try again shortly; if it keeps failing, give the request id to whoever runs the instance |
 
 ## `auth status` says `connected: false`
 

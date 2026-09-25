@@ -142,6 +142,44 @@ export interface ContentBlock {
   resource?: { uri?: string; mimeType?: string; blob?: string; text?: string };
 }
 
+// The next steps below say what qm/TROUBLESHOOTING.md says for each case.
+const UNREACHABLE_NEXT_STEP = "Check that PIPESHUB_BASE_URL is your PipesHub "
+  + "instance's address and that it is reachable from here. From a sandbox, "
+  + "localhost and LAN addresses are not.";
+const TIMED_OUT_NEXT_STEP = "PipesHub did not answer in time. Try again; if it "
+  + "keeps timing out, the instance may be overloaded.";
+
+/** What to do about an HTTP refusal from the MCP endpoint, in one line. */
+function nextStepForStatus(response: Response, requestId: string): string {
+  const report = `quote request id ${requestId} to whoever runs the instance.`;
+  const status = response.status;
+  if (status === 401) {
+    return "PipesHub rejected the token: it may be expired, revoked, or made "
+      + "for a different instance. Run 'pipeshub auth status' to see its "
+      + "expiry, and 'pipeshub auth connect-help' to set up a new one.";
+  }
+  if (status === 403) {
+    return "The person this token belongs to cannot access this. Another "
+      + "command will not get around it.";
+  }
+  if (status === 429) {
+    const seconds = Number(response.headers.get("retry-after") ?? "");
+    return Number.isInteger(seconds) && seconds > 0
+      ? `PipesHub is rate limiting this token and asked to wait ${seconds} `
+        + "seconds. Wait, then retry once."
+      : "PipesHub is rate limiting this token. Wait a little, then retry once.";
+  }
+  if (status === 404) {
+    return "Nothing answers at /mcp there. Check that PIPESHUB_BASE_URL is "
+      + "your PipesHub instance's address.";
+  }
+  if (status >= 500) {
+    return "PipesHub could not answer just now. Try again shortly; if it "
+      + `keeps failing, ${report}`;
+  }
+  return `If this keeps happening, ${report}`;
+}
+
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 5;
 
@@ -197,10 +235,12 @@ async function postMcp(
     try {
       response = await fetch(target, init);
     } catch (e: unknown) {
-      const detail = (e as Error).name === "TimeoutError"
-        ? "request timed out"
-        : describeFetchFailure(e);
-      throw new CliError(`could not reach ${url}: ${detail}`);
+      const timedOut = (e as Error).name === "TimeoutError";
+      const detail = timedOut ? "request timed out" : describeFetchFailure(e);
+      throw new CliError(
+        `could not reach ${url}: ${detail}\n`
+          + (timedOut ? TIMED_OUT_NEXT_STEP : UNREACHABLE_NEXT_STEP),
+      );
     }
     const location = REDIRECT_STATUSES.has(response.status)
       ? response.headers.get("location")
@@ -225,7 +265,8 @@ async function postMcp(
     const text = withoutToken(await response.text().catch(() => ""), opts.token);
     throw new CliError(
       `MCP request failed (HTTP ${response.status} ${response.statusText})`
-        + (text ? `: ${text.slice(0, 300)}` : ""),
+        + (text ? `: ${text.slice(0, 300)}` : "")
+        + `\n${nextStepForStatus(response, opts.requestId)}`,
       statusToExit(response.status),
     );
   }
