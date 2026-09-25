@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildApplication, run, type Command, type CommandContext } from "@stricli/core";
@@ -397,6 +398,28 @@ describe("the landing page at /", () => {
       expect(res.headers.get("content-type")).toContain("text/html");
       expect(await res.text()).toContain(`http://${host}/sse`);
     }
+  });
+
+  test("a Host header carrying markup is shown as text, never run", async () => {
+    // Node accepts "<" and '"' in Host, and the page echoes the host into
+    // <code> blocks, so an unescaped host could close the element and inject
+    // a script. fetch() would not send such a header, so this writes the
+    // request by hand.
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`]);
+    const host = 'x"</code><script>alert(1)</script>';
+    const raw = await new Promise<string>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const sock = connect(s.port, "127.0.0.1", () => {
+        sock.write(`GET / HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`);
+      });
+      sock.on("data", (c: Buffer) => chunks.push(c));
+      sock.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      sock.on("error", reject);
+    });
+    // Booleans rather than toContain, which would print the whole page on failure.
+    expect(raw.slice(0, 15)).toBe("HTTP/1.1 200 OK");
+    expect(raw.includes("<script>alert(1)")).toBe(false);
+    expect(raw.includes("x&quot;&lt;/code&gt;&lt;script&gt;alert(1)&lt;/script&gt;/mcp")).toBe(true);
   });
 
   test("renders for start --transport sse too", async () => {
