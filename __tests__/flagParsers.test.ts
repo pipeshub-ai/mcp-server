@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseServerURLFlag } from "../src/mcp-server/server-url.js";
+import { parseServerURLFlag } from "../src/mcp-server/cli/flag-parsers.js";
 
 describe("parseServerURLFlag", () => {
   test("a bare origin gets the API base path", () => {

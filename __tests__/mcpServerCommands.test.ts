@@ -255,25 +255,33 @@ describe("start --transport sse", () => {
 });
 
 describe("flag validation", () => {
-  test("an out-of-range port is refused before anything listens", async () => {
+  // Stricli prints `Failed to parse "<value>" for <flag>: <our message>`. The
+  // message used to be a raw Zod issue array, JSON and all.
+  async function refused(cmd: typeof serveCommand | typeof startCommand, argv: string[]): Promise<string> {
     const { ctx, out } = context();
-    await run(app(serveCommand), ["--port", "70000"], ctx);
+    await run(app(cmd), argv, ctx);
     expect(ctx.process.exitCode).not.toBe(0);
-    expect(out.join("")).toContain("port");
+    const text = out.join("");
+    expect(text).not.toContain('"code"');
+    return text;
+  }
+
+  test("a port that is not 0-65535 says what is allowed", async () => {
+    for (const bad of ["70000", "-1", "abc", "80.5"]) {
+      expect(await refused(serveCommand, ["--port", bad]))
+        .toContain(`--port must be a whole number from 0 to 65535 (got "${bad}")`);
+    }
   });
 
-  test("an --env without a name=value pair is refused", async () => {
-    const { ctx, out } = context();
-    await run(app(startCommand), ["--env", "NOVALUE"], ctx);
-    expect(ctx.process.exitCode).not.toBe(0);
-    expect(out.join("")).toContain("Invalid environment variable format");
+  test("an --env that is not NAME=value shows the form", async () => {
+    for (const bad of ["NOVALUE", "=v", "K="]) {
+      expect(await refused(startCommand, ["--env", bad]))
+        .toContain(`--env must look like NAME=value, with both parts filled in (got "${bad}")`);
+    }
   });
 
   test("an unknown --transport is refused", async () => {
-    const { ctx, out } = context();
-    await run(app(startCommand), ["--transport", "websocket"], ctx);
-    expect(ctx.process.exitCode).not.toBe(0);
-    expect(out.join("")).toContain("websocket");
+    expect(await refused(startCommand, ["--transport", "websocket"])).toContain("websocket");
   });
 });
 
