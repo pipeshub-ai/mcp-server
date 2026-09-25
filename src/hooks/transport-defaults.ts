@@ -1,12 +1,16 @@
-// Retries and a timeout for every PipesHub request the SDK makes.
+// Retries, a timeout and error-body redaction for every PipesHub request the
+// SDK makes.
 //
 // The generated SDK retries nothing and times out nothing unless the caller
 // passes `retryConfig` / `timeoutMs`, and `start` / `serve` pass neither, so a
 // 429 or a 503 reached the model after one try and a hung backend call never
-// ended. This installs both around whatever HTTP client the SDK was given.
+// ended. Error bodies go to the model word for word, so one that echoes the
+// request's bearer would hand it over. This installs all three around
+// whatever HTTP client the SDK was given.
 
 import { SDKOptions } from "../lib/config.js";
 import { HTTPClient } from "../lib/http.js";
+import { withoutToken } from "../lib/redact.js";
 import { SDKInitHook } from "./types.js";
 
 export interface TransportSettings {
@@ -153,6 +157,27 @@ async function attempt(
   }
 }
 
+/**
+ * An error response with the request's bearer taken out of its body. Tools
+ * pass error text to the model, and a proxy or error page may quote headers.
+ */
+async function withoutBearer(res: Response, req: Request): Promise<Response> {
+  if (res.status < 400) return res;
+  const token = /^bearer\s+(\S+)/i
+    .exec(req.headers.get("authorization") ?? "")?.[1] ?? "";
+  if (token.length < 8) return res;
+  const body = withoutToken(await res.text(), token);
+  // The body is already decoded, and its length may have changed.
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  return new Response(body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
 async function send(
   inner: HTTPClient,
   req: Request,
@@ -164,15 +189,17 @@ async function send(
   for (let n = 1; ; n++) {
     const last = n >= tries;
     const res = await attempt(inner, last ? req : req.clone(), settings.timeoutMs);
-    if (last || !RETRYABLE_STATUSES.has(res.status)) return res;
+    if (last || !RETRYABLE_STATUSES.has(res.status)) {
+      return withoutBearer(res, req);
+    }
     const wait = retryDelayMs(res, n);
-    if (wait === null) return res;
+    if (wait === null) return withoutBearer(res, req);
     await res.body?.cancel().catch(() => undefined);
     await sleep(wait, req.signal);
   }
 }
 
-/** An HTTP client that sends through `inner` with retries and a timeout. */
+/** An HTTP client that sends through `inner` with the defaults above. */
 export function withTransportDefaults(
   inner: HTTPClient,
   settings: TransportSettings,

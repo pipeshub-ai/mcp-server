@@ -113,3 +113,55 @@ describe("network failures reach the model with their cause and a next step", ()
     }
   });
 });
+
+describe("backend error text reaches the model without the bearer", () => {
+  const BEARER = "operator-pat-0000";
+
+  async function echoing(status: number, body: (auth: string) => string) {
+    return Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: (req) => new Response(body(req.headers.get("authorization") ?? ""), {
+        status,
+        headers: { "content-type": "text/plain" },
+      }),
+    });
+  }
+
+  test("an error page that quotes the Authorization header", async () => {
+    for (const status of [400, 401, 403, 500]) {
+      const api = await echoing(status, (auth) => `rejected request with authorization: ${auth}`);
+      try {
+        const res = await agentsTool(`http://127.0.0.1:${api.port}`, BEARER);
+
+        expect(res.isError).toBe(true);
+        expect(res.text).not.toContain(BEARER);
+        expect(res.text).toContain("rejected request with authorization: Bearer [redacted]");
+      } finally {
+        api.stop(true);
+      }
+    }
+  });
+
+  test("a JSON error envelope that quotes it, after the retries give up", async () => {
+    const api = await echoing(503, (auth) => JSON.stringify({ message: `upstream saw ${auth.slice(7)}` }));
+    try {
+      const res = await agentsTool(`http://127.0.0.1:${api.port}`, BEARER);
+
+      expect(res.text).toContain("upstream saw [redacted]");
+      expect(res.text).not.toContain(BEARER);
+    } finally {
+      api.stop(true);
+    }
+  });
+
+  test("a value too short to be a real token is left alone", async () => {
+    const api = await echoing(400, () => "field 1 of 1 is wrong");
+    try {
+      const res = await agentsTool(`http://127.0.0.1:${api.port}`, "1");
+      expect(res.text).toContain("field 1 of 1 is wrong");
+    } finally {
+      api.stop(true);
+    }
+  });
+});
