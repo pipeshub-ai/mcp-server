@@ -19,7 +19,8 @@ __tests__/bytesToBase64.test.ts
 # Carry fixes a regeneration would silently undo: --server-url as an origin,
 # an instance URL with a scheme, credential redaction in debug logs, debug
 # logs on stderr (server.ts for `start`, tools.ts for `serve`), plain-language
-# flag errors, and the escaped landing page origin. Every one of these was in
+# flag errors, the escaped landing page origin, and network and timeout errors
+# that name their cause and a next step (sdks.ts). Every one of these was in
 # the last .speakeasy/gen.lock; src/cli/ and the new helper files never were.
 src/lib/config.ts
 src/lib/sdks.ts
