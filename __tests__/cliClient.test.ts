@@ -446,4 +446,21 @@ describe("network failures say why", () => {
     expect(err.message).not.toContain("(undefined)");
     expect(err.message).not.toEndWith("()");
   });
+
+  test("auth status on a slow instance says the request timed out", async () => {
+    reply = { body: sse({ jsonrpc: "2.0", id: 1, result: { tools: [] } }), delayMs: 500 };
+
+    const err = await cliError(listTools(opts({ timeoutMs: 50 })));
+
+    expect(err.message).toBe(`could not reach ${origin}/mcp: request timed out`);
+  });
+
+  test("tools/list shows the server's reason for a refusal, as tools/call does", async () => {
+    reply = { status: 401, body: "token revoked", contentType: "text/plain" };
+
+    const err = await cliError(listTools(opts()));
+
+    expect(err.code).toBe(EXIT.UNAUTHENTICATED);
+    expect(err.message).toBe("MCP request failed (HTTP 401 Unauthorized): token revoked");
+  });
 });

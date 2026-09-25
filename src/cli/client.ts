@@ -157,16 +157,17 @@ export interface ContentBlock {
 }
 
 /**
- * `tools/call`, returning every content block.
+ * One JSON-RPC request to `{origin}/mcp`, returning its `result`.
  *
- * `callTool` folds these to text, which is right for the JSON-returning tools
- * but silently discards binary. `pipeshub get --out` needs the raw blocks.
+ * `tools/call` and the `tools/list` probe behind `auth status` both go through
+ * here, so every command reports a timeout, an HTTP refusal and the server's
+ * reason for it the same way.
  */
-export async function callToolBlocks(
+async function postMcp(
   opts: ClientOptions,
-  name: string,
-  args: Record<string, unknown>,
-): Promise<ContentBlock[]> {
+  rpc: { method: string; params?: Record<string, unknown> },
+  defaultTimeoutMs: number,
+): Promise<unknown> {
   assertTransport(opts.origin, opts.insecureHttp);
   const url = mcpEndpoint(opts.origin);
 
@@ -182,19 +183,13 @@ export async function callToolBlocks(
         // so correlation has to start here. Echoed back in the JSON output.
         "x-pipeshub-request-id": opts.requestId,
       },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name, arguments: args },
-      }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 180_000),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...rpc }),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? defaultTimeoutMs),
     });
   } catch (e: unknown) {
-    const err = e as Error;
-    const detail = err.name === "TimeoutError"
+    const detail = (e as Error).name === "TimeoutError"
       ? "request timed out"
-      : describeFetchFailure(err);
+      : describeFetchFailure(e);
     throw new CliError(`could not reach ${url}: ${detail}`);
   }
 
@@ -209,16 +204,33 @@ export async function callToolBlocks(
 
   const payload = parseSseFrames(await response.text()) as {
     error?: { message?: string };
-    result?: { isError?: boolean; content?: ContentBlock[] };
+    result?: unknown;
   };
-
+  // A JSON-RPC error, or a reply with no result, is a failure. Read as an
+  // empty tool list, either one made `auth status` report a working connection.
   if (payload.error) {
-    throw new CliError(
-      `MCP error: ${payload.error.message ?? "unknown"}`,
-    );
+    throw new CliError(`MCP error: ${payload.error.message ?? "unknown"}`);
   }
-  const result = payload.result;
-  if (!result) throw new CliError("MCP response contained no result");
+  if (!payload.result) throw new CliError("MCP response contained no result");
+  return payload.result;
+}
+
+/**
+ * `tools/call`, returning every content block.
+ *
+ * `callTool` folds these to text, which is right for the JSON-returning tools
+ * but silently discards binary. `pipeshub get --out` needs the raw blocks.
+ */
+export async function callToolBlocks(
+  opts: ClientOptions,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<ContentBlock[]> {
+  const result = await postMcp(
+    opts,
+    { method: "tools/call", params: { name, arguments: args } },
+    180_000,
+  ) as { isError?: boolean; content?: ContentBlock[] };
 
   const blocks = result.content ?? [];
 
@@ -252,42 +264,10 @@ export async function callTool(
  * "token lacks a scope" in a way that calling a real tool cannot.
  */
 export async function listTools(opts: ClientOptions): Promise<string[]> {
-  assertTransport(opts.origin, opts.insecureHttp);
-  const url = mcpEndpoint(opts.origin);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${opts.token}`,
-        "content-type": "application/json",
-        "accept": "application/json, text/event-stream",
-        "x-pipeshub-request-id": opts.requestId,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
-    });
-  } catch (e: unknown) {
-    throw new CliError(`could not reach ${url}: ${describeFetchFailure(e)}`);
-  }
-  if (!response.ok) {
-    throw new CliError(
-      `MCP request failed (HTTP ${response.status} ${response.statusText})`,
-      statusToExit(response.status),
-    );
-  }
-  const payload = parseSseFrames(await response.text()) as {
-    error?: { message?: string };
-    result?: { tools?: Array<{ name?: string }> };
+  const result = await postMcp(opts, { method: "tools/list" }, 30_000) as {
+    tools?: Array<{ name?: string }>;
   };
-  // Without this a JSON-RPC error read as an empty tool list, and `auth status`
-  // reported a working connection.
-  if (payload.error) {
-    throw new CliError(`MCP error: ${payload.error.message ?? "unknown"}`);
-  }
-  // Same for a reply with no result: an empty list here is not a live server.
-  if (!payload.result) throw new CliError("MCP response contained no result");
-  return (payload.result.tools ?? [])
+  return (result.tools ?? [])
     .map((t) => t.name)
     .filter((n): n is string => typeof n === "string");
 }
