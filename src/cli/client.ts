@@ -7,6 +7,8 @@
 // frame parser is the whole client.
 
 import { randomUUID } from "node:crypto";
+import { describeFetchFailure } from "../lib/fetch-failure.js";
+import { withoutToken } from "../lib/redact.js";
 import { CliError, EXIT, assertTransport, mcpEndpoint } from "./config.js";
 
 export interface ClientOptions {
@@ -63,56 +65,6 @@ export function toolErrorToExit(message: string): number {
   }
   if (/\b429\b|rate.?limit/i.test(message)) return EXIT.RATE_LIMITED;
   return EXIT.ERROR;
-}
-
-/**
- * Why a fetch never got a response, in words a person can act on.
- *
- * Node's fetch, which the published binary runs on, reports every network
- * failure as a bare "fetch failed" and keeps the reason (connection refused,
- * no such host, an untrusted certificate) on `cause`. Printing only the
- * message dropped the one detail that says what to fix.
- */
-function describeFetchFailure(e: unknown): string {
-  const err = e as Error & { cause?: unknown };
-  const cause = causeText(err.cause);
-  return cause && !err.message.includes(cause)
-    ? `${err.message} (${cause})`
-    : err.message;
-}
-
-/**
- * A fetch cause as text. When Node tries more than one address (`localhost`,
- * any dual-stack host) and all fail, the cause is an AggregateError whose own
- * message is empty: the reasons are on `errors`, the summary on `code`.
- */
-function causeText(cause: unknown): string {
-  if (!(cause instanceof Error)) return "";
-  if (cause.message) return cause.message;
-  const inner = cause instanceof AggregateError
-    ? [...new Set(
-      cause.errors
-        .filter((x): x is Error => x instanceof Error && x.message !== "")
-        .map((x) => x.message),
-    )]
-    : [];
-  if (inner.length > 0) {
-    const shown = inner.slice(0, 3).join("; ");
-    return inner.length > 3 ? `${shown}; and ${inner.length - 3} more` : shown;
-  }
-  const code = (cause as { code?: unknown }).code;
-  return typeof code === "string" ? code : "";
-}
-
-/**
- * Everything the server sends is printed, errors on stderr and results on
- * stdout, so a proxy or error page that echoes the request's Authorization
- * header would print the token. It is taken out before anything reads it.
- * A value too short to be a real token is left alone rather than blanking
- * every occurrence of, say, "1" in the output.
- */
-function withoutToken(text: string, token: string): string {
-  return token.length < 8 ? text : text.split(token).join("[redacted]");
 }
 
 /** True for an object that looks like a JSON-RPC response, not a notification. */
