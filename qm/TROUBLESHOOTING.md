@@ -100,6 +100,23 @@ From inside a sandbox the usual cause is pointing at something local:
 belongs to a machine the sandbox cannot see. A self-hosted PipesHub needs a
 publicly reachable address.
 
+## "The server at … redirected to …"
+
+```text
+pipeshub: The server at http://pipeshub.example.internal redirected to
+https://pipeshub.example.internal/mcp. Set PIPESHUB_BASE_URL to
+https://pipeshub.example.internal. The token was not sent there.
+```
+
+Exit 2. The address in `PIPESHUB_BASE_URL` answers with a redirect to a
+different origin, most often `http://` to `https://`. `pipeshub` does not
+follow it: the token is only for the address you configured. Set the variable to
+the address the message names.
+
+If the message says the target "is not a PipesHub MCP endpoint", the redirect
+leads somewhere else, usually a sign-in page or a proxy in front of PipesHub.
+Use the address PipesHub itself answers on.
+
 ## `auth status` says `connected: false`
 
 The command still exits with a code that tells you which problem it is:

@@ -384,11 +384,10 @@ describe("redirects", () => {
     }
   });
 
-  test("a redirect to another origin never takes the token with it", async () => {
-    // A different port is a different origin. The CLI's bearer is only for
-    // the configured instance; whatever host a Location header names must not
-    // receive it. The request then fails there rather than succeeding.
-    for (const status of [301, 302, 307, 308]) {
+  test("a redirect to another origin is reported, and nothing is sent there", async () => {
+    // A different port is a different origin. Following the redirect used to
+    // land there without the bearer, so the user was told their token was bad.
+    for (const status of [301, 302, 303, 307, 308]) {
       elsewhereSeen = [];
       reply = {
         status,
@@ -397,12 +396,87 @@ describe("redirects", () => {
         headers: { location: `http://127.0.0.1:${elsewhere.port}/mcp` },
       };
 
-      await cliError(callToolBlocks(opts(), "t", {}));
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
 
-      expect(elsewhereSeen).toHaveLength(1);
-      expect(elsewhereSeen[0]!.headers.get("authorization")).toBeNull();
-      expect(JSON.stringify(elsewhereSeen[0]!.body)).not.toContain("tok-123456");
+      expect(elsewhereSeen).toHaveLength(0);
+      expect(err.code).toBe(EXIT.USAGE);
+      expect(err.message).toBe(
+        `The server at ${origin} redirected to http://127.0.0.1:${elsewhere.port}/mcp. `
+          + `Set PIPESHUB_BASE_URL to http://127.0.0.1:${elsewhere.port}. `
+          + "The token was not sent there.",
+      );
     }
+  });
+
+  test("http to https on the same host is a different origin, and says which to use", async () => {
+    reply = {
+      status: 301,
+      body: "",
+      contentType: "text/plain",
+      headers: { location: `https://127.0.0.1:${server.port}/mcp` },
+    };
+
+    const err = await cliError(listTools(opts()));
+
+    expect(err.code).toBe(EXIT.USAGE);
+    expect(err.message).toContain(`Set PIPESHUB_BASE_URL to https://127.0.0.1:${server.port}.`);
+  });
+
+  test("a redirect to a sign-in page is not offered as the new base URL, and its query is not shown", async () => {
+    reply = {
+      status: 302,
+      body: "",
+      contentType: "text/plain",
+      headers: { location: "https://sso.example.com/login?state=abc123secret&next=%2Fmcp" },
+    };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.code).toBe(EXIT.USAGE);
+    expect(err.message).toBe(
+      `The server at ${origin} redirected to https://sso.example.com/login, which is not a `
+        + "PipesHub MCP endpoint: something, often a sign-in page or a proxy, is in front of "
+        + "PipesHub. Set PIPESHUB_BASE_URL to the address PipesHub itself answers on. "
+        + "The token was not sent there.",
+    );
+  });
+
+  test("a same-origin 301 or 302 sends the same POST again rather than a GET", async () => {
+    for (const status of [301, 302]) {
+      requests = [];
+      let n = 0;
+      const moved = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        async fetch(req) {
+          await recordRequest(req);
+          n += 1;
+          return n === 1
+            ? new Response(null, { status, headers: { location: "/mcp/" } })
+            : new Response(sse(result([{ type: "text", text: "slash ok" }])), {
+              headers: { "content-type": "text/event-stream" },
+            });
+        },
+      });
+      try {
+        expect(await callTool(opts({ origin: `http://127.0.0.1:${moved.port}` }), "t", {})).toBe("slash ok");
+        expect(requests.map((r) => [r.method, r.path])).toEqual([["POST", "/mcp"], ["POST", "/mcp/"]]);
+        expect(requests[1]!.headers.get("authorization")).toBe("Bearer tok-123456");
+      } finally {
+        moved.stop(true);
+      }
+    }
+  });
+
+  test("a redirect loop stops after five hops", async () => {
+    requests = [];
+    reply = { status: 307, body: "", contentType: "text/plain", headers: { location: "/mcp" } };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(requests).toHaveLength(6);
+    expect(err.code).toBe(EXIT.ERROR);
+    expect(err.message).toBe(`${origin}/mcp redirected more than 5 times; check the proxy in front of PipesHub.`);
   });
 });
 

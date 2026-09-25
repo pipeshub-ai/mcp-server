@@ -142,6 +142,24 @@ export interface ContentBlock {
   resource?: { uri?: string; mimeType?: string; blob?: string; text?: string };
 }
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+/**
+ * Why a redirect to another origin is not followed, and what to set instead.
+ * Only origin and path are shown: a sign-in redirect carries state in its query.
+ */
+function redirectedElsewhere(from: string, to: URL, token: string): string {
+  const shown = withoutToken(`${to.origin}${to.pathname}`, token);
+  const advice = /\/mcp\/?$/.test(to.pathname)
+    ? `. Set PIPESHUB_BASE_URL to ${withoutToken(to.origin, token)}.`
+    : ", which is not a PipesHub MCP endpoint: something, often a sign-in "
+      + "page or a proxy, is in front of PipesHub. Set PIPESHUB_BASE_URL to "
+      + "the address PipesHub itself answers on.";
+  return `The server at ${from} redirected to ${shown}${advice} `
+    + "The token was not sent there.";
+}
+
 /**
  * One JSON-RPC request to `{origin}/mcp`, returning its `result`.
  *
@@ -156,27 +174,51 @@ async function postMcp(
 ): Promise<unknown> {
   assertTransport(opts.origin, opts.insecureHttp);
   const url = mcpEndpoint(opts.origin);
+  const init: RequestInit = {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${opts.token}`,
+      "content-type": "application/json",
+      "accept": "application/json, text/event-stream",
+      // QM provides no turn or trace identifier in the sandbox environment,
+      // so correlation has to start here. Echoed back in the JSON output.
+      "x-pipeshub-request-id": opts.requestId,
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...rpc }),
+    // Redirects are handled below: fetch would carry the POST to another
+    // origin without the bearer, and turn it into a GET on a 301 or 302.
+    redirect: "manual",
+    signal: AbortSignal.timeout(opts.timeoutMs ?? defaultTimeoutMs),
+  };
 
   let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${opts.token}`,
-        "content-type": "application/json",
-        "accept": "application/json, text/event-stream",
-        // QM provides no turn or trace identifier in the sandbox environment,
-        // so correlation has to start here. Echoed back in the JSON output.
-        "x-pipeshub-request-id": opts.requestId,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...rpc }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? defaultTimeoutMs),
-    });
-  } catch (e: unknown) {
-    const detail = (e as Error).name === "TimeoutError"
-      ? "request timed out"
-      : describeFetchFailure(e);
-    throw new CliError(`could not reach ${url}: ${detail}`);
+  let target = url;
+  for (let hop = 0; ; hop++) {
+    try {
+      response = await fetch(target, init);
+    } catch (e: unknown) {
+      const detail = (e as Error).name === "TimeoutError"
+        ? "request timed out"
+        : describeFetchFailure(e);
+      throw new CliError(`could not reach ${url}: ${detail}`);
+    }
+    const location = REDIRECT_STATUSES.has(response.status)
+      ? response.headers.get("location")
+      : null;
+    if (location === null) break;
+    const next = new URL(location, target);
+    const from = new URL(url).origin;
+    if (next.origin !== from) {
+      throw new CliError(redirectedElsewhere(from, next, opts.token), EXIT.USAGE);
+    }
+    if (hop >= MAX_REDIRECTS) {
+      throw new CliError(
+        `${url} redirected more than ${MAX_REDIRECTS} times; check the proxy `
+          + "in front of PipesHub.",
+      );
+    }
+    await response.body?.cancel();
+    target = next.href;
   }
 
   if (!response.ok) {
