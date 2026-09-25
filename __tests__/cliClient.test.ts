@@ -17,23 +17,45 @@ import { CliError, EXIT } from "../src/cli/config.js";
 // This runs against a real HTTP server on loopback, so fetch, headers, status
 // lines and body framing are the real thing. Each test sets the reply.
 
-type Reply = { status?: number; body: string; contentType?: string; delayMs?: number };
+type Reply = {
+  status?: number;
+  body: string;
+  contentType?: string;
+  delayMs?: number;
+  headers?: Record<string, string>;
+};
+
+interface Seen { method: string; path: string; headers: Headers; body: unknown }
 
 let reply: Reply = { body: "" };
-let seen: { headers: Headers; body: unknown } | null = null;
+let seen: Seen | null = null;
+let requests: Seen[] = [];
 let server: ReturnType<typeof Bun.serve>;
 let origin: string;
+
+async function recordRequest(req: Request): Promise<Seen> {
+  const text = await req.text();
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // A GET after a 301/302 has no body; keep whatever arrived.
+  }
+  const s = { method: req.method, path: new URL(req.url).pathname, headers: req.headers, body };
+  requests.push(s);
+  return s;
+}
 
 beforeAll(() => {
   server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     async fetch(req) {
-      seen = { headers: req.headers, body: await req.json() };
+      seen = await recordRequest(req);
       if (reply.delayMs) await Bun.sleep(reply.delayMs);
       return new Response(reply.body, {
         status: reply.status ?? 200,
-        headers: { "content-type": reply.contentType ?? "text/event-stream" },
+        headers: { "content-type": reply.contentType ?? "text/event-stream", ...reply.headers },
       });
     },
   });
@@ -265,5 +287,121 @@ describe("decodeToolJson", () => {
     expect(decodeToolJson('{"a":1}')).toEqual({ a: 1 });
     expect(decodeToolJson("plain words")).toBe("plain words");
     expect(decodeToolJson(undefined)).toBeUndefined();
+  });
+});
+
+describe("rate limits and server errors", () => {
+  // The CLI does not retry: exit 5 is the contract, and the agent calling it
+  // decides whether and when to try again. A retry loop in here would hide the
+  // rate limit and multiply the load it is reporting.
+  test("a 429 is exit 5 after one request, whatever Retry-After says", async () => {
+    requests = [];
+    reply = { status: 429, body: "slow down", contentType: "text/plain", headers: { "retry-after": "1" } };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.code).toBe(EXIT.RATE_LIMITED);
+    expect(err.message).toBe("MCP request failed (HTTP 429 Too Many Requests): slow down");
+    expect(requests).toHaveLength(1);
+  });
+
+  test("a 502 or 503 is a generic failure after one request, with the server's text", async () => {
+    for (const status of [502, 503]) {
+      requests = [];
+      reply = { status, body: "<html>bad gateway</html>", contentType: "text/html" };
+
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+      expect(err.code).toBe(EXIT.ERROR);
+      expect(err.message).toContain(`(HTTP ${status} `);
+      expect(err.message).toEndWith(": <html>bad gateway</html>");
+      expect(requests).toHaveLength(1);
+    }
+  });
+
+  test("a long error page is cut to 300 characters", async () => {
+    reply = { status: 500, body: "x".repeat(5_000), contentType: "text/plain" };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.message).toBe(`MCP request failed (HTTP 500 Internal Server Error): ${"x".repeat(300)}`);
+  });
+
+  test("auth status reports 403 as exit 4 and a 429 as exit 5", async () => {
+    reply = { status: 403, body: "", contentType: "text/plain" };
+    const forbidden = await authStatus({ ...opts(), json: true, maxChars: 1000 });
+    expect(forbidden.exit).toBe(EXIT.FORBIDDEN);
+    expect(forbidden.payload["connected"]).toBe(false);
+
+    reply = { status: 429, body: "", contentType: "text/plain" };
+    expect((await authStatus({ ...opts(), json: true, maxChars: 1000 })).exit).toBe(EXIT.RATE_LIMITED);
+  });
+});
+
+describe("redirects", () => {
+  let elsewhere: ReturnType<typeof Bun.serve>;
+  let elsewhereSeen: Seen[] = [];
+
+  beforeAll(() => {
+    elsewhere = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      async fetch(req) {
+        const text = await req.text();
+        elsewhereSeen.push({ method: req.method, path: new URL(req.url).pathname, headers: req.headers, body: text });
+        return new Response("no token", { status: 401 });
+      },
+    });
+  });
+
+  afterAll(() => elsewhere.stop(true));
+
+  test("a same-origin 307 is followed with the bearer and the request", async () => {
+    requests = [];
+    let n = 0;
+    const moved = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      async fetch(req) {
+        await recordRequest(req);
+        n += 1;
+        return n === 1
+          ? new Response(null, { status: 307, headers: { location: "/mcp-v2" } })
+          : new Response(sse(result([{ type: "text", text: "moved ok" }])), {
+            headers: { "content-type": "text/event-stream" },
+          });
+      },
+    });
+    try {
+      const text = await callTool(opts({ origin: `http://127.0.0.1:${moved.port}` }), "t", { a: 1 });
+
+      expect(text).toBe("moved ok");
+      expect(requests.map((r) => [r.method, r.path])).toEqual([["POST", "/mcp"], ["POST", "/mcp-v2"]]);
+      expect(requests[1]!.headers.get("authorization")).toBe("Bearer tok-123456");
+      expect(requests[1]!.body).toMatchObject({ method: "tools/call", params: { name: "t", arguments: { a: 1 } } });
+    } finally {
+      moved.stop(true);
+    }
+  });
+
+  test("a redirect to another origin never takes the token with it", async () => {
+    // A different port is a different origin. The CLI's bearer is only for
+    // the configured instance; whatever host a Location header names must not
+    // receive it. The request then fails there rather than succeeding.
+    for (const status of [301, 302, 307, 308]) {
+      elsewhereSeen = [];
+      reply = {
+        status,
+        body: "",
+        contentType: "text/plain",
+        headers: { location: `http://127.0.0.1:${elsewhere.port}/mcp` },
+      };
+
+      await cliError(callToolBlocks(opts(), "t", {}));
+
+      expect(elsewhereSeen).toHaveLength(1);
+      expect(elsewhereSeen[0]!.headers.get("authorization")).toBeNull();
+      expect(JSON.stringify(elsewhereSeen[0]!.body)).not.toContain("tok-123456");
+    }
   });
 });

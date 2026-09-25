@@ -22,6 +22,8 @@ export interface FakeMcp {
   calls: SeenCall[];
   /** Set what the next tools/call for `tool` returns. */
   reply(tool: string, r: Reply): void;
+  /** Answer tools/list with an HTTP status instead of the tool names. */
+  failToolsList(status: number | null): void;
   stop(): void;
 }
 
@@ -29,9 +31,13 @@ export const textReply = (value: unknown): Reply => ({
   content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
 });
 
+/** What tools/list answers with, as the real endpoint would name them. */
+export const LISTED_TOOLS = ["pipeshub_search", "pipeshub_chat", "pipeshub_sources"];
+
 export function startFakeMcp(): FakeMcp {
   const replies = new Map<string, Reply>();
   const calls: SeenCall[] = [];
+  let toolsListStatus: number | null = null;
 
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -51,6 +57,13 @@ export function startFakeMcp(): FakeMcp {
         tool,
         args: body.params?.arguments,
       });
+      if (body.method === "tools/list") {
+        if (toolsListStatus !== null) return new Response("", { status: toolsListStatus });
+        const listed = { jsonrpc: "2.0", id: body.id, result: { tools: LISTED_TOOLS.map((name) => ({ name })) } };
+        return new Response(`event: message\ndata: ${JSON.stringify(listed)}\n\n`, {
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
       const r = replies.get(tool ?? "") ?? textReply({});
       if ("status" in r) return new Response(r.body ?? "", { status: r.status });
       const message = "rpcError" in r
@@ -66,6 +79,9 @@ export function startFakeMcp(): FakeMcp {
     origin: `http://127.0.0.1:${server.port}`,
     calls,
     reply: (tool, r) => void replies.set(tool, r),
+    failToolsList: (status) => {
+      toolsListStatus = status;
+    },
     stop: () => void server.stop(true),
   };
 }
