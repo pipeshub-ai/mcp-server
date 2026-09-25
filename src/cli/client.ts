@@ -261,9 +261,17 @@ export async function listTools(opts: ClientOptions): Promise<string[]> {
     );
   }
   const payload = parseSseFrames(await response.text()) as {
+    error?: { message?: string };
     result?: { tools?: Array<{ name?: string }> };
   };
-  return (payload.result?.tools ?? [])
+  // Without this a JSON-RPC error read as an empty tool list, and `auth status`
+  // reported a working connection.
+  if (payload.error) {
+    throw new CliError(`MCP error: ${payload.error.message ?? "unknown"}`);
+  }
+  // Same for a reply with no result: an empty list here is not a live server.
+  if (!payload.result) throw new CliError("MCP response contained no result");
+  return (payload.result.tools ?? [])
     .map((t) => t.name)
     .filter((n): n is string => typeof n === "string");
 }
