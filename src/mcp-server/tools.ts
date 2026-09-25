@@ -16,6 +16,7 @@ import {
 import * as z from "zod";
 import { PipeshubCore } from "../core.js";
 import { ConsoleLogger } from "./console-logger.js";
+import { stderrDebugLogger } from "./debug-logger.js";
 import { MCPServerFlags } from "./flags.js";
 import { MCPScope, mcpScopes } from "./scopes.js";
 import { valueToBase64 } from "./shared.js";
@@ -464,12 +465,6 @@ export function buildSDK(
     serverURL: cliFlags["server-url"],
     serverIdx: cliFlags["server-index"],
     instance_url: cliFlags["instance-url"],
-    debugLogger: logger.level === "debug"
-      ? {
-        log: (...args) => console.log(...args),
-        group: (...args) => console.group(...args),
-        groupEnd: (...args) => console.groupEnd(...args),
-      }
-      : undefined,
+    debugLogger: logger.level === "debug" ? stderrDebugLogger() : undefined,
   });
 }
