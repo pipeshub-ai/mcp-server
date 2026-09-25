@@ -796,6 +796,19 @@ For a full list of server arguments:
 npx @pipeshub-ai/mcp --help
 ```
 
+### Retries and Timeouts
+
+The local server (`start` and `serve`) retries a PipesHub request that is refused with 429, 502, 503 or 504. It waits for as long as the `Retry-After` header asks, up to 30 seconds, or backs off for half a second and then a second. It stops after three tries in all and passes the last answer on. Only requests that are safe to repeat are retried (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`). Search and chat are `POST`s and are never retried, because a repeat would be a second search or a second answer.
+
+A request that gets no response within 60 seconds is abandoned. The limit covers the wait for PipesHub to start answering, not the whole answer, so a long chat response that is already streaming is not cut off.
+
+Both are set with environment variables, in the MCP client's `env` block or with `--env NAME=VALUE`:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PIPESHUB_MCP_MAX_ATTEMPTS` | `3` | Tries per request, the first one included, from 1 to 10. `1` turns retries off. |
+| `PIPESHUB_MCP_TIMEOUT_MS` | `60000` | Milliseconds to wait for PipesHub to start answering. `0` turns the timeout off. |
+
 ---
 
 ## How It Works
