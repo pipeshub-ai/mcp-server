@@ -241,6 +241,8 @@ async function run(argv: string[]): Promise<number> {
         written: result.written,
         skipped: result.skipped,
         dockerfile: result.dockerfileAction,
+        dockerfileSkipReason: result.skipReason,
+        staleDockerfile: result.staleDockerfile,
       }, null, 2) + "\n");
     } else {
       await writeFlushed(process.stdout, report + "\n");

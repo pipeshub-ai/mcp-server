@@ -215,4 +215,23 @@ describe("init-qm", () => {
     expect(r.stdout).toContain(`Scaffolded the PipesHub bundle into ${target}`);
     expect(r.stdout).toContain("Two things left to do:");
   });
+
+  test("the JSON output carries the stale-Dockerfile warning, not just the text report", async () => {
+    // JSON is the default output. The report's "ACTION NEEDED" says `qm check`
+    // will reject this file; when it was only in --text, the default run said
+    // "skipped-unusable" and nothing about the file that will break the deploy.
+    const target = join(home, "deploy-stale");
+    await mkdir(join(target, "sandbox"), { recursive: true });
+    await writeFile(join(target, "qm.config.jsonc"), '{ "sandbox": { "backend": "sprites" } }');
+    await writeFile(join(target, "sandbox", "Dockerfile"), "FROM x\n");
+
+    const r = await cli(["init-qm", target]);
+
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({
+      dockerfile: "skipped-unusable",
+      dockerfileSkipReason: "sprites-ignores-image",
+      staleDockerfile: true,
+    });
+  });
 });
