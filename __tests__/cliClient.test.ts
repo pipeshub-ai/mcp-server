@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import {
   callTool,
   callToolBlocks,
@@ -17,23 +17,45 @@ import { CliError, EXIT } from "../src/cli/config.js";
 // This runs against a real HTTP server on loopback, so fetch, headers, status
 // lines and body framing are the real thing. Each test sets the reply.
 
-type Reply = { status?: number; body: string; contentType?: string; delayMs?: number };
+type Reply = {
+  status?: number;
+  body: string;
+  contentType?: string;
+  delayMs?: number;
+  headers?: Record<string, string>;
+};
+
+interface Seen { method: string; path: string; headers: Headers; body: unknown }
 
 let reply: Reply = { body: "" };
-let seen: { headers: Headers; body: unknown } | null = null;
+let seen: Seen | null = null;
+let requests: Seen[] = [];
 let server: ReturnType<typeof Bun.serve>;
 let origin: string;
+
+async function recordRequest(req: Request): Promise<Seen> {
+  const text = await req.text();
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // A GET after a 301/302 has no body; keep whatever arrived.
+  }
+  const s = { method: req.method, path: new URL(req.url).pathname, headers: req.headers, body };
+  requests.push(s);
+  return s;
+}
 
 beforeAll(() => {
   server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     async fetch(req) {
-      seen = { headers: req.headers, body: await req.json() };
+      seen = await recordRequest(req);
       if (reply.delayMs) await Bun.sleep(reply.delayMs);
       return new Response(reply.body, {
         status: reply.status ?? 200,
-        headers: { "content-type": reply.contentType ?? "text/event-stream" },
+        headers: { "content-type": reply.contentType ?? "text/event-stream", ...reply.headers },
       });
     },
   });
@@ -265,5 +287,258 @@ describe("decodeToolJson", () => {
     expect(decodeToolJson('{"a":1}')).toEqual({ a: 1 });
     expect(decodeToolJson("plain words")).toBe("plain words");
     expect(decodeToolJson(undefined)).toBeUndefined();
+  });
+});
+
+describe("rate limits and server errors", () => {
+  // The CLI does not retry: exit 5 is the contract, and the agent calling it
+  // decides whether and when to try again. A retry loop in here would hide the
+  // rate limit and multiply the load it is reporting.
+  test("a 429 is exit 5 after one request, whatever Retry-After says", async () => {
+    requests = [];
+    reply = { status: 429, body: "slow down", contentType: "text/plain", headers: { "retry-after": "1" } };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.code).toBe(EXIT.RATE_LIMITED);
+    expect(err.message).toBe("MCP request failed (HTTP 429 Too Many Requests): slow down");
+    expect(requests).toHaveLength(1);
+  });
+
+  test("a 502 or 503 is a generic failure after one request, with the server's text", async () => {
+    for (const status of [502, 503]) {
+      requests = [];
+      reply = { status, body: "<html>bad gateway</html>", contentType: "text/html" };
+
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+      expect(err.code).toBe(EXIT.ERROR);
+      expect(err.message).toContain(`(HTTP ${status} `);
+      expect(err.message).toEndWith(": <html>bad gateway</html>");
+      expect(requests).toHaveLength(1);
+    }
+  });
+
+  test("a long error page is cut to 300 characters", async () => {
+    reply = { status: 500, body: "x".repeat(5_000), contentType: "text/plain" };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.message).toBe(`MCP request failed (HTTP 500 Internal Server Error): ${"x".repeat(300)}`);
+  });
+
+  test("auth status reports 403 as exit 4 and a 429 as exit 5", async () => {
+    reply = { status: 403, body: "", contentType: "text/plain" };
+    const forbidden = await authStatus({ ...opts(), json: true, maxChars: 1000 });
+    expect(forbidden.exit).toBe(EXIT.FORBIDDEN);
+    expect(forbidden.payload["connected"]).toBe(false);
+
+    reply = { status: 429, body: "", contentType: "text/plain" };
+    expect((await authStatus({ ...opts(), json: true, maxChars: 1000 })).exit).toBe(EXIT.RATE_LIMITED);
+  });
+});
+
+describe("redirects", () => {
+  let elsewhere: ReturnType<typeof Bun.serve>;
+  let elsewhereSeen: Seen[] = [];
+
+  beforeAll(() => {
+    elsewhere = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      async fetch(req) {
+        const text = await req.text();
+        elsewhereSeen.push({ method: req.method, path: new URL(req.url).pathname, headers: req.headers, body: text });
+        return new Response("no token", { status: 401 });
+      },
+    });
+  });
+
+  afterAll(() => elsewhere.stop(true));
+
+  test("a same-origin 307 is followed with the bearer and the request", async () => {
+    requests = [];
+    let n = 0;
+    const moved = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      async fetch(req) {
+        await recordRequest(req);
+        n += 1;
+        return n === 1
+          ? new Response(null, { status: 307, headers: { location: "/mcp-v2" } })
+          : new Response(sse(result([{ type: "text", text: "moved ok" }])), {
+            headers: { "content-type": "text/event-stream" },
+          });
+      },
+    });
+    try {
+      const text = await callTool(opts({ origin: `http://127.0.0.1:${moved.port}` }), "t", { a: 1 });
+
+      expect(text).toBe("moved ok");
+      expect(requests.map((r) => [r.method, r.path])).toEqual([["POST", "/mcp"], ["POST", "/mcp-v2"]]);
+      expect(requests[1]!.headers.get("authorization")).toBe("Bearer tok-123456");
+      expect(requests[1]!.body).toMatchObject({ method: "tools/call", params: { name: "t", arguments: { a: 1 } } });
+    } finally {
+      moved.stop(true);
+    }
+  });
+
+  test("a redirect to another origin never takes the token with it", async () => {
+    // A different port is a different origin. The CLI's bearer is only for
+    // the configured instance; whatever host a Location header names must not
+    // receive it. The request then fails there rather than succeeding.
+    for (const status of [301, 302, 307, 308]) {
+      elsewhereSeen = [];
+      reply = {
+        status,
+        body: "",
+        contentType: "text/plain",
+        headers: { location: `http://127.0.0.1:${elsewhere.port}/mcp` },
+      };
+
+      await cliError(callToolBlocks(opts(), "t", {}));
+
+      expect(elsewhereSeen).toHaveLength(1);
+      expect(elsewhereSeen[0]!.headers.get("authorization")).toBeNull();
+      expect(JSON.stringify(elsewhereSeen[0]!.body)).not.toContain("tok-123456");
+    }
+  });
+});
+
+describe("network failures say why", () => {
+  // The published binary runs on Node, whose fetch reports every network
+  // failure as a TypeError "fetch failed" and keeps the reason (refused, no
+  // such host, a certificate it does not trust) on `cause`. Bun, which runs
+  // these tests, puts the reason in the message instead, so Node's shape is
+  // reproduced here exactly as Node 24 throws it.
+  const nodeFailure = (code: string, message: string) =>
+    new TypeError("fetch failed", { cause: Object.assign(new Error(message), { code }) });
+
+  test("an unreachable instance names the cause, from both tools/call and tools/list", async () => {
+    const cases: Array<[string, string]> = [
+      ["ECONNREFUSED", "connect ECONNREFUSED 127.0.0.1:9"],
+      ["ENOTFOUND", "getaddrinfo ENOTFOUND pipeshub.invalid"],
+      ["SELF_SIGNED_CERT_IN_CHAIN", "self-signed certificate in certificate chain"],
+    ];
+    for (const [code, message] of cases) {
+      const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+        (() => Promise.reject(nodeFailure(code, message))) as unknown as typeof fetch,
+      );
+      try {
+        const expected = `could not reach ${origin}/mcp: fetch failed (${message})`;
+        expect((await cliError(callToolBlocks(opts(), "t", {}))).message).toBe(expected);
+        expect((await cliError(listTools(opts()))).message).toBe(expected);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    }
+  });
+
+  test("a dual-stack failure, whose own message is empty, names each address or its code", async () => {
+    // `localhost`, or any host with an IPv4 and an IPv6 address, makes Node try
+    // both. When both fail, `cause` is an AggregateError with message "" and
+    // the per-address reasons on `errors`; this is the shape Node 22 and 24
+    // produce, measured with a two-address lookup.
+    const refused = (address: string) =>
+      Object.assign(new Error(`connect ECONNREFUSED ${address}:9`), { code: "ECONNREFUSED" });
+    const aggregate = (errors: Error[], code: string) =>
+      new TypeError("fetch failed", { cause: Object.assign(new AggregateError(errors, ""), { code }) });
+    const cases: Array<[TypeError, string]> = [
+      [
+        aggregate([refused("::1"), refused("127.0.0.1"), refused("127.0.0.1")], "ECONNREFUSED"),
+        "fetch failed (connect ECONNREFUSED ::1:9; connect ECONNREFUSED 127.0.0.1:9)",
+      ],
+      [aggregate([], "ETIMEDOUT"), "fetch failed (ETIMEDOUT)"],
+      [
+        aggregate(["::1", "10.0.0.1", "10.0.0.2", "10.0.0.3"].map(refused), "ECONNREFUSED"),
+        "fetch failed (connect ECONNREFUSED ::1:9; connect ECONNREFUSED 10.0.0.1:9; "
+          + "connect ECONNREFUSED 10.0.0.2:9; and 1 more)",
+      ],
+    ];
+    for (const [failure, detail] of cases) {
+      const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+        (() => Promise.reject(failure)) as unknown as typeof fetch,
+      );
+      try {
+        expect((await cliError(callToolBlocks(opts(), "t", {}))).message)
+          .toBe(`could not reach ${origin}/mcp: ${detail}`);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    }
+  });
+
+  test("a message that already carries its reason is left as it is", async () => {
+    const closed = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("") });
+    const deadOrigin = `http://127.0.0.1:${closed.port}`;
+    closed.stop(true);
+
+    const err = await cliError(callToolBlocks(opts({ origin: deadOrigin }), "t", {}));
+
+    expect(err.message).toStartWith(`could not reach ${deadOrigin}/mcp: `);
+    expect(err.message).not.toContain("(undefined)");
+    expect(err.message).not.toEndWith("()");
+  });
+
+  test("auth status on a slow instance says the request timed out", async () => {
+    reply = { body: sse({ jsonrpc: "2.0", id: 1, result: { tools: [] } }), delayMs: 500 };
+
+    const err = await cliError(listTools(opts({ timeoutMs: 50 })));
+
+    expect(err.message).toBe(`could not reach ${origin}/mcp: request timed out`);
+  });
+
+  test("tools/list shows the server's reason for a refusal, as tools/call does", async () => {
+    reply = { status: 401, body: "token revoked", contentType: "text/plain" };
+
+    const err = await cliError(listTools(opts()));
+
+    expect(err.code).toBe(EXIT.UNAUTHENTICATED);
+    expect(err.message).toBe("MCP request failed (HTTP 401 Unauthorized): token revoked");
+  });
+});
+
+describe("the token never comes back out", () => {
+  // Whatever the server sends is printed: errors on stderr, results on
+  // stdout. A proxy or error page that echoes the request's headers would
+  // otherwise put the bearer into an agent's transcript.
+  const token = "tok-123456";
+
+  test("an HTTP error page that echoes the Authorization header", async () => {
+    reply = { status: 400, body: `Bad request. Headers: authorization: Bearer ${token}`, contentType: "text/plain" };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.message).toBe("MCP request failed (HTTP 400 Bad Request): Bad request. Headers: authorization: Bearer [redacted]");
+  });
+
+  test("a JSON-RPC error, a tool error and an unparseable body that quote it", async () => {
+    reply = { body: sse({ jsonrpc: "2.0", id: 1, error: { code: -32000, message: `bad token ${token}` } }) };
+    expect((await cliError(callToolBlocks(opts(), "t", {}))).message).toBe("MCP error: bad token [redacted]");
+
+    reply = { body: sse(result([{ type: "text", text: `Search failed (HTTP 401). Token ${token} revoked.` }], true)) };
+    const toolErr = await cliError(callToolBlocks(opts(), "t", {}));
+    expect(toolErr.message).toBe("Search failed (HTTP 401). Token [redacted] revoked.");
+    expect(toolErr.code).toBe(EXIT.UNAUTHENTICATED);
+
+    reply = { body: `<html>you sent ${token}</html>`, contentType: "text/html" };
+    expect((await cliError(callToolBlocks(opts(), "t", {}))).message)
+      .toBe("could not parse the MCP response as JSON: <html>you sent [redacted]</html>");
+  });
+
+  test("a result that contains it, and auth status's error field", async () => {
+    reply = { body: sse(result([{ type: "text", text: `debug: bearer=${token}` }])) };
+    expect(await callTool(opts(), "t", {})).toBe("debug: bearer=[redacted]");
+
+    reply = { status: 401, body: `rejected ${token}`, contentType: "text/plain" };
+    const status = await authStatus({ ...opts(), json: true, maxChars: 1000 });
+    expect(JSON.stringify(status.payload)).not.toContain(token);
+    expect(status.payload["error"]).toBe("MCP request failed (HTTP 401 Unauthorized): rejected [redacted]");
+  });
+
+  test("a placeholder too short to be a token is not scrubbed out of the output", async () => {
+    reply = { body: sse(result([{ type: "text", text: "1 of 1" }])) };
+    expect(await callTool(opts({ token: "1" }), "t", {})).toBe("1 of 1");
   });
 });

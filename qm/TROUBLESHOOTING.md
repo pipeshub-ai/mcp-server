@@ -87,13 +87,18 @@ message means you need a real public HTTPS address, not an override.
 ## "could not reach …"
 
 ```text
-pipeshub: could not reach http://…/mcp: fetch failed
+pipeshub: could not reach http://…/mcp: fetch failed (connect ECONNREFUSED 10.0.0.5:80)
 ```
 
-Network, not auth. From inside a sandbox the usual cause is pointing at
-something local: `localhost` is the sandbox itself, and `host.docker.internal`
-or a LAN address belongs to a machine the sandbox cannot see. A self-hosted
-PipesHub needs a publicly reachable address.
+Network, not auth. The part in brackets says what went wrong: `ECONNREFUSED`
+means nothing is listening at that address, `ENOTFOUND` means the name does not
+resolve, and a certificate message means the instance's HTTPS certificate is
+not one this machine trusts.
+
+From inside a sandbox the usual cause is pointing at something local:
+`localhost` is the sandbox itself, and `host.docker.internal` or a LAN address
+belongs to a machine the sandbox cannot see. A self-hosted PipesHub needs a
+publicly reachable address.
 
 ## `auth status` says `connected: false`
 

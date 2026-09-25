@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startFakeMcp, textReply, type FakeMcp } from "./helpers/fakePipeshubMcp.js";
+import { LISTED_TOOLS, startFakeMcp, textReply, type FakeMcp } from "./helpers/fakePipeshubMcp.js";
 
 // The `pipeshub` binary as an agent runs it: a child process with only the
 // environment it is given, whose exit code and stdout are the contract. HOME
@@ -121,6 +121,15 @@ describe("missing configuration", () => {
     expect(r.stderr).toContain("No PipesHub credential found");
   });
 
+  test("the token and URL swapped by mistake is a usage error that does not print the token", async () => {
+    // `cli` itself fails the test if TOKEN reaches stdout or stderr.
+    const r = await cli(["search", "x"], { PIPESHUB_TOKEN: mcp.origin, PIPESHUB_BASE_URL: TOKEN });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("pipeshub: PIPESHUB_BASE_URL is not a valid URL.");
+    expect(r.stderr).toContain("it belongs in PIPESHUB_TOKEN");
+    expect(r.stderr).not.toContain("It needs to start with https://");
+  });
+
   test("connect-help works with nothing configured", async () => {
     const r = await cli(["auth", "connect-help", "--text"]);
     expect(r.code).toBe(0);
@@ -168,6 +177,19 @@ describe("commands against an instance", () => {
     expect(r.stdout).toBe("");
   });
 
+  test("a server that echoes the bearer back does not get it printed", async () => {
+    // `cli` itself fails the test if TOKEN reaches stdout or stderr.
+    mcp.reply("pipeshub_sources", { status: 400, body: `bad request; authorization: Bearer ${TOKEN}` });
+    const failed = await cli(["sources"], connected());
+    expect(failed.code).toBe(1);
+    expect(failed.stderr).toContain("authorization: Bearer [redacted]");
+
+    mcp.reply("pipeshub_get_record_content", textReply(`a record that quotes ${TOKEN}`));
+    const got = await cli(["get", "rec-echo", "--text"], connected());
+    expect(got.code).toBe(0);
+    expect(got.stdout).toContain("a record that quotes [redacted]");
+  });
+
   test("a payload larger than the pipe buffer arrives whole", async () => {
     // process.exit() does not flush a piped stdout. Before writes waited for
     // the flush, a 2 MB answer was cut at 1 MB and still exited 0.
@@ -185,6 +207,120 @@ describe("commands against an instance", () => {
     const r = await cli(["sources"], env);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("pipeshub:");
+  });
+});
+
+describe("auth status", () => {
+  // A PAT-shaped token: the claims are what status is allowed to show; the
+  // token itself is what it must never show.
+  const JWT = [
+    "eyJhbGciOiJIUzI1NiJ9",
+    Buffer.from(JSON.stringify({
+      userId: "u-1",
+      orgId: "o-1",
+      fullName: "Ada Lovelace",
+      scope: "semantic:write conversation:chat",
+      exp: 4102444800,
+    })).toString("base64url"),
+    "c2lnbmF0dXJlLW5vdC1jaGVja2Vk",
+  ].join(".");
+
+  test("a working token reports who it is and what it can reach, as JSON", async () => {
+    mcp.failToolsList(null);
+    const r = await cli(["auth", "status"], { PIPESHUB_MCP_TOKEN: JWT, PIPESHUB_MCP_URL: `${mcp.origin}/mcp` });
+
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({
+      connected: true,
+      baseUrl: mcp.origin,
+      tokenSource: "PIPESHUB_MCP_TOKEN",
+      user: "Ada Lovelace",
+      userId: "u-1",
+      org: "o-1",
+      scopes: ["semantic:write", "conversation:chat"],
+      expiresAt: "2100-01-01T00:00:00.000Z",
+      expired: false,
+      toolCount: LISTED_TOOLS.length,
+      error: null,
+    });
+    expect(mcp.calls[mcp.calls.length - 1]?.method).toBe("tools/list");
+    expect(r.stdout + r.stderr).not.toContain(JWT);
+    expect(r.stdout + r.stderr).not.toContain(JWT.split(".")[2]!);
+  });
+
+  test("a rejected token is exit 3, still JSON on stdout, and still no token", async () => {
+    mcp.failToolsList(401);
+    try {
+      for (const format of ["--json", "--text"]) {
+        const r = await cli(["auth", "status", format], { PIPESHUB_TOKEN: JWT, PIPESHUB_BASE_URL: mcp.origin });
+
+        expect(r.code).toBe(3);
+        // status has no human form, so --text still prints the JSON.
+        expect(JSON.parse(r.stdout)).toMatchObject({ connected: false, toolCount: 0 });
+        expect((JSON.parse(r.stdout) as { error: string }).error).toContain("HTTP 401");
+        expect(r.stdout + r.stderr).not.toContain(JWT);
+      }
+    } finally {
+      mcp.failToolsList(null);
+    }
+  });
+
+  test("an unreachable instance is exit 1 and says it could not reach it", async () => {
+    const closed = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("") });
+    const dead = `http://127.0.0.1:${closed.port}`;
+    closed.stop(true);
+
+    const r = await cli(["auth", "status"], { PIPESHUB_TOKEN: TOKEN, PIPESHUB_BASE_URL: dead });
+
+    expect(r.code).toBe(1);
+    const out = JSON.parse(r.stdout) as { connected: boolean; error: string };
+    expect(out.connected).toBe(false);
+    expect(out.error).toStartWith(`could not reach ${dead}/mcp: `);
+  });
+});
+
+describe("output formats", () => {
+  test("JSON is the default and --json is the same thing", async () => {
+    mcp.reply("pipeshub_sources", textReply({ sources: [{ id: "s1", name: "Drive", kind: "connector", connector: "DRIVE" }] }));
+
+    const plain = await cli(["sources"], connected());
+    const json = await cli(["sources", "--json"], connected());
+
+    expect(plain.code).toBe(0);
+    const a = JSON.parse(plain.stdout) as Record<string, unknown>;
+    const b = JSON.parse(json.stdout) as Record<string, unknown>;
+    delete a["requestId"];
+    delete b["requestId"];
+    expect(a).toEqual(b);
+    expect(a["sources"]).toEqual([{ id: "s1", name: "Drive", kind: "connector", connector: "DRIVE" }]);
+  });
+
+  test("the last of --json and --text wins", async () => {
+    mcp.reply("pipeshub_get_record_content", textReply("body"));
+    const r = await cli(["get", "rec-1", "--text", "--json"], connected());
+    expect((JSON.parse(r.stdout) as { recordId: string }).recordId).toBe("rec-1");
+  });
+
+  test("a tool failure prints nothing on stdout and the reason on stderr", async () => {
+    mcp.reply("pipeshub_search", {
+      content: [{ type: "text", text: "Search failed (HTTP 429 Too Many Requests). Slow down." }],
+      isError: true,
+    });
+
+    const r = await cli(["search", "q"], connected());
+
+    expect(r.code).toBe(5);
+    expect(r.stdout).toBe("");
+    expect(r.stderr).toBe("pipeshub: Search failed (HTTP 429 Too Many Requests). Slow down.\n");
+  });
+
+  test("a search with nothing found is exit 6 with the JSON still printed", async () => {
+    mcp.reply("pipeshub_search", textReply({ hits: [], uniqueRecords: [] }));
+
+    const r = await cli(["search", "nothing", "matches"], connected());
+
+    expect(r.code).toBe(6);
+    expect(JSON.parse(r.stdout)).toMatchObject({ hitCount: 0, hits: [], records: [] });
   });
 });
 
