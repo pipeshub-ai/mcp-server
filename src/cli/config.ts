@@ -89,7 +89,19 @@ export function resolveOrigin(env: NodeJS.ProcessEnv = process.env): string | nu
   try {
     parsed = new URL(raw);
   } catch {
-    throw new CliError(`${name} is not a valid URL: ${raw}`, EXIT.USAGE);
+    // The value is not repeated back: the likeliest unparseable value is the
+    // token itself, pasted into the wrong one of the two keychain entries, and
+    // this message is printed.
+    const hint = /^(bearer\s+)?eyJ/i.test(raw)
+      ? " It holds what looks like a token, which belongs in PIPESHUB_TOKEN."
+      : raw.includes("://")
+      ? ""
+      : " It needs to start with https:// (or http:// for a private address).";
+    throw new CliError(
+      `${name} is not a valid URL.${hint} `
+        + "Set it to your PipesHub origin, e.g. https://pipeshub.example.com",
+      EXIT.USAGE,
+    );
   }
   // Only http/https have a usable origin here. For any other scheme `URL`
   // either yields the literal string "null" (foo://host, mailto:) or an origin

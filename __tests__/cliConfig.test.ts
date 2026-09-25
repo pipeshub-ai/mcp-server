@@ -109,6 +109,42 @@ describe("resolveOrigin", () => {
     }
   });
 
+  test("a token put in the URL variable by mistake is not repeated back", () => {
+    // Swapping the two keychain values is an easy mistake, and this message
+    // goes to stderr, where the token must never appear.
+    const token = "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiJ1LTEifQ.c2ln";
+    for (const raw of [token, `Bearer ${token}`]) {
+      try {
+        resolveOrigin(env({ PIPESHUB_BASE_URL: raw }));
+        throw new Error("expected a CliError");
+      } catch (e) {
+        expect(e).toBeInstanceOf(CliError);
+        const { message, code } = e as CliError;
+        expect(code).toBe(EXIT.USAGE);
+        expect(message).not.toContain(token);
+        expect(message).not.toContain(token.split(".")[2]!);
+        expect(message).toBe(
+          "PIPESHUB_BASE_URL is not a valid URL. It holds what looks like a token, "
+            + "which belongs in PIPESHUB_TOKEN. Set it to your PipesHub origin, "
+            + "e.g. https://pipeshub.example.com",
+        );
+      }
+    }
+  });
+
+  test("a host with no scheme is told to add one, without the value repeated", () => {
+    try {
+      resolveOrigin(env({ PIPESHUB_MCP_URL: "pipeshub.example.com/mcp" }));
+      throw new Error("expected a CliError");
+    } catch (e) {
+      expect((e as CliError).message).toBe(
+        "PIPESHUB_MCP_URL is not a valid URL. It needs to start with https:// "
+          + "(or http:// for a private address). Set it to your PipesHub origin, "
+          + "e.g. https://pipeshub.example.com",
+      );
+    }
+  });
+
   test("a non-HTTP scheme is refused before it can become the string \"null\"", () => {
     for (const raw of ["ftp://h/x", "mailto:a@b.c", "foo://host"]) {
       try {

@@ -121,6 +121,14 @@ describe("missing configuration", () => {
     expect(r.stderr).toContain("No PipesHub credential found");
   });
 
+  test("the token and URL swapped by mistake is a usage error that does not print the token", async () => {
+    // `cli` itself fails the test if TOKEN reaches stdout or stderr.
+    const r = await cli(["search", "x"], { PIPESHUB_TOKEN: mcp.origin, PIPESHUB_BASE_URL: TOKEN });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("pipeshub: PIPESHUB_BASE_URL is not a valid URL.");
+    expect(r.stderr).toContain("e.g. https://pipeshub.example.com");
+  });
+
   test("connect-help works with nothing configured", async () => {
     const r = await cli(["auth", "connect-help", "--text"]);
     expect(r.code).toBe(0);
