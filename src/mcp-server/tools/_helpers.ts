@@ -146,8 +146,29 @@ export async function httpErrorResult(
     ? " Check that the bearer token / credentials are valid and not expired."
     : "";
   return errorResult(
-    `${context} failed (HTTP ${response.status} ${response.statusText}).${detail}${auth}`,
+    `${context} failed (HTTP ${response.status} ${response.statusText}).`
+      + `${detail}${auth}${waitHint(response)}`,
   );
+}
+
+/**
+ * How long PipesHub asked to be left alone. The transport hands back a
+ * Retry-After too long to wait out at once, so the model is the one to wait.
+ */
+function waitHint(response: Response): string {
+  const header = response.headers.get("retry-after")?.trim() ?? "";
+  const seconds = header === ""
+    ? Number.NaN
+    : Number.isFinite(Number(header))
+    ? Number(header)
+    : (Date.parse(header) - Date.now()) / 1000;
+  const wait = Number.isFinite(seconds) && seconds > 0
+    ? `PipesHub asked to wait ${Math.ceil(seconds)} s before retrying.`
+    : "";
+  if (response.status === 429) {
+    return ` Rate limited: ${wait ? wait : "wait before retrying."}`;
+  }
+  return wait ? ` ${wait}` : "";
 }
 
 /**

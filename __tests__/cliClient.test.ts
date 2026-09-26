@@ -81,6 +81,9 @@ const result = (content: unknown[], isError = false) => ({
   result: { content, ...(isError ? { isError: true } : {}) },
 });
 
+/** The message without the next-step line the CLI adds under it. */
+const firstLine = (message: string): string => message.split("\n")[0] ?? "";
+
 async function cliError(p: Promise<unknown>): Promise<CliError> {
   try {
     await p;
@@ -236,7 +239,7 @@ describe("callToolBlocks exit codes", () => {
 
     reply = { body: sse(result([])), delayMs: 500 };
     const slow = await cliError(callToolBlocks(opts({ timeoutMs: 50 }), "t", {}));
-    expect(slow.message).toBe(`could not reach ${origin}/mcp: request timed out`);
+    expect(firstLine(slow.message)).toBe(`could not reach ${origin}/mcp: request timed out`);
   });
 });
 
@@ -301,7 +304,7 @@ describe("rate limits and server errors", () => {
     const err = await cliError(callToolBlocks(opts(), "t", {}));
 
     expect(err.code).toBe(EXIT.RATE_LIMITED);
-    expect(err.message).toBe("MCP request failed (HTTP 429 Too Many Requests): slow down");
+    expect(firstLine(err.message)).toBe("MCP request failed (HTTP 429 Too Many Requests): slow down");
     expect(requests).toHaveLength(1);
   });
 
@@ -314,7 +317,7 @@ describe("rate limits and server errors", () => {
 
       expect(err.code).toBe(EXIT.ERROR);
       expect(err.message).toContain(`(HTTP ${status} `);
-      expect(err.message).toEndWith(": <html>bad gateway</html>");
+      expect(firstLine(err.message)).toEndWith(": <html>bad gateway</html>");
       expect(requests).toHaveLength(1);
     }
   });
@@ -324,7 +327,7 @@ describe("rate limits and server errors", () => {
 
     const err = await cliError(callToolBlocks(opts(), "t", {}));
 
-    expect(err.message).toBe(`MCP request failed (HTTP 500 Internal Server Error): ${"x".repeat(300)}`);
+    expect(firstLine(err.message)).toBe(`MCP request failed (HTTP 500 Internal Server Error): ${"x".repeat(300)}`);
   });
 
   test("auth status reports 403 as exit 4 and a 429 as exit 5", async () => {
@@ -384,11 +387,10 @@ describe("redirects", () => {
     }
   });
 
-  test("a redirect to another origin never takes the token with it", async () => {
-    // A different port is a different origin. The CLI's bearer is only for
-    // the configured instance; whatever host a Location header names must not
-    // receive it. The request then fails there rather than succeeding.
-    for (const status of [301, 302, 307, 308]) {
+  test("a redirect to another origin is reported, and nothing is sent there", async () => {
+    // A different port is a different origin. Following the redirect used to
+    // land there without the bearer, so the user was told their token was bad.
+    for (const status of [301, 302, 303, 307, 308]) {
       elsewhereSeen = [];
       reply = {
         status,
@@ -397,12 +399,127 @@ describe("redirects", () => {
         headers: { location: `http://127.0.0.1:${elsewhere.port}/mcp` },
       };
 
-      await cliError(callToolBlocks(opts(), "t", {}));
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
 
-      expect(elsewhereSeen).toHaveLength(1);
-      expect(elsewhereSeen[0]!.headers.get("authorization")).toBeNull();
-      expect(JSON.stringify(elsewhereSeen[0]!.body)).not.toContain("tok-123456");
+      expect(elsewhereSeen).toHaveLength(0);
+      expect(err.code).toBe(EXIT.USAGE);
+      expect(err.message).toBe(
+        `The server at ${origin} redirected to http://127.0.0.1:${elsewhere.port}/mcp. `
+          + `Set PIPESHUB_BASE_URL to http://127.0.0.1:${elsewhere.port}. `
+          + "The token was not sent there.",
+      );
     }
+  });
+
+  test("http to https on the same host is a different origin, and says which to use", async () => {
+    reply = {
+      status: 301,
+      body: "",
+      contentType: "text/plain",
+      headers: { location: `https://127.0.0.1:${server.port}/mcp` },
+    };
+
+    const err = await cliError(listTools(opts()));
+
+    expect(err.code).toBe(EXIT.USAGE);
+    expect(err.message).toContain(`Set PIPESHUB_BASE_URL to https://127.0.0.1:${server.port}.`);
+  });
+
+  test("a redirect to a sign-in page is not offered as the new base URL, and its query is not shown", async () => {
+    reply = {
+      status: 302,
+      body: "",
+      contentType: "text/plain",
+      headers: { location: "https://sso.example.com/login?state=abc123secret&next=%2Fmcp" },
+    };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(err.code).toBe(EXIT.USAGE);
+    expect(err.message).toBe(
+      `The server at ${origin} redirected to https://sso.example.com/login, which is not `
+        + "this instance's MCP endpoint: something, often a sign-in page or a proxy, is in "
+        + "front of PipesHub. Set PIPESHUB_BASE_URL to the address PipesHub itself answers "
+        + "on. The token was not sent there.",
+    );
+  });
+
+  test("a redirect to an /mcp on another host is not offered as the new base URL", async () => {
+    // Following that advice would send the token to whatever host the
+    // redirect named. Only a change of scheme or port on the same host is.
+    for (const target of [
+      `http://localhost:${elsewhere.port}/mcp`,
+      "https://pipeshub.attacker.example/mcp",
+    ]) {
+      elsewhereSeen = [];
+      reply = { status: 307, body: "", contentType: "text/plain", headers: { location: target } };
+
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+      expect(err.code).toBe(EXIT.USAGE);
+      expect(err.message).not.toContain("Set PIPESHUB_BASE_URL to http");
+      expect(err.message).toBe(
+        `The server at ${origin} redirected to ${target}, which is not this instance's `
+          + "MCP endpoint: something, often a sign-in page or a proxy, is in front of "
+          + "PipesHub. Set PIPESHUB_BASE_URL to the address PipesHub itself answers on. "
+          + "The token was not sent there.",
+      );
+      expect(elsewhereSeen).toHaveLength(0);
+    }
+  });
+
+  test("a same-origin 303 is reported, not replayed: the call must not run twice", async () => {
+    requests = [];
+    reply = { status: 303, body: "", contentType: "text/plain", headers: { location: "/mcp/result/1" } };
+
+    const err = await cliError(callToolBlocks(opts(), "pipeshub_search", { query: "q" }));
+
+    expect(requests.map((r) => [r.method, r.path])).toEqual([["POST", "/mcp"]]);
+    expect(err.code).toBe(EXIT.ERROR);
+    expect(err.message).toBe(
+      `${origin}/mcp answered 303 See Other, pointing at ${origin}/mcp/result/1. `
+        + "pipeshub does not follow it: a 303 asks for a GET, and sending the request "
+        + "again could run it twice. Check that PIPESHUB_BASE_URL is the address PipesHub "
+        + "itself answers on.",
+    );
+  });
+
+  test("a same-origin 301 or 302 sends the same POST again rather than a GET", async () => {
+    for (const status of [301, 302]) {
+      requests = [];
+      let n = 0;
+      const moved = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        async fetch(req) {
+          await recordRequest(req);
+          n += 1;
+          return n === 1
+            ? new Response(null, { status, headers: { location: "/mcp/" } })
+            : new Response(sse(result([{ type: "text", text: "slash ok" }])), {
+              headers: { "content-type": "text/event-stream" },
+            });
+        },
+      });
+      try {
+        expect(await callTool(opts({ origin: `http://127.0.0.1:${moved.port}` }), "t", {})).toBe("slash ok");
+        expect(requests.map((r) => [r.method, r.path])).toEqual([["POST", "/mcp"], ["POST", "/mcp/"]]);
+        expect(requests[1]!.headers.get("authorization")).toBe("Bearer tok-123456");
+      } finally {
+        moved.stop(true);
+      }
+    }
+  });
+
+  test("a redirect loop stops after five hops", async () => {
+    requests = [];
+    reply = { status: 307, body: "", contentType: "text/plain", headers: { location: "/mcp" } };
+
+    const err = await cliError(callToolBlocks(opts(), "t", {}));
+
+    expect(requests).toHaveLength(6);
+    expect(err.code).toBe(EXIT.ERROR);
+    expect(err.message).toBe(`${origin}/mcp redirected more than 5 times; check the proxy in front of PipesHub.`);
   });
 });
 
@@ -427,8 +544,8 @@ describe("network failures say why", () => {
       );
       try {
         const expected = `could not reach ${origin}/mcp: fetch failed (${message})`;
-        expect((await cliError(callToolBlocks(opts(), "t", {}))).message).toBe(expected);
-        expect((await cliError(listTools(opts()))).message).toBe(expected);
+        expect(firstLine((await cliError(callToolBlocks(opts(), "t", {}))).message)).toBe(expected);
+        expect(firstLine((await cliError(listTools(opts()))).message)).toBe(expected);
       } finally {
         fetchSpy.mockRestore();
       }
@@ -461,7 +578,7 @@ describe("network failures say why", () => {
         (() => Promise.reject(failure)) as unknown as typeof fetch,
       );
       try {
-        expect((await cliError(callToolBlocks(opts(), "t", {}))).message)
+        expect(firstLine((await cliError(callToolBlocks(opts(), "t", {}))).message))
           .toBe(`could not reach ${origin}/mcp: ${detail}`);
       } finally {
         fetchSpy.mockRestore();
@@ -486,7 +603,7 @@ describe("network failures say why", () => {
 
     const err = await cliError(listTools(opts({ timeoutMs: 50 })));
 
-    expect(err.message).toBe(`could not reach ${origin}/mcp: request timed out`);
+    expect(firstLine(err.message)).toBe(`could not reach ${origin}/mcp: request timed out`);
   });
 
   test("tools/list shows the server's reason for a refusal, as tools/call does", async () => {
@@ -495,7 +612,7 @@ describe("network failures say why", () => {
     const err = await cliError(listTools(opts()));
 
     expect(err.code).toBe(EXIT.UNAUTHENTICATED);
-    expect(err.message).toBe("MCP request failed (HTTP 401 Unauthorized): token revoked");
+    expect(firstLine(err.message)).toBe("MCP request failed (HTTP 401 Unauthorized): token revoked");
   });
 });
 
@@ -510,7 +627,7 @@ describe("the token never comes back out", () => {
 
     const err = await cliError(callToolBlocks(opts(), "t", {}));
 
-    expect(err.message).toBe("MCP request failed (HTTP 400 Bad Request): Bad request. Headers: authorization: Bearer [redacted]");
+    expect(firstLine(err.message)).toBe("MCP request failed (HTTP 400 Bad Request): Bad request. Headers: authorization: Bearer [redacted]");
   });
 
   test("a JSON-RPC error, a tool error and an unparseable body that quote it", async () => {
@@ -534,11 +651,76 @@ describe("the token never comes back out", () => {
     reply = { status: 401, body: `rejected ${token}`, contentType: "text/plain" };
     const status = await authStatus({ ...opts(), json: true, maxChars: 1000 });
     expect(JSON.stringify(status.payload)).not.toContain(token);
-    expect(status.payload["error"]).toBe("MCP request failed (HTTP 401 Unauthorized): rejected [redacted]");
+    expect(firstLine(String(status.payload["error"]))).toBe("MCP request failed (HTTP 401 Unauthorized): rejected [redacted]");
   });
 
   test("a placeholder too short to be a token is not scrubbed out of the output", async () => {
     reply = { body: sse(result([{ type: "text", text: "1 of 1" }])) };
     expect(await callTool(opts({ token: "1" }), "t", {})).toBe("1 of 1");
+  });
+});
+
+describe("every transport failure ends with what to do next", () => {
+  const cases: Array<[Reply, string]> = [
+    [
+      { status: 401, body: "", contentType: "text/plain" },
+      "PipesHub rejected the token: it may be expired, revoked, or made for a different "
+        + "instance. Run 'pipeshub auth status' to see its expiry, and "
+        + "'pipeshub auth connect-help' to set up a new one.",
+    ],
+    [
+      { status: 403, body: "", contentType: "text/plain" },
+      "The person this token belongs to cannot access this. Another command will not "
+        + "get around it.",
+    ],
+    [
+      { status: 429, body: "", contentType: "text/plain", headers: { "retry-after": "30" } },
+      "PipesHub is rate limiting this token and asked to wait 30 seconds. Wait, then "
+        + "retry once.",
+    ],
+    [
+      { status: 429, body: "", contentType: "text/plain" },
+      "PipesHub is rate limiting this token. Wait a little, then retry once.",
+    ],
+    [
+      { status: 404, body: "", contentType: "text/plain" },
+      "Nothing answers at /mcp there. Check that PIPESHUB_BASE_URL is your PipesHub "
+        + "instance's address.",
+    ],
+    [
+      { status: 503, body: "", contentType: "text/plain" },
+      "PipesHub could not answer just now. Try again shortly; if it keeps failing, quote "
+        + "request id req-1 to whoever runs the instance.",
+    ],
+    [
+      { status: 400, body: "", contentType: "text/plain" },
+      "If this keeps happening, quote request id req-1 to whoever runs the instance.",
+    ],
+  ];
+
+  test("each HTTP refusal says what to do, on its own line", async () => {
+    for (const [r, step] of cases) {
+      reply = r;
+      const err = await cliError(callToolBlocks(opts(), "t", {}));
+      expect(err.message.split("\n")).toEqual([firstLine(err.message), step]);
+    }
+  });
+
+  test("an unreachable instance and a timeout say what to check", async () => {
+    const closed = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("") });
+    const deadOrigin = `http://127.0.0.1:${closed.port}`;
+    closed.stop(true);
+    const unreachable = await cliError(listTools(opts({ origin: deadOrigin })));
+    expect(unreachable.message.split("\n")[1]).toBe(
+      "Check that PIPESHUB_BASE_URL is your PipesHub instance's address and that it is "
+        + "reachable from here. From a sandbox, localhost and LAN addresses are not.",
+    );
+
+    reply = { body: sse(result([])), delayMs: 500 };
+    const slow = await cliError(callToolBlocks(opts({ timeoutMs: 50 }), "t", {}));
+    expect(slow.message.split("\n")[1]).toBe(
+      "PipesHub did not answer in time. Try again; if it keeps timing out, the instance "
+        + "may be overloaded.",
+    );
   });
 });

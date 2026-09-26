@@ -22,6 +22,8 @@ import {
   matchContentType,
   matchStatusCode,
 } from "./http.js";
+import { TIMEOUT_ENV } from "../hooks/transport-defaults.js";
+import { describeFetchFailure } from "./fetch-failure.js";
 import { Logger } from "./logger.js";
 import { ERR, OK, Result } from "./result.js";
 import { retry, RetryConfig } from "./retries.js";
@@ -287,13 +289,20 @@ export class ClientSDK {
               }),
             );
           case isTimeoutError(err):
-            return ERR(
+            return ERR(withMessage(
               new RequestTimeoutError("Request timed out", { cause: err }),
-            );
+              `Request timed out: ${describeFetchFailure(err)}. Try again; if `
+                + "it keeps happening, check that PipesHub is healthy, or "
+                + `raise ${TIMEOUT_ENV}.`,
+            ));
           case isConnectionError(err):
-            return ERR(
+            return ERR(withMessage(
               new ConnectionError("Unable to make request", { cause: err }),
-            );
+              `Unable to make request to ${new URL(request.url).origin}: `
+                + `${describeFetchFailure(err)}. Check that the PipesHub `
+                + "address this server was started with (--server-url or "
+                + "--instance-url) is right and reachable from this machine.",
+            ));
           default:
             return ERR(
               new UnexpectedClientError("Unexpected HTTP client error", {
@@ -304,6 +313,15 @@ export class ClientSDK {
       },
     );
   }
+}
+
+/**
+ * The generated errors append `String(cause)`, which on Node is the useless
+ * "TypeError: fetch failed". This message is what a tool shows the model.
+ */
+function withMessage<E extends Error>(error: E, message: string): E {
+  error.message = message;
+  return error;
 }
 
 const jsonLikeContentTypeRE = /^(application|text)\/([^+]+\+)*json.*/;

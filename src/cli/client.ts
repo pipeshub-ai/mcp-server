@@ -7,6 +7,8 @@
 // frame parser is the whole client.
 
 import { randomUUID } from "node:crypto";
+import { describeFetchFailure } from "../lib/fetch-failure.js";
+import { withoutToken } from "../lib/redact.js";
 import { CliError, EXIT, assertTransport, mcpEndpoint } from "./config.js";
 
 export interface ClientOptions {
@@ -63,56 +65,6 @@ export function toolErrorToExit(message: string): number {
   }
   if (/\b429\b|rate.?limit/i.test(message)) return EXIT.RATE_LIMITED;
   return EXIT.ERROR;
-}
-
-/**
- * Why a fetch never got a response, in words a person can act on.
- *
- * Node's fetch, which the published binary runs on, reports every network
- * failure as a bare "fetch failed" and keeps the reason (connection refused,
- * no such host, an untrusted certificate) on `cause`. Printing only the
- * message dropped the one detail that says what to fix.
- */
-function describeFetchFailure(e: unknown): string {
-  const err = e as Error & { cause?: unknown };
-  const cause = causeText(err.cause);
-  return cause && !err.message.includes(cause)
-    ? `${err.message} (${cause})`
-    : err.message;
-}
-
-/**
- * A fetch cause as text. When Node tries more than one address (`localhost`,
- * any dual-stack host) and all fail, the cause is an AggregateError whose own
- * message is empty: the reasons are on `errors`, the summary on `code`.
- */
-function causeText(cause: unknown): string {
-  if (!(cause instanceof Error)) return "";
-  if (cause.message) return cause.message;
-  const inner = cause instanceof AggregateError
-    ? [...new Set(
-      cause.errors
-        .filter((x): x is Error => x instanceof Error && x.message !== "")
-        .map((x) => x.message),
-    )]
-    : [];
-  if (inner.length > 0) {
-    const shown = inner.slice(0, 3).join("; ");
-    return inner.length > 3 ? `${shown}; and ${inner.length - 3} more` : shown;
-  }
-  const code = (cause as { code?: unknown }).code;
-  return typeof code === "string" ? code : "";
-}
-
-/**
- * Everything the server sends is printed, errors on stderr and results on
- * stdout, so a proxy or error page that echoes the request's Authorization
- * header would print the token. It is taken out before anything reads it.
- * A value too short to be a real token is left alone rather than blanking
- * every occurrence of, say, "1" in the output.
- */
-function withoutToken(text: string, token: string): string {
-  return token.length < 8 ? text : text.split(token).join("[redacted]");
 }
 
 /** True for an object that looks like a JSON-RPC response, not a notification. */
@@ -190,6 +142,66 @@ export interface ContentBlock {
   resource?: { uri?: string; mimeType?: string; blob?: string; text?: string };
 }
 
+// The next steps below say what qm/TROUBLESHOOTING.md says for each case.
+const UNREACHABLE_NEXT_STEP = "Check that PIPESHUB_BASE_URL is your PipesHub "
+  + "instance's address and that it is reachable from here. From a sandbox, "
+  + "localhost and LAN addresses are not.";
+const TIMED_OUT_NEXT_STEP = "PipesHub did not answer in time. Try again; if it "
+  + "keeps timing out, the instance may be overloaded.";
+
+/** What to do about an HTTP refusal from the MCP endpoint, in one line. */
+function nextStepForStatus(response: Response, requestId: string): string {
+  const report = `quote request id ${requestId} to whoever runs the instance.`;
+  const status = response.status;
+  if (status === 401) {
+    return "PipesHub rejected the token: it may be expired, revoked, or made "
+      + "for a different instance. Run 'pipeshub auth status' to see its "
+      + "expiry, and 'pipeshub auth connect-help' to set up a new one.";
+  }
+  if (status === 403) {
+    return "The person this token belongs to cannot access this. Another "
+      + "command will not get around it.";
+  }
+  if (status === 429) {
+    const seconds = Number(response.headers.get("retry-after") ?? "");
+    return Number.isInteger(seconds) && seconds > 0
+      ? `PipesHub is rate limiting this token and asked to wait ${seconds} `
+        + "seconds. Wait, then retry once."
+      : "PipesHub is rate limiting this token. Wait a little, then retry once.";
+  }
+  if (status === 404) {
+    return "Nothing answers at /mcp there. Check that PIPESHUB_BASE_URL is "
+      + "your PipesHub instance's address.";
+  }
+  if (status >= 500) {
+    return "PipesHub could not answer just now. Try again shortly; if it "
+      + `keeps failing, ${report}`;
+  }
+  return `If this keeps happening, ${report}`;
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+/**
+ * Why a redirect to another origin is not followed, and what to set instead.
+ * Only origin and path are shown: a sign-in redirect carries state in its query.
+ * The target is offered as the new base URL only when it is the same host on
+ * another scheme or port (http to https): anything else would have the next
+ * command send the token to whichever host the redirect named.
+ */
+function redirectedElsewhere(from: string, to: URL, token: string): string {
+  const shown = withoutToken(`${to.origin}${to.pathname}`, token);
+  const sameHost = new URL(from).hostname === to.hostname;
+  const advice = sameHost && /\/mcp\/?$/.test(to.pathname)
+    ? `. Set PIPESHUB_BASE_URL to ${withoutToken(to.origin, token)}.`
+    : ", which is not this instance's MCP endpoint: something, often a "
+      + "sign-in page or a proxy, is in front of PipesHub. Set "
+      + "PIPESHUB_BASE_URL to the address PipesHub itself answers on.";
+  return `The server at ${from} redirected to ${shown}${advice} `
+    + "The token was not sent there.";
+}
+
 /**
  * One JSON-RPC request to `{origin}/mcp`, returning its `result`.
  *
@@ -204,34 +216,74 @@ async function postMcp(
 ): Promise<unknown> {
   assertTransport(opts.origin, opts.insecureHttp);
   const url = mcpEndpoint(opts.origin);
+  const init: RequestInit = {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${opts.token}`,
+      "content-type": "application/json",
+      "accept": "application/json, text/event-stream",
+      // QM provides no turn or trace identifier in the sandbox environment,
+      // so correlation has to start here. Echoed back in the JSON output.
+      "x-pipeshub-request-id": opts.requestId,
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...rpc }),
+    // Redirects are handled below: fetch would carry the POST to another
+    // origin without the bearer, and turn it into a GET on a 301 or 302.
+    redirect: "manual",
+    signal: AbortSignal.timeout(opts.timeoutMs ?? defaultTimeoutMs),
+  };
 
   let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${opts.token}`,
-        "content-type": "application/json",
-        "accept": "application/json, text/event-stream",
-        // QM provides no turn or trace identifier in the sandbox environment,
-        // so correlation has to start here. Echoed back in the JSON output.
-        "x-pipeshub-request-id": opts.requestId,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...rpc }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? defaultTimeoutMs),
-    });
-  } catch (e: unknown) {
-    const detail = (e as Error).name === "TimeoutError"
-      ? "request timed out"
-      : describeFetchFailure(e);
-    throw new CliError(`could not reach ${url}: ${detail}`);
+  let target = url;
+  for (let hop = 0; ; hop++) {
+    try {
+      response = await fetch(target, init);
+    } catch (e: unknown) {
+      const timedOut = (e as Error).name === "TimeoutError";
+      const detail = timedOut ? "request timed out" : describeFetchFailure(e);
+      throw new CliError(
+        `could not reach ${url}: ${detail}\n`
+          + (timedOut ? TIMED_OUT_NEXT_STEP : UNREACHABLE_NEXT_STEP),
+      );
+    }
+    const location = REDIRECT_STATUSES.has(response.status)
+      ? response.headers.get("location")
+      : null;
+    if (location === null) break;
+    const next = new URL(location, target);
+    const from = new URL(url).origin;
+    if (next.origin !== from) {
+      throw new CliError(redirectedElsewhere(from, next, opts.token), EXIT.USAGE);
+    }
+    // 303 means "GET this other resource". Replaying the POST could run the
+    // call twice, and a JSON-RPC call has no GET form, so it is not followed.
+    // 301 and 302 keep the POST, which RFC 9110 allows (the switch to GET is
+    // a historical browser habit), for the usual `/mcp` to `/mcp/` move.
+    if (response.status === 303) {
+      throw new CliError(
+        `${url} answered 303 See Other, pointing at `
+          + `${withoutToken(`${next.origin}${next.pathname}`, opts.token)}. `
+          + "pipeshub does not follow it: a 303 asks for a GET, and sending "
+          + "the request again could run it twice. Check that "
+          + "PIPESHUB_BASE_URL is the address PipesHub itself answers on.",
+      );
+    }
+    if (hop >= MAX_REDIRECTS) {
+      throw new CliError(
+        `${url} redirected more than ${MAX_REDIRECTS} times; check the proxy `
+          + "in front of PipesHub.",
+      );
+    }
+    await response.body?.cancel();
+    target = next.href;
   }
 
   if (!response.ok) {
     const text = withoutToken(await response.text().catch(() => ""), opts.token);
     throw new CliError(
       `MCP request failed (HTTP ${response.status} ${response.statusText})`
-        + (text ? `: ${text.slice(0, 300)}` : ""),
+        + (text ? `: ${text.slice(0, 300)}` : "")
+        + `\n${nextStepForStatus(response, opts.requestId)}`,
       statusToExit(response.status),
     );
   }

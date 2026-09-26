@@ -190,6 +190,27 @@ describe("commands against an instance", () => {
     expect(got.stdout).toContain("a record that quotes [redacted]");
   });
 
+  test("an instance that redirects to another origin is exit 2 with the address to use", async () => {
+    const reached: string[] = [];
+    const target = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: (req) => {
+      reached.push(req.headers.get("authorization") ?? "none");
+      return new Response("", { status: 401 });
+    } });
+    const moved = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () =>
+      new Response(null, { status: 301, headers: { location: `http://127.0.0.1:${target.port}/mcp` } }) });
+    try {
+      const r = await cli(["sources"], { PIPESHUB_TOKEN: TOKEN, PIPESHUB_BASE_URL: `http://127.0.0.1:${moved.port}` });
+
+      expect(r.code).toBe(2);
+      expect(r.stdout).toBe("");
+      expect(r.stderr).toContain(`Set PIPESHUB_BASE_URL to http://127.0.0.1:${target.port}.`);
+      expect(reached).toEqual([]);
+    } finally {
+      moved.stop(true);
+      target.stop(true);
+    }
+  });
+
   test("a payload larger than the pipe buffer arrives whole", async () => {
     // process.exit() does not flush a piped stdout. Before writes waited for
     // the flush, a 2 MB answer was cut at 1 MB and still exited 0.

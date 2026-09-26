@@ -88,6 +88,7 @@ message means you need a real public HTTPS address, not an override.
 
 ```text
 pipeshub: could not reach http://…/mcp: fetch failed (connect ECONNREFUSED 10.0.0.5:80)
+Check that PIPESHUB_BASE_URL is your PipesHub instance's address and that it is reachable from here. From a sandbox, localhost and LAN addresses are not.
 ```
 
 Network, not auth. The part in brackets says what went wrong: `ECONNREFUSED`
@@ -99,6 +100,42 @@ From inside a sandbox the usual cause is pointing at something local:
 `localhost` is the sandbox itself, and `host.docker.internal` or a LAN address
 belongs to a machine the sandbox cannot see. A self-hosted PipesHub needs a
 publicly reachable address.
+
+## "The server at … redirected to …"
+
+```text
+pipeshub: The server at http://pipeshub.example.internal redirected to
+https://pipeshub.example.internal/mcp. Set PIPESHUB_BASE_URL to
+https://pipeshub.example.internal. The token was not sent there.
+```
+
+Exit 2. The address in `PIPESHUB_BASE_URL` answers with a redirect to a
+different origin, most often `http://` to `https://`. `pipeshub` does not
+follow it: the token is only for the address you configured. Set the variable to
+the address the message names.
+
+The address is offered only when the redirect stays on the same host and only
+the scheme or port changes. If the message says the target "is not this
+instance's MCP endpoint", the redirect leads to another host or another path,
+usually a sign-in page or a proxy in front of PipesHub. Do not copy that address
+into `PIPESHUB_BASE_URL`: the token would go there. Use the address PipesHub
+itself answers on.
+
+A `303 See Other` on the same address is not followed either, since sending the
+request again could run it twice (exit 1).
+
+## "MCP request failed (HTTP …)"
+
+The endpoint answered with an HTTP error. The first line has the status and
+the server's reason; the second says what to do:
+
+| Status | Exit | Second line |
+| --- | --- | --- |
+| 401 | 3 | the token may be expired, revoked, or made for a different instance; run `pipeshub auth status`, then `pipeshub auth connect-help` |
+| 403 | 4 | this person cannot access it (see Exit 4 below) |
+| 429 | 5 | wait (for as long as PipesHub asked, when it says), then retry once |
+| 404 | 1 | nothing answers at `/mcp`; `PIPESHUB_BASE_URL` is the wrong address |
+| 5xx | 1 | try again shortly; if it keeps failing, give the request id to whoever runs the instance |
 
 ## `auth status` says `connected: false`
 
