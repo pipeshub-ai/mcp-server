@@ -40,9 +40,7 @@ actually perform it (e.g. "create a Jira ticket" → the agent whose toolset is
 for the requested action, say so — don't force an unrelated agent.
 
 The list **may be empty** (no agents configured). For plain Q&A when no
-specific agent is needed, use \`pipeshub_chat\` WITHOUT \`agentId\` and pick a
-\`chatMode\`: \`internal_search\` (org's indexed knowledge) or \`web_search\`
-(live web). Use \`agentId\` everywhere an agent is referenced.`,
+specific agent is needed, use \`pipeshub_chat\` WITHOUT \`agentId\`. Use \`agentId\` everywhere an agent is referenced.`,
   scopes: ["read"],
   annotations: {
     title: "List PipesHub agents (with toolsets & knowledge)",

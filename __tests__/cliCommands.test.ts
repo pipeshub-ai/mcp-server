@@ -164,11 +164,10 @@ describe("ask", () => {
       citations: [{ recordId: "r1", recordName: "Plan", webUrl: "https://x/r1", snippet: "Friday" }],
     }));
 
-    const out = await ask(ctx(), "when do we ship?", "conv-8", "internal_search");
+    const out = await ask(ctx(), "when do we ship?", "conv-8");
 
     expect(lastCall()?.args).toEqual({
       query: "when do we ship?",
-      chatMode: "internal_search",
       conversationId: "conv-8",
     });
     expect(out.exit).toBe(EXIT.OK);
@@ -186,9 +185,9 @@ describe("ask", () => {
   test("an answer with no citations is exit 6, still returned, and flagged as unsourced", async () => {
     mcp.reply("pipeshub_chat", textReply({ answer: "Probably Friday." }));
 
-    const out = await ask(ctx(), "q", null, "web_search");
+    const out = await ask(ctx(), "q", null);
 
-    expect(lastCall()?.args).toEqual({ query: "q", chatMode: "web_search" });
+    expect(lastCall()?.args).toEqual({ query: "q" });
     expect(out.exit).toBe(EXIT.NO_RESULTS);
     expect(out.payload["answer"]).toBe("Probably Friday.");
     expect(out.payload["cited"]).toBe(false);
@@ -197,7 +196,7 @@ describe("ask", () => {
 
   test("a non-string answer is null, not coerced", async () => {
     mcp.reply("pipeshub_chat", textReply({ answer: { nested: true } }));
-    expect((await ask(ctx(), "q", null, "internal_search")).payload["answer"]).toBeNull();
+    expect((await ask(ctx(), "q", null)).payload["answer"]).toBeNull();
   });
 });
 
