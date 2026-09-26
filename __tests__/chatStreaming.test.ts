@@ -151,36 +151,36 @@ describe("a request the server rejects", () => {
   });
 });
 
+/** Records the path and body the tool sent. */
+function recording(frames: Array<[string, unknown]>) {
+  const sent: { url?: string; body?: unknown } = {};
+  const body = frames
+    .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    .join("");
+  const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const req = input as Request;
+    sent.url = req.url;
+    const raw = init?.body ?? (await req.clone().text().catch(() => ""));
+    try { sent.body = JSON.parse(String(raw)); } catch { sent.body = raw; }
+    return new Response(body, {
+      status: 200, headers: { "content-type": "text/event-stream" },
+    });
+  };
+  return {
+    sent,
+    core: new PipeshubCore({
+      serverURL: "http://pipeshub.test/api/v1",
+      security: { bearerAuth: "t" },
+      httpClient: new HTTPClient({ fetcher }),
+    }),
+  };
+}
+
+const finished: Array<[string, unknown]> = [
+  ["RUN_FINISHED", { result: { conversation: CONVERSATION, recordsUsed: 1 } }],
+];
+
 describe("talking to an agent", () => {
-  /** Records the path and body the tool sent. */
-  function recording(frames: Array<[string, unknown]>) {
-    const sent: { url?: string; body?: unknown } = {};
-    const body = frames
-      .map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-      .join("");
-    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const req = input as Request;
-      sent.url = req.url;
-      const raw = init?.body ?? (await req.clone().text().catch(() => ""));
-      try { sent.body = JSON.parse(String(raw)); } catch { sent.body = raw; }
-      return new Response(body, {
-        status: 200, headers: { "content-type": "text/event-stream" },
-      });
-    };
-    return {
-      sent,
-      core: new PipeshubCore({
-        serverURL: "http://pipeshub.test/api/v1",
-        security: { bearerAuth: "t" },
-        httpClient: new HTTPClient({ fetcher }),
-      }),
-    };
-  }
-
-  const finished: Array<[string, unknown]> = [
-    ["RUN_FINISHED", { result: { conversation: CONVERSATION, recordsUsed: 1 } }],
-  ];
-
   test("a follow-up turn continues the same agent conversation", async () => {
     const { core, sent } = recording(finished);
 
@@ -194,12 +194,34 @@ describe("talking to an agent", () => {
   });
 
   test("an agent turn is always sent in the one mode the agent stream accepts", async () => {
-    // `quick` is the only mode the agent endpoint takes, so whatever the caller
-    // asked for is replaced rather than forwarded and rejected.
+    // `quick` is the only mode the agent endpoint takes.
     const { core, sent } = recording(finished);
 
-    await ask(core, { agentId: "a-1", conversationId: "c-1", chatMode: "web_search" });
+    await ask(core, { agentId: "a-1", conversationId: "c-1" });
 
     expect((sent.body as { chatMode?: string })?.chatMode).toBe("quick");
+  });
+});
+
+describe("plain chat", () => {
+  // Plain chat runs in agent mode. With no `agentCapabilities`, the backend
+  // turns on both internal search and web search.
+  test("a new conversation is sent in agent mode with no capability flags", async () => {
+    const { core, sent } = recording(finished);
+
+    await ask(core);
+
+    expect(sent.url).toContain("/conversations/stream");
+    expect(sent.body).toMatchObject({ chatMode: "agent" });
+    expect(sent.body).not.toHaveProperty("agentCapabilities");
+  });
+
+  test("a follow-up turn is sent in agent mode", async () => {
+    const { core, sent } = recording(finished);
+
+    await ask(core, { conversationId: "c-1" });
+
+    expect(sent.url).toContain("/conversations/c-1/messages/stream");
+    expect(sent.body).toMatchObject({ chatMode: "agent" });
   });
 });

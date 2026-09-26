@@ -99,10 +99,10 @@ describe("usage", () => {
     expect(r.stderr).toContain("v1 supports 'directory whoami' only");
   });
 
-  test("--mode accepts internal and web only, and explains the others", async () => {
-    const r = await cli(["ask", "q", "--mode", "deep"], connected());
+  test("--mode is not an ask option", async () => {
+    const r = await cli(["ask", "q", "--mode", "web"], connected());
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain('--mode must be "internal" or "web" (got "deep")');
+    expect(r.stderr).toContain("unknown option: --mode");
   });
 });
 
@@ -155,10 +155,10 @@ describe("commands against an instance", () => {
 
   test("an ask with no citations exits 6 but still prints the answer", async () => {
     mcp.reply("pipeshub_chat", textReply({ answer: "maybe" }));
-    const r = await cli(["ask", "is", "it", "done?", "--mode", "web"], connected());
+    const r = await cli(["ask", "is", "it", "done?"], connected());
     expect(r.code).toBe(6);
     expect(JSON.parse(r.stdout)).toMatchObject({ answer: "maybe", cited: false });
-    expect(mcp.calls[mcp.calls.length - 1]?.args).toMatchObject({ chatMode: "web_search" });
+    expect(mcp.calls[mcp.calls.length - 1]?.args).toEqual({ query: "is it done?" });
   });
 
   test("--text prints get's delimited content instead of JSON", async () => {

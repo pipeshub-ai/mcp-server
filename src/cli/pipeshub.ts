@@ -51,7 +51,6 @@ OPTIONS
   --app <id>                  search: restrict to a connector id (repeatable)
   --kb <id>                   search: restrict to a collection id (repeatable)
   --conversation <id>         ask: continue an existing conversation
-  --mode <internal|web>       ask: retrieval strategy (default internal)
   --as <format>               get: server-side conversion, e.g. pdf
   --out <path>                get: write to a file instead of stdout
   --max-chars <n>             cap snippet/content length (default 2000)
@@ -76,7 +75,6 @@ interface Flags {
   apps: string[];
   kb: string[];
   conversation: string | null;
-  mode: string;
   as: string | null;
   out: string | null;
   maxChars: number;
@@ -91,7 +89,6 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     apps: [],
     kb: [],
     conversation: null,
-    mode: "internal",
     as: null,
     out: null,
     maxChars: 2000,
@@ -119,7 +116,6 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
       case "--kb": flags.kb.push(needValue(a, argv[++i])); break;
       case "--conversation": flags.conversation = needValue(a, argv[++i]); break;
-      case "--mode": flags.mode = needValue(a, argv[++i]); break;
       case "--as": flags.as = needValue(a, argv[++i]); break;
       case "--out": flags.out = needValue(a, argv[++i]); break;
       case "--max-chars": flags.maxChars = Number(needValue(a, argv[++i])); break;
@@ -140,18 +136,6 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     throw new CliError("--max-chars must be a positive number", EXIT.USAGE);
   }
   return { positional, flags };
-}
-
-/** `--mode internal|web` → the tool's `chatMode` vocabulary. */
-function resolveChatMode(mode: string): string {
-  if (mode === "internal" || mode === "internal_search") return "internal_search";
-  if (mode === "web" || mode === "web_search") return "web_search";
-  throw new CliError(
-    `--mode must be "internal" or "web" (got "${mode}"). The other chatMode `
-      + "values the API accepts (quick, verification, deep) are only valid for "
-      + "agent conversations, which v1 does not expose.",
-    EXIT.USAGE,
-  );
 }
 
 /**
@@ -304,7 +288,7 @@ async function run(argv: string[]): Promise<number> {
     case "ask": {
       const query = positional.slice(1).join(" ").trim();
       if (query === "") throw new CliError("ask requires a question", EXIT.USAGE);
-      outcome = await ask(ctx, query, flags.conversation, resolveChatMode(flags.mode));
+      outcome = await ask(ctx, query, flags.conversation);
       break;
     }
     case "get": {
