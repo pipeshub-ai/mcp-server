@@ -108,9 +108,8 @@ naming the exact follow-up call — follow it.
 
 Some orgs configure **agents** for specific jobs (e.g. a Slack messenger, a
 Jira ticket creator, a Salesforce CRM updater). To run a turn against an
-agent, call \`pipeshub_chat\` with its \`agentId\` (from \`pipeshub_agents\`)
-— optionally with an agent \`chatMode\` (\`auto\` by default, or \`quick\` /
-\`verification\` / \`deep\`). Keep passing the same \`agentId\` plus the
+agent, call \`pipeshub_chat\` with its \`agentId\` (from \`pipeshub_agents\`).
+Keep passing the same \`agentId\` plus the
 returned \`conversationId\` on follow-up turns.
 
 **When to route to an agent vs plain chat:**
@@ -118,7 +117,7 @@ returned \`conversationId\` on follow-up turns.
   Slack", "create a Jira ticket", "update the Salesforce deal") → call
   \`pipeshub_agents\`, pick the matching agent, and use it.
 - Plain question about the org's knowledge or the public web → just use
-  \`pipeshub_chat\` (no \`agentId\`) with \`internal_search\` or \`web_search\`.
+  \`pipeshub_chat\` (no \`agentId\`).
 
 **If you are unsure which agent or route fits the request**, call
 \`pipeshub_agents\` FIRST and read the returned names/descriptions, then

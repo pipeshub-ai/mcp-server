@@ -8,7 +8,7 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 ### `pipeshub_chat`
 
-**Default tool for anything PipesHub-related.** Ask a question and get a grounded answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.).
+**Default tool for anything PipesHub-related.** Ask a question and get a grounded answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -17,12 +17,6 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 | `filters` | object | no | Which sources the answer may use: `{ apps, kb }`. Connector ids go in `apps`, collection ids go in `kb`; get both from `pipeshub_sources`. Leave out to use all sources. Only works on the first turn. |
 | `modelKey` | string | no | Model id from `pipeshub_sources` `llmModels[*].modelKey`. Defaults to the org's default LLM. |
 | `agentId` | string | no | PipesHub agent to converse with (`agentId` from `pipeshub_agents`). Runs the turn against that agent's prompt, tools and knowledge. Pass the same `agentId` on every follow-up turn. Omit for plain chat. |
-| `chatMode` | enum | no | `internal_search` (default) or `web_search` — the plain-chat modes. `quick` is agent-only; see below. |
-
-**`chatMode` depends on `agentId`:**
-- **Without `agentId`** (plain chat): `internal_search` answers from the org's indexed knowledge (default), `web_search` from the live web. Anything else collapses to `internal_search`.
-- **With `agentId`** (agent chat): `quick` is the only mode the agent stream accepts, and the tool sends it automatically — omit `chatMode`.
-- `quick` requires an `agentId`. Sent without one it is ignored and the turn runs as `internal_search`, so include `agentId` whenever you want `quick`.
 
 **When to pick it over the others:**
 - Open-ended / cross-document org questions (answer spans many files) → `pipeshub_chat`.

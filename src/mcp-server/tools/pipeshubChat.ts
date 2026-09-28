@@ -68,18 +68,6 @@ const args = {
       + "previous call. Omit for a plain (non-agent) conversation. If unsure "
       + "which agent to use, call `pipeshub_agents` first to see the options.",
   ),
-  chatMode: z.enum([
-    "internal_search",
-    "web_search",
-    "quick",
-  ]).optional().describe(
-    "Response strategy. The valid values depend on whether `agentId` is set:\n"
-      + "- WITHOUT `agentId` (plain chat): `internal_search` — answer from the "
-      + "org's indexed knowledge (default) — or `web_search` — answer from the "
-      + "live web.\n"
-      + "- WITH `agentId` (agent chat): `quick` is the only supported mode and "
-      + "is sent automatically, so this argument can be omitted.",
-  ),
 };
 
 export const tool$pipeshubChat: ToolDefinition<typeof args> = {
@@ -104,20 +92,12 @@ Everything else about the org's knowledge belongs here: policies,
 processes, decisions, history, "what do we know about X", and any question
 spanning several documents.
 
-**Internal search** (default, \`chatMode: "internal_search"\`): the user's
-documents, files, knowledge base, company policies — anything in their
-PipesHub-indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the
-org's KB, ...).
+It answers from the org's indexed sources (Drive, Box, Confluence, Slack,
+Gmail, Jira, the org's KB, ...) and from the live web.
 
-**Web search** (\`chatMode: "web_search"\`): current events or public
-information unlikely to be in the org's knowledge base.
+**Agent chat** — pass an \`agentId\` from \`pipeshub_agents\` — runs against
+that agent's own prompt, tools and knowledge.
 
-Both are plain-chat modes. **Agent chat** — pass an \`agentId\` from
-\`pipeshub_agents\` — runs against that agent's own prompt, tools and knowledge;
-\`quick\` is its only mode, requires the \`agentId\`, and is sent automatically.
-
-- "What's our policy on Y?" → \`pipeshub_chat\` (internal_search)
-- "What's in the news about Z?" → \`pipeshub_chat\` (web_search)
 - "Find / locate the file named X" → \`pipeshub_search\` (then
   \`pipeshub_download_record\` if the user wants the bytes).
 
@@ -147,12 +127,9 @@ cited document, take \`citations[*].recordId\` and call
   args,
   tool: async (client, args, ctx) => {
     const fetchOptions = { signal: ctx.signal };
-    // `quick` is agent-only. The plain stream schemas accept internal_search /
-    // web_search / agent, so collapse anything else to the default rather than
-    // forwarding a value that path would reject.
-    const plainChatMode = args.chatMode === "web_search"
-      ? "web_search"
-      : "internal_search";
+    // Plain chat runs in agent mode. With no `agentCapabilities` in the body,
+    // the backend turns on both internal search and web search.
+    const plainChatMode = "agent" as const;
     let response: Response;
 
     // Filters apply only when a conversation starts. Each id is sent in the
@@ -177,8 +154,7 @@ cited document, take \`citations[*].recordId\` and call
 
     if (args.agentId) {
       // `quick` is the only value the agent stream schemas accept, and it is
-      // required — so ignore whatever the caller passed rather than forwarding
-      // a value the gateway would reject.
+      // required.
       const agentChatMode = "quick" as const;
       if (args.conversationId) {
         // Continue an existing agent conversation.

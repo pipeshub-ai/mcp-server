@@ -244,9 +244,8 @@ export async function ask(
   ctx: Ctx,
   query: string,
   conversationId: string | null,
-  chatMode: string,
 ): Promise<Outcome> {
-  const args: Record<string, unknown> = { query, chatMode };
+  const args: Record<string, unknown> = { query };
   if (conversationId) args["conversationId"] = conversationId;
   const raw = decodeToolJson(await callTool(ctx, "pipeshub_chat", args));
   const obj = asRecord(raw);
