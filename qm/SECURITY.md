@@ -46,12 +46,11 @@ trio. `usergroup:read` is not merely excluded — it is absent from the stock
 `MCP_SCOPES` entirely, so directory group browsing cannot be minted on a default
 instance at all. v1 ships `directory whoami` only.
 
-**Known gap:** `config:read` is not in the preset, and its absence makes
-`pipeshub sources` return an empty `llmModels` array **with HTTP 200 rather than
-a 403**. A client cannot distinguish "no models configured" from "not authorized
-to see them". The CLI reports `llmModelsVisible` so the ambiguity is at least
-visible. Filed upstream; the preset was left at five scopes rather than widened
-to paper over it.
+**`config:read` is not in the preset.** The model listing behind
+`pipeshub sources` needs it, so a preset token gets its sources with the model
+list left out and a note saying why, and the CLI reports
+`llmModelsVisible: false`. The preset was left at five scopes rather than
+widened for a list the agent does not need: `ask` uses the org's default model.
 
 **The create panel pre-selects every scope**, and the backend does the same when
 a create request omits `scopes`. The operator guide accepts that default: a

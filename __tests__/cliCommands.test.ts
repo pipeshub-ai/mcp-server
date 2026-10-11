@@ -93,6 +93,12 @@ describe("sources", () => {
     expect(out.payload["llmModelsVisible"]).toBe(false);
     expect(out.payload["llmModels"]).toEqual([]);
   });
+
+  test("an empty but readable model list is visible", async () => {
+    mcp.reply("pipeshub_sources", textReply({ sources: [], llmModels: [] }));
+    const out = await sources(ctx());
+    expect(out.payload["llmModelsVisible"]).toBe(true);
+  });
 });
 
 describe("search", () => {

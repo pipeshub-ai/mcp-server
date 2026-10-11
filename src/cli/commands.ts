@@ -174,12 +174,11 @@ export async function sources(ctx: Ctx): Promise<Outcome> {
     payload: {
       requestId: ctx.requestId,
       sources: list,
-      // `llmModels` is gated by config:read, which the agent preset omits, and
-      // it degrades silently to an empty array rather than a 403. Reporting the
-      // distinction keeps "no models configured" from looking the same as
-      // "not authorized to see them".
+      // `llmModels` is gated by config:read, which the agent preset omits. The
+      // tool then leaves the key out rather than sending `[]`, so "no models
+      // configured" and "not authorized to see them" stay distinguishable.
       llmModels: arr(obj["llmModels"]),
-      llmModelsVisible: arr(obj["llmModels"]).length > 0,
+      llmModelsVisible: Array.isArray(obj["llmModels"]),
     },
   };
 }

@@ -215,4 +215,78 @@ describe("pipeshub_sources", () => {
     expect(out.isError).toBe(true);
     expect(textOf(out)).toContain("llmModels");
   });
+
+  // The model listing needs config:read; the agent preset omits it. A 403
+  // there used to fail the whole call, so an agent lost the sources it could
+  // see and fell back to searching every source.
+  describe("without config:read", () => {
+    const SOURCES = {
+      items: [
+        { id: "conn-1", name: "Jira", connector: "JIRA", hasChildren: true },
+        { id: "kb-1", name: "Handbook", connector: "KB", hasChildren: true },
+      ],
+      pagination: { hasNext: false },
+    };
+
+    /** Sources answer 200; every model listing answers 403. */
+    function scopedClient() {
+      const fetcher = async (input: RequestInfo | URL) => {
+        const url = (input as Request).url;
+        return url.includes("/ai-models/")
+          ? Response.json({ message: "Insufficient scope" }, { status: 403 })
+          : Response.json(SOURCES);
+      };
+      return new PipeshubCore({
+        serverURL: "http://pipeshub.test/api/v1",
+        security: { bearerAuth: "t" },
+        httpClient: new HTTPClient({ fetcher }),
+      });
+    }
+
+    test("still returns the sources, and leaves the models out with a note", async () => {
+      const out = await tool$pipeshubSources.tool(scopedClient(), {} as never, ctx());
+
+      expect(out.isError).toBeUndefined();
+      const body = jsonOf(out);
+      expect(body.sources.map((s: { id: string }) => s.id)).toEqual(["conn-1", "kb-1"]);
+      expect("llmModels" in body).toBe(false);
+      expect(body.notes).toEqual([
+        "llmModels omitted: this token lacks the config:read scope.",
+      ]);
+    });
+
+    test("each gated section gets its own note", async () => {
+      const out = await tool$pipeshubSources.tool(
+        scopedClient(),
+        { include: ["sources", "llmModels", "embeddingModels"] } as never,
+        ctx(),
+      );
+
+      const body = jsonOf(out);
+      expect(body.sources).toHaveLength(2);
+      expect("embeddingModels" in body).toBe(false);
+      expect(body.notes).toHaveLength(2);
+      expect(body.notes[1]).toContain("embeddingModels");
+    });
+
+    test("a 403 on the sources themselves is still an error", async () => {
+      const { core } = client({ message: "Insufficient scope" }, 403);
+
+      const out = await tool$pipeshubSources.tool(core, {} as never, ctx());
+
+      expect(out.isError).toBe(true);
+    });
+  });
+
+  test("no notes key when every section was readable", async () => {
+    const { core } = client(models);
+
+    const out = await tool$pipeshubSources.tool(
+      core,
+      { include: ["llmModels"] } as never,
+      ctx(),
+    );
+
+    expect("notes" in jsonOf(out)).toBe(false);
+  });
 });
