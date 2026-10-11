@@ -51,6 +51,12 @@ Do NOT answer those from your own knowledge — \`pipeshub_chat\` grounds
 the answer in the user's actual indexed content and returns citations
 the user can verify.
 
+\`pipeshub_chat\` runs PipesHub's assistant agent, which can also take
+actions through the user's connected tools (for example create a ticket or
+send an email) when the org enables them. Ask it to act only when the user
+wants that action taken; for read-only lookups prefer \`pipeshub_search\`
+and \`pipeshub_get_record_content\`.
+
 ## When to use the other tools
 
 - \`pipeshub_search\` — locate a document by name or topic and resolve it
