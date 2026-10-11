@@ -177,11 +177,10 @@ field is high or because citations are missing.
 ## `pipeshub sources` shows `llmModels: []`
 
 Expected. That field needs `config:read`, which the recommended agent scope set
-deliberately omits. It is empty rather than a `403`, so it is impossible to tell
-from the response alone whether no models are configured or you simply cannot
-see them — the CLI reports `llmModelsVisible: false` to make the ambiguity
-explicit. Nothing else is affected: `ask` uses the org's default model without
-being told which.
+deliberately omits. The sources still come back; the model list is left out,
+and the CLI reports `llmModelsVisible: false`. `llmModelsVisible: true` with an
+empty list means the token can see the models and none are configured. Nothing
+else is affected: `ask` uses the org's default model without being told which.
 
 ## "auth set does not exist, deliberately"
 

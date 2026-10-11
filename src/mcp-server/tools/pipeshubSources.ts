@@ -35,6 +35,10 @@ Returns up to three sections:
 - \`embeddingModels\` — vector embedding models (only fetched when
   explicitly requested via \`include\`).
 
+The model lists need the \`config:read\` scope. A token without it still
+gets \`sources\`; the model sections are left out and \`notes\` says why.
+Omit \`modelKey\` on \`pipeshub_chat\` to use the org's default model.
+
 Call this once at the start of a session and cache the result —
 sources and models change infrequently.`,
   scopes: ["read"],
@@ -53,6 +57,7 @@ sources and models change infrequently.`,
     const want = (s: string) => (include as readonly string[]).includes(s);
 
     const result: Record<string, unknown> = {};
+    const notes: string[] = [];
 
     if (want("sources")) {
       const listed = await listAllSources(client, { signal: ctx.signal });
@@ -72,6 +77,14 @@ sources and models change infrequently.`,
         modelType,
       }, { fetchOptions }).$inspect();
       if (!r.ok) return errorResult(`${key}: ${r.error.message}`);
+      // The model listing requires config:read, which agent tokens usually
+      // lack. Failing the whole call on that 403 would also discard the
+      // sources the token can see, and an agent then searches everything.
+      if (r.value.status === 403) {
+        await r.value.body?.cancel();
+        notes.push(`${key} omitted: this token lacks the config:read scope.`);
+        continue;
+      }
       // Named per listing: both the chat and the embedding models are fetched
       // here, so a bare "Model listing failed" leaves the reader unable to tell
       // which of the two is unavailable.
@@ -87,6 +100,7 @@ sources and models change infrequently.`,
       }));
     }
 
+    if (notes.length > 0) result["notes"] = notes;
     return jsonResult(result);
   },
 };
