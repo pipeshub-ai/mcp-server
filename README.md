@@ -4,6 +4,10 @@ This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **C
 
 PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP Clients connect to this endpoint directly -- no local npm packages or stdio processes needed.
 
+[![Watch the PipesHub demo on YouTube](https://img.youtube.com/vi/VgyND38QZ7w/maxresdefault.jpg)](https://youtu.be/VgyND38QZ7w)
+
+**[▶ Watch the 2½-minute demo](https://youtu.be/VgyND38QZ7w)**: Claude Code using this MCP server to answer from Jira, Slack, GitHub and Drive, with each person's own permissions.
+
 > **Coding agent?** Start at [For coding agents](https://docs.pipeshub.com/for-agents.md). Install the skill into the *user's* repo with `npx skills add pipeshub-ai/mcp-server` (see [`skills/pipeshub`](./skills/pipeshub/SKILL.md)) and append the `AGENTS.md` snippet on that page. Listed on the [official MCP registry](https://registry.modelcontextprotocol.io) as `io.github.pipeshub-ai/mcp` and on [Cursor Directory](https://cursor.directory/plugins/mcp-server-3) as PipesHub. The listing files (`plugin.json`, `mcp.json`) default MCP to `http://localhost:3000/mcp` (Docker). Change the URL for a company instance; they contain no secrets. Contributors working in this repository: read [AGENTS.md](./AGENTS.md).
 >
 > **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`, `pipeshub_agents`).
