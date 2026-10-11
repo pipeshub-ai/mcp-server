@@ -81,6 +81,20 @@ describe("tool descriptions", () => {
     expect(filters?.properties?.apps?.description).toContain("`kb`");
   });
 
+  // Plain chat sends no `tools`, so the assistant gets every action the user
+  // has connected, and actions default on. The model and the client both have
+  // to be told; questions still belong on chat, not search.
+  test("chat says it can act, that actions default on, and to write only when asked", () => {
+    const chat = byName.get("pipeshub_chat") ?? "";
+    expect(chat).toContain("It can also act");
+    expect(chat).toContain("on unless an admin turns them off");
+    expect(chat).toContain("Never ask it to write unless the");
+    expect(chat).not.toMatch(/to read[^.]*use `pipeshub_search`/);
+    expect(PIPESHUB_INSTRUCTIONS).toContain("Actions are on unless an admin has turned them off");
+    expect(PIPESHUB_INSTRUCTIONS).toContain("Keep\nusing `pipeshub_chat` for questions");
+    expect(tool$pipeshubChat.annotations?.destructiveHint).toBe(true);
+  });
+
   test("the arg checks see every registered tool", () => {
     expect(definitions.map((d) => d.name).sort()).toEqual([...names].sort());
   });
