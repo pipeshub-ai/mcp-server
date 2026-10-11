@@ -136,7 +136,7 @@ supports. Never ask anyone to paste a token into chat.
 
 | The person says | Use |
 | --- | --- |
-| A question about company knowledge (policy, "what do we know about X") | `pipeshub_chat` (internal search) |
+| A question about company knowledge (policy, "what do we know about X") | `pipeshub_chat` (answers from indexed sources and the web; can also take the user's connected actions, so never ask it to write unless the user asked) |
 | "How many / list all / every X" | `pipeshub_get_record_content` `mode: "navigate"` — chat undercounts and will not say so |
 | Structure: what's under this epic / folder / space | `pipeshub_get_record_content` `mode: "navigate"` |
 | Summarize / quote one named document | search → `pipeshub_get_record_content` `mode: "content"` |

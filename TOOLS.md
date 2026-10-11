@@ -10,6 +10,8 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 **Default tool for anything PipesHub-related.** Ask a question and get a grounded answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web.
 
+> **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Questions still belong here, but never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first.
+
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | The user's question or message for this turn. |

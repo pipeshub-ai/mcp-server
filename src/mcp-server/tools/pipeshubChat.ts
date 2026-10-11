@@ -95,6 +95,11 @@ spanning several documents.
 It answers from the org's indexed sources (Drive, Box, Confluence, Slack,
 Gmail, Jira, the org's KB, ...) and from the live web.
 
+**It can also act.** Actions are on unless an admin turns them off: the
+assistant may use the user's connected tools (e.g. create a Jira ticket,
+send an email) with their credentials. Never ask it to write unless the
+user asked for that.
+
 **Agent chat** — pass an \`agentId\` from \`pipeshub_agents\` — runs against
 that agent's own prompt, tools and knowledge.
 
@@ -119,7 +124,9 @@ cited document, take \`citations[*].recordId\` and call
   scopes: ["read"],
   annotations: {
     title: "Chat with PipesHub",
-    destructiveHint: false,
+    // The assistant agent may run the user's connected actions (create a
+    // ticket, send an email), so clients should confirm before calling.
+    destructiveHint: true,
     idempotentHint: false,
     openWorldHint: true,
     readOnlyHint: false,
@@ -128,7 +135,9 @@ cited document, take \`citations[*].recordId\` and call
   tool: async (client, args, ctx) => {
     const fetchOptions = { signal: ctx.signal };
     // Plain chat runs in agent mode. With no `agentCapabilities` in the body,
-    // the backend turns on both internal search and web search.
+    // the backend turns on both internal search and web search, and with no
+    // `tools` it gives the assistant every action the user has connected.
+    // Actions default on (ENABLE_ACTIONS); an admin can turn them off in Labs.
     const plainChatMode = "agent" as const;
     let response: Response;
 
