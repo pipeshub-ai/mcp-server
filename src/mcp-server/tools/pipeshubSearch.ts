@@ -19,7 +19,12 @@ const args = {
     "Natural language query. Vector search across the org's indexed records.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Number of results. Default 10. Use 5–10 when you only need a "
+    "Vector matches to fetch per query variant. Default 10. The backend "
+      + "searches a rewritten form of the query plus a few expanded variants, "
+      + "and a match inside a thread, a pull request or a table returns every "
+      + "passage of that section as its own hit — so one call can return many "
+      + "more hits than `limit`, from only a few records. Use "
+      + "`uniqueRecords` for the shortlist; 5–10 is enough to find a "
       + "`recordId`.",
   ),
   apps: z.array(z.string()).optional().describe(
@@ -41,8 +46,8 @@ export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
 **Use this when the user wants to LOCATE a document** — by name, topic,
 or a phrase to grep for — and to resolve it to a \`recordId\`. For
 open-ended questions across many documents, use \`pipeshub_chat\`
-instead, which does the retrieval internally and grounds the answer in
-citations.
+instead, which does the retrieval internally and returns an answer with
+citations to check.
 
 Typical uses:
 - Resolve a doc name / topic into a \`recordId\` for
@@ -68,7 +73,9 @@ connector ids in \`apps\` and collection ids in \`kb\`.
 
 Each hit is one matching passage, best match first:
 \`{ recordId, recordName, score, snippet, mimeType, webUrl, ... }\`.
-One record can appear in several hits. Link a record by its \`webUrl\`.`,
+One record can fill many hits, so expect more hits than \`limit\`.
+\`uniqueRecords\` lists each record once — use it as the shortlist. Link a
+record by its \`webUrl\`.`,
   scopes: ["read"],
   annotations: {
     title: "Semantic search",
