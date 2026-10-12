@@ -106,8 +106,10 @@ an epic over its stories, a page over its child pages.
 **Combining them.** Search finds a starting point by wording; navigate on a
 \`recordId\` reveals what search structurally cannot — siblings, children,
 in-source links (\`Related\`), and the group's total count. \`Related\` omits
-Slack messages and pages that only mention a record; to find those, search
-for the record's number or URL with the Slack connector id in \`apps\`. For a question that must be
+Slack messages and pages that only mention a record. To find Slack discussion
+of a PR or ticket, search for its number or URL with the Slack connector id in
+\`apps\`; to find a page that mentions it, run the same search without \`apps\`,
+across every source. For a question that must be
 exhaustive ("all", "how many", "every"), do NOT count search hits or trust a
 chat answer: navigate the record group, which reports the real total. For a
 record's siblings, navigate its parent — take the id from the \`Path\` line.

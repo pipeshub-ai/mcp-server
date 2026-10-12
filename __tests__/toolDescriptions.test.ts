@@ -267,6 +267,9 @@ describe("descriptions say what the tools actually return", () => {
     expect(text).toContain("tool-output limit");
     expect(text).toContain("more hits than `limit`");
     expect(text).toContain("`Related` omits Slack messages");
+    // A Slack-scoped search finds discussion, not a Confluence or Drive page.
+    expect(text).toContain("To find Slack discussion of a PR or ticket");
+    expect(text).toContain("without `apps`, across every source");
   });
 
   // Which tool is the default is a product decision, not this change's.
