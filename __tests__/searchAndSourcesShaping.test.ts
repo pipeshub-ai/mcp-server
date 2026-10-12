@@ -83,6 +83,31 @@ describe("trimSearchHit", () => {
     expect(trimSearchHit({}).recordId).toBeUndefined();
     expect(() => trimSearchHit(null)).not.toThrow();
   });
+
+  test("a long block-text fallback is cut to the same length as a passage", () => {
+    // The fallback used to go out whole, so one hit without a string passage
+    // could carry an entire block and undo the cut above.
+    const { content, ...rest } = hit;
+    const long = { ...rest, metadata: { ...hit.metadata, blockText: "y".repeat(5000) } };
+    const out = trimSearchHit(long);
+    expect(out.snippet).toBe("y".repeat(280));
+    expect(out).toMatchObject({ snippetTruncated: true, contentChars: 5000 });
+  });
+
+  test("a cut passage says it was cut, and how long it was", () => {
+    // An unmarked cut reads as the whole passage, so the model quotes a
+    // sentence that stops mid-way as if that were all the source said.
+    const out = trimSearchHit({ ...hit, content: "x".repeat(1000) });
+    expect(out).toMatchObject({ snippetTruncated: true, contentChars: 1000 });
+  });
+
+  test("a passage that fits is not marked", () => {
+    const out = trimSearchHit(hit);
+    expect(Object.keys(out)).not.toContain("snippetTruncated");
+    expect(Object.keys(out)).not.toContain("contentChars");
+    const exact = trimSearchHit({ ...hit, content: "z".repeat(280) });
+    expect(Object.keys(exact)).not.toContain("snippetTruncated");
+  });
 });
 
 describe("pipeshub_search", () => {
@@ -110,6 +135,65 @@ describe("pipeshub_search", () => {
     expect(body.uniqueRecords).toEqual([{
       recordId: REC, recordName: "A", connector: "KB", mimeType: "text/plain", webUrl: "u1",
     }]);
+  });
+
+  test("each record carries its type and source dates when the backend sends them", async () => {
+    // Without dates the model cannot tell a superseded decision from the
+    // current one, and without a type it cannot tell a PR from the Slack
+    // thread that discusses it. The backend's records array already carries
+    // both; the timestamps are epoch milliseconds.
+    const created = Date.UTC(2026, 7, 28, 9, 30);
+    const updated = Date.UTC(2026, 8, 26, 17, 5);
+    const { core } = client({
+      searchId: "s-4",
+      searchResponse: {
+        searchResults: [],
+        records: [{
+          _key: REC, recordName: "PR 3100", connectorName: "GITHUB", recordType: "PULL_REQUEST",
+          sourceCreatedAtTimestamp: created, sourceLastModifiedTimestamp: updated,
+        }],
+      },
+    });
+
+    const out = await tool$pipeshubSearch.tool(core, { query: "x" } as never, ctx());
+
+    expect(jsonOf(out).uniqueRecords[0]).toMatchObject({
+      recordId: REC,
+      recordType: "PULL_REQUEST",
+      createdAt: "2026-08-28T09:30:00.000Z",
+      updatedAt: "2026-09-26T17:05:00.000Z",
+    });
+  });
+
+  test("a missing or unusable timestamp is left out rather than guessed", async () => {
+    const { core } = client({
+      searchId: "s-5",
+      searchResponse: {
+        searchResults: [],
+        records: [{
+          _key: REC, recordName: "A",
+          sourceCreatedAtTimestamp: null, sourceLastModifiedTimestamp: "yesterday",
+        }],
+      },
+    });
+
+    const out = await tool$pipeshubSearch.tool(core, { query: "x" } as never, ctx());
+
+    const rec = jsonOf(out).uniqueRecords[0];
+    expect(Object.keys(rec)).not.toContain("createdAt");
+    expect(Object.keys(rec)).not.toContain("updatedAt");
+    expect(Object.keys(rec)).not.toContain("recordType");
+  });
+
+  test("the result is compact JSON, not indented", async () => {
+    // Indentation is whitespace the model pays for on every hit, and search
+    // returns many hits.
+    const { core } = client(payload);
+
+    const out = await tool$pipeshubSearch.tool(core, { query: "runbook" } as never, ctx());
+
+    expect(textOf(out)).not.toContain("\n");
+    expect(textOf(out)).toBe(JSON.stringify(jsonOf(out)));
   });
 
   test("a response with neither hits nor records is empty, not broken", async () => {

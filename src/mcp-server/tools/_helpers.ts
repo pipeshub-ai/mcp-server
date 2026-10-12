@@ -79,10 +79,15 @@ export function expiredTokenError(exp: unknown): CallToolResult | null {
   );
 }
 
-/** Return a CallToolResult holding a single JSON-stringified text block. */
+/**
+ * Return a CallToolResult holding a single compact JSON text block. The reader
+ * is a language model: indentation adds nothing it needs and is paid for on
+ * every hit of a large search. The CLI re-parses this text and pretty-prints
+ * its own output, so people reading the CLI still get indented JSON.
+ */
 export function jsonResult(value: unknown): CallToolResult {
   return {
-    content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(value) }],
   };
 }
 
@@ -541,22 +546,41 @@ export async function listAllAgents(
   return { ok: true, agents: all, total: total || all.length, truncated: true };
 }
 
-/** Trim a single search hit to what the LLM actually needs. */
+/** Longest snippet a search hit carries. */
+export const SNIPPET_MAX_CHARS = 280;
+
+/**
+ * Trim a single search hit to what the LLM actually needs.
+ *
+ * The snippet is the passage, or the block text when there is no string
+ * passage, cut to `SNIPPET_MAX_CHARS`. A cut is marked with
+ * `snippetTruncated` and the original `contentChars`, so the model does not
+ * read a sentence that stops mid-way as everything the source said. A snippet
+ * that fits carries neither key.
+ */
 export function trimSearchHit(hit: any) {
   const md = hit?.metadata ?? {};
+  const full = typeof hit?.content === "string" ? hit.content : md.blockText;
+  const cut = typeof full === "string" && full.length > SNIPPET_MAX_CHARS;
   return {
     recordId: md.recordId,
     recordName: md.recordName,
     score: hit?.score,
-    snippet: typeof hit?.content === "string"
-      ? hit.content.slice(0, 280)
-      : md.blockText,
+    snippet: cut ? full.slice(0, SNIPPET_MAX_CHARS) : full,
+    ...(cut ? { snippetTruncated: true, contentChars: full.length } : {}),
     mimeType: md.mimeType,
     extension: md.extension,
     connector: md.connector,
     webUrl: md.webUrl,
     pageNum: md.pageNum,
   };
+}
+
+/** Epoch milliseconds as an ISO 8601 string, or undefined when unusable. */
+export function isoFromEpochMs(value: unknown): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 // ─── Sources and search scoping ──────────────────────────────────────────────
