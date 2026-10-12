@@ -228,13 +228,19 @@ describe("pipeshub_sources", () => {
       pagination: { hasNext: false },
     };
 
-    /** Sources answer 200; every model listing answers 403. */
+    const STATS = {
+      success: true,
+      data: { stats: { total: 1, indexingStatus: { COMPLETED: 1 } } },
+    };
+
+    /** Sources and their counts answer 200; every model listing answers 403. */
     function scopedClient() {
       const fetcher = async (input: RequestInfo | URL) => {
         const url = (input as Request).url;
-        return url.includes("/ai-models/")
-          ? Response.json({ message: "Insufficient scope" }, { status: 403 })
-          : Response.json(SOURCES);
+        if (url.includes("/ai-models/")) {
+          return Response.json({ message: "Insufficient scope" }, { status: 403 });
+        }
+        return Response.json(url.endsWith("/stats") ? STATS : SOURCES);
       };
       return new PipeshubCore({
         serverURL: "http://pipeshub.test/api/v1",

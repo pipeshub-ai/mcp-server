@@ -128,6 +128,7 @@ Discover available chat sources and AI models in one call. Call this once at the
 
 **Response:** up to three sections.
 - `sources` — connectors (`kind: "connector"`) and collections (`kind: "knowledgeBase"`). For `pipeshub_search` and `pipeshub_chat`, pass connector ids in `apps` and collection ids in `kb`. `sourcesTruncated: true` means the listing stopped at 1,000 sources.
+  - Each source carries `coverage`: `{ indexed, total, notIndexed }`. Search and chat find only the `indexed` records; `notIndexed` counts records that exist but whose content is not indexed yet, by status (`AUTO_INDEX_OFF`, `QUEUED`, `FAILED`, ...). When any source is partly indexed, `coverageNote` says what that means for a search that finds nothing. Counts are read for the first 100 sources; a source whose counts cannot be read has no `coverage`, and `notes` says why. Reading the counts needs `connector:read` and `kb:read`.
 - `llmModels` — chat / generation models. Each `modelKey` is the value to pass as `modelKey` to `pipeshub_chat`. Pick `isDefault: true` unless the user asks for a specific model.
 - `embeddingModels` — vector embedding models (only when explicitly requested).
 
