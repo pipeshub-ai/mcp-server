@@ -160,9 +160,10 @@ the assistant agent. The fix is a new token with that scope; it cannot be added
 to the old one. `missingScopes` is `null` when the token's scopes cannot be read.
 
 The five scopes recommended in [SECURITY.md](SECURITY.md) leave `agent:execute`
-out, so a token minted to that list is told `ask` will be refused. That is
-accurate. Whether to grant it is a deployment decision: it is the scope that
-lets the assistant run, including any actions it is allowed to take.
+out on purpose: `ask` is opt-in. A token minted to that list is told `ask` will
+be refused, and that is accurate. To let someone use `ask`, mint their token
+with the five scopes plus `agent:execute`. Grant it deliberately: it is the
+scope that lets the assistant run, including any actions it is allowed to take.
 
 ## Exit 4 — forbidden
 
