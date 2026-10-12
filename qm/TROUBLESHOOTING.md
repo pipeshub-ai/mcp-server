@@ -8,7 +8,7 @@ deployment. If you see something not listed here, the exit code narrows it:
 | `1` | an error that is none of the below — a network failure, or an unexpected server response |
 | `2` | configuration or usage |
 | `3` | not authenticated |
-| `4` | forbidden — this person cannot see it |
+| `4` | forbidden — this person cannot see it, or (message contains `Insufficient scope`) the token lacks a scope |
 | `5` | rate limited |
 | `6` | no results, **or an `ask` answer with no sources** |
 
@@ -171,7 +171,8 @@ integration working: PipesHub filters by the token's identity, and a denial is a
 `403`, not an empty result. Do not retry through a different command — `search`,
 `ask`, and `get` all enforce the same permissions.
 
-The exception is a message that starts `Insufficient scope. Required: …`. That
+The exception is a message that contains `Insufficient scope. Required: …`
+(after an `HTTP 403` prefix, or on its own when it comes from the chat stream). That
 is not about the record: the token was not granted the scope the command needs.
 The message names it, and the fix is a new personal access token that includes
 it (see `missingScopes` above).

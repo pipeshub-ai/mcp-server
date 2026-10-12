@@ -173,3 +173,29 @@ describe("auth status", () => {
     expect(missingScopesByCommand([])).toBeNull();
   });
 });
+
+describe("what the agent and the operator are told", () => {
+  test("whoami is not reported as refused without user:read", () => {
+    // It falls back to the token's own claims on any refusal but 401.
+    const missing = missingScopesByCommand(["conversation:chat", "agent:execute", "semantic:write", "kb:read", "connector:read"]);
+    expect(missing).toEqual({});
+  });
+
+  test("the advice never suggests pasting the new token into a chat", async () => {
+    const body = JSON.stringify({ error: { code: "HTTP_FORBIDDEN", message: REFUSAL } });
+    const out = await httpErrorResult(
+      new Response(body, { status: 403, statusText: "Forbidden" }),
+      "PipesHub chat request",
+    );
+    const text = textOf(out!);
+    expect(text).toContain("never be pasted into a chat");
+    expect(text).not.toContain("use it in place of this one");
+  });
+
+  test("the skill tells the agent that exit 4 with Insufficient scope means a new token", async () => {
+    const skill = await Bun.file(new URL("../qm/sandbox/skills/pipeshub/SKILL.md", import.meta.url)).text();
+    const row = skill.split("\n").find((l) => l.startsWith("| `4` |")) ?? "";
+    expect(row).toContain("Insufficient scope");
+    expect(row).toContain("new personal access token");
+  });
+});

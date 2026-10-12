@@ -125,9 +125,11 @@ export function missingScopeAdvice(scopes: string[]): string {
   return `The access token is valid but was not granted the ${named} scope `
     + "this needs, and scopes cannot be added to an existing token. Create a "
     + "new personal access token in PipesHub under Developer Settings → "
-    + `Personal Access Tokens with ${named} selected, and use it in place of `
-    + "this one. Tell the user: only they can do this, and retrying with the "
-    + "current token will fail the same way.";
+    + `Personal Access Tokens with ${named} selected, and replace this one `
+    + "with it wherever this client reads its token (for the pipeshub CLI, "
+    + "`pipeshub auth connect-help` shows where). Tell the user: only they can "
+    + "do this, retrying with the current token will fail the same way, and "
+    + "the new token must never be pasted into a chat.";
 }
 
 /** `message`, followed by what to do when it is a missing-scope refusal. */

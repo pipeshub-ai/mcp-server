@@ -97,7 +97,11 @@ function arr(value: unknown): unknown[] {
  *                      → assistant agent chat (Python)           agent:execute
  *   get                GET  /connectors/record/:id/content       connector:read
  *   get --as / --out   GET  /knowledgeBase/stream/record/:id     kb:read
- *   directory whoami   GET  /users/:id                           user:read
+ *
+ * `directory whoami` is left out on purpose. It probes GET /users/:id
+ * (user:read), but on any refusal other than 401 it still returns the
+ * identity from the token's own claims and exits 0, so a missing user:read
+ * does not make it fail.
  */
 export const COMMAND_SCOPES: Readonly<Record<string, readonly string[]>> = {
   sources: ["kb:read"],
@@ -105,7 +109,6 @@ export const COMMAND_SCOPES: Readonly<Record<string, readonly string[]>> = {
   ask: ["conversation:chat", "agent:execute"],
   get: ["connector:read"],
   "get --as/--out": ["kb:read"],
-  "directory whoami": ["user:read"],
 };
 
 /**
