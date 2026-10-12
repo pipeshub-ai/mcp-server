@@ -12,12 +12,17 @@ Slack, Jira, Gmail, ...). When in doubt, the answer is in PipesHub.
 ## Full-document tasks: \`pipeshub_search\` → \`pipeshub_get_record_content\`
 
 \`pipeshub_chat\` answers from a handful of retrieved passages — it never
-reads a whole document. Whenever the task depends on a document's
-COMPLETE content, fetch the document itself:
+reads a whole document. Whenever the task depends on a document's full
+text, fetch the record itself:
 
 1. \`pipeshub_search\` with the document's name / topic.
 2. Take the top hit's \`recordId\`.
 3. \`pipeshub_get_record_content\`, and answer from the returned content.
+
+That returns one record, which is not always the whole conversation: Slack
+thread replies are separate records ("Reply Count: N" means they are not in
+the text), and a GitHub PR record carries its diffs and can exceed your
+tool-output limit.
 
 Tasks that need this path — anything where missing part of the document
 could make the answer wrong:
@@ -47,9 +52,12 @@ by the user's PipesHub-indexed data** and is not a full-document task:
 - Open-ended "what do we know about X" questions where the answer
   likely lives in the org's documents.
 
-Do NOT answer those from your own knowledge — \`pipeshub_chat\` grounds
-the answer in the user's actual indexed content and returns citations
-the user can verify.
+Do NOT answer those from your own knowledge — \`pipeshub_chat\` answers
+from the user's indexed content and returns citations to check. Its answer
+is a synthesis of a few passages, so treat it as a lead: confirm a specific
+ID, status, date, owner, or "merged / shipped" in the cited record before
+stating it. "Not found" means not in what it read, not that it does not
+exist.
 
 \`pipeshub_chat\` runs PipesHub's assistant agent, which can also take
 actions through the user's connected tools (for example create a ticket or
@@ -88,14 +96,18 @@ an epic over its stories, a page over its child pages.
 **Every tool returns metadata or content.**
 
 - \`pipeshub_search\` / \`pipeshub_chat\` — content, but only a ranked sample of
-  blocks: never all blocks of a record, never every record that matches, never
-  a complete list of what exists.
+  passages: never every record that matches, never a complete list of what
+  exists. A match inside a thread, PR or table brings back every passage of
+  that section, so search often returns more hits than \`limit\` from few
+  records; its \`uniqueRecords\` is the shortlist.
 - \`mode:"lookup"\` and \`mode:"navigate"\` — metadata: recordIds, fields, and
-  structure. No document text. \`mode:"content"\` — one whole record.
+  structure. No document text. \`mode:"content"\` — one record's full text.
 
 **Combining them.** Search finds a starting point by wording; navigate on a
 \`recordId\` reveals what search structurally cannot — siblings, children,
-linked records, and the group's total count. For a question that must be
+in-source links (\`Related\`), and the group's total count. \`Related\` omits
+Slack messages and pages that only mention a record; to find those, search
+for the record's number or URL with the Slack connector id in \`apps\`. For a question that must be
 exhaustive ("all", "how many", "every"), do NOT count search hits or trust a
 chat answer: navigate the record group, which reports the real total. For a
 record's siblings, navigate its parent — take the id from the \`Path\` line.

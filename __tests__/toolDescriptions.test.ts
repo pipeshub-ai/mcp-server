@@ -247,6 +247,28 @@ describe("descriptions say what the tools actually return", () => {
     expect(desc).toMatch(/search[^.]*number or URL[^.]*Slack/);
   });
 
+  // The server instructions go to the host on every initialize, alongside the
+  // tool text. A promise retracted from a description but kept here is still
+  // made, so each caveat has to be in both places.
+  test("the instructions make none of the retracted promises", () => {
+    const text = PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " ");
+    expect(text).not.toContain("grounds the answer");
+    expect(text).not.toContain("COMPLETE content");
+    expect(text).not.toContain("never all blocks of a record");
+    expect(text).not.toContain("one whole record");
+  });
+
+  test("the instructions carry the same caveats as the tool text", () => {
+    const text = PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " ");
+    expect(text).toContain("treat it as a lead");
+    expect(text).toContain("in the cited record");
+    expect(text).toContain("not in what it read");
+    expect(text).toContain("Reply Count: N");
+    expect(text).toContain("tool-output limit");
+    expect(text).toContain("more hits than `limit`");
+    expect(text).toContain("`Related` omits Slack messages");
+  });
+
   // Which tool is the default is a product decision, not this change's.
   test("chat stays the default tool", () => {
     expect(PIPESHUB_INSTRUCTIONS).toContain("## Default tool: `pipeshub_chat`");
