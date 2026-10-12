@@ -95,6 +95,51 @@ export function errorResult(message: string): CallToolResult {
 }
 
 /**
+ * The scopes PipesHub says a request was missing, or null when `message` is
+ * about something else.
+ *
+ * PipesHub refuses a token that lacks a route's scope with
+ * "Insufficient scope. Required: agent:execute" ("a or b" when either will do).
+ * The Node gateway and the Python services word it identically, and the chat
+ * stream relays the Python wording unchanged, so this one pattern covers a
+ * refusal whether it arrives as an HTTP 403 or inside the stream.
+ */
+export function requiredScopesFrom(message: string): string[] | null {
+  const m = /Insufficient scope\.?\s*Required:\s*([\w:.-]+(?:\s+or\s+[\w:.-]+)*)/i
+    .exec(message);
+  if (!m?.[1]) return null;
+  return m[1].split(/\s+or\s+/i);
+}
+
+/**
+ * What to tell someone whose token lacks a scope.
+ *
+ * The token itself is fine, so the usual "check it is valid and not expired"
+ * sends them the wrong way. A personal access token's scopes are fixed when it
+ * is created (PipesHub can list, create and revoke one, never edit it), so the
+ * remedy is a new token. Without this, a model that sees the bare refusal
+ * quietly falls back to another tool and the person never learns why.
+ */
+export function missingScopeAdvice(scopes: string[]): string {
+  const named = scopes.map((s) => `\`${s}\``).join(" or ");
+  return `The access token is valid but was not granted the ${named} scope `
+    + "this needs, and scopes cannot be added to an existing token. Create a "
+    + "new personal access token in PipesHub under Developer Settings → "
+    + `Personal Access Tokens with ${named} selected, and use it in place of `
+    + "this one. Tell the user: only they can do this, and retrying with the "
+    + "current token will fail the same way.";
+}
+
+/** `message`, followed by what to do when it is a missing-scope refusal. */
+export function withScopeAdvice(message: string): string {
+  const scopes = requiredScopesFrom(message);
+  if (!scopes) return message;
+  const reason = message.trim();
+  return `${/[.!?]$/.test(reason) ? reason : `${reason}.`} `
+    + missingScopeAdvice(scopes);
+}
+
+/**
  * Guard a (possibly streaming) `Response` on its HTTP status. The streaming
  * SDK funcs configure `errorCodes: []`, so the request layer treats ANY HTTP
  * response — including 401 / 403 / 404 / 5xx — as a success and hands back the
@@ -142,7 +187,12 @@ export async function httpErrorResult(
   const detail = reason
     ? ` ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
     : "";
-  const auth = (response.status === 401 || response.status === 403)
+  const missingScopes = response.status === 403
+    ? requiredScopesFrom(reason)
+    : null;
+  const auth = missingScopes
+    ? ` ${missingScopeAdvice(missingScopes)}`
+    : (response.status === 401 || response.status === 403)
     ? " Check that the bearer token / credentials are valid and not expired."
     : "";
   return errorResult(

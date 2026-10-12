@@ -83,8 +83,55 @@ function arr(value: unknown): unknown[] {
 
 // ─── auth ────────────────────────────────────────────────────────────────────
 
+/**
+ * The OAuth scopes each command needs, taken from the PipesHub routes behind
+ * it. A token's scopes are fixed when it is minted, so a command added or
+ * re-routed later (as `ask` was, when chat moved onto the assistant agent and
+ * started needing `agent:execute`) silently stops working for older tokens.
+ * `auth status` checks the token against this list so that shows up before a
+ * command fails, not after.
+ *
+ *   sources            GET  /knowledgeBase/knowledge-hub/nodes   kb:read
+ *   search             POST /search                              semantic:write
+ *   ask                POST /conversations/stream                conversation:chat
+ *                      → assistant agent chat (Python)           agent:execute
+ *   get                GET  /connectors/record/:id/content       connector:read
+ *   get --as / --out   GET  /knowledgeBase/stream/record/:id     kb:read
+ *   directory whoami   GET  /users/:id                           user:read
+ */
+export const COMMAND_SCOPES: Readonly<Record<string, readonly string[]>> = {
+  sources: ["kb:read"],
+  search: ["semantic:write"],
+  ask: ["conversation:chat", "agent:execute"],
+  get: ["connector:read"],
+  "get --as/--out": ["kb:read"],
+  "directory whoami": ["user:read"],
+};
+
+/**
+ * The commands this token cannot run, each with the scopes it lacks. Null when
+ * the token's scopes are unknown (not a JWT, or no scope claim), because
+ * guessing would report every command as broken.
+ */
+export function missingScopesByCommand(
+  scopes: readonly string[],
+): Record<string, string[]> | null {
+  if (scopes.length === 0) return null;
+  const held = new Set(scopes);
+  const missing: Record<string, string[]> = {};
+  for (const [command, needed] of Object.entries(COMMAND_SCOPES)) {
+    const lacking = needed.filter((s) => !held.has(s));
+    if (lacking.length > 0) missing[command] = lacking;
+  }
+  return missing;
+}
+
 export async function authStatus(ctx: Ctx): Promise<Outcome> {
   const claims = describeToken(ctx.token);
+  const missingScopes = missingScopesByCommand(claims.scopes);
+  const lacking = missingScopes === null
+    ? []
+    : [...new Set(Object.values(missingScopes).flat())];
   let connected = false;
   let tools: string[] = [];
   let error: string | null = null;
@@ -115,6 +162,19 @@ export async function authStatus(ctx: Ctx): Promise<Outcome> {
       expiresAt: claims.expiresAt,
       expired: claims.expired,
       toolCount: tools.length,
+      missingScopes,
+      // Said in words as well, because a list of scopes does not tell the
+      // reader what to do about it. Never an error exit: the token works for
+      // everything else.
+      ...(lacking.length > 0
+        ? {
+          warning: `This token lacks ${lacking.join(", ")}, so `
+            + `${Object.keys(missingScopes ?? {}).map((c) => `'${c}'`).join(", ")} `
+            + "will be refused. Scopes cannot be added to an existing token: "
+            + "create a new personal access token in PipesHub under Developer "
+            + "Settings → Personal Access Tokens with them selected.",
+        }
+        : {}),
       error,
     },
   };

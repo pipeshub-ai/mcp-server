@@ -60,7 +60,9 @@ export function toolErrorToExit(message: string): number {
   ) {
     return EXIT.UNAUTHENTICATED;
   }
-  if (/\b403\b|not have permission|forbidden/i.test(message)) {
+  // A missing scope reached through chat arrives inside the stream, so it has
+  // no status code either; it is a refusal of this token all the same.
+  if (/\b403\b|not have permission|forbidden|insufficient scope/i.test(message)) {
     return EXIT.FORBIDDEN;
   }
   if (/\b429\b|rate.?limit/i.test(message)) return EXIT.RATE_LIMITED;

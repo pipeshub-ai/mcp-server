@@ -149,12 +149,32 @@ The command still exits with a code that tells you which problem it is:
 `auth status` never prints the token, in any mode. If you need to compare one,
 compare a six-character prefix.
 
+## `auth status` shows `missingScopes`
+
+`missingScopes` lists each command this token cannot run and the scopes it
+lacks, read from the token itself; `warning` says the same in words. A token's
+scopes are fixed when it is created, so a token minted before a command needed
+a scope keeps working for everything else and is refused only there. The most
+common case is `ask`, which needs `agent:execute` since chat began running on
+the assistant agent. The fix is a new token with that scope; it cannot be added
+to the old one. `missingScopes` is `null` when the token's scopes cannot be read.
+
+The five scopes recommended in [SECURITY.md](SECURITY.md) leave `agent:execute`
+out, so a token minted to that list is told `ask` will be refused. That is
+accurate. Whether to grant it is a deployment decision: it is the scope that
+lets the assistant run, including any actions it is allowed to take.
+
 ## Exit 4 — forbidden
 
 The person you are acting for genuinely cannot access that record. This is the
 integration working: PipesHub filters by the token's identity, and a denial is a
 `403`, not an empty result. Do not retry through a different command — `search`,
 `ask`, and `get` all enforce the same permissions.
+
+The exception is a message that starts `Insufficient scope. Required: …`. That
+is not about the record: the token was not granted the scope the command needs.
+The message names it, and the fix is a new personal access token that includes
+it (see `missingScopes` above).
 
 ## Exit 6 — no search hits, or `ask` with no citation objects
 
