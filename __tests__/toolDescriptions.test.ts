@@ -184,6 +184,100 @@ describe("tool descriptions", () => {
   });
 });
 
+// A description that promises more than a tool returns is worse than a short
+// one: the model reads the promise and stops looking. Each test below pins a
+// sentence that says what the backend actually hands back.
+describe("descriptions say what the tools actually return", () => {
+  // Descriptions are hard-wrapped, so a phrase can straddle a line break.
+  const flat = (name: string) => (byName.get(name) ?? "").replace(/\s+/g, " ");
+  // The backend runs a rewritten and expanded form of the query and fetches
+  // `limit` vector matches for each one, then expands a match inside a
+  // section (a thread, a PR's file change, a table) into every passage of that
+  // section. "Number of results" made `limit: 10` look like ten hits.
+  test("search's limit is per query variant, not a cap on hits", () => {
+    const limit = argSchema("pipeshub_search").properties?.limit?.description ?? "";
+    expect(limit).not.toContain("Number of results");
+    expect(limit).toContain("per query variant");
+    expect(limit).toContain("more hits than `limit`");
+    expect(limit).toContain("`uniqueRecords`");
+  });
+
+  test("search points at uniqueRecords as the shortlist", () => {
+    const desc = flat("pipeshub_search");
+    expect(desc).toContain("more hits than `limit`");
+    expect(desc).toContain("`uniqueRecords` lists each record once");
+  });
+
+  // Chat's answer is a synthesis of a few passages. Calling it "grounded"
+  // invites the model to repeat it as fact.
+  test("search does not call chat's answer grounded", () => {
+    const desc = flat("pipeshub_search");
+    expect(desc).not.toContain("grounds the answer");
+    expect(desc).toContain("returns an answer with citations to check");
+  });
+
+  test("chat says to confirm specifics in the cited record, and what not found means", () => {
+    const chat = flat("pipeshub_chat");
+    expect(chat).toContain("synthesis of a few retrieved passages");
+    expect(chat).toContain("confirm it in the cited record");
+    expect(chat).toMatch(/IDs?, status(es)?, dates?, owners?/);
+    expect(chat).toContain("merged or shipped");
+    expect(chat).toContain("not in what it read");
+  });
+
+  // Content mode reads one record. A Slack record is one burst of messages;
+  // thread replies are separate records, and the parent carries only
+  // "Reply Count: N". A GitHub PR record carries diffs and changed files.
+  test("record content does not promise a complete conversation", () => {
+    const desc = flat("pipeshub_get_record_content");
+    expect(desc).not.toContain("COMPLETE text");
+    expect(desc).toContain("one record");
+    expect(desc).toContain("Reply Count: N");
+    expect(desc).toContain("separate records");
+    expect(desc).toContain("diffs");
+    expect(desc).toContain("tool-output limit");
+  });
+
+  // `Related` is built from relation edges a connector writes from inside one
+  // source. A Slack message that pastes a PR's URL creates no such edge.
+  test("navigate's Related is qualified, and discussion is found by search", () => {
+    const desc = flat("pipeshub_get_record_content");
+    expect(desc).toContain("`Related` lists only links recorded inside a source");
+    expect(desc).toContain("not Slack messages or pages that mention");
+    expect(desc).toMatch(/search[^.]*number or URL[^.]*Slack/);
+  });
+
+  // The server instructions go to the host on every initialize, alongside the
+  // tool text. A promise retracted from a description but kept here is still
+  // made, so each caveat has to be in both places.
+  test("the instructions make none of the retracted promises", () => {
+    const text = PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " ");
+    expect(text).not.toContain("grounds the answer");
+    expect(text).not.toContain("COMPLETE content");
+    expect(text).not.toContain("never all blocks of a record");
+    expect(text).not.toContain("one whole record");
+  });
+
+  test("the instructions carry the same caveats as the tool text", () => {
+    const text = PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " ");
+    expect(text).toContain("treat it as a lead");
+    expect(text).toContain("in the cited record");
+    expect(text).toContain("not in what it read");
+    expect(text).toContain("Reply Count: N");
+    expect(text).toContain("tool-output limit");
+    expect(text).toContain("more hits than `limit`");
+    expect(text).toContain("`Related` omits Slack messages");
+    // A Slack-scoped search finds discussion, not a Confluence or Drive page.
+    expect(text).toContain("To find Slack discussion of a PR or ticket");
+    expect(text).toContain("without `apps`, across every source");
+  });
+
+  // Which tool is the default is a product decision, not this change's.
+  test("chat stays the default tool", () => {
+    expect(PIPESHUB_INSTRUCTIONS).toContain("## Default tool: `pipeshub_chat`");
+  });
+});
+
 describe("description budget", () => {
   // Every byte here ships to the host on every session and competes with the
   // host's own tools. These ceilings are deliberately close to current size —
@@ -202,11 +296,18 @@ describe("description budget", () => {
   // caveat on search (+~400) and depth/pagination guidance on navigate (+~370).
   // Without those, hosts count search hits to answer "how many" and never
   // reach for navigate at all.
-  const PER_TOOL_MAX = 4000;
+  // Raised 2026-10-12, deliberately, by ~600 per tool and ~1000 in total, so
+  // the descriptions stop overpromising: content mode reads one record (a
+  // Slack burst, not its thread replies; a PR with diffs that can overflow the
+  // client), navigate's `Related` holds only in-source links, search returns
+  // more hits than `limit`, and chat's answer is a lead to confirm. Every
+  // sentence of that replaced a promise the tools did not keep; none of it
+  // came out of routing text.
+  const PER_TOOL_MAX = 4600;
   // Raised 2026-09-15 by ~100 so directory can name pipeshub_search and
   // empty-list / next-page behaviour. Limit defaults live on the arg, not
   // in this budget.
-  const TOTAL_MAX = 11320;
+  const TOTAL_MAX = 12300;
   const INSTRUCTIONS_MAX = 8000;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {

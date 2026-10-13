@@ -108,9 +108,9 @@ export const tool$pipeshubGetRecordContent: ToolDefinition<typeof args> = {
                     → its recordId plus the record's metadata
   \`mode:"navigate"\` — a question about structure: what is under X,
                     what links to Y → browses the hierarchy
-  \`mode:"content"\`  — a recordId, and you need the document's COMPLETE text
+  \`mode:"content"\`  — a recordId, and you need that record's full text
 
-**\`mode:"content"\` (default)** — the only way to see a document's complete
+**\`mode:"content"\` (default)** — the only way to read one record's full
 text. Use it whenever missing part of the document could make the answer
 wrong: summarize, extract or list ALL of something, check whether or where
 a doc mentions X, review, or compare named docs. \`pipeshub_chat\` cannot do
@@ -125,6 +125,12 @@ Returns one \`content\` string: a metadata header (title, source, key fields,
 pre-generated summary) then the full parsed text. A record with no
 extractable content returns the literal \`No record found\`. Use
 \`pipeshub_download_record\` only for the original file bytes.
+
+It returns one record, which is not always the whole conversation. A Slack
+record is one burst of messages; thread replies are separate records, and
+"Reply Count: N" means those replies are not in this text — search for
+words from the thread to find them. GitHub PR records include diffs and
+changed files, and can be far larger than your tool-output limit.
 
 **\`mode:"navigate"\`** — browse the hierarchy: RecordGroup (project /
 space / drive / folder) → Record (epic / story / page / file) → children,
@@ -155,6 +161,11 @@ carrying \`record_id=\` or \`node_id=\` per row plus the group's total
 (\`Children 1-50 of 61\`), \`Related\` cross-references, and a \`Next:\` line.
 One page is usually every child, so only pass \`page:2\` when that \`Next:\`
 line says more exist.
+
+\`Related\` lists only links recorded inside a source (Jira issue links,
+GitHub blocked-by), not Slack messages or pages that mention the record. To
+find discussion of a PR or ticket, \`pipeshub_search\` for its number or URL
+with the Slack connector id in \`apps\`.
 
 **\`mode:"lookup"\`** — turn an external reference into a recordId, the first
 step whenever the question names one. Returns that record's metadata (for a
