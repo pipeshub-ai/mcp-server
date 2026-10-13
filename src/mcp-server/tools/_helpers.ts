@@ -732,7 +732,12 @@ export async function listSourceCoverage(
     : {};
   const wanted = sources.slice(0, COVERAGE_SOURCE_LIMIT).filter((s) => s.id);
   const coverage = new Map<string, SourceCoverage>();
-  let forbidden = 0;
+  // 404 is how the stats route answers a connector the caller can list but
+  // not open (team connectors are listed for everyone, their counts only for
+  // the creator or an admin); 403 is a collection role below READER. Neither
+  // is a scope problem: listing the sources already needed kb:read, and the
+  // stats route accepts kb:read or connector:read.
+  let denied = 0;
   let unreadable = 0;
 
   let next = 0;
@@ -746,9 +751,9 @@ export async function listSourceCoverage(
         unreadable++;
         continue;
       }
-      if (r.value.status === 403) {
+      if (r.value.status === 403 || r.value.status === 404) {
         await r.value.body?.cancel();
-        forbidden++;
+        denied++;
         continue;
       }
       const parsed = await readJson(r.value, "Source coverage");
@@ -765,10 +770,10 @@ export async function listSourceCoverage(
   );
 
   const notes: string[] = [];
-  if (forbidden > 0) {
+  if (denied > 0) {
     notes.push(
-      `coverage omitted for ${forbidden} source(s): reading indexing counts `
-        + "needs the connector:read and kb:read scopes.",
+      `coverage is missing for ${denied} source(s) whose indexing counts `
+        + "this account cannot open.",
     );
   }
   if (unreadable > 0) {

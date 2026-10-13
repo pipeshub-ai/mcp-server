@@ -18,13 +18,18 @@ const args = {
     ),
 };
 
-/** What an agent must know when a source is only partly indexed. */
+/**
+ * What an agent must know when a source is only partly indexed, or when it
+ * cannot tell: a source without `coverage` may be partly indexed too.
+ */
 export const PARTIAL_COVERAGE_NOTE =
-  "Search and chat find only indexed records. Records counted under "
-  + "`notIndexed` exist, but their content is not indexed yet, so a search "
-  + "that finds nothing does not mean the thing does not exist. Look it up by "
-  + "link or key with `pipeshub_get_record_content` `mode:\"lookup\"`, "
-  + "and tell the user which content could not be searched.";
+  "Search and chat find only indexed records, and not every source here is "
+  + "known to be fully indexed. Records counted under `notIndexed` exist, but "
+  + "their content is not indexed yet; a source without `coverage` may have "
+  + "such records too. So a search that finds nothing does not mean the thing "
+  + "does not exist. Look it up by link or key with "
+  + "`pipeshub_get_record_content` `mode:\"lookup\"`, and tell the user which "
+  + "content could not be searched.";
 
 export const tool$pipeshubSources: ToolDefinition<typeof args> = {
   name: "pipeshub_sources",
@@ -37,8 +42,8 @@ Returns up to three sections:
   (\`kind: "knowledgeBase"\`). For \`pipeshub_search\` and
   \`pipeshub_chat\`, put a connector \`id\` in \`apps\` and a collection
   \`id\` in \`kb\`. \`sourcesTruncated: true\` means the list stopped at
-  1,000 sources. Each has \`coverage\` \`{ indexed, total, notIndexed }\`;
-  search sees only \`indexed\`.
+  1,000 sources. When readable, each has \`coverage\`
+  \`{ indexed, total, notIndexed }\`; search sees only \`indexed\`.
 - \`llmModels\` — chat / generation models. Each item's \`modelKey\`
   is the value to pass on \`pipeshub_chat\` as \`modelKey\`. Pick
   \`isDefault: true\` unless the user asks for a specific model.
@@ -87,7 +92,8 @@ sources and models change infrequently.`,
       const partial = [...coverage.values()].some((c) =>
         Object.keys(c.notIndexed).length > 0
       );
-      if (partial) result["coverageNote"] = PARTIAL_COVERAGE_NOTE;
+      const unknown = listed.sources.some((s) => !coverage.has(s.id));
+      if (partial || unknown) result["coverageNote"] = PARTIAL_COVERAGE_NOTE;
       notes.push(...coverageNotes);
     }
 

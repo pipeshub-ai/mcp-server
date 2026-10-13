@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
+import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 import {
   PARTIAL_COVERAGE_NOTE,
   tool$pipeshubSources,
@@ -170,10 +171,16 @@ describe("pipeshub_sources coverage", () => {
     expect(tool$pipeshubSources.description).toContain("`coverage`");
   });
 
-  test("a token that may not read counts still gets every source, with a note", async () => {
+  // Team connectors are listed for every member, but their counts open only
+  // for the creator or an admin: the stats route answers 404. A collection
+  // role below READER answers 403. Neither is a missing scope.
+  test.each([
+    [404, "a connector this account can list but not open"],
+    [403, "a collection role below reader"],
+  ])("a %i on the counts (%s) keeps the source and still warns", async (status) => {
     const { core } = instance(
       [{ id: CONN, name: "GitHub", connector: "GITHUB" }],
-      { [CONN]: { status: 403, body: { detail: "Insufficient scope" } } },
+      { [CONN]: { status, body: { detail: "denied" } } },
     );
 
     const out = await tool$pipeshubSources.tool(core, {} as never, ctx());
@@ -182,7 +189,13 @@ describe("pipeshub_sources coverage", () => {
     const body = jsonOf(out);
     expect(body.sources).toHaveLength(1);
     expect("coverage" in body.sources[0]).toBe(false);
-    expect(body.notes[0]).toContain("connector:read and kb:read");
+    expect(body.notes).toEqual([
+      "coverage is missing for 1 source(s) whose indexing counts this account cannot open.",
+    ]);
+    expect(body.notes[0]).not.toContain("scope");
+    // Coverage unknown is not coverage complete: the search-miss warning
+    // still reaches the agent.
+    expect(body.coverageNote).toBe(PARTIAL_COVERAGE_NOTE);
   });
 
   test("one unreadable source loses only its own coverage", async () => {
@@ -205,6 +218,7 @@ describe("pipeshub_sources coverage", () => {
     expect("coverage" in byId[CONN]).toBe(false);
     expect(byId[COLL].coverage.indexed).toBe(2);
     expect(body.notes).toEqual(["coverage could not be read for 1 source(s)."]);
+    expect(body.coverageNote).toBe(PARTIAL_COVERAGE_NOTE);
   });
 
   test("counts are fetched for at most the first hundred sources", async () => {
@@ -234,5 +248,17 @@ describe("pipeshub_sources coverage", () => {
     await tool$pipeshubSources.tool(core, { include: ["llmModels"] } as never, ctx());
 
     expect(statsAsked).toEqual([]);
+  });
+});
+
+// The backend now describes a record that exists but is not indexed instead
+// of answering `No record found`. The description must not promise that
+// literal for it, or an agent reads the description as "does not exist".
+describe("pipeshub_get_record_content description", () => {
+  test("says an unindexed record exists, and keeps No record found for the rest", () => {
+    const d = tool$pipeshubGetRecordContent.description;
+    expect(d).toContain("Not indexed:");
+    expect(d).toContain("(it exists)");
+    expect(d).toContain("No record found");
   });
 });

@@ -122,9 +122,10 @@ full-content tasks. Get the \`recordId\` from a \`pipeshub_search\` top hit, a
 chat citation, or \`mode:"lookup"\`.
 
 Returns one \`content\` string: a metadata header (title, source, key fields,
-pre-generated summary) then the full parsed text. A record with no
-extractable content returns the literal \`No record found\`. Use
-\`pipeshub_download_record\` only for the original file bytes.
+pre-generated summary) then the full parsed text. Not indexed yet:
+metadata and a \`Not indexed:\` line (it exists). Nothing loadable:
+\`No record found\`. Use \`pipeshub_download_record\` only for the original
+file bytes.
 
 **\`mode:"navigate"\`** — browse the hierarchy: RecordGroup (project /
 space / drive / folder) → Record (epic / story / page / file) → children,
