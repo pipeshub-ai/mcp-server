@@ -27,6 +27,7 @@ import {
   jsonResult,
   resolveSourceScope,
   trimConversation,
+  withScopeAdvice,
 } from "./_helpers.js";
 
 const FiltersShape = z.object({
@@ -73,9 +74,9 @@ const args = {
 export const tool$pipeshubChat: ToolDefinition<typeof args> = {
   name: "pipeshub_chat",
   description:
-    `Ask a question, get an answer grounded in the org's indexed data with
-citations. It reads a few retrieved passages — never a whole document,
-never a complete list.
+    `Ask a question, get an answer with citations from the org's indexed
+data. The answer is PipesHub's assistant's synthesis of a few retrieved
+passages — never a whole document, never a complete list.
 
 **Three questions this tool gets WRONG. Check them first:**
 - **Structure** — "what's under this epic?", "which pages are in this
@@ -118,9 +119,12 @@ that agent's own prompt, tools and knowledge.
 Only re-omit \`conversationId\` (start a fresh conversation) when the
 user explicitly asks to start over / clear context.
 
-The response contains the AI's \`answer\` plus \`citations\`. To download a
-cited document, take \`citations[*].recordId\` and call
-\`pipeshub_download_record\`.`,
+The response contains the AI's \`answer\` plus \`citations\`. Treat the
+answer as a lead: before stating a specific ID, status, date, owner, or that
+something merged or shipped, confirm it in the cited record
+(\`citations[*].recordId\` → \`mode:"content"\`). "Not found" means not in
+what it read, not that it does not exist. To download a cited document,
+call \`pipeshub_download_record\` with that \`recordId\`.`,
   scopes: ["read"],
   annotations: {
     title: "Chat with PipesHub",
@@ -242,7 +246,10 @@ cited document, take \`citations[*].recordId\` and call
       return errorResult(`SSE stream failed: ${(e as Error).message}`);
     }
 
-    if (state.error) return errorResult(state.error);
+    // A token without `agent:execute` gets past the gateway (which checks
+    // `conversation:chat`) and is refused by the assistant one hop later, so
+    // the refusal arrives here as a stream error rather than an HTTP 403.
+    if (state.error) return errorResult(withScopeAdvice(state.error));
 
     if (state.conversation) {
       return jsonResult({

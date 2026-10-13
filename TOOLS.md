@@ -8,7 +8,7 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 ### `pipeshub_chat`
 
-**Default tool for anything PipesHub-related.** Ask a question and get a grounded answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web.
+**Default tool for anything PipesHub-related.** Ask a question and get an answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web.
 
 > **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Questions still belong here, but never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first.
 
@@ -28,6 +28,8 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 **Response:** the AI's `answer`, `citations[]` (each with `recordId`), `followUpQuestions`, plus the `conversationId` to use for follow-ups; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
+> The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). "Not found" means not in what it read, not that it does not exist.
+
 ---
 
 ### `pipeshub_search`
@@ -37,17 +39,19 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Number of results. Default 10. Use 5–10 when you only need a `recordId`. |
+| `limit` | number (1–100) | no | Vector matches to fetch per query variant. Default 10. The backend searches a rewritten form of the query plus a few expanded variants, and a match inside a thread, a pull request or a table returns every passage of that section as its own hit, so one call can return many more hits than `limit`, from only a few records. Use `uniqueRecords` for the shortlist; 5–10 is enough to find a `recordId`. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
 
 Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
 
-**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score; `uniqueRecords[]` for the records behind the returned hits; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
+**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score; `uniqueRecords[]` lists each record behind the hits once, and is the shortlist to use; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
 > Hits are the top-scoring **blocks** from the best-matching records — not all blocks of any record, and not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
 >
 > For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. Reserve `pipeshub_chat` for open-ended questions that span many documents.
+
+Each hit's `snippet` is at most 280 characters. A snippet that was cut carries `snippetTruncated: true` and the passage's full length in `contentChars`. Each `uniqueRecords` entry also carries `recordType` and the source's `createdAt` / `updatedAt` (ISO 8601) when PipesHub has them.
 
 ---
 
@@ -83,9 +87,13 @@ Three operations on records, selected by `mode`.
 | `identifiers` | string \| string[] | conditional | Required when `mode` is `lookup`. A URL, issue key, or external ID — or up to 10 of them. |
 | `connectorName` | string | no | `lookup` only. Hint that prioritises resolution order (e.g. `JIRA`, `GOOGLE_DRIVE`). Cannot widen beyond accessible connectors. |
 
-**`mode: "content"`** (default) — the only way to see a document's full text. Use it for any task that depends on the complete document (summarize, extract all of something, verify a mention, translate, review, compare docs). Prefer it over `pipeshub_download_record` when you need what the record *says* rather than the original file bytes. Returns a single `content` string: a metadata header (title, source, key fields, Web URL, pre-generated summary) followed by the full parsed text. A record that exists but whose content is not indexed yet returns its metadata and a `Not indexed:` paragraph naming its status (servers from before that change answer `No record found` instead): the record exists, but its content could not be read. When nothing could be loaded for the id, `content` is the literal `No record found`.
+**`mode: "content"`** (default) — the only way to read one record's full text. Use it for any task that depends on the complete document (summarize, extract all of something, verify a mention, translate, review, compare docs). Prefer it over `pipeshub_download_record` when you need what the record *says* rather than the original file bytes. Returns a single `content` string: a metadata header (title, source, key fields, Web URL, pre-generated summary) followed by the full parsed text. A record that exists but whose content is not indexed yet returns its metadata and a `Not indexed:` paragraph naming its status (servers from before that change answer `No record found` instead): the record exists, but its content could not be read. When nothing could be loaded for the id, `content` is the literal `No record found`.
+
+> One record is not always the whole conversation. A Slack record is one burst of messages; thread replies are separate records, and `Reply Count: N` in the text means those replies are not included (search for words from the thread to find them). GitHub pull request records include diffs and changed files, and can be far larger than a client's tool-output limit.
 
 **`mode: "navigate"`** — browse the hierarchy: RecordGroup (project / space / drive / folder) → Record (epic / story / page / file) → children. Use it when the question is about structure rather than wording (what is under this epic, which pages sit in a space, what links to a ticket) — `pipeshub_search` ranks by content and cannot show how records relate. Opening a record also prints that record's own metadata, so a question about one record is often answered by this call alone. Returns no document text.
+
+`Related` lists only links recorded inside a source (Jira issue links, GitHub blocked-by), not Slack messages or pages that mention the record. To find discussion of a PR or ticket, `pipeshub_search` for its number or URL with the Slack connector id in `apps`.
 
 Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *and* their subtasks — instead of one call per level; use it whenever the question needs a hierarchy overview rather than a single node. One page is usually every child, so only pass `page: 2` when the `Next:` line says more exist.
 

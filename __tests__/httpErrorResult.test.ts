@@ -157,9 +157,11 @@ describe("expiredTokenError", () => {
 });
 
 describe("jsonResult and errorResult", () => {
-  test("a result carries one readable text block", () => {
-    expect(jsonResult({ a: 1 })).toEqual({
-      content: [{ type: "text", text: '{\n  "a": 1\n}' }],
+  test("a result carries one compact JSON text block", () => {
+    // The reader is a language model, which parses compact JSON as well as
+    // indented JSON and pays for every space of indentation.
+    expect(jsonResult({ a: { b: 1 } })).toEqual({
+      content: [{ type: "text", text: '{"a":{"b":1}}' }],
     });
   });
 

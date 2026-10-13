@@ -51,7 +51,7 @@ Check it. It carries information the text does not.
 | --- | --- | --- |
 | `0` | success | proceed |
 | `3` | not authenticated | run `pipeshub auth connect-help` and relay the steps |
-| `4` | forbidden | this person cannot access it. Say so plainly; do not retry another way |
+| `4` | forbidden | this person cannot access it. Say so plainly; do not retry another way. **Except** when the message contains `Insufficient scope`: the token lacks a scope, not the person. Relay the scope it names and that the fix is a new personal access token, added to their keychain as `pipeshub auth connect-help` describes. Do not fall back to another command |
 | `5` | rate limited | wait and retry once, then report |
 | `6` | **no citation objects, or no search hits** | see below |
 

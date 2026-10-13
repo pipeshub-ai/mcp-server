@@ -80,10 +80,15 @@ export function expiredTokenError(exp: unknown): CallToolResult | null {
   );
 }
 
-/** Return a CallToolResult holding a single JSON-stringified text block. */
+/**
+ * Return a CallToolResult holding a single compact JSON text block. The reader
+ * is a language model: indentation adds nothing it needs and is paid for on
+ * every hit of a large search. The CLI re-parses this text and pretty-prints
+ * its own output, so people reading the CLI still get indented JSON.
+ */
 export function jsonResult(value: unknown): CallToolResult {
   return {
-    content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(value) }],
   };
 }
 
@@ -93,6 +98,53 @@ export function errorResult(message: string): CallToolResult {
     content: [{ type: "text", text: message }],
     isError: true,
   };
+}
+
+/**
+ * The scopes PipesHub says a request was missing, or null when `message` is
+ * about something else.
+ *
+ * PipesHub refuses a token that lacks a route's scope with
+ * "Insufficient scope. Required: agent:execute" ("a or b" when either will do).
+ * The Node gateway and the Python services word it identically, and the chat
+ * stream relays the Python wording unchanged, so this one pattern covers a
+ * refusal whether it arrives as an HTTP 403 or inside the stream.
+ */
+export function requiredScopesFrom(message: string): string[] | null {
+  const m = /Insufficient scope\.?\s*Required:\s*([\w:.-]+(?:\s+or\s+[\w:.-]+)*)/i
+    .exec(message);
+  if (!m?.[1]) return null;
+  return m[1].split(/\s+or\s+/i);
+}
+
+/**
+ * What to tell someone whose token lacks a scope.
+ *
+ * The token itself is fine, so the usual "check it is valid and not expired"
+ * sends them the wrong way. A personal access token's scopes are fixed when it
+ * is created (PipesHub can list, create and revoke one, never edit it), so the
+ * remedy is a new token. Without this, a model that sees the bare refusal
+ * quietly falls back to another tool and the person never learns why.
+ */
+export function missingScopeAdvice(scopes: string[]): string {
+  const named = scopes.map((s) => `\`${s}\``).join(" or ");
+  return `The access token is valid but was not granted the ${named} scope `
+    + "this needs, and scopes cannot be added to an existing token. Create a "
+    + "new personal access token in PipesHub under Developer Settings → "
+    + `Personal Access Tokens with ${named} selected, and replace this one `
+    + "with it wherever this client reads its token (for the pipeshub CLI, "
+    + "`pipeshub auth connect-help` shows where). Tell the user: only they can "
+    + "do this, retrying with the current token will fail the same way, and "
+    + "the new token must never be pasted into a chat.";
+}
+
+/** `message`, followed by what to do when it is a missing-scope refusal. */
+export function withScopeAdvice(message: string): string {
+  const scopes = requiredScopesFrom(message);
+  if (!scopes) return message;
+  const reason = message.trim();
+  return `${/[.!?]$/.test(reason) ? reason : `${reason}.`} `
+    + missingScopeAdvice(scopes);
 }
 
 /**
@@ -143,7 +195,12 @@ export async function httpErrorResult(
   const detail = reason
     ? ` ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
     : "";
-  const auth = (response.status === 401 || response.status === 403)
+  const missingScopes = response.status === 403
+    ? requiredScopesFrom(reason)
+    : null;
+  const auth = missingScopes
+    ? ` ${missingScopeAdvice(missingScopes)}`
+    : (response.status === 401 || response.status === 403)
     ? " Check that the bearer token / credentials are valid and not expired."
     : "";
   return errorResult(
@@ -542,22 +599,41 @@ export async function listAllAgents(
   return { ok: true, agents: all, total: total || all.length, truncated: true };
 }
 
-/** Trim a single search hit to what the LLM actually needs. */
+/** Longest snippet a search hit carries. */
+export const SNIPPET_MAX_CHARS = 280;
+
+/**
+ * Trim a single search hit to what the LLM actually needs.
+ *
+ * The snippet is the passage, or the block text when there is no string
+ * passage, cut to `SNIPPET_MAX_CHARS`. A cut is marked with
+ * `snippetTruncated` and the original `contentChars`, so the model does not
+ * read a sentence that stops mid-way as everything the source said. A snippet
+ * that fits carries neither key.
+ */
 export function trimSearchHit(hit: any) {
   const md = hit?.metadata ?? {};
+  const full = typeof hit?.content === "string" ? hit.content : md.blockText;
+  const cut = typeof full === "string" && full.length > SNIPPET_MAX_CHARS;
   return {
     recordId: md.recordId,
     recordName: md.recordName,
     score: hit?.score,
-    snippet: typeof hit?.content === "string"
-      ? hit.content.slice(0, 280)
-      : md.blockText,
+    snippet: cut ? full.slice(0, SNIPPET_MAX_CHARS) : full,
+    ...(cut ? { snippetTruncated: true, contentChars: full.length } : {}),
     mimeType: md.mimeType,
     extension: md.extension,
     connector: md.connector,
     webUrl: md.webUrl,
     pageNum: md.pageNum,
   };
+}
+
+/** Epoch milliseconds as an ISO 8601 string, or undefined when unusable. */
+export function isoFromEpochMs(value: unknown): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 // ─── Sources and search scoping ──────────────────────────────────────────────

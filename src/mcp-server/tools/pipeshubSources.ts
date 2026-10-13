@@ -42,8 +42,8 @@ Returns up to three sections:
   (\`kind: "knowledgeBase"\`). For \`pipeshub_search\` and
   \`pipeshub_chat\`, put a connector \`id\` in \`apps\` and a collection
   \`id\` in \`kb\`. \`sourcesTruncated: true\` means the list stopped at
-  1,000 sources. When readable, each has \`coverage\`
-  \`{ indexed, total, notIndexed }\`; search sees only \`indexed\`.
+  1,000 sources. Readable ones carry \`coverage\`; search sees only its
+  \`indexed\` records.
 - \`llmModels\` — chat / generation models. Each item's \`modelKey\`
   is the value to pass on \`pipeshub_chat\` as \`modelKey\`. Pick
   \`isDefault: true\` unless the user asks for a specific model.

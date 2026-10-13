@@ -220,7 +220,7 @@ explicit list of what has and has not been verified.
 | `1` | an error that is none of the below — usually the network |
 | `2` | usage or configuration problem |
 | `3` | not authenticated |
-| `4` | forbidden — this person cannot see it |
+| `4` | forbidden — this person cannot see it, or (message contains `Insufficient scope`) the token lacks a scope |
 | `5` | rate limited |
 | `6` | no results, **or an `ask` answer with no sources** |
 
