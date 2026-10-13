@@ -94,6 +94,27 @@ describe("sources", () => {
     expect(out.payload["llmModels"]).toEqual([]);
   });
 
+  test("passes each source's coverage through, and the note that explains it", async () => {
+    const coverage = { indexed: 536, total: 2239, notIndexed: { AUTO_INDEX_OFF: 1703 } };
+    mcp.reply("pipeshub_sources", textReply({
+      sources: [
+        { id: "app-1", name: "GitHub", kind: "connector", connector: "GITHUB", coverage },
+        { id: "kb-1", name: "Handbook", kind: "knowledgeBase", connector: "KB" },
+      ],
+      coverageNote: "Search and chat find only indexed records.",
+      notes: ["coverage could not be read for 1 source(s)."],
+    }));
+
+    const out = await sources(ctx());
+
+    expect(out.payload["sources"]).toEqual([
+      { id: "app-1", name: "GitHub", kind: "connector", connector: "GITHUB", coverage },
+      { id: "kb-1", name: "Handbook", kind: "knowledgeBase", connector: "KB" },
+    ]);
+    expect(out.payload["coverageNote"]).toBe("Search and chat find only indexed records.");
+    expect(out.payload["notes"]).toEqual(["coverage could not be read for 1 source(s)."]);
+  });
+
   test("an empty but readable model list is visible", async () => {
     mcp.reply("pipeshub_sources", textReply({ sources: [], llmModels: [] }));
     const out = await sources(ctx());

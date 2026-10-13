@@ -230,13 +230,21 @@ export async function sources(ctx: Ctx): Promise<Outcome> {
       name: r["name"] ?? null,
       kind: r["kind"] ?? null,
       connector: r["connector"] ?? null,
+      // `{ indexed, total, notIndexed }`: how much of the source search can
+      // see. Left out when the instance did not report it.
+      ...(r["coverage"] ? { coverage: r["coverage"] } : {}),
     };
   });
+  const notes = arr(obj["notes"]);
   return {
     exit: list.length === 0 ? EXIT.NO_RESULTS : EXIT.OK,
     payload: {
       requestId: ctx.requestId,
       sources: list,
+      ...(typeof obj["coverageNote"] === "string"
+        ? { coverageNote: obj["coverageNote"] }
+        : {}),
+      ...(notes.length > 0 ? { notes } : {}),
       // `llmModels` is gated by config:read, which the agent preset omits. The
       // tool then leaves the key out rather than sending `[]`, so "no models
       // configured" and "not authorized to see them" stay distinguishable.

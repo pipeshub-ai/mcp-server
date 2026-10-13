@@ -8,6 +8,7 @@ import { Security } from "../../models/security.js";
 import { PipeshubCore } from "../../core.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { agentsListAgents } from "../../funcs/agentsListAgents.js";
+import { connectorGetConnectorStats } from "../../funcs/connectorGetConnectorStats.js";
 import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
 import {
   AgentListEnvelope$zodSchema,
@@ -732,6 +733,134 @@ export async function listAllSources(
 
   // Hit the page cap with more pages still available.
   return { ok: true, sources: all, truncated: true };
+}
+
+// ─── Source coverage ─────────────────────────────────────────────────────────
+//
+// Search and chat find only indexed content. A record that was synced but
+// never indexed (automatic indexing off, still queued, failed) is invisible to
+// them, and an agent that is not told so reads "nothing found" as "does not
+// exist". The per-source counts already exist behind the connector stats
+// route; this puts them next to each source.
+
+/** How much of one source search can see. */
+export interface SourceCoverage {
+  /** Records whose content is indexed, which search and chat can find. */
+  indexed: number;
+  /** Every record in the source. */
+  total: number;
+  /**
+   * Records that exist but are not indexed, by indexing status
+   * (`AUTO_INDEX_OFF`, `QUEUED`, `FAILED`, ...). Statuses with no records are
+   * left out; records with no status at all count as `UNKNOWN`.
+   */
+  notIndexed: Record<string, number>;
+}
+
+const INDEXED_STATUS = "COMPLETED";
+
+const count = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+
+/**
+ * Coverage from a `GET /connectors/{id}/stats` body, or `undefined` when the
+ * body does not carry the counts.
+ */
+export function sourceCoverage(body: unknown): SourceCoverage | undefined {
+  const stats = (body as any)?.data?.stats;
+  const byStatus = stats?.indexingStatus;
+  if (
+    typeof stats?.total !== "number" || !byStatus
+    || typeof byStatus !== "object"
+  ) {
+    return undefined;
+  }
+  const total = count(stats.total);
+  const indexed = count(byStatus[INDEXED_STATUS]);
+  const notIndexed: Record<string, number> = {};
+  let counted = indexed;
+  for (const [status, n] of Object.entries(byStatus)) {
+    if (status === INDEXED_STATUS || count(n) === 0) continue;
+    notIndexed[status] = count(n);
+    counted += count(n);
+  }
+  // The backend counts a record with no status in `total` only.
+  if (total > counted) notIndexed["UNKNOWN"] = total - counted;
+  return { indexed, total, notIndexed };
+}
+
+/** Sources whose coverage is fetched in one call; the rest go without. */
+export const COVERAGE_SOURCE_LIMIT = 100;
+const COVERAGE_CONCURRENCY = 6;
+
+/**
+ * Fetch each source's coverage. Never fails the listing: a source whose counts
+ * cannot be read has no entry, and `notes` says why.
+ */
+export async function listSourceCoverage(
+  client: PipeshubCore,
+  sources: readonly SourceItem[],
+  opts: { signal?: AbortSignal | undefined } = {},
+): Promise<{ coverage: Map<string, SourceCoverage>; notes: string[] }> {
+  // Only set `signal` when present (exactOptionalPropertyTypes).
+  const reqOptions = opts.signal
+    ? { fetchOptions: { signal: opts.signal } }
+    : {};
+  const wanted = sources.slice(0, COVERAGE_SOURCE_LIMIT).filter((s) => s.id);
+  const coverage = new Map<string, SourceCoverage>();
+  // 404 is how the stats route answers a connector the caller can list but
+  // not open (team connectors are listed for everyone, their counts only for
+  // the creator or an admin); 403 is a collection role below READER. Neither
+  // is a scope problem: listing the sources already needed kb:read, and the
+  // stats route accepts kb:read or connector:read.
+  let denied = 0;
+  let unreadable = 0;
+
+  let next = 0;
+  const worker = async () => {
+    while (next < wanted.length) {
+      const source = wanted[next++]!;
+      const [r] = await connectorGetConnectorStats(client, {
+        connectorId: source.id,
+      }, reqOptions).$inspect();
+      if (!r.ok) {
+        unreadable++;
+        continue;
+      }
+      if (r.value.status === 403 || r.value.status === 404) {
+        await r.value.body?.cancel();
+        denied++;
+        continue;
+      }
+      const parsed = await readJson(r.value, "Source coverage");
+      const c = parsed.ok ? sourceCoverage(parsed.value) : undefined;
+      if (c) coverage.set(source.id, c);
+      else unreadable++;
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(COVERAGE_CONCURRENCY, wanted.length) },
+      worker,
+    ),
+  );
+
+  const notes: string[] = [];
+  if (denied > 0) {
+    notes.push(
+      `coverage is missing for ${denied} source(s) whose indexing counts `
+        + "this account cannot open.",
+    );
+  }
+  if (unreadable > 0) {
+    notes.push(`coverage could not be read for ${unreadable} source(s).`);
+  }
+  if (sources.length > COVERAGE_SOURCE_LIMIT) {
+    notes.push(
+      `coverage is shown for the first ${COVERAGE_SOURCE_LIMIT} sources only.`,
+    );
+  }
+  return { coverage, notes };
 }
 
 const dedupe = (ids: readonly string[]): string[] => [...new Set(ids)];
