@@ -4,6 +4,7 @@ import { semanticSearchSearch } from "../../funcs/semanticSearchSearch.js";
 import { ToolDefinition } from "../tools.js";
 import {
   errorResult,
+  isoFromEpochMs,
   jsonResult,
   readJson,
   resolveSourceScope,
@@ -37,6 +38,28 @@ const args = {
       + "`pipeshub_sources`, where `kind` is \"knowledgeBase\".",
   ),
 };
+
+/**
+ * One entry of the backend's `records` array — the full record document — cut
+ * to what the model needs to pick and cite a record. `recordType` tells a pull
+ * request from the Slack thread about it; the source dates (epoch
+ * milliseconds on the record) tell a superseded decision from the current one.
+ * Each is left out when the backend does not send a usable value.
+ */
+function trimSearchRecord(r: any) {
+  const createdAt = isoFromEpochMs(r?.sourceCreatedAtTimestamp);
+  const updatedAt = isoFromEpochMs(r?.sourceLastModifiedTimestamp);
+  return {
+    recordId: r?._key,
+    recordName: r?.recordName,
+    connector: r?.connectorName,
+    mimeType: r?.mimeType,
+    webUrl: r?.webUrl,
+    ...(typeof r?.recordType === "string" ? { recordType: r.recordType } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+  };
+}
 
 export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   name: "pipeshub_search",
@@ -118,13 +141,7 @@ record by its \`webUrl\`.`,
     return jsonResult({
       searchId: parsed.value.searchId,
       hits: (sr.searchResults ?? []).map(trimSearchHit),
-      uniqueRecords: (sr.records ?? []).map((r: any) => ({
-        recordId: r._key,
-        recordName: r.recordName,
-        connector: r.connectorName,
-        mimeType: r.mimeType,
-        webUrl: r.webUrl,
-      })),
+      uniqueRecords: (sr.records ?? []).map(trimSearchRecord),
       ...(notes.length > 0 ? { notes } : {}),
     });
   },

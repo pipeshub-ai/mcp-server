@@ -51,6 +51,8 @@ Leave out `apps` and `kb` to search everything. If you set either one, only the 
 >
 > For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. Reserve `pipeshub_chat` for open-ended questions that span many documents.
 
+Each hit's `snippet` is at most 280 characters. A snippet that was cut carries `snippetTruncated: true` and the passage's full length in `contentChars`. Each `uniqueRecords` entry also carries `recordType` and the source's `createdAt` / `updatedAt` (ISO 8601) when PipesHub has them.
+
 ---
 
 ### `pipeshub_download_record`
