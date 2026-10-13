@@ -122,10 +122,10 @@ full-content tasks. Get the \`recordId\` from a \`pipeshub_search\` top hit, a
 chat citation, or \`mode:"lookup"\`.
 
 Returns one \`content\` string: a metadata header (title, source, key fields,
-pre-generated summary) then the full parsed text. Not indexed yet:
-metadata and a \`Not indexed:\` line (it exists). Nothing loadable:
-\`No record found\`. Use \`pipeshub_download_record\` only for the original
-file bytes.
+pre-generated summary) then the full parsed text. \`No record found\` may
+mean it exists but is not indexed yet (newer servers: metadata and a
+\`Not indexed:\` line). A missing id is a 403. Use
+\`pipeshub_download_record\` only for the original file bytes.
 
 It returns one record, which is not always the whole conversation. A Slack
 record is one burst of messages; thread replies are separate records, and

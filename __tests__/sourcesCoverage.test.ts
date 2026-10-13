@@ -251,14 +251,16 @@ describe("pipeshub_sources coverage", () => {
   });
 });
 
-// The backend now describes a record that exists but is not indexed instead
-// of answering `No record found`. The description must not promise that
-// literal for it, or an agent reads the description as "does not exist".
+// Servers before the not-indexed change answer an unindexed record with the
+// literal `No record found`; newer ones describe it with a `Not indexed:`
+// line. Either way it exists, so the description must not let the literal
+// read as "does not exist". A missing id is a 403.
 describe("pipeshub_get_record_content description", () => {
-  test("says an unindexed record exists, and keeps No record found for the rest", () => {
-    const d = tool$pipeshubGetRecordContent.description;
-    expect(d).toContain("Not indexed:");
-    expect(d).toContain("(it exists)");
-    expect(d).toContain("No record found");
+  test("never presents No record found as proof that a record does not exist", () => {
+    const d = tool$pipeshubGetRecordContent.description.replace(/\s+/g, " ");
+    expect(d).toContain("`No record found` may mean it exists but is not indexed yet");
+    expect(d).toContain("`Not indexed:`");
+    expect(d).toContain("A missing id is a 403.");
+    expect(d).not.toContain("Nothing loadable");
   });
 });
