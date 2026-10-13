@@ -27,6 +27,7 @@ import {
   jsonResult,
   resolveSourceScope,
   trimConversation,
+  withScopeAdvice,
 } from "./_helpers.js";
 
 const FiltersShape = z.object({
@@ -242,7 +243,10 @@ cited document, take \`citations[*].recordId\` and call
       return errorResult(`SSE stream failed: ${(e as Error).message}`);
     }
 
-    if (state.error) return errorResult(state.error);
+    // A token without `agent:execute` gets past the gateway (which checks
+    // `conversation:chat`) and is refused by the assistant one hop later, so
+    // the refusal arrives here as a stream error rather than an HTTP 403.
+    if (state.error) return errorResult(withScopeAdvice(state.error));
 
     if (state.conversation) {
       return jsonResult({

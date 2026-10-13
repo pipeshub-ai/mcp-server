@@ -8,7 +8,7 @@ deployment. If you see something not listed here, the exit code narrows it:
 | `1` | an error that is none of the below — a network failure, or an unexpected server response |
 | `2` | configuration or usage |
 | `3` | not authenticated |
-| `4` | forbidden — this person cannot see it |
+| `4` | forbidden — this person cannot see it, or (message contains `Insufficient scope`) the token lacks a scope |
 | `5` | rate limited |
 | `6` | no results, **or an `ask` answer with no sources** |
 
@@ -149,12 +149,34 @@ The command still exits with a code that tells you which problem it is:
 `auth status` never prints the token, in any mode. If you need to compare one,
 compare a six-character prefix.
 
+## `auth status` shows `missingScopes`
+
+`missingScopes` lists each command this token cannot run and the scopes it
+lacks, read from the token itself; `warning` says the same in words. A token's
+scopes are fixed when it is created, so a token minted before a command needed
+a scope keeps working for everything else and is refused only there. The most
+common case is `ask`, which needs `agent:execute` since chat began running on
+the assistant agent. The fix is a new token with that scope; it cannot be added
+to the old one. `missingScopes` is `null` when the token's scopes cannot be read.
+
+The five scopes recommended in [SECURITY.md](SECURITY.md) leave `agent:execute`
+out on purpose: `ask` is opt-in. A token minted to that list is told `ask` will
+be refused, and that is accurate. To let someone use `ask`, mint their token
+with the five scopes plus `agent:execute`. Grant it deliberately: it is the
+scope that lets the assistant run, including any actions it is allowed to take.
+
 ## Exit 4 — forbidden
 
 The person you are acting for genuinely cannot access that record. This is the
 integration working: PipesHub filters by the token's identity, and a denial is a
 `403`, not an empty result. Do not retry through a different command — `search`,
 `ask`, and `get` all enforce the same permissions.
+
+The exception is a message that contains `Insufficient scope. Required: …`
+(after an `HTTP 403` prefix, or on its own when it comes from the chat stream). That
+is not about the record: the token was not granted the scope the command needs.
+The message names it, and the fix is a new personal access token that includes
+it (see `missingScopes` above).
 
 ## Exit 6 — no search hits, or `ask` with no citation objects
 
