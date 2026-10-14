@@ -323,10 +323,13 @@ export async function ask(
   const citations = arr(obj["citations"]).map((c) => {
     const cit = asRecord(c);
     return {
+      ...(cit["number"] !== undefined ? { number: cit["number"] } : {}),
       recordId: cit["recordId"] ?? null,
       recordName: cit["recordName"] ?? null,
       webUrl: cit["webUrl"] ?? null,
-      snippet: clip(cit["snippet"] ?? null, ctx.maxChars),
+      ...(cit["kind"] !== undefined ? { kind: cit["kind"] } : {}),
+      // The chat tool calls the cited text `passage`; it was `snippet`.
+      snippet: clip(cit["passage"] ?? cit["snippet"] ?? null, ctx.maxChars),
     };
   });
 
@@ -348,6 +351,8 @@ export async function ask(
       cited: citations.length > 0,
       citationCount: citations.length,
       citations,
+      claims: arr(obj["claims"]),
+      uncitedSentences: arr(obj["uncitedSentences"]),
       confidence: obj["confidence"] ?? null,
       warning: citations.length === 0
         ? "No citations in this response. Relay the answer as unsourced and not "

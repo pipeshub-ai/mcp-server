@@ -14,6 +14,12 @@ import {
   AgentListEnvelope$zodSchema,
   AgentSummary,
 } from "../../models/agentops.js";
+import {
+  answerEvidence,
+  type CitationTextKind,
+  type Claim,
+  type EvidenceCitation,
+} from "./_chatEvidence.js";
 
 /**
  * Parse a fetch Response as JSON, returning a CallToolResult error when the
@@ -326,14 +332,24 @@ export function trimConversation(conv: any) {
   const lastBot = [...messages].reverse().find(
     (m) => m?.messageType === "bot_response",
   );
+  const answer: string | null = typeof lastBot?.content === "string"
+    ? lastBot.content
+    : null;
+  const read = readCitations(lastBot?.citations);
+  const evidence = answer === null
+    ? { claims: [], uncitedSentences: [] }
+    : answerEvidence(answer, read);
 
   return {
     conversationId: conv?._id,
     title: conv?.title,
     status: conv?.status,
-    answer: lastBot?.content ?? null,
+    answer,
     confidence: lastBot?.confidence ?? null,
-    citations: trimCitations(lastBot?.citations),
+    citations: shapeCitations(read, evidence.claims),
+    claims: evidence.claims,
+    uncitedSentences: evidence.uncitedSentences,
+    ...(evidenceNote(read, evidence)),
     followUpQuestions: lastBot?.followUpQuestions?.map((q: any) =>
       typeof q === "string" ? q : q?.question
     ).filter(Boolean) ?? [],
@@ -341,29 +357,144 @@ export function trimConversation(conv: any) {
   };
 }
 
-export function trimCitations(citations: unknown) {
+/** Longest passage one citation carries, when there are few citations. */
+export const PASSAGE_MAX_CHARS = 1500;
+/** Shortest passage one citation is cut to, however many there are. */
+export const PASSAGE_MIN_CHARS = 400;
+/** Characters of passage text across all citations of one answer. */
+export const PASSAGES_TOTAL_CHARS = 24_000;
+
+/** The backend's `blockType` / `citationType` as what the text is. */
+function citationTextKind(md: any, citationType: unknown): CitationTextKind {
+  if (typeof citationType === "string" && citationType.startsWith("web")) {
+    return "web";
+  }
+  switch (md?.blockType) {
+    // A whole-record citation. Before the backend named its text, every one
+    // said "record_summary", so that value is never read as a quote.
+    case "record_summary":
+      return "summary";
+    case "matched_text":
+      return "matchedText";
+    case "record_name":
+      return "recordName";
+    default:
+      return "passage";
+  }
+}
+
+interface ReadCitation extends EvidenceCitation {
+  recordId: unknown;
+  mimeType: unknown;
+  pageNum: unknown;
+}
+
+/**
+ * The citations of one answer with their full text.
+ *
+ * Two wire shapes exist. Flat: `{ content, chunkIndex, metadata }`. Nested
+ * (current backend): `{ citationId, citationData: { content, chunkIndex,
+ * metadata } }`. Reading only the flat one silently yields a citation with
+ * every field `undefined`, and no way to identify the source at all.
+ *
+ * `number` is the `[N]` the answer marks a sentence with: the backend writes
+ * the citation's `chunkIndex` there.
+ */
+export function readCitations(citations: unknown): ReadCitation[] {
   if (!Array.isArray(citations)) return [];
-  return citations.map((c: any) => {
-    // Two wire shapes exist. Flat: `{ content, chunkIndex, metadata }`.
-    // Nested (current backend): `{ citationId, citationData: { content,
-    // chunkIndex, metadata } }`. Reading only the flat one silently yields
-    // a citation with every field `undefined` — which JSON.stringify drops,
-    // leaving `{"snippet": null}` and no way to identify the source at all.
+  return citations.map((c: any, i: number) => {
     const cd = c?.citationData ?? c;
     const md = cd?.metadata ?? c?.metadata ?? {};
     const content = typeof cd?.content === "string" ? cd.content : c?.content;
+    const text = typeof content === "string"
+      ? content
+      : typeof md.blockText === "string" ? md.blockText : "";
+    const chunkIndex = cd?.chunkIndex ?? c?.chunkIndex ?? md.chunkIndex;
     return {
+      number: Number.isInteger(chunkIndex) ? chunkIndex : i + 1,
+      kind: citationTextKind(md, cd?.citationType ?? c?.citationType),
+      text,
       recordId: md.recordId ?? cd?.recordId ?? c?.recordId,
       recordName: md.recordName ?? cd?.recordName ?? c?.recordName,
-      snippet: typeof content === "string"
-        ? content.slice(0, 280)
-        : md.blockText ?? null,
       mimeType: md.mimeType,
       webUrl: md.webUrl,
       pageNum: md.pageNum,
-      chunkIndex: cd?.chunkIndex ?? c?.chunkIndex ?? md.chunkIndex,
     };
   });
+}
+
+/**
+ * What the caller sees of each citation: its number, what kind of text it is,
+ * and the cited text itself. A text longer than the per-citation room is cut
+ * to a window around the first quote taken from it, so the quote is always
+ * inside, and the cut is marked with `passageTruncated` and `passageChars`.
+ */
+export function shapeCitations(read: ReadCitation[], claims: Claim[] = []) {
+  const room = Math.max(
+    PASSAGE_MIN_CHARS,
+    Math.min(
+      PASSAGE_MAX_CHARS,
+      Math.floor(PASSAGES_TOTAL_CHARS / Math.max(1, read.length)),
+    ),
+  );
+  return read.map((c) => {
+    const cut = c.text.length > room;
+    let passage = c.text;
+    if (cut) {
+      const quote = claims
+        .flatMap((cl) => cl.quotes)
+        .find((q) => q.citation === c.number)?.text.replace(/^…|…$/g, "");
+      const at = quote ? Math.max(0, c.text.indexOf(quote)) : 0;
+      const start = Math.max(0, Math.min(at - Math.floor(room / 4), c.text.length - room));
+      passage = c.text.slice(start, start + room);
+    }
+    return {
+      number: c.number,
+      recordId: c.recordId,
+      recordName: c.recordName,
+      kind: c.kind,
+      passage: passage || null,
+      ...(cut ? { passageTruncated: true, passageChars: c.text.length } : {}),
+      mimeType: c.mimeType,
+      webUrl: c.webUrl,
+      pageNum: c.pageNum,
+    };
+  });
+}
+
+/** One citation list as the caller sees it, from the raw wire shapes. */
+export function trimCitations(citations: unknown) {
+  return shapeCitations(readCitations(citations));
+}
+
+/**
+ * Said only when it applies: which sentences to check, and where to look.
+ * The tool description stays short because every session pays for it.
+ */
+function evidenceNote(
+  read: ReadCitation[],
+  evidence: { claims: Claim[]; uncitedSentences: string[] },
+): { evidenceNote?: string } {
+  const parts: string[] = [];
+  if (evidence.claims.some((c) => c.notInCitedText)) {
+    parts.push(
+      "`notInCitedText` lists IDs, numbers or dates a claim states that its "
+        + "cited text does not contain; the answer may have them from a "
+        + "different record. Confirm them in the record before repeating them.",
+    );
+  }
+  if (evidence.uncitedSentences.length > 0) {
+    parts.push(
+      "`uncitedSentences` carry no source: do not repeat them as fact.",
+    );
+  }
+  if (read.some((c) => c.kind === "summary")) {
+    parts.push(
+      "A `summary` citation is PipesHub's summary of the record, not its own "
+        + "words; open the record to check a claim that rests on it.",
+    );
+  }
+  return parts.length > 0 ? { evidenceNote: parts.join(" ") } : {};
 }
 
 // ─── SSE parsing ─────────────────────────────────────────────────────────────

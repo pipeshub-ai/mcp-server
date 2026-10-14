@@ -26,9 +26,14 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 - "Summarize *a specific doc*" or "What does *document* say about X?" → `pipeshub_search` → top hit's `recordId` → `pipeshub_get_record_content` (not `pipeshub_chat`).
 - "Find / locate the file named X" → `pipeshub_search` (then `pipeshub_download_record` if the user wants the bytes).
 
-**Response:** the AI's `answer`, `citations[]` (each with `recordId`), `followUpQuestions`, plus the `conversationId` to use for follow-ups; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
+**Response:** the AI's `answer`, `citations[]`, `claims[]`, `uncitedSentences[]`, `followUpQuestions`, plus the `conversationId` to use for follow-ups; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
-> The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). "Not found" means not in what it read, not that it does not exist.
+- Each citation carries its `number` (the `[N]` that marks it in the answer), `recordId`, `recordName`, `webUrl`, and the cited text as `passage`: the whole text, up to 1,500 characters (less when an answer has more than 16 citations, never under 400). A longer text is cut to a window around the first quote taken from it and carries `passageTruncated: true` and its full length in `passageChars`. `kind` says what the text is: `passage` (a block of the record, in its own words), `matchedText` (what keyword search matched in the record, in its own words), `summary` (PipesHub's summary of the record, not its words), `recordName` (the record was cited as a whole), or `web` (a web page, not an org record).
+- Each claim is one cited sentence of the answer, with its citation numbers and `quotes`: the one or two lines of each cited text that share the most IDs, numbers and words with the sentence, copied verbatim. Quotes come only from `passage`, `matchedText` and `web` text. `notInCitedText` lists IDs, numbers or dates the sentence states that none of its cited texts, record names or links contain.
+- `uncitedSentences` are sentences of four or more words that carry no citation.
+- `evidenceNote` appears only when one of the above needs checking, and says what to do.
+
+> The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, check it against the claim's quotes, else confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). A quote shows where to look, not that the claim is right. "Not found" means not in what it read, not that it does not exist.
 
 ---
 
