@@ -240,6 +240,25 @@ describe("ask", () => {
     });
   });
 
+  test("reads the cited text from `passage` and passes claims through", async () => {
+    const claims = [{ text: "Ship on Friday [1].", citations: [1], quotes: [{ citation: 1, text: "Friday" }] }];
+    mcp.reply("pipeshub_chat", textReply({
+      answer: "Ship on Friday [1](https://x/r1).",
+      citations: [{ number: 1, recordId: "r1", kind: "passage", passage: "x".repeat(50) }],
+      claims,
+      uncitedSentences: ["Nobody objected to the plan at the time."],
+    }));
+
+    const out = await ask(ctx({ maxChars: 10 }), "when?", null);
+
+    expect(out.payload["citations"]).toEqual([{
+      number: 1, recordId: "r1", recordName: null, webUrl: null, kind: "passage",
+      snippet: "x".repeat(10) + "…[truncated]",
+    }]);
+    expect(out.payload["claims"]).toEqual(claims);
+    expect(out.payload["uncitedSentences"]).toEqual(["Nobody objected to the plan at the time."]);
+  });
+
   test("an answer with no citations is exit 6, still returned, and flagged as unsourced", async () => {
     mcp.reply("pipeshub_chat", textReply({ answer: "Probably Friday." }));
 

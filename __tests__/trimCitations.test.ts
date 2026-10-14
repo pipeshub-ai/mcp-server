@@ -55,11 +55,11 @@ describe("trimCitations", () => {
     const [c] = trimCitations(nested);
     expect(c.recordId).toBe("rec-123");
     expect(c.recordName).toBe("onboarding-checklist");
-    expect(c.snippet).toBe("Rotate your credentials on day one.");
+    expect(c.passage).toBe("Rotate your credentials on day one.");
     expect(c.mimeType).toBe("text/markdown");
     expect(c.webUrl).toBe("https://pipeshub.example.com/record/rec-123");
     expect(c.pageNum).toBe(2);
-    expect(c.chunkIndex).toBe(4);
+    expect(c.number).toBe(4);
   });
 
   // Regression: this is the exact failure the nested shape caused — the
@@ -73,22 +73,34 @@ describe("trimCitations", () => {
   test("still reads the flat shape", () => {
     const [c] = trimCitations(flat);
     expect(c.recordId).toBe("rec-456");
-    expect(c.snippet).toBe("Flat shape content.");
-    expect(c.chunkIndex).toBe(7);
+    expect(c.passage).toBe("Flat shape content.");
+    expect(c.number).toBe(7);
   });
 
   test("falls back to metadata.blockText when content is absent", () => {
     const [c] = trimCitations([
       { citationId: "c2", citationData: { metadata: { blockText: "block only" } } },
     ]);
-    expect(c.snippet).toBe("block only");
+    expect(c.passage).toBe("block only");
   });
 
-  test("caps the snippet at 280 characters", () => {
+  // A 280-character prefix was too short to check a claim against: the
+  // whole cited text is returned, up to PASSAGE_MAX_CHARS.
+  test("returns the whole cited text, not a 280-character prefix", () => {
     const [c] = trimCitations([
-      { citationId: "c3", citationData: { content: "x".repeat(400), metadata: {} } },
+      { citationId: "c3", citationData: { content: "x".repeat(1200), metadata: {} } },
     ]);
-    expect(c.snippet).toHaveLength(280);
+    expect(c.passage).toHaveLength(1200);
+    expect(c.passageTruncated).toBeUndefined();
+  });
+
+  test("marks a cut passage with its full length", () => {
+    const [c] = trimCitations([
+      { citationId: "c4", citationData: { content: "y".repeat(4000), metadata: {} } },
+    ]);
+    expect(c.passage).toHaveLength(1500);
+    expect(c.passageTruncated).toBe(true);
+    expect(c.passageChars).toBe(4000);
   });
 
   test("returns [] for a non-array", () => {

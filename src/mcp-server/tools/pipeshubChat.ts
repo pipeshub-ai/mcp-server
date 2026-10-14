@@ -107,24 +107,20 @@ that agent's own prompt, tools and knowledge.
 - "Find / locate the file named X" → \`pipeshub_search\` (then
   \`pipeshub_download_record\` if the user wants the bytes).
 
-**Conversation lifecycle** — one tool, both start and continue:
+**Conversation lifecycle**: omit \`conversationId\` on the first turn and
+capture it from the response. Pass it on follow-ups: the server keeps the
+context, so do NOT replay earlier messages, and \`filters\` is ignored.
+Omit it again only when the user asks to start over.
 
-- **First turn**: omit \`conversationId\`. The server creates a new
-  conversation; capture \`conversationId\` from the response.
-- **Follow-up turn**: pass the \`conversationId\` from the previous
-  response. Server-side context is preserved — do NOT replay earlier
-  messages, and \`filters\` is ignored on follow-ups (set once at
-  creation).
-
-Only re-omit \`conversationId\` (start a fresh conversation) when the
-user explicitly asks to start over / clear context.
-
-The response contains the AI's \`answer\` plus \`citations\`. Treat the
-answer as a lead: before stating a specific ID, status, date, owner, or that
-something merged or shipped, confirm it in the cited record
-(\`citations[*].recordId\` → \`mode:"content"\`). "Not found" means not in
-what it read, not that it does not exist. To download a cited document,
-call \`pipeshub_download_record\` with that \`recordId\`.`,
+The response holds the AI's \`answer\`; \`citations\`, each with its
+\`number\` (the [N] in the answer) and the cited \`passage\`; \`claims\`,
+each cited sentence with \`quotes\` copied from its cited text; and
+\`uncitedSentences\`. Treat the answer as a lead: before stating a specific
+ID, status, date, owner, or that something merged or shipped, check the
+claim's quotes, else confirm it in the cited record (\`recordId\` →
+\`mode:"content"\`). A quote shows where to look, not that the claim is
+right. "Not found" means not in what it read, not that it does not exist.
+To download a cited document, call \`pipeshub_download_record\`.`,
   scopes: ["read"],
   annotations: {
     title: "Chat with PipesHub",
