@@ -45,6 +45,8 @@ export type AgentStreamConversationBody = {
   tools?: Array<string> | undefined;
   timezone?: string | undefined;
   currentTime?: string | undefined;
+  /** How long each search waits for keyword (grep) matches; see `pipeshub_chat`. */
+  keywordSearchBudget?: "short" | "full" | undefined;
 };
 
 export const AgentStreamConversationBody$zodSchema: z.ZodType<
@@ -60,6 +62,7 @@ export const AgentStreamConversationBody$zodSchema: z.ZodType<
   tools: z.array(z.string()).optional(),
   timezone: z.string().optional(),
   currentTime: z.string().optional(),
+  keywordSearchBudget: z.enum(["short", "full"]).optional(),
 });
 
 /** `POST /agents/{agentKey}/conversations/stream` — path param + body. */

@@ -17,6 +17,7 @@ export type AddMessageRequest = {
   chatMode?: string | undefined;
   timezone?: string | undefined;
   currentTime?: string | undefined;
+  keywordSearchBudget?: "short" | "full" | undefined;
 };
 
 export const AddMessageRequest$zodSchema: z.ZodType<AddMessageRequest> = z
@@ -24,6 +25,7 @@ export const AddMessageRequest$zodSchema: z.ZodType<AddMessageRequest> = z
     chatMode: z.string().optional(),
     currentTime: z.iso.datetime({ offset: true }).optional(),
     filters: Filters$zodSchema.optional(),
+    keywordSearchBudget: z.enum(["short", "full"]).optional(),
     modelFriendlyName: z.string().optional(),
     modelKey: z.string().optional(),
     modelName: z.string().optional(),

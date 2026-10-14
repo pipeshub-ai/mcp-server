@@ -225,3 +225,25 @@ describe("plain chat", () => {
     expect(sent.body).toMatchObject({ chatMode: "agent" });
   });
 });
+
+describe("keyword search wait", () => {
+  // Inside the assistant, each search waited up to 35 s for its keyword
+  // (grep) matches after its vector results. A calling agent asks for the
+  // short wait on every turn and route; the request models must carry the
+  // field, or the SDK's schema strips it before it is sent.
+  const routes: Array<[string, Record<string, unknown>]> = [
+    ["a new conversation", {}],
+    ["a follow-up", { conversationId: "c-1" }],
+    ["a new agent conversation", { agentId: "a-1" }],
+    ["an agent follow-up", { agentId: "a-1", conversationId: "c-1" }],
+  ];
+  for (const [name, args] of routes) {
+    test(`${name} asks for the short keyword search wait`, async () => {
+      const { core, sent } = recording(finished);
+
+      await ask(core, args);
+
+      expect(sent.body).toMatchObject({ keywordSearchBudget: "short" });
+    });
+  }
+});

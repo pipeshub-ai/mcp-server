@@ -12,6 +12,8 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 > **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Questions still belong here, but never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first.
 
+> **Speed.** Every turn asks the backend for the short keyword-search wait (`keywordSearchBudget: "short"`): each search inside the assistant waits at most 5 seconds for its keyword (grep) matches after its vector results, and keeps what it found by then, instead of up to 35 seconds. Deployments running `HIGH_ACCURACY_MODE` still wait in full, and backends that predate the field ignore it.
+
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | The user's question or message for this turn. |

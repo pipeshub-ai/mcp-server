@@ -32,6 +32,7 @@ export type CreateConversationRequest = {
   conversationId?: string | undefined;
   timezone?: string | undefined;
   currentTime?: string | undefined;
+  keywordSearchBudget?: "short" | "full" | undefined;
 };
 
 export const CreateConversationRequest$zodSchema: z.ZodType<
@@ -42,6 +43,7 @@ export const CreateConversationRequest$zodSchema: z.ZodType<
   currentTime: z.iso.datetime({ offset: true }).optional(),
   departments: z.array(z.string()).optional(),
   filters: Filters$zodSchema.optional(),
+  keywordSearchBudget: z.enum(["short", "full"]).optional(),
   modelFriendlyName: z.string().optional(),
   modelKey: z.string().optional(),
   modelName: z.string().optional(),

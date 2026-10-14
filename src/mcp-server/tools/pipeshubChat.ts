@@ -143,6 +143,12 @@ call \`pipeshub_download_record\` with that \`recordId\`.`,
     // `tools` it gives the assistant every action the user has connected.
     // Actions default on (ENABLE_ACTIONS); an admin can turn them off in Labs.
     const plainChatMode = "agent" as const;
+    // Each search inside the assistant waits at most 5 s for its keyword
+    // (grep) matches once its vector results are in, and keeps what it found
+    // by then, instead of up to 35 s. A calling agent can search again
+    // itself, so a faster answer is worth more to it than the slowest
+    // matches. The backend ignores it under HIGH_ACCURACY_MODE.
+    const keywordSearchBudget = "short" as const;
     let response: Response;
 
     // Filters apply only when a conversation starts. Each id is sent in the
@@ -180,6 +186,7 @@ call \`pipeshub_download_record\` with that \`recordId\`.`,
             modelName: args.modelName,
             modelFriendlyName: args.modelFriendlyName,
             chatMode: agentChatMode,
+            keywordSearchBudget,
           },
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
@@ -195,6 +202,7 @@ call \`pipeshub_download_record\` with that \`recordId\`.`,
             modelName: args.modelName,
             modelFriendlyName: args.modelFriendlyName,
             chatMode: agentChatMode,
+            keywordSearchBudget,
           },
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
@@ -210,6 +218,7 @@ call \`pipeshub_download_record\` with that \`recordId\`.`,
           modelName: args.modelName,
           modelFriendlyName: args.modelFriendlyName,
           chatMode: plainChatMode,
+          keywordSearchBudget,
         },
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
@@ -223,6 +232,7 @@ call \`pipeshub_download_record\` with that \`recordId\`.`,
         modelName: args.modelName,
         modelFriendlyName: args.modelFriendlyName,
         chatMode: plainChatMode,
+        keywordSearchBudget,
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
       response = result.value;
