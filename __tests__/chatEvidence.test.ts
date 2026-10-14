@@ -217,6 +217,25 @@ describe("answerEvidence", () => {
   });
 });
 
+describe("table rows next to a thematic break", () => {
+  test("a line of dashes after a table keeps the table's last row", () => {
+    const answer = [
+      "| PR | Merged by |",
+      "|---|---|",
+      `| #3990 | merged by Ana [1](${url(1)}) |`,
+      `| #3992 | merged by Priya [2](${url(2)}) |`,
+      "",
+      "---",
+      "That is every PR merged this week that touched the billing page.",
+    ].join("\n");
+    const out = answerEvidence(answer, []);
+    expect(out.claims.map((c) => c.text)).toEqual([
+      "#3990 | merged by Ana [1]",
+      "#3992 | merged by Priya [2]",
+    ]);
+  });
+});
+
 describe("what is not reported", () => {
   test("an offer of more help is not an uncited statement", () => {
     const out = answerEvidence(
@@ -224,6 +243,16 @@ describe("what is not reported", () => {
       [],
     );
     expect(out.uncitedSentences).toEqual([]);
+  });
+
+  test("a conditional fact that opens with \"if you need\" is still a statement", () => {
+    const out = answerEvidence(
+      "If you need a VPN to reach staging, file a ticket with the platform team.",
+      [],
+    );
+    expect(out.uncitedSentences).toEqual([
+      "If you need a VPN to reach staging, file a ticket with the platform team.",
+    ]);
   });
 
   test("a time of day written in the reader's zone is not reported missing", () => {

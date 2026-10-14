@@ -143,8 +143,13 @@ function answerUnits(answer: string): string[] {
       inFence = !inFence;
       continue;
     }
-    if (inFence || !line || /^#{1,6}\s/.test(line)) continue;
-    if (/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line)) {
+    if (inFence || !line || /^#{1,6}\s/.test(line)) {
+      // A blank line or a heading ends any table above it.
+      headerAt = -1;
+      continue;
+    }
+    // A table's separator row has a pipe; a line of dashes alone is a break.
+    if (line.includes("|") && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line)) {
       // The row above a separator is the table's header, not a statement.
       if (headerAt === units.length - 1) units.pop();
       headerAt = -1;
@@ -183,7 +188,7 @@ function readable(unit: string): string {
 }
 
 /** "If you want, I can…": the assistant offering more, not stating a fact. */
-const OFFER = /^(if you (want|like|need|have)|let me know|would you like|i can also)\b/i;
+const OFFER = /^(if you (want|like)|let me know|would you like|i can also)\b/i;
 
 function isProse(unit: string): boolean {
   const text = readable(unit);
