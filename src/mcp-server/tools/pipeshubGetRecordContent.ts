@@ -318,6 +318,9 @@ export type RecordRead = {
   totalBlocks?: number;
   shownBlocks?: Array<[number, number]>;
   complete?: boolean;
+  /** `clipped` with `complete`: a block larger than the largest `maxChars`
+   * was cut and the rest of it cannot be returned. */
+  truncatedBy?: string | null;
   nextStartBlock?: number | null;
   chars?: number;
   threadRecordCount?: number;
@@ -326,10 +329,15 @@ export type RecordRead = {
   records?: Array<{
     recordId?: string;
     complete?: boolean;
+    truncatedBy?: string | null;
     nextStartBlock?: number | null;
   }>;
   unreadableRecordIds?: string[];
 };
+
+// Said when a read reached the end but gave up part of a block too large for
+// any `maxChars`: "whole" alone would claim nothing is missing.
+const CUT = ", except the cut block the note names";
 
 const call = (args: Record<string, unknown>) =>
   `pipeshub_get_record_content ${JSON.stringify(args)}`;
@@ -362,7 +370,9 @@ export function renderRead(
     const first = (read.startRecord ?? 0) + 1;
     lines.push(
       read.complete
-        ? `Read: the whole thread from record ${first} on (${total} record${total === 1 ? "" : "s"} in all).`
+        ? `Read: the whole thread from record ${first} on (${total} record${total === 1 ? "" : "s"} in all)${
+          shown.some((r) => r.truncatedBy === "clipped") ? CUT : ""
+        }.`
         : `Read: thread records ${first}–${first + shown.length - 1} of ${total}.`,
     );
     const unreadable = read.unreadableRecordIds ?? [];
@@ -399,7 +409,8 @@ export function renderRead(
 
   const total = read.totalBlocks;
   if (read.complete) {
-    return `${content}\n\nRead: the whole record (${total} block${total === 1 ? "" : "s"}).`;
+    const cut = read.truncatedBy === "clipped" ? CUT : "";
+    return `${content}\n\nRead: the whole record (${total} block${total === 1 ? "" : "s"})${cut}.`;
   }
   const lines = [
     read.order === "relevance"

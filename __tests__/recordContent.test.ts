@@ -229,6 +229,33 @@ describe("reading part of a long record", () => {
   });
 });
 
+describe("a block too large for any budget", () => {
+  test("a record read to its end does not claim it was read whole", async () => {
+    const { core } = client({
+      content: "cut text\n[Block 0 … cannot be returned.]", mode: "record",
+      order: "in_order", totalBlocks: 1, shownBlocks: [], complete: true,
+      truncatedBy: "clipped", nextStartBlock: null,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toContain("Read: the whole record (1 block), except the cut block the note names.");
+    expect(text).not.toContain("Next:");
+  });
+
+  test("so does a thread", async () => {
+    const { core } = client({
+      content: "replies", mode: "thread", threadRecordCount: 2, startRecord: 1,
+      complete: true, nextStartRecord: null,
+      records: [{ recordId: "t-1", complete: false, truncatedBy: "clipped", nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toContain("except the cut block the note names");
+  });
+});
+
 describe("a record with nothing to read", () => {
   test("is not reported as read in full and empty", async () => {
     // The budgeted route answers a record with no stored content with its
