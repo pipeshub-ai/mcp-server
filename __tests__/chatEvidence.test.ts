@@ -66,6 +66,35 @@ describe("claims", () => {
     expect(out.evidenceNote).toContain("notInCitedText");
   });
 
+  test("a version is reported whole, and a different version does not hide it", () => {
+    const shipped = answerEvidence(`We shipped v1.2.3 last week [1](${url(1)}).`, [
+      { number: 1, kind: "passage", text: "Release notes: v2.2.3 is current." },
+    ]);
+    expect(shipped.claims[0]?.notInCitedText).toEqual(["v1.2.3"]);
+
+    const twoPart = answerEvidence(`The fix is in v1.2 [1](${url(1)}).`, [
+      { number: 1, kind: "passage", text: "The fix landed in the spring release." },
+    ]);
+    expect(twoPart.claims[0]?.notInCitedText).toEqual(["v1.2"]);
+
+    const withoutV = answerEvidence(`We shipped v1.2.3 last week [1](${url(1)}).`, [
+      { number: 1, kind: "passage", text: "Release 1.2.3 went out on Monday." },
+    ]);
+    expect(withoutV.claims[0]?.notInCitedText).toBeUndefined();
+  });
+
+  test("a preview link's block position does not count as a number the record states", () => {
+    const out = answerEvidence(`There are 12 reviewers on #12 [1](${url(1)}).`, [
+      {
+        number: 1,
+        kind: "passage",
+        text: "Reviewers were assigned on Monday.",
+        webUrl: "https://ph.example.com/record/abc/preview#blockIndex=12",
+      },
+    ]);
+    expect(out.claims[0]?.notInCitedText).toEqual(["12", "#12"]);
+  });
+
   test("an ID found in the cited record's name or link is not reported", () => {
     const answer = `PA-1212 tracks the rollout, see PR #4200 [1](${url(1)}).`;
     const out = trimConversation(conversation(answer, [

@@ -78,7 +78,8 @@ const STOP_WORDS = new Set(
  * source gets wrong, so they weigh most when choosing a quote, and the ones
  * no cited text contains are reported.
  */
-const SPECIFIC = /\b[A-Z][A-Z0-9]{1,9}-\d+\b|#\d+\b|\b\d[\d,.:/-]*\d\b/g;
+const SPECIFIC =
+  /\b[A-Z][A-Z0-9]{1,9}-\d+\b|#\d+\b|(?<![\p{L}\p{N}.])v?\d+(?:\.\d+)+(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])\d[\d,.:/-]*\d(?![\p{L}\p{N}])/gu;
 
 /**
  * A time of day is not reported missing: the assistant writes times in the
@@ -103,10 +104,22 @@ function specificKey(specific: string): string {
 }
 
 function contains(haystack: string, specific: string): boolean {
-  const key = specificKey(specific);
+  let key = specificKey(specific);
+  // A version may be written with or without its "v": v1.2.3 matches 1.2.3.
+  const version = /^v\d/.test(key);
+  if (version) key = key.slice(1);
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "u")
+  const lead = version ? "v?" : "";
+  return new RegExp(`(?<![\\p{L}\\p{N}])${lead}${escaped}(?![\\p{L}\\p{N}])`, "u")
     .test(haystack);
+}
+
+/**
+ * The parts of a citation link that can name what a claim states. A preview
+ * link's `blockIndex` is the block's position in the record, not an ID.
+ */
+function linkIds(webUrl: string | undefined): string {
+  return (webUrl ?? "").replace(/[#?&]blockIndex=\d+/g, "");
 }
 
 function words(text: string): string[] {
@@ -291,7 +304,7 @@ export function answerEvidence(
       const cited = byNumber.get(n);
       if (!cited) continue;
       haystacks.push(
-        normalise([cited.text, cited.recordName ?? "", cited.webUrl ?? ""].join("\n")),
+        normalise([cited.text, cited.recordName ?? "", linkIds(cited.webUrl)].join("\n")),
       );
       if (!VERBATIM.has(cited.kind)) continue;
       for (const q of quotesFor(claimText, cited.text)) {
