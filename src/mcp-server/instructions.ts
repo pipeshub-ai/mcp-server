@@ -80,7 +80,7 @@ user asked for that action.
   \`application/pdf\`.
 - \`pipeshub_get_record_content\` — when you need a record's parsed text
   (metadata header, then the text up to \`maxChars\`; a long record comes
-  in parts, each ending in a \`Next:\` call) without downloading the file.
+  in parts; an unfinished one ends in \`Next:\`) without downloading the file.
   Prefer it over download when the question is what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
   Not for documents or files — that is \`pipeshub_search\`.
