@@ -387,9 +387,17 @@ export function renderRead(
     }
     return `${content}\n\n${lines.join("\n")}`;
   }
-  if (read.mode !== "record" || read.complete == null) return content;
+  // A record with no content to read (`No record found`, or a `Not indexed:`
+  // note) carries no block count. Saying it was read in full would tell the
+  // model the record is empty, so its text goes through on its own.
+  if (
+    read.mode !== "record" || read.complete == null
+    || typeof read.totalBlocks !== "number"
+  ) {
+    return content;
+  }
 
-  const total = read.totalBlocks ?? 0;
+  const total = read.totalBlocks;
   if (read.complete) {
     return `${content}\n\nRead: the whole record (${total} block${total === 1 ? "" : "s"}).`;
   }

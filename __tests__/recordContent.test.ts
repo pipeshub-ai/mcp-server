@@ -229,6 +229,23 @@ describe("reading part of a long record", () => {
   });
 });
 
+describe("a record with nothing to read", () => {
+  test("is not reported as read in full and empty", async () => {
+    // The budgeted route answers a record with no stored content with its
+    // note and `complete: true`, but no block count.
+    const { core } = client({
+      content: "Record ID: r-1\n\nNot indexed: (status: QUEUED)",
+      mode: "record", recordId: "r-1", complete: true, nextStartBlock: null,
+      chars: 40, maxChars: 40_000,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toBe("Record ID: r-1\n\nNot indexed: (status: QUEUED)");
+    expect(text).not.toContain("Read:");
+  });
+});
+
 describe("thread mode", () => {
   test("asks for the thread the record belongs to", async () => {
     const { core, urls } = client({ content: "x", mode: "thread", complete: true });
