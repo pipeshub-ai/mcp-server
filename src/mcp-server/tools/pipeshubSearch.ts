@@ -1,6 +1,7 @@
 
 import * as z from "zod";
-import { semanticSearchSearch } from "../../funcs/semanticSearchSearch.js";
+import { semanticSearchSearchWithDates } from "../../funcs/semanticSearchSearchWithDates.js";
+import { SemanticSearchDateBounds } from "../../models/semanticsearchwithdatesrequest.js";
 import { ToolDefinition } from "../tools.js";
 import {
   errorResult,
@@ -37,7 +38,68 @@ const args = {
     "Collection (knowledge base) ids to search. Get them from "
       + "`pipeshub_sources`, where `kind` is \"knowledgeBase\".",
   ),
+  createdAfter: dateArg(
+    "Only records created in their source on or after this date. "
+      + "`YYYY-MM-DD` (that whole day, UTC) or an ISO 8601 datetime with a "
+      + "timezone, such as `2026-09-01T09:00:00Z`.",
+  ),
+  createdBefore: dateArg(
+    "Only records created in their source on or before this date. A "
+      + "`YYYY-MM-DD` value includes that whole day.",
+  ),
+  updatedAfter: dateArg(
+    "Only records last changed in their source on or after this date. Use "
+      + "it for \"what changed since …\" and to leave out superseded documents.",
+  ),
+  updatedBefore: dateArg(
+    "Only records last changed in their source on or before this date.",
+  ),
 };
+
+function dateArg(description: string) {
+  return z.string().trim().min(1).max(64).optional().describe(description);
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 86_400_000;
+
+/**
+ * A date bound as epoch milliseconds, read the way the server reads it: a
+ * bare date is the start of that day (UTC) as a lower bound and its last
+ * millisecond as an upper one. Undefined when it cannot be read here; the
+ * server then decides.
+ */
+export function boundMs(value: string | undefined, upper: boolean): number | undefined {
+  if (!value) return undefined;
+  const text = value.trim();
+  const ms = DATE_ONLY.test(text)
+    ? Date.parse(`${text}T00:00:00Z`) + (upper ? DAY_MS - 1 : 0)
+    : Date.parse(text);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+/**
+ * Whether a record from the search's `records` falls outside the bounds.
+ *
+ * A server that filters by date returns only records inside them, and never
+ * one with no date on a bounded field. A server too old to know the bounds
+ * ignores them and returns every date, so this is how the tool tells the two
+ * apart.
+ */
+export function outsideDateBounds(record: any, bounds: SemanticSearchDateBounds): boolean {
+  const checks: Array<[unknown, string | undefined, boolean]> = [
+    [record?.sourceCreatedAtTimestamp, bounds.createdAfter, false],
+    [record?.sourceCreatedAtTimestamp, bounds.createdBefore, true],
+    [record?.sourceLastModifiedTimestamp, bounds.updatedAfter, false],
+    [record?.sourceLastModifiedTimestamp, bounds.updatedBefore, true],
+  ];
+  return checks.some(([value, bound, upper]) => {
+    const limit = boundMs(bound, upper);
+    if (limit === undefined) return false;
+    if (typeof value !== "number" || !Number.isFinite(value)) return true;
+    return upper ? value > limit : value < limit;
+  });
+}
 
 /**
  * One entry of the backend's `records` array — the full record document — cut
@@ -119,10 +181,18 @@ record by its \`webUrl\`.`,
       { signal: ctx.signal },
     );
 
-    const [result] = await semanticSearchSearch(client, {
+    const bounds: SemanticSearchDateBounds = {
+      ...(args.createdAfter ? { createdAfter: args.createdAfter } : {}),
+      ...(args.createdBefore ? { createdBefore: args.createdBefore } : {}),
+      ...(args.updatedAfter ? { updatedAfter: args.updatedAfter } : {}),
+      ...(args.updatedBefore ? { updatedBefore: args.updatedBefore } : {}),
+    };
+
+    const [result] = await semanticSearchSearchWithDates(client, {
       query: args.query,
       limit,
       filters: searchFilters(scope),
+      ...bounds,
     }, { fetchOptions: { signal: ctx.signal } }).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
@@ -138,10 +208,25 @@ record by its \`webUrl\`.`,
     if (!parsed.ok) return parsed.result;
 
     const sr = parsed.value.searchResponse ?? {};
+    let hits = sr.searchResults ?? [];
+    let records = sr.records ?? [];
+    const outside = new Set(
+      records.filter((r) => outsideDateBounds(r, bounds)).map((r) => r?._key),
+    );
+    if (outside.size > 0) {
+      records = records.filter((r) => !outside.has(r?._key));
+      hits = hits.filter((h) => !outside.has(h?.metadata?.recordId));
+      notes.push(
+        `${outside.size} record(s) came back outside the requested dates, so `
+          + "this PipesHub server probably does not support date filters. They "
+          + "were removed. The server ranked records from every date, so fewer "
+          + "remain than a server that filters by date would find.",
+      );
+    }
     return jsonResult({
       searchId: parsed.value.searchId,
-      hits: (sr.searchResults ?? []).map(trimSearchHit),
-      uniqueRecords: (sr.records ?? []).map(trimSearchRecord),
+      hits: hits.map(trimSearchHit),
+      uniqueRecords: records.map(trimSearchRecord),
       ...(notes.length > 0 ? { notes } : {}),
     });
   },

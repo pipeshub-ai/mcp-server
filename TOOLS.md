@@ -42,8 +42,12 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | `limit` | number (1–100) | no | Vector matches to fetch per query variant. Default 10. The backend searches a rewritten form of the query plus a few expanded variants, and a match inside a thread, a pull request or a table returns every passage of that section as its own hit, so one call can return many more hits than `limit`, from only a few records. Use `uniqueRecords` for the shortlist; 5–10 is enough to find a `recordId`. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
+| `createdAfter` / `createdBefore` | string | no | Only records created in their source within these dates. `YYYY-MM-DD` (that whole day, UTC) or an ISO 8601 datetime with a timezone. Both ends are inclusive. |
+| `updatedAfter` / `updatedBefore` | string | no | Only records last changed in their source within these dates, in the same format. |
 
 Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
+
+A record with no source date is left out whenever a bound on that date is set. A date the server cannot read is an error that says why. A PipesHub server older than the date filter ignores the bounds; the tool then removes the records outside them and says so in `notes`, but fewer remain than a server that filters would find.
 
 **Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score; `uniqueRecords[]` lists each record behind the hits once, and is the shortlist to use; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
 
