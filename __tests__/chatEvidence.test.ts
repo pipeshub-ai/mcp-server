@@ -96,6 +96,13 @@ describe("claims", () => {
     expect(missing("We shipped V1.2.3", "Release notes: v2.3 is current.")).toEqual(["V1.2.3"]);
     expect(missing("The fix is in V1.2", "The fix landed in the spring release.")).toEqual(["V1.2"]);
     expect(missing("We shipped V1.2.3", "We shipped V1.2.3 yesterday.")).toBeUndefined();
+    expect(missing("We shipped v1.2.3", "Release notes: v1.2.3-rc.1 is current.")).toEqual(["v1.2.3"]);
+    expect(missing("We shipped v1.2.3", "Built as v1.2.3+build.5 today.")).toEqual(["v1.2.3"]);
+    expect(missing("We shipped v1.2.3-rc.1", "Release notes: v1.2.3-rc.2 is current.")).toEqual(["v1.2.3-rc.1"]);
+    expect(missing("We shipped 1.2.3-rc.1", "Release notes: v1.2.3-rc.1 is current.")).toBeUndefined();
+    expect(missing("We shipped v1.2.3a", "We shipped v1.2.3a on Monday.")).toBeUndefined();
+    expect(missing("We shipped v1.2.3a", "We shipped v1.2 on Monday.")).toEqual(["v1.2.3a"]);
+    expect(missing("We shipped v1.2.3", "It went out as v1.2.3.")).toBeUndefined();
   });
 
   test("a preview link's block position does not count as a number the record states", () => {

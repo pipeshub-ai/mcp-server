@@ -79,7 +79,7 @@ const STOP_WORDS = new Set(
  * no cited text contains are reported.
  */
 const SPECIFIC =
-  /\b[A-Z][A-Z0-9]{1,9}-\d+\b|#\d+\b|(?<![\p{L}\p{N}.])[vV]?\d+(?:\.\d+)+(?![\p{L}\p{N}])|(?<![\p{L}\p{N}.])\d[\d,.:/-]*\d(?![\p{L}\p{N}])/gu;
+  /\b[A-Z][A-Z0-9]{1,9}-\d+\b|#\d+\b|(?<![\p{L}\p{N}.])[vV]?\d+(?:\.\d+)+[A-Za-z]*(?:[-+][0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)*(?![\p{L}\p{N}]|[.+-][\p{L}\p{N}])|(?<![\p{L}\p{N}.])\d[\d,.:/-]*\d(?![\p{L}\p{N}])/gu;
 
 /**
  * A time of day is not reported missing: the assistant writes times in the
@@ -105,14 +105,14 @@ function specificKey(specific: string): string {
 
 function contains(haystack: string, specific: string): boolean {
   let key = specificKey(specific);
-  // A dotted version must match whole: v1.2 is not inside v1.2.3, and v2.3
-  // is not inside v2.2.3. It may be written with or without its "v", on
+  // A dotted version must match whole, suffix included: v1.2 is not inside
+  // v1.2.3, v2.3 is not inside v2.2.3, and v1.2.3 is not v1.2.3-rc.1. It may be written with or without its "v", on
   // either side: v1.2.3 matches "Release 1.2.3", and 1.2.3 matches "v1.2.3".
-  const version = /^v?\d+(\.\d+)+$/.test(key);
+  const version = /^v?\d+(\.\d+)+/.test(key);
   if (version) key = key.replace(/^v/, "");
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = version
-    ? `(?<![\\p{L}\\p{N}.])v?${escaped}(?![\\p{L}\\p{N}]|\\.\\d)`
+    ? `(?<![\\p{L}\\p{N}.])v?${escaped}(?![\\p{L}\\p{N}]|[.+-][\\p{L}\\p{N}])`
     : `(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`;
   return new RegExp(pattern, "u").test(haystack);
 }
