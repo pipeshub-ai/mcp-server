@@ -232,27 +232,83 @@ describe("reading part of a long record", () => {
 describe("a block too large for any budget", () => {
   test("a record read to its end does not claim it was read whole", async () => {
     const { core } = client({
-      content: "cut text\n[Block 0 … cannot be returned.]", mode: "record",
-      order: "in_order", totalBlocks: 1, shownBlocks: [], complete: true,
-      truncatedBy: "clipped", nextStartBlock: null,
+      content: "cut text", mode: "record", order: "in_order", totalBlocks: 1,
+      shownBlocks: [], complete: true, truncatedBy: "clipped", givenUpBlock: 0,
+      nextStartBlock: null,
     });
 
     const text = textOf(await run(core, { mode: "content", recordId: REC }));
 
-    expect(text).toContain("Read: the whole record (1 block), except the cut block the note names.");
+    expect(text).toContain("Read: to the end of the record (1 block).");
+    expect(text).toContain("Lost: block 0 is larger than any maxChars");
+    expect(text).not.toContain("whole record");
     expect(text).not.toContain("Next:");
   });
 
-  test("so does a thread", async () => {
+  test("a block given up with more of the record to come is named on that read", async () => {
     const { core } = client({
-      content: "replies", mode: "thread", threadRecordCount: 2, startRecord: 1,
-      complete: true, nextStartRecord: null,
-      records: [{ recordId: "t-1", complete: false, truncatedBy: "clipped", nextStartBlock: null }],
+      content: "cut text", mode: "record", order: "in_order", totalBlocks: 3,
+      shownBlocks: [], complete: false, truncatedBy: "clipped", givenUpBlock: 0,
+      nextStartBlock: 1,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toContain("Lost: block 0 is larger than any maxChars");
+    expect(text).toContain('"startBlock":1}');
+  });
+
+  test("a later read that reaches the end does not call it the whole record", async () => {
+    const { core } = client({
+      content: "the rest", mode: "record", order: "in_order", totalBlocks: 3,
+      startBlock: 1, shownBlocks: [[1, 2]], complete: true, truncatedBy: null,
+      givenUpBlock: null, nextStartBlock: null,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC, startBlock: 1 }));
+
+    expect(text).toContain("Read: to the end of the record (3 blocks; blocks before 1 were in earlier reads).");
+    expect(text).not.toContain("whole record");
+  });
+
+  test("a reply given up mid-thread is named on that page", async () => {
+    const { core } = client({
+      content: "replies", mode: "thread", threadRecordCount: 2, startRecord: 0,
+      complete: false, nextStartRecord: 1, nextStartBlock: 0,
+      records: [{ recordId: "t-0", complete: false, truncatedBy: "clipped", givenUpBlock: 0, nextStartBlock: null }],
+      givenUpBlocks: [{ recordId: "t-0", block: 0 }],
     });
 
     const text = textOf(await run(core, { mode: "thread", recordId: REC }));
 
-    expect(text).toContain("except the cut block the note names");
+    expect(text).toContain("Lost: block 0 of record t-0 is larger than any maxChars");
+    expect(text).toContain('"startRecord":1,"startBlock":0}');
+  });
+
+  test("a thread read that resumed inside its first record names those earlier blocks", async () => {
+    const { core } = client({
+      content: "rest of the parent", mode: "thread", threadRecordCount: 5, startRecord: 0,
+      startBlock: 4, complete: true, nextStartRecord: null, givenUpBlocks: [],
+      records: [{ recordId: "t-0", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC, startRecord: 0, startBlock: 4 }));
+
+    expect(text).toContain("Read: to the end of the thread (records 1–5 of 5; blocks before 4 of record 1 were in earlier reads).");
+    expect(text).not.toContain("earlier ones were in earlier reads");
+  });
+
+  test("a thread's last page does not call it the whole thread", async () => {
+    const { core } = client({
+      content: "last reply", mode: "thread", threadRecordCount: 2, startRecord: 1,
+      startBlock: 0, complete: true, nextStartRecord: null, givenUpBlocks: [],
+      records: [{ recordId: "t-1", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC, startRecord: 1 }));
+
+    expect(text).toContain("Read: to the end of the thread (records 2–2 of 2; earlier ones were in earlier reads).");
+    expect(text).not.toContain("whole thread");
   });
 });
 
@@ -321,7 +377,7 @@ describe("thread mode", () => {
 
     const text = textOf(await run(core, { mode: "thread", recordId: REC }));
 
-    expect(text).toContain("Read: the whole thread from record 1 on (3 records in all).");
+    expect(text).toContain("Read: the whole thread (3 records).");
     expect(text).not.toContain("Next:");
   });
 
