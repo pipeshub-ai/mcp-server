@@ -87,12 +87,18 @@ function toPassage(hit: any, text: string): SearchPassage {
   };
 }
 
-/** The best passage first: higher score, then nearer the passage that matched. */
+/**
+ * The best passage first, as the server's own per-record cap ranks them: the
+ * passages the search matched (a hit that was not expanded is one), by score;
+ * then the passages around them, by score and nearness.
+ */
 function passageOrder(a: { hit: any; at: number }, b: { hit: any; at: number }) {
   const score = (h: any) => (typeof h?.score === "number" ? h.score : 0);
   const distance = (h: any) =>
     typeof h?.distanceFromMatch === "number" ? h.distanceFromMatch : 0;
-  return score(b.hit) - score(a.hit)
+  const neighbour = (h: any) => (distance(h) > 0 ? 1 : 0);
+  return neighbour(a.hit) - neighbour(b.hit)
+    || score(b.hit) - score(a.hit)
     || distance(a.hit) - distance(b.hit)
     || a.at - b.at;
 }

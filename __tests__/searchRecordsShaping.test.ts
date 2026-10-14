@@ -60,6 +60,18 @@ describe("one entry per record", () => {
     expect(entry!.passagesFound).toBe(36);
   });
 
+  test("a passage that matched comes before a better-scoring neighbour of another match", () => {
+    const [entry] = groupSearchResults([
+      hit("pr", "context around the strong match", 0.9, { distanceFromMatch: 1 }),
+      hit("pr", "the strong match", 0.9, { distanceFromMatch: 0 }),
+      hit("pr", "a weaker match", 0.4, { distanceFromMatch: 0 }),
+    ], []);
+
+    expect(entry!.passages.map((p) => p.text)).toEqual([
+      "the strong match", "a weaker match", "context around the strong match",
+    ]);
+  });
+
   test("records keep the order of their best passage, and repeated text is shown once", () => {
     const entries = groupSearchResults(
       [hit("a", "same", 0.9), hit("b", "other", 0.7), hit("a", "same", 0.6), hit("a", "more", 0.5)],
