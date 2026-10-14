@@ -50,6 +50,7 @@ OPTIONS
   --limit <n>                 search: result limit, 1-100 (default 10)
   --app <id>                  search: restrict to a connector id (repeatable)
   --kb <id>                   search: restrict to a collection id (repeatable)
+  --offset <n>                search: skip n records (a previous nextOffset)
   --conversation <id>         ask: continue an existing conversation
   --as <format>               get: server-side conversion, e.g. pdf
   --out <path>                get: write to a file instead of stdout
@@ -74,6 +75,7 @@ interface Flags {
   limit: number;
   apps: string[];
   kb: string[];
+  offset: number;
   conversation: string | null;
   as: string | null;
   out: string | null;
@@ -88,6 +90,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     limit: 10,
     apps: [],
     kb: [],
+    offset: 0,
     conversation: null,
     as: null,
     out: null,
@@ -115,6 +118,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--limit": flags.limit = Number(needValue(a, argv[++i])); break;
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
       case "--kb": flags.kb.push(needValue(a, argv[++i])); break;
+      case "--offset": flags.offset = Number(needValue(a, argv[++i])); break;
       case "--conversation": flags.conversation = needValue(a, argv[++i]); break;
       case "--as": flags.as = needValue(a, argv[++i]); break;
       case "--out": flags.out = needValue(a, argv[++i]); break;
@@ -131,6 +135,9 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
   // error (exit 2) instead of a generic tool failure.
   if (!Number.isInteger(flags.limit) || flags.limit < 1 || flags.limit > 100) {
     throw new CliError("--limit must be a whole number from 1 to 100", EXIT.USAGE);
+  }
+  if (!Number.isInteger(flags.offset) || flags.offset < 0) {
+    throw new CliError("--offset must be a whole number of 0 or more", EXIT.USAGE);
   }
   if (!Number.isFinite(flags.maxChars) || flags.maxChars <= 0) {
     throw new CliError("--max-chars must be a positive number", EXIT.USAGE);
@@ -282,7 +289,14 @@ async function run(argv: string[]): Promise<number> {
     case "search": {
       const query = positional.slice(1).join(" ").trim();
       if (query === "") throw new CliError("search requires a query", EXIT.USAGE);
-      outcome = await search(ctx, query, flags.limit, flags.apps, flags.kb);
+      outcome = await search(
+        ctx,
+        query,
+        flags.limit,
+        flags.apps,
+        flags.kb,
+        flags.offset,
+      );
       break;
     }
     case "ask": {

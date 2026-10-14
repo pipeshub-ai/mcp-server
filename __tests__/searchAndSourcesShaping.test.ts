@@ -124,17 +124,24 @@ describe("pipeshub_search", () => {
     },
   };
 
-  test("returns the hits and the records they came from", async () => {
+  test("returns one entry per record, with its passages", async () => {
     const { core } = client(payload);
 
     const out = await tool$pipeshubSearch.tool(core, { query: "runbook" } as never, ctx());
 
     const body = jsonOf(out);
     expect(body.searchId).toBe("s-1");
-    expect(body.hits.map((h: { recordId: string }) => h.recordId)).toEqual([REC, "rec-2"]);
-    expect(body.uniqueRecords).toEqual([{
-      recordId: REC, recordName: "A", connector: "KB", mimeType: "text/plain", webUrl: "u1",
-    }]);
+    expect(body.totalRecords).toBe(2);
+    expect(body.records).toEqual([
+      {
+        recordId: REC, recordName: "A", connector: "KB", webUrl: "u1", score: 0.9,
+        passagesFound: 1, passages: [{ text: "first" }],
+      },
+      {
+        recordId: "rec-2", recordName: "B", score: 0.4,
+        passagesFound: 1, passages: [{ text: "second" }],
+      },
+    ]);
   });
 
   test("each record carries its type and source dates when the backend sends them", async () => {
@@ -157,7 +164,7 @@ describe("pipeshub_search", () => {
 
     const out = await tool$pipeshubSearch.tool(core, { query: "x" } as never, ctx());
 
-    expect(jsonOf(out).uniqueRecords[0]).toMatchObject({
+    expect(jsonOf(out).records[0]).toMatchObject({
       recordId: REC,
       recordType: "PULL_REQUEST",
       createdAt: "2026-08-28T09:30:00.000Z",
@@ -179,15 +186,14 @@ describe("pipeshub_search", () => {
 
     const out = await tool$pipeshubSearch.tool(core, { query: "x" } as never, ctx());
 
-    const rec = jsonOf(out).uniqueRecords[0];
+    const rec = jsonOf(out).records[0];
     expect(Object.keys(rec)).not.toContain("createdAt");
     expect(Object.keys(rec)).not.toContain("updatedAt");
     expect(Object.keys(rec)).not.toContain("recordType");
   });
 
   test("the result is compact JSON, not indented", async () => {
-    // Indentation is whitespace the model pays for on every hit, and search
-    // returns many hits.
+    // Indentation is whitespace the model pays for on every record.
     const { core } = client(payload);
 
     const out = await tool$pipeshubSearch.tool(core, { query: "runbook" } as never, ctx());
@@ -203,7 +209,7 @@ describe("pipeshub_search", () => {
     const out = await tool$pipeshubSearch.tool(core, { query: "nothing" } as never, ctx());
 
     expect(out.isError).toBeUndefined();
-    expect(jsonOf(out)).toMatchObject({ searchId: "s-2", hits: [], uniqueRecords: [] });
+    expect(jsonOf(out)).toMatchObject({ searchId: "s-2", totalRecords: 0, records: [] });
   });
 
   test("a missing searchResponse does not throw", async () => {
@@ -211,7 +217,7 @@ describe("pipeshub_search", () => {
 
     const out = await tool$pipeshubSearch.tool(core, { query: "x" } as never, ctx());
 
-    expect(jsonOf(out).hits).toEqual([]);
+    expect(jsonOf(out).records).toEqual([]);
   });
 
   test("a failed search says so instead of returning no results", async () => {
