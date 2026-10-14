@@ -3,7 +3,7 @@
  */
 
 import { PipeshubCore } from "../core.js";
-import { encodeSimple } from "../lib/encodings.js";
+import { encodeFormQuery, encodeSimple } from "../lib/encodings.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
 import { RequestOptions } from "../lib/sdks.js";
@@ -120,6 +120,15 @@ async function $do(
   const path$ = pathToFunc("/connectors/record/{recordId}/content")(
     pathParams$,
   );
+  // Each of these asks for a budgeted read; with none, the query string is
+  // empty and the server returns the whole record as it always has.
+  const query$ = encodeFormQuery({
+    "maxChars": payload$.maxChars,
+    "mode": payload$.mode,
+    "query": payload$.query,
+    "startBlock": payload$.startBlock,
+    "startRecord": payload$.startRecord,
+  });
 
   const headers$ = new Headers(compactMap({
     Accept: "application/json",
@@ -152,6 +161,7 @@ async function $do(
     baseURL: options?.serverURL,
     path: path$,
     headers: headers$,
+    query: query$,
     body: body$,
     userAgent: client$._options.userAgent,
     timeoutMs: options?.timeoutMs || client$._options.timeoutMs

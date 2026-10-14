@@ -21,8 +21,10 @@ text, fetch the record itself:
 
 That returns one record, which is not always the whole conversation: Slack
 thread replies are separate records ("Reply Count: N" means they are not in
-the text), and a GitHub PR record carries its diffs and can exceed your
-tool-output limit.
+the text; \`mode:"thread"\` reads the whole thread). A long record, such as
+a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
+back in parts: pass \`query\` to get the passages that matter first, or
+follow the closing \`Next:\` line to read on.
 
 Tasks that need this path — anything where missing part of the document
 could make the answer wrong:
@@ -76,10 +78,10 @@ user asked for that action.
   parsed text with a metadata header. Get the \`recordId\` from a chat
   citation or from \`pipeshub_search\`. \`convertTo\` is only
   \`application/pdf\`.
-- \`pipeshub_get_record_content\` — when you need a record's full parsed
-  content (returned as a single \`content\` string: metadata header plus
-  the document's text) without downloading the original file. Prefer this
-  over download when the question is about what the record says.
+- \`pipeshub_get_record_content\` — when you need a record's parsed text
+  (metadata header, then the text up to \`maxChars\`; a long record comes
+  in parts; an unfinished one ends in \`Next:\`) without downloading the file.
+  Prefer it over download when the question is what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
   Not for documents or files — that is \`pipeshub_search\`.
 - \`pipeshub_sources\` — call once at the start of a session to discover
@@ -100,7 +102,8 @@ an epic over its stories, a page over its child pages.
   exists. Search returns one entry per record with up to 3 passages; read a
   record whole with \`mode:"content"\`.
 - \`mode:"lookup"\` and \`mode:"navigate"\` — metadata: recordIds, fields, and
-  structure. No document text. \`mode:"content"\` — one record's full text.
+  structure. No document text. \`mode:"content"\` — one record's text, in
+  parts; \`mode:"thread"\` — a whole Slack thread.
 
 **Combining them.** Search finds a starting point by wording; navigate on a
 \`recordId\` reveals what search structurally cannot — siblings, children,

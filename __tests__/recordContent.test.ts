@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
+import * as z from "zod";
 import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 
 // This tool has three modes behind one entry point: read a document, walk the
@@ -152,5 +153,211 @@ describe("navigate mode", () => {
       seen.push(new URL(urls[0]!).pathname);
     }
     expect(new Set(seen).size).toBe(3);
+  });
+});
+
+// A long record used to come back whole: a pull request with its diffs ran to
+// hundreds of thousands of characters, past any client's tool-output limit,
+// and a Slack reply came back without the rest of its thread.
+describe("reading part of a long record", () => {
+  const params = (url: string) => new URL(url).searchParams;
+
+  test("asks for a bounded read by default", () => {
+    const parsed = z.object(tool$pipeshubGetRecordContent.args).parse({
+      recordId: REC,
+    });
+    // About 10k tokens: inside common clients' tool-output limits.
+    expect((parsed as { maxChars?: number }).maxChars).toBe(40_000);
+  });
+
+  test("sends the budget, the question and the offset", async () => {
+    const { core, urls } = client({ content: "x" });
+
+    await run(core, {
+      mode: "content", recordId: REC, maxChars: 20_000, query: "rollback", startBlock: 97,
+    });
+
+    const sent = params(urls[0]!);
+    expect(new URL(urls[0]!).pathname).toBe(`/api/v1/connectors/record/${REC}/content`);
+    expect(sent.get("maxChars")).toBe("20000");
+    expect(sent.get("query")).toBe("rollback");
+    expect(sent.get("startBlock")).toBe("97");
+    expect(sent.get("mode")).toBeNull();
+  });
+
+  test("a cut-short read names the exact call that reads on", async () => {
+    const { core } = client({
+      content: "<record>…blocks 0–96…</record>",
+      mode: "record", order: "in_order", totalBlocks: 3000, shownBlocks: [[0, 96]],
+      complete: false, nextStartBlock: 97, chars: 39_202, maxChars: 40_000,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text.startsWith("<record>…blocks 0–96…</record>")).toBe(true);
+    expect(text).toContain("Read: blocks 0–96 of 3000.");
+    expect(text).toContain(
+      `Next: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":97}`,
+    );
+  });
+
+  test("a read chosen by the question says which parts it skipped", async () => {
+    const { core } = client({
+      content: "selected",
+      mode: "record", order: "relevance", totalBlocks: 3000,
+      shownBlocks: [[0, 39], [2473, 2527]], complete: false, nextStartBlock: 40,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q" }));
+
+    expect(text).toContain("most relevant to your query (0–39, 2473–2527 of 3000)");
+    expect(text).toContain('"startBlock":40}');
+    expect(text).toContain(
+      `To read it in order instead: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":0}`,
+    );
+  });
+
+  test("a record read to the end says so and offers no next call", async () => {
+    const { core } = client({
+      content: "all of it", mode: "record", order: "in_order", totalBlocks: 5,
+      shownBlocks: [[0, 4]], complete: true, nextStartBlock: null,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toBe("all of it\n\nRead: the whole record (5 blocks).");
+  });
+});
+
+describe("a block too large for any budget", () => {
+  test("a record read to its end does not claim it was read whole", async () => {
+    const { core } = client({
+      content: "cut text\n[Block 0 … cannot be returned.]", mode: "record",
+      order: "in_order", totalBlocks: 1, shownBlocks: [], complete: true,
+      truncatedBy: "clipped", nextStartBlock: null,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toContain("Read: the whole record (1 block), except the cut block the note names.");
+    expect(text).not.toContain("Next:");
+  });
+
+  test("so does a thread", async () => {
+    const { core } = client({
+      content: "replies", mode: "thread", threadRecordCount: 2, startRecord: 1,
+      complete: true, nextStartRecord: null,
+      records: [{ recordId: "t-1", complete: false, truncatedBy: "clipped", nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toContain("except the cut block the note names");
+  });
+});
+
+describe("a record with nothing to read", () => {
+  test("is not reported as read in full and empty", async () => {
+    // The budgeted route answers a record with no stored content with its
+    // note and `complete: true`, but no block count.
+    const { core } = client({
+      content: "Record ID: r-1\n\nNot indexed: (status: QUEUED)",
+      mode: "record", recordId: "r-1", complete: true, nextStartBlock: null,
+      chars: 40, maxChars: 40_000,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toBe("Record ID: r-1\n\nNot indexed: (status: QUEUED)");
+    expect(text).not.toContain("Read:");
+  });
+});
+
+describe("thread mode", () => {
+  test("asks for the thread the record belongs to", async () => {
+    const { core, urls } = client({ content: "x", mode: "thread", complete: true });
+
+    await run(core, {
+      mode: "thread", recordId: REC, maxChars: 40_000, startRecord: 3, startBlock: 7,
+    });
+
+    const sent = new URL(urls[0]!).searchParams;
+    expect(sent.get("mode")).toBe("thread");
+    expect(sent.get("startRecord")).toBe("3");
+    expect(sent.get("startBlock")).toBe("7");
+    expect(sent.get("maxChars")).toBe("40000");
+  });
+
+  test("a long thread names the call that reads on, cursor block included", async () => {
+    // A reply cut short keeps the cursor: the next read resumes inside it.
+    const { core } = client({
+      content: "parent and first replies",
+      mode: "thread", threadRecordCount: 12, startRecord: 0, complete: false,
+      nextStartRecord: 3, nextStartBlock: 7,
+      records: [
+        { recordId: "t-0", complete: true, nextStartBlock: null },
+        { recordId: "t-1", complete: true, nextStartBlock: null },
+        { recordId: "t-2", complete: true, nextStartBlock: null },
+        { recordId: "t-3", complete: false, nextStartBlock: 7 },
+      ],
+      unreadableRecordIds: ["t-9"],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toContain("Read: thread records 1–4 of 12.");
+    expect(text).toContain(
+      `Next: pipeshub_get_record_content {"mode":"thread","recordId":"${REC}","startRecord":3,"startBlock":7}`,
+    );
+    expect(text).toContain("could not be loaded");
+    expect(text).toContain("t-9");
+  });
+
+  test("a whole thread says so", async () => {
+    const { core } = client({
+      content: "every reply", mode: "thread", threadRecordCount: 3, startRecord: 0,
+      complete: true, nextStartRecord: null, records: [],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toContain("Read: the whole thread from record 1 on (3 records in all).");
+    expect(text).not.toContain("Next:");
+  });
+
+  test("an older server's single record is not passed off as the thread", async () => {
+    const { core } = client({ content: "just one burst" });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toContain("cannot read a whole Slack thread");
+    expect(text).toContain("just one burst");
+  });
+
+  test("a record outside any thread reports why", async () => {
+    const { core } = client(
+      { detail: "This record is not part of a Slack thread." }, 422,
+    );
+
+    const out = await run(core, { mode: "thread", recordId: REC });
+
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain("not part of a Slack thread");
+  });
+
+  test("a missing recordId names the mode", async () => {
+    const { core, urls } = client({});
+
+    const out = await run(core, { mode: "thread" });
+
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain('"thread"');
+    expect(urls).toHaveLength(0);
+  });
+
+  test("the description routes thread questions to it", () => {
+    const flat = tool$pipeshubGetRecordContent.description.replace(/\s+/g, " ");
+    expect(flat).toContain('mode:"thread"');
+    expect(flat).toMatch(/Reply Count: N[^.]*\. `mode:"thread"`/);
   });
 });

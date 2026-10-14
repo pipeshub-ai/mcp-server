@@ -45,9 +45,9 @@ describe("tool descriptions", () => {
   // navigate and lookup have no tool name of their own to be selected on, so
   // the mode literals are the only handle the model has. If a rewrite drops
   // one, the mode becomes unreachable in practice.
-  test("all three record modes are named in the record tool", () => {
+  test("every record mode is named in the record tool", () => {
     const desc = byName.get("pipeshub_get_record_content") ?? "";
-    for (const mode of ['mode:"content"', 'mode:"navigate"', 'mode:"lookup"']) {
+    for (const mode of ['mode:"content"', 'mode:"thread"', 'mode:"navigate"', 'mode:"lookup"']) {
       expect(desc).toContain(mode);
     }
   });

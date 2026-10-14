@@ -24,19 +24,45 @@ export async function renderedResult(response: Response) {
     : jsonResult(parsed.value);
 }
 
-const args = {
-  mode: z.enum(["content", "navigate", "lookup"]).default("content").describe(
-    "`content` (default) reads a record's full text by `recordId`. "
-      + "`lookup` resolves a URL / issue key / external ID to a recordId. "
-      + "`navigate` browses the knowledge graph tree.",
-  ),
+/** What a read returns by default: about 10k tokens, inside common clients'
+ * tool-output limits (Claude Code's is 25k tokens). */
+export const DEFAULT_MAX_CHARS = 40_000;
 
-  // mode: "content"
+const args = {
+  mode: z.enum(["content", "thread", "navigate", "lookup"]).default("content")
+    .describe(
+      "`content` (default) reads a record's text by `recordId`, in parts "
+        + "when it is long. `thread` reads the whole Slack thread a message "
+        + "belongs to. `lookup` resolves a URL / issue key / external ID to "
+        + "a recordId. `navigate` browses the knowledge graph tree.",
+    ),
+
+  // mode: "content" | "thread"
   recordId: z.string().min(1).optional().describe(
     "Record identifier — usually a UUID for connector-sourced records or "
       + "a 24-character ObjectId for uploaded records. Get it from a chat "
       + "citation (`citations[*].recordId`) or from a `pipeshub_search` hit. "
-      + "Required when `mode` is `content`.",
+      + "Required when `mode` is `content` or `thread`.",
+  ),
+  query: z.string().min(1).max(2000).optional().describe(
+    "Content mode: what you are looking for in this record. When the record "
+      + "is longer than `maxChars`, the passages most relevant to it come "
+      + "back first, with the skipped block ranges marked. Ignored when "
+      + "`startBlock` is given.",
+  ),
+  startBlock: z.int().min(0).optional().describe(
+    "Read in order from this block — the value in a previous read's `Next:` "
+      + "line, or 0 to read from the top. In thread mode it applies to the "
+      + "record at `startRecord`.",
+  ),
+  startRecord: z.int().min(0).optional().describe(
+    "Thread mode: carry on a long thread from this record, with the "
+      + "`startBlock` given beside it in a previous read's `Next:` line.",
+  ),
+  maxChars: z.int().min(2000).max(140000).default(DEFAULT_MAX_CHARS).describe(
+    "Content and thread modes: most characters of text to return. The "
+      + "default (40000, about 10k tokens) fits common tool-output limits; "
+      + "raise it only if your client accepts larger results.",
   ),
 
   // mode: "navigate"
@@ -102,13 +128,14 @@ const args = {
 export const tool$pipeshubGetRecordContent: ToolDefinition<typeof args> = {
   name: "pipeshub_get_record_content",
   description:
-    `Three operations on the org's records. Pick by what you hold:
+    `Four operations on the org's records. Pick by what you hold:
 
   \`mode:"lookup"\`   — a URL, issue key (PA-1787), or external ID
                     → its recordId plus the record's metadata
   \`mode:"navigate"\` — a question about structure: what is under X,
                     what links to Y → browses the hierarchy
-  \`mode:"content"\`  — a recordId, and you need that record's full text
+  \`mode:"content"\`  — a recordId, and you need that record's text
+  \`mode:"thread"\`   — a Slack message whose whole thread you need
 
 **\`mode:"content"\` (default)** — the only way to read one record's full
 text. Use it whenever missing part of the document could make the answer
@@ -121,17 +148,17 @@ Judge by the user's INTENT, not their keywords: "what's this doc about?",
 full-content tasks. Get the \`recordId\` from a \`pipeshub_search\` top hit, a
 chat citation, or \`mode:"lookup"\`.
 
-Returns one \`content\` string: a metadata header (title, source, key fields,
-pre-generated summary) then the full parsed text. \`No record found\` may
-mean it exists but is not indexed yet (newer servers: metadata and a
-\`Not indexed:\` line). A missing id is a 403. Use
-\`pipeshub_download_record\` only for the original file bytes.
+Returns a metadata header then the parsed text, up to \`maxChars\`. A long
+record comes in parts, ending in a \`Next:\` line naming the next call.
+GitHub PR records include diffs and can exceed your tool-output limit:
+pass \`query\` to get relevant passages first.
+\`No record found\` may mean it exists but is not indexed yet (newer
+servers: a \`Not indexed:\` line). A missing id is a 403.
 
-It returns one record, which is not always the whole conversation. A Slack
-record is one burst of messages; thread replies are separate records, and
-"Reply Count: N" means those replies are not in this text — search for
-words from the thread to find them. GitHub PR records include diffs and
-changed files, and can be far larger than your tool-output limit.
+It returns one record, not always the whole conversation: a Slack record is
+one burst of messages, thread replies are separate records, and "Reply
+Count: N" means they are not in this text. \`mode:"thread"\` on any of
+them reads the whole thread.
 
 **\`mode:"navigate"\`** — browse the hierarchy: RecordGroup (project /
 space / drive / folder) → Record (epic / story / page / file) → children,
@@ -242,22 +269,165 @@ it using the \`Web URL\` from its metadata header (when present).`,
     }
 
     if (!args.recordId) {
-      return errorResult('`recordId` is required when mode is "content".');
+      return errorResult(
+        `\`recordId\` is required when mode is "${args.mode}".`,
+      );
     }
+    const thread = args.mode === "thread";
     const [result] = await connectorGetRecordContent(client, {
       recordId: args.recordId,
+      maxChars: args.maxChars,
+      ...(thread
+        ? {
+          mode: "thread" as const,
+          startRecord: args.startRecord,
+          startBlock: args.startBlock,
+        }
+        : { query: args.query, startBlock: args.startBlock }),
     }, fetchOptions).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
     // The SDK func uses errorCodes:[], so any non-2xx comes back as an
     // ok=false Response — surface it as an error rather than parsing it.
-    const httpErr = await httpErrorResult(result.value, "Get record content");
+    const httpErr = await httpErrorResult(
+      result.value,
+      thread ? "Read Slack thread" : "Get record content",
+    );
     if (httpErr) return httpErr;
 
-    // Success: the endpoint returns { content: <string> }. Hand the LLM the
-    // plain text (real newlines), not the JSON wrapper.
-    const parsed = await readJson<{ content?: string }>(result.value);
+    // Success: the endpoint returns { content: <string>, ... }. Hand the LLM
+    // the plain text (real newlines), not the JSON wrapper, and say how much
+    // of the record that was and how to read on.
+    const parsed = await readJson<RecordRead>(result.value);
     if (!parsed.ok) return parsed.result;
-    return { content: [{ type: "text", text: parsed.value.content ?? "" }] };
+    return {
+      content: [{
+        type: "text",
+        text: renderRead(parsed.value, args.recordId, thread),
+      }],
+    };
   },
 };
+
+/** The fields a budgeted read adds beside `content`. A server that predates
+ * budgeted reads sends `content` alone. */
+export type RecordRead = {
+  content?: string;
+  mode?: "record" | "thread";
+  order?: "in_order" | "relevance";
+  totalBlocks?: number;
+  shownBlocks?: Array<[number, number]>;
+  complete?: boolean;
+  /** `clipped` with `complete`: a block larger than the largest `maxChars`
+   * was cut and the rest of it cannot be returned. */
+  truncatedBy?: string | null;
+  nextStartBlock?: number | null;
+  chars?: number;
+  threadRecordCount?: number;
+  startRecord?: number;
+  nextStartRecord?: number | null;
+  records?: Array<{
+    recordId?: string;
+    complete?: boolean;
+    truncatedBy?: string | null;
+    nextStartBlock?: number | null;
+  }>;
+  unreadableRecordIds?: string[];
+};
+
+// Said when a read reached the end but gave up part of a block too large for
+// any `maxChars`: "whole" alone would claim nothing is missing.
+const CUT = ", except the cut block the note names";
+
+const call = (args: Record<string, unknown>) =>
+  `pipeshub_get_record_content ${JSON.stringify(args)}`;
+
+const ranges = (shown: Array<[number, number]> | undefined) =>
+  (shown ?? []).map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
+
+/**
+ * The text the model reads: the content, then a `Read:` line saying how much
+ * of the record or thread that was and, when something is left, a `Next:`
+ * line naming the exact call that reads on. The server's own hints inside
+ * the content say the same in prose; this line is the one to follow.
+ */
+export function renderRead(
+  read: RecordRead,
+  recordId: string,
+  thread: boolean,
+): string {
+  const content = read.content ?? "";
+  if (thread && read.mode !== "thread") {
+    // A server without thread reads ignores `mode` and returns the record.
+    return "This PipesHub server cannot read a whole Slack thread (it needs "
+      + "a newer PipesHub). Below is only the record you named; search for "
+      + "words from the thread to find its replies.\n\n" + content;
+  }
+  if (read.mode === "thread") {
+    const lines: string[] = [];
+    const total = read.threadRecordCount ?? 0;
+    const shown = read.records ?? [];
+    const first = (read.startRecord ?? 0) + 1;
+    lines.push(
+      read.complete
+        ? `Read: the whole thread from record ${first} on (${total} record${total === 1 ? "" : "s"} in all)${
+          shown.some((r) => r.truncatedBy === "clipped") ? CUT : ""
+        }.`
+        : `Read: thread records ${first}–${first + shown.length - 1} of ${total}.`,
+    );
+    const unreadable = read.unreadableRecordIds ?? [];
+    if (unreadable.length > 0) {
+      lines.push(
+        `${unreadable.length} record(s) of this thread could not be loaded, so `
+          + `the conversation may have gaps: ${unreadable.join(", ")}.`,
+      );
+    }
+    if (read.nextStartRecord != null) {
+      // The cursor is a record and a block: it stays on a reply that was cut
+      // short until that reply has been read to its end.
+      lines.push(
+        "Next: "
+          + call({
+            mode: "thread",
+            recordId,
+            startRecord: read.nextStartRecord,
+            startBlock: read.nextStartBlock ?? 0,
+          }),
+      );
+    }
+    return `${content}\n\n${lines.join("\n")}`;
+  }
+  // A record with no content to read (`No record found`, or a `Not indexed:`
+  // note) carries no block count. Saying it was read in full would tell the
+  // model the record is empty, so its text goes through on its own.
+  if (
+    read.mode !== "record" || read.complete == null
+    || typeof read.totalBlocks !== "number"
+  ) {
+    return content;
+  }
+
+  const total = read.totalBlocks;
+  if (read.complete) {
+    const cut = read.truncatedBy === "clipped" ? CUT : "";
+    return `${content}\n\nRead: the whole record (${total} block${total === 1 ? "" : "s"})${cut}.`;
+  }
+  const lines = [
+    read.order === "relevance"
+      ? `Read: the blocks most relevant to your query (${ranges(read.shownBlocks)} of ${total}); the rest were skipped.`
+      : `Read: blocks ${ranges(read.shownBlocks)} of ${total}.`,
+  ];
+  if (read.nextStartBlock != null) {
+    lines.push(
+      "Next: "
+        + call({ mode: "content", recordId, startBlock: read.nextStartBlock }),
+    );
+  }
+  if (read.order === "relevance") {
+    lines.push(
+      "To read it in order instead: "
+        + call({ mode: "content", recordId, startBlock: 0 }),
+    );
+  }
+  return `${content}\n\n${lines.join("\n")}`;
+}
