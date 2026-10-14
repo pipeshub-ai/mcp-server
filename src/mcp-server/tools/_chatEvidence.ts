@@ -79,7 +79,7 @@ const STOP_WORDS = new Set(
  * no cited text contains are reported.
  */
 const SPECIFIC =
-  /\b[A-Z][A-Z0-9]{1,9}-\d+\b|#\d+\b|(?<![\p{L}\p{N}.])[vV]?\d+(?:\.\d+)+(?:[A-Za-z][A-Za-z0-9]*)?(?:[-+][0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)*(?![\p{L}\p{N}]|[.+-][\p{L}\p{N}])|(?<![\p{L}\p{N}.])\d[\d,.:/-]*\d(?![\p{L}\p{N}]|\.[\p{L}\p{N}])/gu;
+  /\b[A-Z][A-Z0-9]{1,9}-\d+\b|#\d+\b|(?<![\p{L}\p{N}.])[vV]?\d+(?:\.\d+)+(?:[A-Za-z][A-Za-z0-9]*)?(?:[.+-][0-9A-Za-z]+)*(?![\p{L}\p{N}]|[.+-][\p{L}\p{N}])|(?<![\p{L}\p{N}.])\d[\d,.:/-]*\d(?![\p{L}\p{N}]|\.[\p{L}\p{N}])/gu;
 
 /**
  * A time of day is not reported missing: the assistant writes times in the
