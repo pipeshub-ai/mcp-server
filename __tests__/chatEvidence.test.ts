@@ -103,6 +103,11 @@ describe("claims", () => {
     expect(missing("We shipped v1.2.3a", "We shipped v1.2.3a on Monday.")).toBeUndefined();
     expect(missing("We shipped v1.2.3a", "We shipped v1.2 on Monday.")).toEqual(["v1.2.3a"]);
     expect(missing("We shipped v1.2.3", "It went out as v1.2.3.")).toBeUndefined();
+    expect(missing("We shipped 1.0.0rc1", "Release 1.0.0rc1 is current.")).toBeUndefined();
+    expect(missing("We shipped 1.0.0rc2", "Release 1.0 is current.")).toEqual(["1.0.0rc2"]);
+    expect(missing("We shipped 3.11.0a1", "Python 3.11 is out.")).toEqual(["3.11.0a1"]);
+    expect(missing("We shipped 3.11.0a1", "Python 3.11.0a1 is out.")).toBeUndefined();
+    expect(missing("We shipped v1.2.3rc1", "Release notes: v1.2.3rc2 is current.")).toEqual(["v1.2.3rc1"]);
   });
 
   test("a preview link's block position does not count as a number the record states", () => {
