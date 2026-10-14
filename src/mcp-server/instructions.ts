@@ -21,8 +21,10 @@ text, fetch the record itself:
 
 That returns one record, which is not always the whole conversation: Slack
 thread replies are separate records ("Reply Count: N" means they are not in
-the text), and a GitHub PR record carries its diffs and can exceed your
-tool-output limit.
+the text; \`mode:"thread"\` reads the whole thread). A long record, such as
+a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
+back in parts: pass \`query\` to get the passages that matter first, or
+follow the closing \`Next:\` line to read on.
 
 Tasks that need this path — anything where missing part of the document
 could make the answer wrong:
