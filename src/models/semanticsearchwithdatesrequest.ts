@@ -17,8 +17,8 @@ import { SemanticSearchRequest } from "./semanticsearchrequest.js";
 export type SemanticSearchDateBounds = {
   createdAfter?: string | undefined;
   createdBefore?: string | undefined;
-  updatedAfter?: string | undefined;
-  updatedBefore?: string | undefined;
+  modifiedAfter?: string | undefined;
+  modifiedBefore?: string | undefined;
 };
 
 export type SemanticSearchWithDatesRequest =
@@ -37,6 +37,6 @@ export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
   modelKey: z.string().optional(),
   modelName: z.string().optional(),
   query: z.string(),
-  updatedAfter: z.string().optional(),
-  updatedBefore: z.string().optional(),
+  modifiedAfter: z.string().optional(),
+  modifiedBefore: z.string().optional(),
 });

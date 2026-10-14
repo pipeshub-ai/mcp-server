@@ -54,11 +54,11 @@ function response(records: any[]) {
 describe("pipeshub_search date bounds", () => {
   test("the four bounds are optional strings", () => {
     const schema = z.object(tool$pipeshubSearch.args);
-    expect(schema.safeParse({ query: "q", updatedAfter: "2026-09-01" }).success)
+    expect(schema.safeParse({ query: "q", modifiedAfter: "2026-09-01" }).success)
       .toBe(true);
     expect(schema.safeParse({ query: "q", createdBefore: "" }).success)
       .toBe(false);
-    expect(schema.safeParse({ query: "q", updatedBefore: 20260901 }).success)
+    expect(schema.safeParse({ query: "q", modifiedBefore: 20260901 }).success)
       .toBe(false);
   });
 
@@ -66,18 +66,18 @@ describe("pipeshub_search date bounds", () => {
     const { core, sent } = client(response([]));
     await tool$pipeshubSearch.tool(core, {
       query: "release notes",
-      updatedAfter: "2026-09-01",
+      modifiedAfter: "2026-09-01",
       createdBefore: "2026-10-01T00:00:00Z",
     } as never, ctx());
     await tool$pipeshubSearch.tool(core, { query: "release notes" } as never, ctx());
 
     expect(sent[0]).toMatchObject({
       query: "release notes",
-      updatedAfter: "2026-09-01",
+      modifiedAfter: "2026-09-01",
       createdBefore: "2026-10-01T00:00:00Z",
     });
     expect(Object.keys(sent[0])).not.toContain("createdAfter");
-    expect(Object.keys(sent[1])).not.toContain("updatedAfter");
+    expect(Object.keys(sent[1])).not.toContain("modifiedAfter");
   });
 
   test("records a server returns outside the bounds are removed and said so", async () => {
@@ -90,7 +90,7 @@ describe("pipeshub_search date bounds", () => {
 
     const out = JSON.parse(textOf(await tool$pipeshubSearch.tool(core, {
       query: "q",
-      updatedAfter: "2026-09-01",
+      modifiedAfter: "2026-09-01",
     } as never, ctx())));
 
     expect(out.uniqueRecords.map((r: any) => r.recordId)).toEqual(["new"]);
@@ -107,7 +107,7 @@ describe("pipeshub_search date bounds", () => {
 
     const out = JSON.parse(textOf(await tool$pipeshubSearch.tool(core, {
       query: "q",
-      updatedAfter: "2026-09-01",
+      modifiedAfter: "2026-09-01",
     } as never, ctx())));
 
     expect(out.uniqueRecords.map((r: any) => r.recordId)).toEqual(["new"]);
@@ -116,13 +116,13 @@ describe("pipeshub_search date bounds", () => {
 
   test("the server's refusal of a date reaches the caller", async () => {
     const { core } = client(
-      { error: { message: "updatedAfter: 'last week' is not a valid ISO 8601 date." } },
+      { error: { message: "modifiedAfter: 'last week' is not a valid ISO 8601 date." } },
       400,
     );
 
     const result = await tool$pipeshubSearch.tool(core, {
       query: "q",
-      updatedAfter: "last week",
+      modifiedAfter: "last week",
     } as never, ctx());
 
     expect(result.isError).toBe(true);
@@ -136,10 +136,23 @@ describe("reading a bound the way the server does", () => {
     expect(boundMs("2026-09-01", true)).toBe(SEPT_1 + 86_400_000 - 1);
   });
 
+  test("a day past the month's end is clamped as the server clamps it", () => {
+    const MARCH_1 = Date.parse("2026-03-01T00:00:00Z");
+    // Lower bounds roll to the next month's first, upper bounds stop at the
+    // month's last millisecond, instead of rolling over by the extra days.
+    expect(boundMs("2026-02-31", false)).toBe(MARCH_1);
+    expect(boundMs("2026-02-29", true)).toBe(MARCH_1 - 1);
+    expect(boundMs("2026-04-31", true)).toBe(Date.parse("2026-05-01T00:00:00Z") - 1);
+    const onMarch1 = { sourceLastModifiedTimestamp: MARCH_1 };
+    expect(outsideDateBounds(onMarch1, { modifiedAfter: "2026-02-31" })).toBe(false);
+    expect(outsideDateBounds(onMarch1, { modifiedBefore: "2026-02-29" })).toBe(true);
+    expect(boundMs("2026-13-01", false)).toBeUndefined();
+  });
+
   test("a datetime is used as given, and an unreadable one is left to the server", () => {
     expect(boundMs("2026-09-01T05:30:00+05:30", false)).toBe(SEPT_1);
     expect(boundMs("last week", false)).toBeUndefined();
-    expect(outsideDateBounds({}, { updatedAfter: "last week" })).toBe(false);
+    expect(outsideDateBounds({}, { modifiedAfter: "last week" })).toBe(false);
   });
 
   test("each bound reads its own date field", () => {
@@ -148,8 +161,8 @@ describe("reading a bound the way the server does", () => {
       sourceLastModifiedTimestamp: SEPT_1,
     };
     expect(outsideDateBounds(record, { createdAfter: "2026-09-01" })).toBe(true);
-    expect(outsideDateBounds(record, { updatedAfter: "2026-09-01" })).toBe(false);
-    expect(outsideDateBounds(record, { updatedBefore: "2026-08-31" })).toBe(true);
+    expect(outsideDateBounds(record, { modifiedAfter: "2026-09-01" })).toBe(false);
+    expect(outsideDateBounds(record, { modifiedBefore: "2026-08-31" })).toBe(true);
     expect(outsideDateBounds(record, { createdBefore: "2026-08-15" })).toBe(false);
   });
 });

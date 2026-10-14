@@ -47,11 +47,11 @@ const args = {
     "Only records created in their source on or before this date. A "
       + "`YYYY-MM-DD` value includes that whole day.",
   ),
-  updatedAfter: dateArg(
+  modifiedAfter: dateArg(
     "Only records last changed in their source on or after this date. Use "
       + "it for \"what changed since …\" and to leave out superseded documents.",
   ),
-  updatedBefore: dateArg(
+  modifiedBefore: dateArg(
     "Only records last changed in their source on or before this date.",
   ),
 };
@@ -72,10 +72,26 @@ const DAY_MS = 86_400_000;
 export function boundMs(value: string | undefined, upper: boolean): number | undefined {
   if (!value) return undefined;
   const text = value.trim();
-  const ms = DATE_ONLY.test(text)
-    ? Date.parse(`${text}T00:00:00Z`) + (upper ? DAY_MS - 1 : 0)
-    : Date.parse(text);
-  return Number.isFinite(ms) ? ms : undefined;
+  const ms = DATE_ONLY.test(text) ? calendarDayMs(text, upper) : Date.parse(text);
+  return ms !== undefined && Number.isFinite(ms) ? ms : undefined;
+}
+
+/**
+ * A `YYYY-MM-DD` bound as the server's `_calendar_date` reads it. A day past
+ * its month's end ("2026-02-30") is the month's last day as an upper bound and
+ * the next month's first as a lower one, where `Date.parse` would roll over by
+ * the extra days. Undefined for a month or day the server refuses.
+ */
+function calendarDayMs(text: string, upper: boolean): number | undefined {
+  const [year = 0, month = 0, day = 0] = text.split("-").map(Number);
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const start = day <= lastDay
+    ? Date.UTC(year, month - 1, day)
+    : upper
+    ? Date.UTC(year, month - 1, lastDay)
+    : Date.UTC(year, month, 1);
+  return upper ? start + DAY_MS - 1 : start;
 }
 
 /**
@@ -90,8 +106,8 @@ export function outsideDateBounds(record: any, bounds: SemanticSearchDateBounds)
   const checks: Array<[unknown, string | undefined, boolean]> = [
     [record?.sourceCreatedAtTimestamp, bounds.createdAfter, false],
     [record?.sourceCreatedAtTimestamp, bounds.createdBefore, true],
-    [record?.sourceLastModifiedTimestamp, bounds.updatedAfter, false],
-    [record?.sourceLastModifiedTimestamp, bounds.updatedBefore, true],
+    [record?.sourceLastModifiedTimestamp, bounds.modifiedAfter, false],
+    [record?.sourceLastModifiedTimestamp, bounds.modifiedBefore, true],
   ];
   return checks.some(([value, bound, upper]) => {
     const limit = boundMs(bound, upper);
@@ -184,8 +200,8 @@ record by its \`webUrl\`.`,
     const bounds: SemanticSearchDateBounds = {
       ...(args.createdAfter ? { createdAfter: args.createdAfter } : {}),
       ...(args.createdBefore ? { createdBefore: args.createdBefore } : {}),
-      ...(args.updatedAfter ? { updatedAfter: args.updatedAfter } : {}),
-      ...(args.updatedBefore ? { updatedBefore: args.updatedBefore } : {}),
+      ...(args.modifiedAfter ? { modifiedAfter: args.modifiedAfter } : {}),
+      ...(args.modifiedBefore ? { modifiedBefore: args.modifiedBefore } : {}),
     };
 
     const [result] = await semanticSearchSearchWithDates(client, {

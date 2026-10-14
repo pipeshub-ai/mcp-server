@@ -43,7 +43,7 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
 | `createdAfter` / `createdBefore` | string | no | Only records created in their source within these dates. `YYYY-MM-DD` (that whole day, UTC) or an ISO 8601 datetime with a timezone. Both ends are inclusive. |
-| `updatedAfter` / `updatedBefore` | string | no | Only records last changed in their source within these dates, in the same format. |
+| `modifiedAfter` / `modifiedBefore` | string | no | Only records last changed in their source within these dates, in the same format. |
 
 Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
 

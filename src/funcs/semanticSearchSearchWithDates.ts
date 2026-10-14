@@ -1,7 +1,7 @@
 /*
  * Adapted from Speakeasy-generated semanticSearchSearch, to send the search
- * API's date bounds (`createdAfter`, `createdBefore`, `updatedAfter`,
- * `updatedBefore`), which the generated request schema strips.
+ * API's date bounds (`createdAfter`, `createdBefore`, `modifiedAfter`,
+ * `modifiedBefore`), which the generated request schema strips.
  */
 
 import { PipeshubCore } from "../core.js";
