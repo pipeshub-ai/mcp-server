@@ -318,9 +318,12 @@ export type RecordRead = {
   totalBlocks?: number;
   shownBlocks?: Array<[number, number]>;
   complete?: boolean;
-  /** `clipped` with `complete`: a block larger than the largest `maxChars`
-   * was cut and the rest of it cannot be returned. */
   truncatedBy?: string | null;
+  /** A block larger than the largest `maxChars` that this read cut and gave
+   * up: no read can return the rest of it. */
+  givenUpBlock?: number | null;
+  givenUpBlocks?: Array<{ recordId?: string; block?: number }>;
+  startBlock?: number;
   nextStartBlock?: number | null;
   chars?: number;
   threadRecordCount?: number;
@@ -330,14 +333,15 @@ export type RecordRead = {
     recordId?: string;
     complete?: boolean;
     truncatedBy?: string | null;
+    givenUpBlock?: number | null;
     nextStartBlock?: number | null;
   }>;
   unreadableRecordIds?: string[];
 };
 
-// Said when a read reached the end but gave up part of a block too large for
-// any `maxChars`: "whole" alone would claim nothing is missing.
-const CUT = ", except the cut block the note names";
+const lost = (block: number | null | undefined, record?: string) =>
+  `Lost: block ${block ?? "?"}${record ? ` of record ${record}` : ""} is larger `
+  + "than any maxChars allows; it was cut and the rest of it cannot be returned.";
 
 const call = (args: Record<string, unknown>) =>
   `pipeshub_get_record_content ${JSON.stringify(args)}`;
@@ -368,13 +372,28 @@ export function renderRead(
     const total = read.threadRecordCount ?? 0;
     const shown = read.records ?? [];
     const first = (read.startRecord ?? 0) + 1;
+    // Given up in this read, whether or not the thread goes on. An older
+    // server sends no `givenUpBlocks`; a record entry that was cut with
+    // nowhere to resume is the same loss.
+    const givenUp = read.givenUpBlocks
+      ?? shown
+        .filter((r) =>
+          r.givenUpBlock != null
+          || (r.truncatedBy === "clipped" && r.nextStartBlock == null)
+        )
+        .map((r) => ({ recordId: r.recordId, block: r.givenUpBlock ?? undefined }));
+    // "The whole thread" only for a read that began at the start and lost
+    // nothing; a later page cannot know what earlier pages lost.
+    const fromStart = first === 1 && (read.startBlock ?? 0) === 0;
     lines.push(
       read.complete
-        ? `Read: the whole thread from record ${first} on (${total} record${total === 1 ? "" : "s"} in all)${
-          shown.some((r) => r.truncatedBy === "clipped") ? CUT : ""
-        }.`
+        ? fromStart && givenUp.length === 0
+          ? `Read: the whole thread (${total} record${total === 1 ? "" : "s"}).`
+          : `Read: to the end of the thread (records ${first}–${total} of ${total}`
+            + `${fromStart ? "" : "; earlier ones were in earlier reads"}).`
         : `Read: thread records ${first}–${first + shown.length - 1} of ${total}.`,
     );
+    for (const g of givenUp) lines.push(lost(g.block, g.recordId));
     const unreadable = read.unreadableRecordIds ?? [];
     if (unreadable.length > 0) {
       lines.push(
@@ -408,14 +427,26 @@ export function renderRead(
   }
 
   const total = read.totalBlocks;
+  const start = read.startBlock ?? 0;
+  // Given up in this read, even when more of the record follows. An older
+  // server sends no `givenUpBlock`, only a complete read cut short.
+  const givenUp = read.givenUpBlock != null
+    || (read.complete === true && read.truncatedBy === "clipped");
+  const lostLine = givenUp ? [lost(read.givenUpBlock)] : [];
   if (read.complete) {
-    const cut = read.truncatedBy === "clipped" ? CUT : "";
-    return `${content}\n\nRead: the whole record (${total} block${total === 1 ? "" : "s"})${cut}.`;
+    // "The whole record" only for a read that began at block 0 and lost
+    // nothing; a continuation cannot know what earlier reads lost.
+    const head = start === 0 && !givenUp
+      ? `Read: the whole record (${total} block${total === 1 ? "" : "s"}).`
+      : `Read: to the end of the record (${total} block${total === 1 ? "" : "s"}`
+        + `${start === 0 ? "" : `; blocks before ${start} were in earlier reads`}).`;
+    return `${content}\n\n${[head, ...lostLine].join("\n")}`;
   }
   const lines = [
     read.order === "relevance"
       ? `Read: the blocks most relevant to your query (${ranges(read.shownBlocks)} of ${total}); the rest were skipped.`
       : `Read: blocks ${ranges(read.shownBlocks)} of ${total}.`,
+    ...lostLine,
   ];
   if (read.nextStartBlock != null) {
     lines.push(
