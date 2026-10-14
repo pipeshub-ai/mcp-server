@@ -262,37 +262,68 @@ export async function search(
   limit: number,
   apps: string[],
   kb: string[],
+  offset = 0,
 ): Promise<Outcome> {
   const args: Record<string, unknown> = { query, limit };
   if (apps.length > 0) args["apps"] = apps;
   if (kb.length > 0) args["kb"] = kb;
+  if (offset > 0) args["offset"] = offset;
   const raw = decodeToolJson(await callTool(ctx, "pipeshub_search", args));
   const obj = asRecord(raw);
 
-  const records = arr(obj["uniqueRecords"]).map((r) => {
-    const rec = asRecord(r);
-    return {
+  let records: Array<Record<string, unknown>>;
+  let hits: Array<Record<string, unknown>>;
+  if (Array.isArray(obj["records"])) {
+    // One entry per record, each with its best passages. A hit is a passage.
+    const entries = arr(obj["records"]).map(asRecord);
+    records = entries.map((rec) => ({
       recordId: rec["recordId"] ?? null,
-      recordName: rec["recordName"] ?? rec["name"] ?? null,
+      recordName: rec["recordName"] ?? null,
       webUrl: rec["webUrl"] ?? null,
-    };
-  });
-  // The MCP layer already flattens hits, so the fields are top-level. The
-  // `metadata` fallbacks cover the nested shape older instances return.
-  const hits = arr(obj["hits"]).map((h) => {
-    const hit = asRecord(h);
-    const md = asRecord(hit["metadata"]);
-    return {
-      recordId: hit["recordId"] ?? md["recordId"] ?? null,
-      recordName: hit["recordName"] ?? md["recordName"] ?? null,
-      webUrl: hit["webUrl"] ?? md["webUrl"] ?? null,
-      score: hit["score"] ?? null,
-      snippet: clip(
-        hit["snippet"] ?? hit["content"] ?? md["blockText"] ?? null,
-        ctx.maxChars,
-      ),
-    };
-  });
+      ...(typeof rec["recordType"] === "string" ? { recordType: rec["recordType"] } : {}),
+      ...(typeof rec["updatedAt"] === "string" ? { updatedAt: rec["updatedAt"] } : {}),
+      ...(typeof rec["parent"] === "string" ? { parent: rec["parent"] } : {}),
+      ...(typeof rec["passagesFound"] === "number"
+        ? { passagesFound: rec["passagesFound"] }
+        : {}),
+    }));
+    hits = entries.flatMap((rec) =>
+      arr(rec["passages"]).map((p) => ({
+        recordId: rec["recordId"] ?? null,
+        recordName: rec["recordName"] ?? null,
+        webUrl: rec["webUrl"] ?? null,
+        score: rec["score"] ?? null,
+        snippet: clip(asRecord(p)["text"] ?? null, ctx.maxChars),
+      }))
+    );
+  } else {
+    // Instances that bundle an older MCP server send one hit per passage and
+    // the records separately.
+    records = arr(obj["uniqueRecords"]).map((r) => {
+      const rec = asRecord(r);
+      return {
+        recordId: rec["recordId"] ?? null,
+        recordName: rec["recordName"] ?? rec["name"] ?? null,
+        webUrl: rec["webUrl"] ?? null,
+      };
+    });
+    // The fields are top-level; the `metadata` fallbacks cover the nested
+    // shape still older instances return.
+    hits = arr(obj["hits"]).map((h) => {
+      const hit = asRecord(h);
+      const md = asRecord(hit["metadata"]);
+      return {
+        recordId: hit["recordId"] ?? md["recordId"] ?? null,
+        recordName: hit["recordName"] ?? md["recordName"] ?? null,
+        webUrl: hit["webUrl"] ?? md["webUrl"] ?? null,
+        score: hit["score"] ?? null,
+        snippet: clip(
+          hit["snippet"] ?? hit["content"] ?? md["blockText"] ?? null,
+          ctx.maxChars,
+        ),
+      };
+    });
+  }
 
   return {
     exit: hits.length === 0 && records.length === 0 ? EXIT.NO_RESULTS : EXIT.OK,
@@ -302,6 +333,14 @@ export async function search(
       contentWarning: CONTENT_WARNING,
       hitCount: hits.length,
       notes: arr(obj["notes"]).filter((n): n is string => typeof n === "string"),
+      ...(typeof obj["totalRecords"] === "number"
+        ? { totalRecords: obj["totalRecords"] }
+        : {}),
+      // Present when records were left out to keep the result small; pass it
+      // back as --offset for the next ones.
+      ...(typeof obj["nextOffset"] === "number"
+        ? { nextOffset: obj["nextOffset"] }
+        : {}),
       hits,
       records,
     },

@@ -39,7 +39,8 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Vector matches to fetch per query variant. Default 10. The backend searches a rewritten form of the query plus a few expanded variants, and a match inside a thread, a pull request or a table returns every passage of that section as its own hit, so one call can return many more hits than `limit`, from only a few records. Use `uniqueRecords` for the shortlist; 5–10 is enough to find a `recordId`. |
+| `limit` | number (1–100) | no | Vector matches to fetch per query variant. Default 10. The backend searches a rewritten form of the query plus a few expanded variants, so one call can return more records than `limit`. 5–10 is enough to find a `recordId`. |
+| `offset` | number | no | Records to skip. To read the next page of the same results, pass the previous call's `nextOffset` with the same other arguments. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
 | `createdAfter` / `createdBefore` | string | no | Only records created in their source within these dates. `YYYY-MM-DD` (that whole day, UTC) or an ISO 8601 datetime with a timezone. Both ends are inclusive. |
@@ -49,13 +50,15 @@ Leave out `apps` and `kb` to search everything. If you set either one, only the 
 
 A record with no source date is left out whenever a bound on that date is set. A date the server cannot read is an error that says why. A PipesHub server older than the date filter ignores the bounds; the tool then removes the records outside them and says so in `notes`, but fewer remain than a server that filters would find.
 
-**Response:** `hits[]` (`recordId`, `recordName`, `score`, `snippet`, `mimeType`, `webUrl`) sorted by score; `uniqueRecords[]` lists each record behind the hits once, and is the shortlist to use; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
+**Response:** `records[]`, one entry per record, best match first: `recordId`, `recordName`, `recordType`, `connector`, `webUrl`, the source's `createdAt` / `updatedAt` (ISO 8601), `parent` (the channel, space, project or PR it sits in, by name), `score`, `passagesFound` (how many passages the search found in it) and up to 3 `passages`. Also `totalRecords`, and `notes[]` when the tool moved a scoping id to the right list, could not check the ids, or cut the list.
 
-> Hits are the top-scoring **blocks** from the best-matching records — not all blocks of any record, and not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
+A result stays under 20,000 characters. When records were left out to fit, `nextOffset` is set and the last note says so; call again with the same arguments and `offset: nextOffset`. That page comes from the same results, held briefly for the same caller, not from a new search. If they are no longer held, the search runs again and a note says the ranking may differ.
+
+> Records are the best-matching ones, with a sample of their passages — not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
 >
 > For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. Reserve `pipeshub_chat` for open-ended questions that span many documents.
 
-Each hit's `snippet` is at most 280 characters. A snippet that was cut carries `snippetTruncated: true` and the passage's full length in `contentChars`. Each `uniqueRecords` entry also carries `recordType` and the source's `createdAt` / `updatedAt` (ISO 8601) when PipesHub has them.
+Each passage's `text` is at most 280 characters. A passage that was cut carries `truncated: true` and its full length in `contentChars`. Within a record, the passages the search matched come first, by score, then the passages around them.
 
 ---
 

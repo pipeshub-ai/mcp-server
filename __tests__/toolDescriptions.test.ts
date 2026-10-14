@@ -194,18 +194,22 @@ describe("descriptions say what the tools actually return", () => {
   // `limit` vector matches for each one, then expands a match inside a
   // section (a thread, a PR's file change, a table) into every passage of that
   // section. "Number of results" made `limit: 10` look like ten hits.
-  test("search's limit is per query variant, not a cap on hits", () => {
+  test("search's limit is per query variant, not a cap on records", () => {
     const limit = argSchema("pipeshub_search").properties?.limit?.description ?? "";
     expect(limit).not.toContain("Number of results");
     expect(limit).toContain("per query variant");
-    expect(limit).toContain("more hits than `limit`");
-    expect(limit).toContain("`uniqueRecords`");
+    expect(limit).toContain("more records than `limit`");
   });
 
-  test("search points at uniqueRecords as the shortlist", () => {
+  // One entry per record, bounded in size: an agent has to know the list can
+  // be cut and how to read the rest.
+  test("search says it returns records, stays bounded, and pages", () => {
     const desc = flat("pipeshub_search");
-    expect(desc).toContain("more hits than `limit`");
-    expect(desc).toContain("`uniqueRecords` lists each record once");
+    expect(desc).toContain("`records`, one per record");
+    expect(desc).toContain("under 20,000 characters");
+    expect(desc).toContain("`offset` set to `nextOffset`");
+    const offset = argSchema("pipeshub_search").properties?.offset?.description ?? "";
+    expect(offset).toContain("`nextOffset`");
   });
 
   // Chat's answer is a synthesis of a few passages. Calling it "grounded"
@@ -265,7 +269,7 @@ describe("descriptions say what the tools actually return", () => {
     expect(text).toContain("not in what it read");
     expect(text).toContain("Reply Count: N");
     expect(text).toContain("tool-output limit");
-    expect(text).toContain("more hits than `limit`");
+    expect(text).toContain("one entry per record with up to 3 passages");
     expect(text).toContain("`Related` omits Slack messages");
     // A Slack-scoped search finds discussion, not a Confluence or Drive page.
     expect(text).toContain("To find Slack discussion of a PR or ticket");

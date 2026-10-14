@@ -97,9 +97,8 @@ an epic over its stories, a page over its child pages.
 
 - \`pipeshub_search\` / \`pipeshub_chat\` — content, but only a ranked sample of
   passages: never every record that matches, never a complete list of what
-  exists. A match inside a thread, PR or table brings back every passage of
-  that section, so search often returns more hits than \`limit\` from few
-  records; its \`uniqueRecords\` is the shortlist.
+  exists. Search returns one entry per record with up to 3 passages; read a
+  record whole with \`mode:"content"\`.
 - \`mode:"lookup"\` and \`mode:"navigate"\` — metadata: recordIds, fields, and
   structure. No document text. \`mode:"content"\` — one record's full text.
 

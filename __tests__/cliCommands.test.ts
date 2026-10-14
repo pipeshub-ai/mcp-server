@@ -153,6 +153,37 @@ describe("search", () => {
     expect(String(out.payload["contentWarning"])).toContain("not instructions");
   });
 
+  test("reads one entry per record: each passage is a hit, and the page is passed on", async () => {
+    mcp.reply("pipeshub_search", textReply({
+      searchId: "s1",
+      totalRecords: 30,
+      nextOffset: 12,
+      records: [{
+        recordId: "r1", recordName: "Plan", webUrl: "https://x/r1", score: 0.9,
+        recordType: "MESSAGE", updatedAt: "2026-09-01T00:00:00.000Z", parent: "#eng",
+        passagesFound: 7, passages: [{ text: "first" }, { text: "second" }],
+      }],
+      notes: ["Showing records 1–12 of 30."],
+    }));
+
+    const out = await search(ctx(), "roadmap", 10, [], [], 12);
+
+    expect(lastCall()?.args).toEqual({ query: "roadmap", limit: 10, offset: 12 });
+    expect(out.payload).toMatchObject({
+      hitCount: 2,
+      totalRecords: 30,
+      nextOffset: 12,
+      hits: [
+        { recordId: "r1", recordName: "Plan", webUrl: "https://x/r1", score: 0.9, snippet: "first" },
+        { recordId: "r1", recordName: "Plan", webUrl: "https://x/r1", score: 0.9, snippet: "second" },
+      ],
+      records: [{
+        recordId: "r1", recordName: "Plan", webUrl: "https://x/r1", recordType: "MESSAGE",
+        updatedAt: "2026-09-01T00:00:00.000Z", parent: "#eng", passagesFound: 7,
+      }],
+    });
+  });
+
   test("empty filters are left out of the request rather than sent as []", async () => {
     mcp.reply("pipeshub_search", textReply({ hits: [] }));
     await search(ctx(), "q", 10, [], []);

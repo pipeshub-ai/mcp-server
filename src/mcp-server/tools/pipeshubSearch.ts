@@ -5,13 +5,22 @@ import { SemanticSearchDateBounds } from "../../models/semanticsearchwithdatesre
 import { ToolDefinition } from "../tools.js";
 import {
   errorResult,
-  isoFromEpochMs,
   jsonResult,
   readJson,
+  resolveSecurity,
   resolveSourceScope,
   searchFilters,
-  trimSearchHit,
 } from "./_helpers.js";
+import {
+  groupSearchResults,
+  pageNote,
+  pageSearchRecords,
+  recallSearch,
+  rememberSearch,
+  SEARCH_RESULT_MAX_CHARS,
+  searchCacheKey,
+  SearchRecordEntry,
+} from "./_searchResults.js";
 
 /** Matches the SDK request default (`src/models/semanticsearchrequest.ts`). */
 const DEFAULT_LIMIT = 10;
@@ -23,11 +32,12 @@ const args = {
   limit: z.number().int().min(1).max(100).optional().describe(
     "Vector matches to fetch per query variant. Default 10. The backend "
       + "searches a rewritten form of the query plus a few expanded variants, "
-      + "and a match inside a thread, a pull request or a table returns every "
-      + "passage of that section as its own hit — so one call can return many "
-      + "more hits than `limit`, from only a few records. Use "
-      + "`uniqueRecords` for the shortlist; 5–10 is enough to find a "
-      + "`recordId`.",
+      + "so one call can return more records than `limit`. 5–10 is enough to "
+      + "find a `recordId`.",
+  ),
+  offset: z.number().int().min(0).max(10_000).optional().describe(
+    "Records to skip. To read the next page of the same results, pass the "
+      + "previous call's `nextOffset` with the same other arguments.",
   ),
   apps: z.array(z.string()).optional().describe(
     "Connector ids to search (for example a Jira or Google Drive connection). "
@@ -117,28 +127,6 @@ export function outsideDateBounds(record: any, bounds: SemanticSearchDateBounds)
   });
 }
 
-/**
- * One entry of the backend's `records` array — the full record document — cut
- * to what the model needs to pick and cite a record. `recordType` tells a pull
- * request from the Slack thread about it; the source dates (epoch
- * milliseconds on the record) tell a superseded decision from the current one.
- * Each is left out when the backend does not send a usable value.
- */
-function trimSearchRecord(r: any) {
-  const createdAt = isoFromEpochMs(r?.sourceCreatedAtTimestamp);
-  const updatedAt = isoFromEpochMs(r?.sourceLastModifiedTimestamp);
-  return {
-    recordId: r?._key,
-    recordName: r?.recordName,
-    connector: r?.connectorName,
-    mimeType: r?.mimeType,
-    webUrl: r?.webUrl,
-    ...(typeof r?.recordType === "string" ? { recordType: r.recordType } : {}),
-    ...(createdAt ? { createdAt } : {}),
-    ...(updatedAt ? { updatedAt } : {}),
-  };
-}
-
 export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   name: "pipeshub_search",
   description:
@@ -163,20 +151,18 @@ Not for structural questions — what is under this epic, which pages are
 in this space, what links to this ticket. Ranking by content cannot show
 how records relate; use \`pipeshub_get_record_content\` \`mode:"navigate"\`.
 
-**A ranked sample, never a complete list.** Hits are the top-scoring
-blocks from the best-matching records — not all blocks of any record, and
-not every record that matches. Never count them to answer "how many" /
-"all" / "every"; navigate the record group instead, which reports its
-real total.
+**A ranked sample, never a complete list.** It returns the best-matching
+records and a few passages of each — not every record that matches, not
+every passage. Never count them to answer "how many" / "all" / "every";
+navigate the record group instead, which reports its real total.
 
 By default it searches everything. To search only some sources, pass
 connector ids in \`apps\` and collection ids in \`kb\`.
 
-Each hit is one matching passage, best match first:
-\`{ recordId, recordName, score, snippet, mimeType, webUrl, ... }\`.
-One record can fill many hits, so expect more hits than \`limit\`.
-\`uniqueRecords\` lists each record once — use it as the shortlist. Link a
-record by its \`webUrl\`.`,
+Returns \`records\`, one per record, best first: \`recordId\`, name, type,
+\`webUrl\`, source dates, \`parent\`, \`passagesFound\` and up to 3
+\`passages\`. Results stay under 20,000 characters; if records were cut,
+call again with \`offset\` set to \`nextOffset\`.`,
   scopes: ["read"],
   annotations: {
     title: "Semantic search",
@@ -188,61 +174,99 @@ record by its \`webUrl\`.`,
   args,
   tool: async (client, args, ctx) => {
     const limit = args.limit ?? DEFAULT_LIMIT;
-    // Each id is sent in the list the backend reads it from: a collection id
-    // in `apps` or a connector id in `kb` is dropped by the backend.
-    const { scope, notes } = await resolveSourceScope(
-      client,
-      args.apps,
-      args.kb,
-      { signal: ctx.signal },
-    );
-
+    const offset = args.offset ?? 0;
     const bounds: SemanticSearchDateBounds = {
       ...(args.createdAfter ? { createdAfter: args.createdAfter } : {}),
       ...(args.createdBefore ? { createdBefore: args.createdBefore } : {}),
       ...(args.modifiedAfter ? { modifiedAfter: args.modifiedAfter } : {}),
       ...(args.modifiedBefore ? { modifiedBefore: args.modifiedBefore } : {}),
     };
-
-    const [result] = await semanticSearchSearchWithDates(client, {
+    // A later page reads the records this caller's same search returned,
+    // rather than searching again (see `_searchResults.ts`).
+    const key = searchCacheKey(await resolveSecurity(client), {
       query: args.query,
       limit,
-      filters: searchFilters(scope),
-      ...bounds,
-    }, { fetchOptions: { signal: ctx.signal } }).$inspect();
-    if (!result.ok) return errorResult(result.error.message);
-
-    const parsed = await readJson<{
-      searchId: string;
-      searchResponse: {
-        searchResults: any[];
-        records?: any[];
-        status?: string;
-        message?: string;
-      };
-    }>(result.value, "PipesHub search");
-    if (!parsed.ok) return parsed.result;
-
-    const sr = parsed.value.searchResponse ?? {};
-    let hits = sr.searchResults ?? [];
-    let records = sr.records ?? [];
-    const outside = new Set(
-      records.filter((r) => outsideDateBounds(r, bounds)).map((r) => r?._key),
-    );
-    if (outside.size > 0) {
-      records = records.filter((r) => !outside.has(r?._key));
-      hits = hits.filter((h) => !outside.has(h?.metadata?.recordId));
-      notes.push(
-        `${outside.size} record(s) came back outside the requested dates, so `
-          + "this PipesHub server probably does not support date filters. They "
-          + "were removed. The server ranked records from every date, so fewer "
-          + "remain than a server that filters by date would find.",
+      apps: args.apps ?? [],
+      kb: args.kb ?? [],
+      bounds,
+    });
+    const pagingNotes: string[] = [];
+    let search = offset > 0 ? recallSearch(key) : undefined;
+    if (offset > 0 && !search) {
+      pagingNotes.push(
+        "The earlier page's results were no longer held, so the search ran "
+          + "again; it may rank records differently from that page.",
       );
     }
+
+    if (!search) {
+      // Each id is sent in the list the backend reads it from: a collection
+      // id in `apps` or a connector id in `kb` is dropped by the backend.
+      const { scope, notes } = await resolveSourceScope(
+        client,
+        args.apps,
+        args.kb,
+        { signal: ctx.signal },
+      );
+
+      const [result] = await semanticSearchSearchWithDates(client, {
+        query: args.query,
+        limit,
+        filters: searchFilters(scope),
+        ...bounds,
+      }, { fetchOptions: { signal: ctx.signal } }).$inspect();
+      if (!result.ok) return errorResult(result.error.message);
+
+      const parsed = await readJson<{
+        searchId: string;
+        searchResponse: {
+          searchResults: any[];
+          records?: any[];
+          omittedPassages?: Record<string, unknown>;
+          status?: string;
+          message?: string;
+        };
+      }>(result.value, "PipesHub search");
+      if (!parsed.ok) return parsed.result;
+
+      const sr = parsed.value.searchResponse ?? {};
+      let hits = sr.searchResults ?? [];
+      let records = sr.records ?? [];
+      const outside = new Set(
+        records.filter((r) => outsideDateBounds(r, bounds)).map((r) => r?._key),
+      );
+      if (outside.size > 0) {
+        records = records.filter((r) => !outside.has(r?._key));
+        hits = hits.filter((h) => !outside.has(h?.metadata?.recordId));
+        notes.push(
+          `${outside.size} record(s) came back outside the requested dates, so `
+            + "this PipesHub server probably does not support date filters. "
+            + "They were removed. The server ranked records from every date, so "
+            + "fewer remain than a server that filters by date would find.",
+        );
+      }
+      const entries: SearchRecordEntry[] = groupSearchResults(
+        hits,
+        records,
+        sr.omittedPassages ?? {},
+      );
+      search = { searchId: parsed.value.searchId, entries, notes };
+      rememberSearch(key, search);
+    }
+
+    const page = pageSearchRecords(search.entries, offset, SEARCH_RESULT_MAX_CHARS);
+    const note = pageNote(
+      offset,
+      page.records.length,
+      search.entries.length,
+      page.nextOffset,
+    );
+    const notes = [...search.notes, ...pagingNotes, ...(note ? [note] : [])];
     return jsonResult({
-      searchId: parsed.value.searchId,
-      hits: hits.map(trimSearchHit),
-      uniqueRecords: records.map(trimSearchRecord),
+      searchId: search.searchId,
+      totalRecords: search.entries.length,
+      records: page.records,
+      ...(page.nextOffset !== undefined ? { nextOffset: page.nextOffset } : {}),
       ...(notes.length > 0 ? { notes } : {}),
     });
   },

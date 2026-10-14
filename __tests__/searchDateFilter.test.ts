@@ -93,8 +93,8 @@ describe("pipeshub_search date bounds", () => {
       modifiedAfter: "2026-09-01",
     } as never, ctx())));
 
-    expect(out.uniqueRecords.map((r: any) => r.recordId)).toEqual(["new"]);
-    expect(out.hits.map((h: any) => h.recordId)).toEqual(["new"]);
+    expect(out.records.map((r: any) => r.recordId)).toEqual(["new"]);
+    expect(out.totalRecords).toBe(1);
     expect(out.notes.join(" ")).toContain(
       "2 record(s) came back outside the requested dates",
     );
@@ -110,7 +110,7 @@ describe("pipeshub_search date bounds", () => {
       modifiedAfter: "2026-09-01",
     } as never, ctx())));
 
-    expect(out.uniqueRecords.map((r: any) => r.recordId)).toEqual(["new"]);
+    expect(out.records.map((r: any) => r.recordId)).toEqual(["new"]);
     expect(out.notes).toBeUndefined();
   });
 
