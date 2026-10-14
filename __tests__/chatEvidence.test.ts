@@ -83,6 +83,18 @@ describe("claims", () => {
     expect(withoutV.claims[0]?.notInCitedText).toBeUndefined();
   });
 
+  test("a version inside a longer version does not count as stated", () => {
+    const cite1 = (text: string) => [{ number: 1, kind: "passage", text }];
+    const missing = (claim: string, text: string) =>
+      answerEvidence(`${claim} [1](${url(1)}).`, cite1(text)).claims[0]?.notInCitedText;
+
+    expect(missing("We shipped v1.2", "Release notes: v1.2.3 is current.")).toEqual(["v1.2"]);
+    expect(missing("We shipped v2.3 last week", "Release notes: v2.2.3 is current.")).toEqual(["v2.3"]);
+    expect(missing("The fix is in v1.10", "The fix is in v1.10.2.")).toEqual(["v1.10"]);
+    expect(missing("We shipped 1.2.3", "Release notes: v1.2.3 is current.")).toBeUndefined();
+    expect(missing("We shipped v1.2.3", "Release 1.2.3 went out.")).toBeUndefined();
+  });
+
   test("a preview link's block position does not count as a number the record states", () => {
     const out = answerEvidence(`There are 12 reviewers on #12 [1](${url(1)}).`, [
       {
@@ -262,6 +274,23 @@ describe("table rows next to a thematic break", () => {
       "#3990 | merged by Ana [1]",
       "#3992 | merged by Priya [2]",
     ]);
+  });
+});
+
+describe("a closing separator row", () => {
+  test("a separator after the data rows does not drop the last row", () => {
+    const answer = [
+      "| PR | Who |",
+      "|---|---|",
+      `| #3992 | Priya [1](${url(1)}) |`,
+      `| #3758 | Ana [1](${url(1)}) |`,
+      "|---|---|",
+    ].join("\n");
+    const out = answerEvidence(answer, [
+      { number: 1, kind: "passage", text: "PR #3758 was reviewed by Ana." },
+    ]);
+    expect(out.claims.map((c) => c.text)).toEqual(["#3992 | Priya [1]", "#3758 | Ana [1]"]);
+    expect(out.claims[0]?.notInCitedText).toEqual(["#3992"]);
   });
 });
 

@@ -105,13 +105,16 @@ function specificKey(specific: string): string {
 
 function contains(haystack: string, specific: string): boolean {
   let key = specificKey(specific);
-  // A version may be written with or without its "v": v1.2.3 matches 1.2.3.
-  const version = /^v\d/.test(key);
-  if (version) key = key.slice(1);
+  // A dotted version must match whole: v1.2 is not inside v1.2.3, and v2.3
+  // is not inside v2.2.3. It may be written with or without its "v", on
+  // either side: v1.2.3 matches "Release 1.2.3", and 1.2.3 matches "v1.2.3".
+  const version = /^v?\d+(\.\d+)+$/.test(key);
+  if (version) key = key.replace(/^v/, "");
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const lead = version ? "v?" : "";
-  return new RegExp(`(?<![\\p{L}\\p{N}])${lead}${escaped}(?![\\p{L}\\p{N}])`, "u")
-    .test(haystack);
+  const pattern = version
+    ? `(?<![\\p{L}\\p{N}.])v?${escaped}(?![\\p{L}\\p{N}]|\\.\\d)`
+    : `(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`;
+  return new RegExp(pattern, "u").test(haystack);
 }
 
 /**
@@ -150,6 +153,8 @@ function answerUnits(answer: string): string[] {
   const units: string[] = [];
   let inFence = false;
   let headerAt = -1;
+  // Only a table's first separator follows its header row.
+  let separatorSeen = false;
   for (const raw of answer.split("\n")) {
     const line = raw.trim();
     if (/^(```|~~~)/.test(line)) {
@@ -159,16 +164,21 @@ function answerUnits(answer: string): string[] {
     if (inFence || !line || /^#{1,6}\s/.test(line)) {
       // A blank line or a heading ends any table above it.
       headerAt = -1;
+      separatorSeen = false;
       continue;
     }
     // A table's separator row has a pipe; a line of dashes alone is a break.
     if (line.includes("|") && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(line)) {
       // The row above a separator is the table's header, not a statement.
-      if (headerAt === units.length - 1) units.pop();
+      if (!separatorSeen && headerAt === units.length - 1) units.pop();
+      separatorSeen = true;
       headerAt = -1;
       continue;
     }
-    if (!line.startsWith("|")) headerAt = -1;
+    if (!line.startsWith("|")) {
+      headerAt = -1;
+      separatorSeen = false;
+    }
     if (line.startsWith("|")) {
       const cells = line.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
       units.push(cells.filter(Boolean).join(" | "));
