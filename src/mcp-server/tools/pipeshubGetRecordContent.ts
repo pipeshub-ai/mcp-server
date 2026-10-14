@@ -51,12 +51,13 @@ const args = {
       + "`startBlock` is given.",
   ),
   startBlock: z.int().min(0).optional().describe(
-    "Content mode: read in order from this block — the value in a previous "
-      + "read's `Next:` line, or 0 to read from the top.",
+    "Read in order from this block — the value in a previous read's `Next:` "
+      + "line, or 0 to read from the top. In thread mode it applies to the "
+      + "record at `startRecord`.",
   ),
   startRecord: z.int().min(0).optional().describe(
-    "Thread mode: carry on a long thread from this record — the value in a "
-      + "previous read's `Next:` line.",
+    "Thread mode: carry on a long thread from this record, with the "
+      + "`startBlock` given beside it in a previous read's `Next:` line.",
   ),
   maxChars: z.int().min(2000).max(140000).default(DEFAULT_MAX_CHARS).describe(
     "Content and thread modes: most characters of text to return. The "
@@ -277,7 +278,11 @@ it using the \`Web URL\` from its metadata header (when present).`,
       recordId: args.recordId,
       maxChars: args.maxChars,
       ...(thread
-        ? { mode: "thread" as const, startRecord: args.startRecord }
+        ? {
+          mode: "thread" as const,
+          startRecord: args.startRecord,
+          startBlock: args.startBlock,
+        }
         : { query: args.query, startBlock: args.startBlock }),
     }, fetchOptions).$inspect();
     if (!result.ok) return errorResult(result.error.message);
@@ -360,18 +365,6 @@ export function renderRead(
         ? `Read: the whole thread from record ${first} on (${total} record${total === 1 ? "" : "s"} in all).`
         : `Read: thread records ${first}–${first + shown.length - 1} of ${total}.`,
     );
-    for (const record of shown) {
-      if (record.complete === false && record.nextStartBlock != null) {
-        lines.push(
-          `Record ${record.recordId} was cut short; the rest: `
-            + call({
-              mode: "content",
-              recordId: record.recordId,
-              startBlock: record.nextStartBlock,
-            }),
-        );
-      }
-    }
     const unreadable = read.unreadableRecordIds ?? [];
     if (unreadable.length > 0) {
       lines.push(
@@ -380,9 +373,16 @@ export function renderRead(
       );
     }
     if (read.nextStartRecord != null) {
+      // The cursor is a record and a block: it stays on a reply that was cut
+      // short until that reply has been read to its end.
       lines.push(
         "Next: "
-          + call({ mode: "thread", recordId, startRecord: read.nextStartRecord }),
+          + call({
+            mode: "thread",
+            recordId,
+            startRecord: read.nextStartRecord,
+            startBlock: read.nextStartBlock ?? 0,
+          }),
       );
     }
     return `${content}\n\n${lines.join("\n")}`;

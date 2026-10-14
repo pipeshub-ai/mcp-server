@@ -233,19 +233,23 @@ describe("thread mode", () => {
   test("asks for the thread the record belongs to", async () => {
     const { core, urls } = client({ content: "x", mode: "thread", complete: true });
 
-    await run(core, { mode: "thread", recordId: REC, maxChars: 40_000, startRecord: 3 });
+    await run(core, {
+      mode: "thread", recordId: REC, maxChars: 40_000, startRecord: 3, startBlock: 7,
+    });
 
     const sent = new URL(urls[0]!).searchParams;
     expect(sent.get("mode")).toBe("thread");
     expect(sent.get("startRecord")).toBe("3");
+    expect(sent.get("startBlock")).toBe("7");
     expect(sent.get("maxChars")).toBe("40000");
   });
 
-  test("a long thread names the call that reads on, and any reply cut short", async () => {
+  test("a long thread names the call that reads on, cursor block included", async () => {
+    // A reply cut short keeps the cursor: the next read resumes inside it.
     const { core } = client({
       content: "parent and first replies",
       mode: "thread", threadRecordCount: 12, startRecord: 0, complete: false,
-      nextStartRecord: 4,
+      nextStartRecord: 3, nextStartBlock: 7,
       records: [
         { recordId: "t-0", complete: true, nextStartBlock: null },
         { recordId: "t-1", complete: true, nextStartBlock: null },
@@ -259,10 +263,7 @@ describe("thread mode", () => {
 
     expect(text).toContain("Read: thread records 1–4 of 12.");
     expect(text).toContain(
-      `Next: pipeshub_get_record_content {"mode":"thread","recordId":"${REC}","startRecord":4}`,
-    );
-    expect(text).toContain(
-      'Record t-3 was cut short; the rest: pipeshub_get_record_content {"mode":"content","recordId":"t-3","startBlock":7}',
+      `Next: pipeshub_get_record_content {"mode":"thread","recordId":"${REC}","startRecord":3,"startBlock":7}`,
     );
     expect(text).toContain("could not be loaded");
     expect(text).toContain("t-9");
