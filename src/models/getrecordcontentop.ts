@@ -17,7 +17,7 @@ export const GetRecordContentRequest$zodSchema: z.ZodType<
   GetRecordContentRequest
 > = z.object({
   recordId: z.string().describe(
-    "Record ID to fetch. Obtain it from a `pipeshub_search` result (`hits[*].recordId`) or a chat citation (`citations[*].recordId`).",
+    "Record ID to fetch. Obtain it from a `pipeshub_search` result (`records[*].recordId`, or `hits[*].recordId` on older versions) or a chat citation (`citations[*].recordId`).",
   ),
   mode: z.enum(["record", "thread"]).optional(),
   query: z.string().min(1).max(2000).optional(),
