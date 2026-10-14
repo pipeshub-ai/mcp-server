@@ -390,7 +390,11 @@ export function renderRead(
         ? fromStart && givenUp.length === 0
           ? `Read: the whole thread (${total} record${total === 1 ? "" : "s"}).`
           : `Read: to the end of the thread (records ${first}–${total} of ${total}`
-            + `${fromStart ? "" : "; earlier ones were in earlier reads"}).`
+            + `${fromStart
+              ? ""
+              : (read.startBlock ?? 0) > 0
+                ? `; blocks before ${read.startBlock} of record ${first} were in earlier reads`
+                : "; earlier ones were in earlier reads"}).`
         : `Read: thread records ${first}–${first + shown.length - 1} of ${total}.`,
     );
     for (const g of givenUp) lines.push(lost(g.block, g.recordId));

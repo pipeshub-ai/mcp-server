@@ -285,6 +285,19 @@ describe("a block too large for any budget", () => {
     expect(text).toContain('"startRecord":1,"startBlock":0}');
   });
 
+  test("a thread read that resumed inside its first record names those earlier blocks", async () => {
+    const { core } = client({
+      content: "rest of the parent", mode: "thread", threadRecordCount: 5, startRecord: 0,
+      startBlock: 4, complete: true, nextStartRecord: null, givenUpBlocks: [],
+      records: [{ recordId: "t-0", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC, startRecord: 0, startBlock: 4 }));
+
+    expect(text).toContain("Read: to the end of the thread (records 1–5 of 5; blocks before 4 of record 1 were in earlier reads).");
+    expect(text).not.toContain("earlier ones were in earlier reads");
+  });
+
   test("a thread's last page does not call it the whole thread", async () => {
     const { core } = client({
       content: "last reply", mode: "thread", threadRecordCount: 2, startRecord: 1,
