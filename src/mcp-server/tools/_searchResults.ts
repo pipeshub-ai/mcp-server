@@ -106,12 +106,12 @@ export function linkLines(linked: unknown): { links: string[]; found: number } {
   const links = ranked.slice(0, LINKS_PER_RECORD).map(({ row }) => {
     const relation = row.relation === "mentionedIn" ? "mentioned in" : "links to";
     const type = typeof row.recordType === "string" && row.recordType ? ` ${row.recordType}` : "";
-    const rawName = typeof row.recordName === "string" ? oneLine(row.recordName) : "";
+    const rawName = typeof row.recordName === "string" ? linkText(row.recordName) : "";
     const name = rawName.length > LINK_NAME_MAX_CHARS
       ? `${rawName.slice(0, LINK_NAME_MAX_CHARS)}…`
       : rawName;
     const status = typeof row.status === "string" && row.status
-      ? ` — ${oneLine(row.status)}`
+      ? ` — ${linkText(row.status)}`
       : "";
     return `${relation}${type} "${name}"${status} [${row.recordId}]`;
   });
@@ -120,6 +120,15 @@ export function linkLines(linked: unknown): { links: string[]; found: number } {
 
 function oneLine(text: string): string {
   return text.split(/\s+/).filter(Boolean).join(" ");
+}
+
+/**
+ * A name or status inside a link line: one line, and with no `[`, `]` or `"`,
+ * so the quotes around the name and the trailing `[recordId]` are the only
+ * ones. A title such as `Login fails [PROJ-42]` keeps its key as `(PROJ-42)`.
+ */
+function linkText(text: string): string {
+  return oneLine(text).replace(/\[/g, "(").replace(/\]/g, ")").replace(/"/g, "'");
 }
 
 function passageText(hit: any): string | undefined {

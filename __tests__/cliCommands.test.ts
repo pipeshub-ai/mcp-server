@@ -184,12 +184,12 @@ describe("search", () => {
     });
   });
 
-  test("a record's status and links are passed on", async () => {
+  test("a record's status, links and link count are passed on", async () => {
     mcp.reply("pipeshub_search", textReply({
       records: [{
         recordId: "r1", recordName: "Thread", webUrl: "https://x/r1", score: 0.9,
         status: "Merged 2026-09-25", links: ['links to PULL_REQUEST "Fix" — Merged 2026-09-25 [pr-1]'],
-        passagesFound: 1, passages: [{ text: "see the PR" }],
+        linksFound: 5, passagesFound: 1, passages: [{ text: "see the PR" }],
       }],
     }));
 
@@ -199,6 +199,7 @@ describe("search", () => {
       records: [{
         recordId: "r1", status: "Merged 2026-09-25",
         links: ['links to PULL_REQUEST "Fix" — Merged 2026-09-25 [pr-1]'],
+        linksFound: 5,
       }],
     });
   });

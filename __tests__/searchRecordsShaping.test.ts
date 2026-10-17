@@ -167,6 +167,14 @@ describe("one entry per record", () => {
     expect(entry!.linksFound).toBe(LINKS_PER_RECORD + 2);
   });
 
+  test("brackets and quotes in a name or status cannot look like the record id", () => {
+    const { links } = linkLines([{
+      relation: "linksTo", recordId: "r1", recordType: "TICKET",
+      recordName: 'Login fails [PROJ-42] "again"', status: "DONE [x]",
+    }]);
+    expect(links).toEqual([`links to TICKET "Login fails (PROJ-42) 'again'" — DONE (x) [r1]`]);
+  });
+
   test("an older server sends no status or links, and the entry has none", () => {
     expect(linkLines(undefined)).toEqual({ links: [], found: 0 });
     const [entry] = groupSearchResults([], [{ _key: "a", recordName: "A" }]);

@@ -285,6 +285,7 @@ export async function search(
       ...(typeof rec["parent"] === "string" ? { parent: rec["parent"] } : {}),
       ...(typeof rec["status"] === "string" ? { status: rec["status"] } : {}),
       ...(Array.isArray(rec["links"]) ? { links: rec["links"] } : {}),
+      ...(typeof rec["linksFound"] === "number" ? { linksFound: rec["linksFound"] } : {}),
       ...(typeof rec["passagesFound"] === "number"
         ? { passagesFound: rec["passagesFound"] }
         : {}),
