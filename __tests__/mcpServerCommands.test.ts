@@ -294,12 +294,15 @@ describe("flag validation", () => {
 
 // ─── child process: the stdio server exactly as an MCP client launches it ──
 
-async function stdioClient(args: string[]): Promise<Client> {
+async function stdioClient(
+  args: string[],
+  env: Record<string, string> = {},
+): Promise<Client> {
   const c = new Client({ name: "test", version: "1" });
   await c.connect(new StdioClientTransport({
     command: process.execPath,
     args: [join(import.meta.dir, "..", "src", "mcp-server", "mcp-server.ts"), "start", ...args],
-    env: { HOME: home, PATH: process.env["PATH"] ?? "" },
+    env: { HOME: home, PATH: process.env["PATH"] ?? "", ...env },
     stderr: "pipe",
   }));
   return c;
@@ -327,6 +330,25 @@ describe("start (stdio)", () => {
       await c.close();
     }
   }, 20_000);
+
+  // The README's way to leave chat out: an `env` entry in the MCP client's
+  // server config, or `--env` on the command line.
+  test("PIPESHUB_MCP_CHAT=off leaves chat and agents out, and so do the instructions", async () => {
+    const withoutChat = CURATED.filter((t) => t !== "pipeshub_chat" && t !== "pipeshub_agents");
+    for (const [args, env] of [
+      [["--server-url", `${apiOrigin}/api/v1`], { PIPESHUB_MCP_CHAT: "off" }],
+      [["--server-url", `${apiOrigin}/api/v1`, "--env", "PIPESHUB_MCP_CHAT=off"], {}],
+    ] as Array<[string[], Record<string, string>]>) {
+      const c = await stdioClient(args, env);
+      try {
+        expect((await c.listTools()).tools.map((t) => t.name)).toEqual(withoutChat);
+        expect(c.getInstructions()).not.toContain("pipeshub_chat");
+        expect(c.getInstructions()).not.toContain("pipeshub_agents");
+      } finally {
+        await c.close();
+      }
+    }
+  }, 30_000);
 
   test("--mode dynamic exposes the meta-tools instead", async () => {
     const c = await stdioClient(["--server-url", `${apiOrigin}/api/v1`, "--mode", "dynamic"]);

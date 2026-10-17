@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { PIPESHUB_INSTRUCTIONS } from "./instructions.js";
+import { chatEnabledFromEnv } from "./chat-setting.js";
+import { pipeshubInstructions } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
 import { bindNewRequestId } from "../hooks/request-context.js";
 import { SDKOptions } from "../lib/config.js";
@@ -20,7 +21,7 @@ import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
 import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
-import { prompt$pipeshubAssistant } from "./prompts/pipeshubAssistant.js";
+import { createPipeshubAssistantPrompt } from "./prompts/pipeshubAssistant.js";
 
 export function createMCPServer(deps: {
   logger: ConsoleLogger;
@@ -32,14 +33,20 @@ export function createMCPServer(deps: {
   security?: SDKOptions["security"] | undefined;
   serverIdx?: SDKOptions["serverIdx"] | undefined;
   instance_url?: SDKOptions["instance_url"] | undefined;
+  /**
+   * Mount `pipeshub_chat` and `pipeshub_agents`. Defaults to the
+   * `PIPESHUB_MCP_CHAT` environment variable, which defaults to on.
+   */
+  chat?: boolean | undefined;
 }) {
+  const chat = deps.chat ?? chatEnabledFromEnv();
   const server = new McpServer(
     {
       name: "pipeshub-mcp",
       version: "0.0.4",
     },
     {
-      instructions: PIPESHUB_INSTRUCTIONS,
+      instructions: pipeshubInstructions({ chat }),
     },
   );
 
@@ -88,19 +95,21 @@ export function createMCPServer(deps: {
 
   // Curated tool set. Order = preferred discovery order shown to the LLM.
   // Search and read come first: they are the default way to answer. Chat is
-  // optional, for clients that cannot run their own retrieval loop (v3 eval,
-  // Opus: same accuracy, fewer wrong claims, ~$0.20 and ~20 s less per
-  // answer without it).
+  // optional, for clients that cannot run their own retrieval loop (PipesHub's
+  // October 2026 evaluation, Claude Opus as the agent: same accuracy, fewer
+  // wrong claims, ~$0.20 and ~20 s less per answer without it).
   tool(tool$pipeshubSources);          // 1. discover sources + models
   tool(tool$pipeshubSearch);           // 2. find records for a question
   tool(tool$pipeshubGetRecordContent); // 3. read / navigate / look up records
   tool(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   tool(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
-  tool(tool$pipeshubChat);             // 6. optional: PipesHub's assistant
-  tool(tool$pipeshubAgents);           // 7. discover org agents (for chat)
+  if (chat) {
+    tool(tool$pipeshubChat);           // 6. optional: PipesHub's assistant
+    tool(tool$pipeshubAgents);         // 7. discover org agents (for chat)
+  }
 
   // Curated prompt: user-invokable tool-routing guidance.
-  prompt(prompt$pipeshubAssistant);
+  prompt(createPipeshubAssistantPrompt({ chat }));
 
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);

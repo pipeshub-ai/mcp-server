@@ -819,18 +819,16 @@ Both are set with environment variables, in the MCP client's `env` block or with
 
 The server offers all seven tools, and its instructions and tool descriptions tell the agent to answer with `pipeshub_search` and `pipeshub_get_record_content` first. `pipeshub_chat` runs PipesHub's own assistant and is optional: for an agent that can call tools, it adds cost and time without adding accuracy. In PipesHub's evaluation (100 questions, Claude Opus as the agent), search and read alone found 88% of the facts at $0.54 and 78 seconds median per answer; adding chat also found 88%, at about $0.73 and 97 seconds. See [TOOLS.md](./TOOLS.md) for the full figures.
 
-Nothing changes unless you choose to: existing setups keep every tool. To hold an agent to search and read, remove `pipeshub_chat` (and `pipeshub_agents`, which only feeds chat) on the client side:
+Nothing changes unless you choose to: by default every tool stays. To hold an agent to search and read, leave `pipeshub_chat` out, together with `pipeshub_agents`, which only picks an agent for chat:
 
-- **Claude Code:** `claude --disallowedTools "mcp__pipeshub__pipeshub_chat,mcp__pipeshub__pipeshub_agents"`, where `pipeshub` is the name you gave the server. The same entries can go in the `permissions.deny` list of `.claude/settings.json`.
-- **Local stdio server:** list the tools to keep with `--tool`; only those are mounted.
+- **Local stdio server:** set `PIPESHUB_MCP_CHAT=off` in the server's `env` block in your MCP client config, or pass `--env PIPESHUB_MCP_CHAT=off` to `start` or `serve`. The server then mounts five tools, and its instructions no longer mention chat or agents. Unset or `on` keeps today's behaviour; any other value stops the server with an error that says what it accepts.
 
-  ```bash
-  npx -y @pipeshub-ai/mcp start --server-url PIPESHUB_INSTANCE_URL --bearer-auth YOUR_BEARER_TOKEN \
-    --tool pipeshub_sources --tool pipeshub_search --tool pipeshub_get_record_content \
-    --tool pipeshub_download_record --tool pipeshub_directory
+  ```json
+  "env": { "PIPESHUB_MCP_CHAT": "off" }
   ```
 
-- **Other clients:** switch the tool off where the client's MCP settings offer per-tool toggles.
+  To pick tools one by one instead, list the ones to keep with `--tool` (for example `--tool pipeshub_search --tool pipeshub_get_record_content`). `--tool` does not change the instructions.
+- **Remote endpoint (`/mcp`):** turn the tool off in the client. In Claude Code, run `claude --disallowedTools "mcp__pipeshub__pipeshub_chat,mcp__pipeshub__pipeshub_agents"`, where `pipeshub` is the name you gave the server, or put the same entries in the `permissions.deny` list of `.claude/settings.json`. In other clients, use the per-tool toggles in their MCP settings, where they offer them.
 
 Keep `pipeshub_chat` when the client cannot run its own tool loop, when you want PipesHub's assistant to write the answer, to talk to a configured PipesHub agent, or to take an action through the user's connected tools.
 

@@ -83,9 +83,11 @@ then read the records that matter with \`pipeshub_get_record_content\`
 every "how many" / "all"). That is as accurate as adding this tool, with fewer wrong claims,
 at lower cost and latency.
 
-Use this tool when you cannot run your own search-and-read loop, when the
-user asks for PipesHub's answer, or to run an org agent: pass an \`agentId\`
-from \`pipeshub_agents\` to use that agent's own prompt, tools and knowledge.
+Use this tool only when you cannot run your own search-and-read loop, when
+the user asks for PipesHub's answer, or to run an org agent: pass an
+\`agentId\` from \`pipeshub_agents\` to use that agent's own prompt, tools
+and knowledge. Do NOT call it to cross-check or fill gaps in what you
+searched and read; search again instead.
 
 It answers from the org's indexed sources (Drive, Box, Confluence, Slack,
 Gmail, Jira, the org's KB, ...) and from the live web. It undercounts

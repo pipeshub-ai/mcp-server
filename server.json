@@ -56,6 +56,18 @@
           "isRequired": true,
           "isSecret": true
         }
+      ],
+      "environmentVariables": [
+        {
+          "name": "PIPESHUB_MCP_CHAT",
+          "description": "\"off\" leaves out pipeshub_chat and pipeshub_agents so agents search and read records themselves. Default \"on\" keeps every tool.",
+          "isRequired": false,
+          "default": "on",
+          "choices": [
+            "on",
+            "off"
+          ]
+        }
       ]
     }
   ]

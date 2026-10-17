@@ -3,7 +3,22 @@
 //   2. As the body of the user-invokable `pipeshub-assistant` prompt.
 // Keeping it in one place avoids the two copies drifting apart.
 
-export const PIPESHUB_INSTRUCTIONS = `# PipesHub MCP — instructions for the LLM
+export interface InstructionOptions {
+  /** Whether \`pipeshub_chat\` and \`pipeshub_agents\` are mounted. */
+  chat: boolean;
+}
+
+/**
+ * The guidance for a server with or without chat. Without it, every section
+ * that names \`pipeshub_chat\` or \`pipeshub_agents\` is left out, so the
+ * text never points at a tool the host cannot see.
+ */
+export function pipeshubInstructions({ chat }: InstructionOptions): string {
+  const contentTools = chat
+    ? "\`pipeshub_search\` / \`pipeshub_chat\`"
+    : "\`pipeshub_search\`";
+  const orChat = chat ? " or trust a\nchat answer" : "";
+  return `# PipesHub MCP — instructions for the LLM
 
 PipesHub is the user's workplace AI platform. It indexes their documents,
 knowledge base content, and connector sources (Drive, Box, Confluence,
@@ -42,25 +57,7 @@ a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
 back in parts: pass \`query\` to get the passages that matter first, or
 follow the closing \`Next:\` line to read on.
 
-## \`pipeshub_chat\` is optional
-
-\`pipeshub_chat\` runs PipesHub's own assistant over a few passages it
-retrieves itself. An agent that searches and reads for itself is as
-accurate, with fewer wrong claims, at lower cost and latency, so a client
-may leave chat out. Use it when you cannot run your own search-and-read
-loop, when the user asks for PipesHub's answer, or to run an org agent.
-
-Its answer is a synthesis of a few passages, never a whole document, so
-treat it as a lead: confirm a specific ID, status, date, owner, or "merged /
-shipped" in the cited record before stating it. "Not found" means not in
-what it read, not that it does not exist.
-
-It can also take actions through the user's connected tools (for example
-create a ticket or send an email). Actions are on unless an admin has
-turned them off. Ask it questions, and never ask it to write unless the
-user asked for that action.
-
-## Other tools
+${chat ? CHAT_SECTION : ""}## Other tools
 
 - \`pipeshub_download_record\` — when the user wants the file as stored
   (download, attach, open). Never to read or summarize — that is
@@ -71,9 +68,7 @@ user asked for that action.
   Not for documents or files — that is \`pipeshub_search\`.
 - \`pipeshub_sources\` — call once at the start of a session to discover
   which connectors / KB / models are available, then cache the result.
-- \`pipeshub_agents\` — list the org's configured **agents** (specialized
-  assistants with their own prompt, tools, and knowledge scope).
-
+${chat ? AGENTS_BULLET : ""}
 ## Knowledge Sources
 
 A source (an app connector or a KB) holds record groups (a project, space,
@@ -82,7 +77,7 @@ an epic over its stories, a page over its child pages.
 
 **Every tool returns metadata or content.**
 
-- \`pipeshub_search\` / \`pipeshub_chat\` — content, but only a ranked sample of
+- ${contentTools} — content, but only a ranked sample of
   passages: never every record that matches, never a complete list of what
   exists. Search returns one entry per record with up to 3 passages; read a
   record whole with \`mode:"content"\`.
@@ -97,8 +92,8 @@ Slack messages and pages that only mention a record. To find Slack discussion
 of a PR or ticket, search for its number or URL with the Slack connector id in
 \`apps\`; to find a page that mentions it, run the same search without \`apps\`,
 across every source. For a question that must be
-exhaustive ("all", "how many", "every"), do NOT count search hits or trust a
-chat answer: navigate the record group, which reports the real total. For a
+exhaustive ("all", "how many", "every"), do NOT count search hits${orChat}:
+navigate the record group, which reports the real total. For a
 record's siblings, navigate its parent — take the id from the \`Path\` line.
 
 **A named record** — an issue key, a Confluence / Drive / Slack link, an
@@ -111,7 +106,36 @@ and a collection id (\`kind: "knowledgeBase"\`) as \`kb: ["<id>"]\`. Any source
 id works as \`nodeId\` to navigate. Navigate and lookup end in a \`Next:\` line
 naming the exact follow-up call — follow it.
 
-## Agents
+${chat ? AGENTS_SECTIONS : ""}`;
+}
+
+const CHAT_SECTION = `## \`pipeshub_chat\` is optional
+
+\`pipeshub_chat\` runs PipesHub's own assistant over a few passages it
+retrieves itself. An agent that searches and reads for itself is as
+accurate, with fewer wrong claims, at lower cost and latency, so a client
+may leave chat out. Use it only when you cannot run your own search-and-read
+loop, when the user asks for PipesHub's answer, or to run an org agent.
+Do NOT call it to cross-check, fill gaps in, or summarize what you searched
+and read: it reads less than you did. Search again with other wording.
+
+Its answer is a synthesis of a few passages, never a whole document, so
+treat it as a lead: confirm a specific ID, status, date, owner, or "merged /
+shipped" in the cited record before stating it. "Not found" means not in
+what it read, not that it does not exist.
+
+It can also take actions through the user's connected tools (for example
+create a ticket or send an email). Actions are on unless an admin has
+turned them off. Ask it questions, and never ask it to write unless the
+user asked for that action.
+
+`;
+
+const AGENTS_BULLET = `- \`pipeshub_agents\` — list the org's configured **agents** (specialized
+  assistants with their own prompt, tools, and knowledge scope).
+`;
+
+const AGENTS_SECTIONS = `## Agents
 
 Some orgs configure **agents** for specific jobs (e.g. a Slack messenger, a
 Jira ticket creator, a Salesforce CRM updater). To run a turn against an
@@ -137,3 +161,5 @@ turn pass back the \`conversationId\` it returned (with the same
 replay prior messages. Start a fresh conversation only when the user
 explicitly asks to clear context.
 `;
+
+export const PIPESHUB_INSTRUCTIONS = pipeshubInstructions({ chat: true });

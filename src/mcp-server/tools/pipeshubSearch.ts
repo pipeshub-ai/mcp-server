@@ -136,8 +136,8 @@ export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
 for locating a document by name, topic, or phrase. Then read the records
 that matter with \`pipeshub_get_record_content\` and answer from them;
 search again with other wording or sources if the first results miss.
-\`pipeshub_chat\` is optional: it runs PipesHub's assistant and returns an
-answer with citations to check.
+\`pipeshub_chat\`, where offered, is optional: it runs PipesHub's assistant
+and returns an answer with citations to check.
 
 For a full-document task (summarize, extract, review, "what does the doc
 say?"), read the top hit with \`mode:"content"\`. Also: resolve a filename

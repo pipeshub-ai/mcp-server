@@ -5,6 +5,7 @@ import * as z from "zod";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
 import { PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
+import { CHAT_ENV } from "../src/mcp-server/chat-setting.js";
 import { tool$pipeshubAgents } from "../src/mcp-server/tools/pipeshubAgents.js";
 import { tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
 import { tool$pipeshubDirectory } from "../src/mcp-server/tools/pipeshubDirectory.js";
@@ -313,19 +314,13 @@ describe("descriptions say what the tools actually return", () => {
     expect(at("pipeshub_get_record_content")).toBeLessThan(at("pipeshub_chat"));
   });
 
-  // The README's recipe for leaving chat out with the stdio `--tool` flag.
-  test("the README's search-and-read tool list mounts exactly those tools", () => {
+  // The README documents the switch by name; a rename here must not leave it
+  // pointing at a variable the server ignores.
+  test("the README names the chat switch the server reads", () => {
     const readme = readFileSync(join(import.meta.dir, "..", "README.md"), "utf8");
     const section = readme.split("## Leaving `pipeshub_chat` out")[1]?.split("\n## ")[0] ?? "";
-    const keep = [...section.matchAll(/--tool (pipeshub_[a-z_]+)/g)].map((m) => m[1]);
-    expect(keep).toContain("pipeshub_search");
-    expect(keep).toContain("pipeshub_get_record_content");
-    expect(keep).not.toContain("pipeshub_chat");
-    const { tools: mounted } = createMCPServer({
-      logger: createConsoleLogger("error"),
-      allowedTools: keep,
-    });
-    expect(mounted.map((t: any) => t.name).sort()).toEqual([...keep].sort());
+    expect(section).toContain(`${CHAT_ENV}=off`);
+    expect(section).toContain(`"${CHAT_ENV}": "off"`);
   });
 });
 
