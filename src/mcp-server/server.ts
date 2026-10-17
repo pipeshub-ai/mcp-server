@@ -87,13 +87,17 @@ export function createMCPServer(deps: {
   void register; // suppress unused warnings
 
   // Curated tool set. Order = preferred discovery order shown to the LLM.
+  // Search and read come first: they are the default way to answer. Chat is
+  // optional, for clients that cannot run their own retrieval loop (v3 eval,
+  // Opus: same accuracy, fewer wrong claims, ~$0.20 and ~20 s less per
+  // answer without it).
   tool(tool$pipeshubSources);          // 1. discover sources + models
-  tool(tool$pipeshubChat);             // 2. ask questions (start + continue)
-  tool(tool$pipeshubSearch);           // 3. resolve filename → recordId
-  tool(tool$pipeshubDownloadRecord);   // 4. fetch a document by id
-  tool(tool$pipeshubGetRecordContent); // 5. fetch a record's parsed content
-  tool(tool$pipeshubDirectory);        // 6. people / groups / teams / whoami
-  tool(tool$pipeshubAgents);           // 7. discover org agents
+  tool(tool$pipeshubSearch);           // 2. find records for a question
+  tool(tool$pipeshubGetRecordContent); // 3. read / navigate / look up records
+  tool(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
+  tool(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
+  tool(tool$pipeshubChat);             // 6. optional: PipesHub's assistant
+  tool(tool$pipeshubAgents);           // 7. discover org agents (for chat)
 
   // Curated prompt: user-invokable tool-routing guidance.
   prompt(prompt$pipeshubAssistant);

@@ -9,15 +9,31 @@ PipesHub is the user's workplace AI platform. It indexes their documents,
 knowledge base content, and connector sources (Drive, Box, Confluence,
 Slack, Jira, Gmail, ...). When in doubt, the answer is in PipesHub.
 
-## Full-document tasks: \`pipeshub_search\` → \`pipeshub_get_record_content\`
+## Default: search, then read
 
-\`pipeshub_chat\` answers from a handful of retrieved passages — it never
-reads a whole document. Whenever the task depends on a document's full
-text, fetch the record itself:
+For any question the user's PipesHub-indexed data could answer — company
+policies, processes, decisions, history, who said what, "what do we know
+about X", anything naming PipesHub or a connected source (Drive / Box /
+Confluence / Slack / Gmail / Jira / ...) — do NOT answer from your own
+knowledge. Retrieve and read it yourself:
 
-1. \`pipeshub_search\` with the document's name / topic.
-2. Take the top hit's \`recordId\`.
-3. \`pipeshub_get_record_content\`, and answer from the returned content.
+1. \`pipeshub_search\` for the topic, names, or phrases. Try other wording,
+   or narrow with \`apps\` / \`kb\`, when the first results miss.
+2. \`pipeshub_get_record_content\` on the records that matter (the hit's
+   \`recordId\`), and answer from what they say. Search passages are a
+   sample of a record, not all of it.
+
+A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
+instead, and "how many / all / every" with \`mode:"navigate"\` (below).
+
+Read the record whole whenever missing part of it could make the answer
+wrong:
+
+- Summarize / TL;DR / key points / takeaways / action items of a doc.
+- Extract or list ALL of something (dates, owners, requirements, ...).
+- Check whether / where a doc mentions something.
+- Translate, rewrite, outline, review, or reformat a doc.
+- Compare named docs (fetch each \`recordId\`).
 
 That returns one record, which is not always the whole conversation: Slack
 thread replies are separate records ("Reply Count: N" means they are not in
@@ -26,62 +42,31 @@ a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
 back in parts: pass \`query\` to get the passages that matter first, or
 follow the closing \`Next:\` line to read on.
 
-Tasks that need this path — anything where missing part of the document
-could make the answer wrong:
+## \`pipeshub_chat\` is optional
 
-- Summarize / TL;DR / key points / takeaways / action items of a doc.
-- Extract or list ALL of something (dates, owners, requirements, ...).
-- Check whether / where a doc mentions something.
-- Translate, rewrite, outline, review, or reformat a doc.
-- Compare named docs (fetch each \`recordId\`).
-- Any question explicitly scoped to ONE named document — chat retrieval
-  cannot be restricted to a single record.
+\`pipeshub_chat\` runs PipesHub's own assistant over a few passages it
+retrieves itself. An agent that searches and reads for itself is as
+accurate, with fewer wrong claims, at lower cost and latency, so a client
+may leave chat out. Use it when you cannot run your own search-and-read
+loop, when the user asks for PipesHub's answer, or to run an org agent.
 
-## Default tool: \`pipeshub_chat\`
+Its answer is a synthesis of a few passages, never a whole document, so
+treat it as a lead: confirm a specific ID, status, date, owner, or "merged /
+shipped" in the cited record before stating it. "Not found" means not in
+what it read, not that it does not exist.
 
-**Use \`pipeshub_chat\` for any question that could plausibly be answered
-by the user's PipesHub-indexed data** and is not a full-document task:
-
-- A question that may span several documents, or where you don't yet
-  know which record holds the answer (e.g. "what did Aashil say about
-  onboarding?").
-- Anything about company / org policies, processes, decisions, or
-  history (e.g. "what's our vacation policy?", "who owns the auth
-  service?").
-- Anything explicitly mentioning PipesHub itself, or its sources
-  (Drive / Box / Confluence / Slack / Gmail / Jira / etc.) when the
-  user has those connected.
-- Open-ended "what do we know about X" questions where the answer
-  likely lives in the org's documents.
-
-Do NOT answer those from your own knowledge — \`pipeshub_chat\` answers
-from the user's indexed content and returns citations to check. Its answer
-is a synthesis of a few passages, so treat it as a lead: confirm a specific
-ID, status, date, owner, or "merged / shipped" in the cited record before
-stating it. "Not found" means not in what it read, not that it does not
-exist.
-
-\`pipeshub_chat\` runs PipesHub's assistant agent, which can also take
-actions through the user's connected tools (for example create a ticket or
-send an email). Actions are on unless an admin has turned them off. Keep
-using \`pipeshub_chat\` for questions, but never ask it to write unless the
+It can also take actions through the user's connected tools (for example
+create a ticket or send an email). Actions are on unless an admin has
+turned them off. Ask it questions, and never ask it to write unless the
 user asked for that action.
 
-## When to use the other tools
+## Other tools
 
-- \`pipeshub_search\` — locate a document by name or topic and resolve it
-  to a \`recordId\`. To read or summarize one specific document, search,
-  then pass the top hit's \`recordId\` to \`pipeshub_get_record_content\`.
 - \`pipeshub_download_record\` — when the user wants the file as stored
   (download, attach, open). Never to read or summarize — that is
   \`pipeshub_get_record_content\` \`mode:"content"\`, which returns
-  parsed text with a metadata header. Get the \`recordId\` from a chat
-  citation or from \`pipeshub_search\`. \`convertTo\` is only
+  parsed text with a metadata header. \`convertTo\` is only
   \`application/pdf\`.
-- \`pipeshub_get_record_content\` — when you need a record's parsed text
-  (metadata header, then the text up to \`maxChars\`; a long record comes
-  in parts; an unfinished one ends in \`Next:\`) without downloading the file.
-  Prefer it over download when the question is what the record says.
 - \`pipeshub_directory\` — people, groups, teams, and \`whoami\` lookups.
   Not for documents or files — that is \`pipeshub_search\`.
 - \`pipeshub_sources\` — call once at the start of a session to discover
@@ -131,30 +116,24 @@ naming the exact follow-up call — follow it.
 Some orgs configure **agents** for specific jobs (e.g. a Slack messenger, a
 Jira ticket creator, a Salesforce CRM updater). To run a turn against an
 agent, call \`pipeshub_chat\` with its \`agentId\` (from \`pipeshub_agents\`).
-Keep passing the same \`agentId\` plus the
-returned \`conversationId\` on follow-up turns.
 
-**When to route to an agent vs plain chat:**
 - The user names a system/action that maps to an agent (e.g. "post to
   Slack", "create a Jira ticket", "update the Salesforce deal") → call
   \`pipeshub_agents\`, pick the matching agent, and use it.
-- Plain question about the org's knowledge or the public web → just use
-  \`pipeshub_chat\` (no \`agentId\`).
+- A plain question about the org's knowledge → search and read, above.
 
-**If you are unsure which agent or route fits the request**, call
+**If you are unsure which agent fits the request**, call
 \`pipeshub_agents\` FIRST and read the returned names/descriptions, then
 either pick the best match or present the list to the user and let them
 choose. Do NOT guess an agent blindly, and do NOT refuse — list the agents
-and decide from real data. The list may be empty (no agents configured),
-in which case fall back to plain \`pipeshub_chat\`.
+and decide from real data. The list may be empty (no agents configured).
 
 ## Conversation lifecycle
 
-\`pipeshub_chat\` is a single tool that handles both starting and
-continuing conversations (plain or with an \`agentId\`). On the first turn
-omit \`conversationId\`; on every subsequent turn pass back the
-\`conversationId\` returned by the previous call (along with the same
+\`pipeshub_chat\` starts and continues conversations (plain or with an
+\`agentId\`). On the first turn omit \`conversationId\`; on every later
+turn pass back the \`conversationId\` it returned (with the same
 \`agentId\` if you used one). Server-side context is preserved — do NOT
-replay prior messages. Only start a fresh conversation when the user
+replay prior messages. Start a fresh conversation only when the user
 explicitly asks to clear context.
 `;

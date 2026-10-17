@@ -132,20 +132,17 @@ export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   description:
     `Vector / semantic search across the org's indexed documents.
 
-**Use this when the user wants to LOCATE a document** — by name, topic,
-or a phrase to grep for — and to resolve it to a \`recordId\`. For
-open-ended questions across many documents, use \`pipeshub_chat\`
-instead, which does the retrieval internally and returns an answer with
-citations to check.
+**The default first step for a question about the org's knowledge**, and
+for locating a document by name, topic, or phrase. Then read the records
+that matter with \`pipeshub_get_record_content\` and answer from them;
+search again with other wording or sources if the first results miss.
+\`pipeshub_chat\` is optional: it runs PipesHub's assistant and returns an
+answer with citations to check.
 
-Typical uses:
-- Resolve a doc name / topic into a \`recordId\` for
-  \`pipeshub_get_record_content\` — step 1 of any full-document task
-  (summarize, extract, review, "what does the doc say?").
-- Resolve a filename / phrase into a \`recordId\` for
-  \`pipeshub_download_record\`.
-- Show the user a ranked list of matching files when they ask "find /
-  search for X".
+For a full-document task (summarize, extract, review, "what does the doc
+say?"), read the top hit with \`mode:"content"\`. Also: resolve a filename
+into a \`recordId\` for \`pipeshub_download_record\`, or show the user a
+ranked list of matching files when they ask "find / search for X".
 
 Not for structural questions — what is under this epic, which pages are
 in this space, what links to this ticket. Ranking by content cannot show

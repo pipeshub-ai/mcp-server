@@ -74,38 +74,27 @@ const args = {
 export const tool$pipeshubChat: ToolDefinition<typeof args> = {
   name: "pipeshub_chat",
   description:
-    `Ask a question, get an answer with citations from the org's indexed
-data. The answer is PipesHub's assistant's synthesis of a few retrieved
-passages — never a whole document, never a complete list.
+    `Optional. Ask PipesHub's own assistant. Its answer is a synthesis of a
+few retrieved passages — never a whole document, never a complete list.
 
-**Three questions this tool gets WRONG. Check them first:**
-- **Structure** — "what's under this epic?", "which pages are in this
-  space?", "what links to this ticket?", "what's in this folder?" →
-  \`pipeshub_get_record_content\` \`mode:"navigate"\`. Ranking cannot see how
-  records relate.
-- **Exhaustive** — "how many X?", "list ALL the Y", "every Z" →
-  \`mode:"navigate"\`, which reports the group's real total. This tool
-  undercounts and will not say so.
-- **One named document** — summarize it, extract from it, what does it say
-  about X → \`pipeshub_search\` for the \`recordId\`, then \`mode:"content"\`.
+**If you can call tools, answer the question yourself:** \`pipeshub_search\`,
+then read the records that matter with \`pipeshub_get_record_content\`
+(\`mode:"navigate"\` for what is under an epic, space or folder, and for
+every "how many" / "all"). That is as accurate as adding this tool, with fewer wrong claims,
+at lower cost and latency.
 
-Everything else about the org's knowledge belongs here: policies,
-processes, decisions, history, "what do we know about X", and any question
-spanning several documents.
+Use this tool when you cannot run your own search-and-read loop, when the
+user asks for PipesHub's answer, or to run an org agent: pass an \`agentId\`
+from \`pipeshub_agents\` to use that agent's own prompt, tools and knowledge.
 
 It answers from the org's indexed sources (Drive, Box, Confluence, Slack,
-Gmail, Jira, the org's KB, ...) and from the live web.
+Gmail, Jira, the org's KB, ...) and from the live web. It undercounts
+"how many" / "all" and will not say so.
 
 **It can also act.** Actions are on unless an admin turns them off: the
 assistant may use the user's connected tools (e.g. create a Jira ticket,
 send an email) with their credentials. Never ask it to write unless the
 user asked for that.
-
-**Agent chat** — pass an \`agentId\` from \`pipeshub_agents\` — runs against
-that agent's own prompt, tools and knowledge.
-
-- "Find / locate the file named X" → \`pipeshub_search\` (then
-  \`pipeshub_download_record\` if the user wants the bytes).
 
 **Conversation lifecycle**: omit \`conversationId\` on the first turn and
 capture it from the response. Pass it on follow-ups: the server keeps the

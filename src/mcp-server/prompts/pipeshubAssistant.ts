@@ -14,7 +14,7 @@ export const prompt$pipeshubAssistant: PromptDefinition<typeof args> = {
   name: "pipeshub-assistant",
   description:
     "Load PipesHub tool-routing guidance so the assistant picks the correct "
-    + "tool (pipeshub_chat / search / agents / directory) and lists agents "
+    + "tool (search and read by default; chat / agents / directory) and lists agents "
     + "with pipeshub_agents when unsure which route fits the query.",
   scopes: ["read"],
   args,

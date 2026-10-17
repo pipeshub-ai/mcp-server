@@ -19,11 +19,11 @@ const logger = createConsoleLogger("error");
 
 const CURATED = [
   "pipeshub_sources",
-  "pipeshub_chat",
   "pipeshub_search",
-  "pipeshub_download_record",
   "pipeshub_get_record_content",
+  "pipeshub_download_record",
   "pipeshub_directory",
+  "pipeshub_chat",
   "pipeshub_agents",
 ];
 

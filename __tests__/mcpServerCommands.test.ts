@@ -26,11 +26,11 @@ const OTHER_BEARER = jwt({ userId: USER_ID, exp: 4102444800, who: "header" });
 
 const CURATED = [
   "pipeshub_sources",
-  "pipeshub_chat",
   "pipeshub_search",
-  "pipeshub_download_record",
   "pipeshub_get_record_content",
+  "pipeshub_download_record",
   "pipeshub_directory",
+  "pipeshub_chat",
   "pipeshub_agents",
 ];
 

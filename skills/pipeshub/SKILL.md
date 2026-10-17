@@ -136,17 +136,19 @@ supports. Never ask anyone to paste a token into chat.
 
 | The person says | Use |
 | --- | --- |
-| A question about company knowledge (policy, "what do we know about X") | `pipeshub_chat` (answers from indexed sources and the web; can also take the user's connected actions, so never ask it to write unless the user asked) |
+| A question about company knowledge (policy, "what do we know about X") | `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content` `mode: "content"`; answer from them |
 | "How many / list all / every X" | `pipeshub_get_record_content` `mode: "navigate"` — chat undercounts and will not say so |
 | Structure: what's under this epic / folder / space | `pipeshub_get_record_content` `mode: "navigate"` |
 | Summarize / quote one named document | search → `pipeshub_get_record_content` `mode: "content"` |
 | Find a named file / ticket / page | `pipeshub_search`, then content by `recordId` |
 | Download the file bytes | `pipeshub_download_record` |
 | Talk to a configured PipesHub agent | `pipeshub_agents` for `agentId`, then `pipeshub_chat` with that id |
+| The person wants PipesHub's own answer, or you cannot run several tool calls | `pipeshub_chat` (optional; answers from indexed sources and the web; can also take the user's connected actions, so never ask it to write unless the user asked) |
 | First call of a session | `pipeshub_sources` once; cache ids |
 
-`pipeshub_chat` sees retrieved passages, not whole documents. For anything
-that needs the full text, search then `mode: "content"`.
+Search and read is the default. `pipeshub_chat` is optional: for an agent
+that can call tools it adds cost and time without adding accuracy, and it
+sees retrieved passages, not whole documents.
 
 If `pipeshub_chat` returns an answer with no citations, relay it as
 **unsourced and not confirmed**; do not restate its claims as fact. Cite
