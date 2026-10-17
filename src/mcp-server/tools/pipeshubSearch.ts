@@ -30,10 +30,10 @@ const args = {
     "Natural language query. Vector search across the org's indexed records.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Vector matches to fetch per query variant. Default 10. The backend "
-      + "searches a rewritten form of the query plus a few expanded variants, "
-      + "so one call can return more records than `limit`. 5–10 is enough to "
-      + "find a `recordId`.",
+    "Vector matches to fetch per query variant. Default 10. The query is "
+      + "searched as written; an older PipesHub server also searches a "
+      + "rewritten form and a few expanded variants, so one call can return "
+      + "more records than `limit`. 5–10 is enough to find a `recordId`.",
   ),
   offset: z.number().int().min(0).max(10_000).optional().describe(
     "Records to skip. To read the next page of the same results, pass the "
@@ -214,6 +214,10 @@ call again with \`offset\` set to \`nextOffset\`.`,
         limit,
         filters: searchFilters(scope),
         ...bounds,
+        // The calling agent writes its own queries, so the server's model
+        // rewrite and expansion add about 4 s a search and little else. A
+        // server older than the option ignores it and rewrites as before.
+        rewriteQuery: false,
       }, { fetchOptions: { signal: ctx.signal } }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
 
