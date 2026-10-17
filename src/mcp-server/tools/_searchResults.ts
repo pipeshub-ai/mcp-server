@@ -16,6 +16,16 @@ import { isoFromEpochMs, SNIPPET_MAX_CHARS } from "./_helpers.js";
 export const PASSAGES_PER_RECORD = 3;
 
 /**
+ * Linked records shown per record, one line each. The rest are counted in
+ * `linksFound`. Records with a status of their own (a ticket, a pull request)
+ * come first: "was the PR this thread links merged?" is what they answer.
+ */
+export const LINKS_PER_RECORD = 3;
+
+/** Longest linked record name shown; a link line stays one short line. */
+const LINK_NAME_MAX_CHARS = 100;
+
+/**
  * Most characters one search result may take, as sent. Under Claude Code's
  * 25,000-token limit for one tool result with room to spare, and small enough
  * that a few searches leave the agent room to work.
@@ -42,6 +52,15 @@ export interface SearchRecordEntry {
   updatedAt?: string;
   /** Where the record sits: channel, thread, project, space, PR. */
   parent?: string;
+  /** A ticket's or pull request's state: "Merged 2026-09-25 by alice". */
+  status?: string;
+  /**
+   * Records this one names or is named by, one line each:
+   * `links to PULL_REQUEST "Fix sign-in" — Merged 2026-09-25 [<recordId>]`.
+   */
+  links?: string[];
+  /** Linked records the server sent, shown or not, when some were left out. */
+  linksFound?: number;
   score?: number;
   /** Passages search returned for this record, shown or not. */
   passagesFound: number;
@@ -65,6 +84,42 @@ export function parentFromLocation(location: unknown): string | undefined {
     if (name) names.push(name);
   }
   return names.length > 0 ? names.join(" › ") : undefined;
+}
+
+/**
+ * The record's linked records as short lines, those with a status first.
+ * `linkedRecords` is what the server sends on a record document (from
+ * pipeshub-ai/pipeshub-ai, alongside `statusSummary`); an older server sends
+ * none, and the entry carries no `links`.
+ */
+export function linkLines(linked: unknown): { links: string[]; found: number } {
+  if (!Array.isArray(linked)) return { links: [], found: 0 };
+  const rows = linked.filter(
+    (row: any) => typeof row?.recordId === "string" && row.recordId !== "",
+  );
+  const ranked = rows
+    .map((row: any, at: number) => ({ row, at }))
+    .sort((a, b) =>
+      Number(typeof b.row.status === "string") - Number(typeof a.row.status === "string")
+      || a.at - b.at
+    );
+  const links = ranked.slice(0, LINKS_PER_RECORD).map(({ row }) => {
+    const relation = row.relation === "mentionedIn" ? "mentioned in" : "links to";
+    const type = typeof row.recordType === "string" && row.recordType ? ` ${row.recordType}` : "";
+    const rawName = typeof row.recordName === "string" ? oneLine(row.recordName) : "";
+    const name = rawName.length > LINK_NAME_MAX_CHARS
+      ? `${rawName.slice(0, LINK_NAME_MAX_CHARS)}…`
+      : rawName;
+    const status = typeof row.status === "string" && row.status
+      ? ` — ${oneLine(row.status)}`
+      : "";
+    return `${relation}${type} "${name}"${status} [${row.recordId}]`;
+  });
+  return { links, found: rows.length };
+}
+
+function oneLine(text: string): string {
+  return text.split(/\s+/).filter(Boolean).join(" ");
 }
 
 function passageText(hit: any): string | undefined {
@@ -153,6 +208,10 @@ export function groupSearchResults(
     const recordName = doc?.recordName ?? md.recordName;
     const connector = doc?.connectorName ?? md.connector;
     const webUrl = doc?.webUrl ?? md.webUrl;
+    const status = typeof doc?.statusSummary === "string" && doc.statusSummary
+      ? oneLine(doc.statusSummary)
+      : undefined;
+    const { links, found: linksFound } = linkLines(doc?.linkedRecords);
     entries.push({
       recordId,
       ...(typeof recordName === "string" ? { recordName } : {}),
@@ -162,6 +221,9 @@ export function groupSearchResults(
       ...(createdAt ? { createdAt } : {}),
       ...(updatedAt ? { updatedAt } : {}),
       ...(parent ? { parent } : {}),
+      ...(status ? { status } : {}),
+      ...(links.length > 0 ? { links } : {}),
+      ...(linksFound > links.length ? { linksFound } : {}),
       ...(typeof best === "number" ? { score: best } : {}),
       passagesFound: found.length
         + (typeof omitted === "number" && omitted > 0 ? omitted : 0),

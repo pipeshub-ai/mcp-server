@@ -160,8 +160,9 @@ By default it searches everything. To search only some sources, pass
 connector ids in \`apps\` and collection ids in \`kb\`.
 
 Returns \`records\`, one per record, best first: \`recordId\`, name, type,
-\`webUrl\`, source dates, \`parent\`, \`passagesFound\` and up to 3
-\`passages\`. Results stay under 20,000 characters; if records were cut,
+\`webUrl\`, source dates, \`parent\`, a ticket's or PR's \`status\` with
+its date, linked records with theirs (\`links\`), \`passagesFound\` and up
+to 3 \`passages\`. Results stay under 20,000 characters; if records were cut,
 call again with \`offset\` set to \`nextOffset\`.`,
   scopes: ["read"],
   annotations: {

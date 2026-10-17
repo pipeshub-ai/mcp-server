@@ -5,6 +5,8 @@ import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import {
   forgetSearches,
   groupSearchResults,
+  LINKS_PER_RECORD,
+  linkLines,
   pageSearchRecords,
   parentFromLocation,
   SEARCH_RESULT_MAX_CHARS,
@@ -114,6 +116,61 @@ describe("one entry per record", () => {
       passagesFound: 1,
       passages: [{ text: "LGTM" }],
     });
+  });
+
+  test("a ticket's or PR's status and its linked records come from the record document", () => {
+    // In the misses of a run against real Slack, GitHub and Jira data, the
+    // answer often cited the right record but lacked a fact the record holds
+    // as metadata ("merged on 2026-09-25") or one that lives in a record it
+    // links to. The server now sends both; each link is one short line.
+    const [entry] = groupSearchResults([hit("thread", "see the PR", 0.5)], [{
+      _key: "thread",
+      recordType: "MESSAGE",
+      linkedRecords: [
+        { relation: "mentionedIn", recordId: "page-1", recordName: "Runbook", recordType: "WEBPAGE", connector: "CONFLUENCE" },
+        {
+          relation: "linksTo", recordId: "pr-1", recordName: "Fix sign-in", recordType: "PULL_REQUEST",
+          connector: "GITHUB", status: "Merged 2026-09-25 by alice",
+        },
+      ],
+    }, {
+      _key: "pr-1",
+      recordType: "PULL_REQUEST",
+      statusSummary: "Merged 2026-09-25 by alice",
+    }]);
+
+    expect(entry!.links).toEqual([
+      'links to PULL_REQUEST "Fix sign-in" — Merged 2026-09-25 by alice [pr-1]',
+      'mentioned in WEBPAGE "Runbook" [page-1]',
+    ]);
+    expect(entry!.linksFound).toBeUndefined();
+    expect(entry!.status).toBeUndefined();
+
+    const pr = groupSearchResults([], [{ _key: "pr-1", statusSummary: "Merged 2026-09-25 by alice" }])[0];
+    expect(pr!.status).toBe("Merged 2026-09-25 by alice");
+    expect(pr!.links).toBeUndefined();
+  });
+
+  test("links are capped, counted and kept to one short line each", () => {
+    const many = Array.from({ length: LINKS_PER_RECORD + 2 }, (_, i) => ({
+      relation: "linksTo", recordId: `r${i}`, recordName: `Name\n${"x".repeat(200)}`, recordType: "TICKET",
+    }));
+    const { links, found } = linkLines([...many, { relation: "linksTo" }, "junk"]);
+
+    expect(links).toHaveLength(LINKS_PER_RECORD);
+    expect(found).toBe(LINKS_PER_RECORD + 2);
+    for (const line of links) {
+      expect(line).not.toContain("\n");
+      expect(line.length).toBeLessThan(150);
+    }
+    const [entry] = groupSearchResults([], [{ _key: "a", linkedRecords: many }]);
+    expect(entry!.linksFound).toBe(LINKS_PER_RECORD + 2);
+  });
+
+  test("an older server sends no status or links, and the entry has none", () => {
+    expect(linkLines(undefined)).toEqual({ links: [], found: 0 });
+    const [entry] = groupSearchResults([], [{ _key: "a", recordName: "A" }]);
+    expect(entry).toEqual({ recordId: "a", recordName: "A", passagesFound: 0, passages: [] });
   });
 
   test("a matched record with no readable passage is still listed", () => {
