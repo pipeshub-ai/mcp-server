@@ -46,7 +46,7 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Vector matches to fetch per query variant. Default 10. The tool asks for the query to be searched as written. An older PipesHub server rewrites it instead and searches the rewrite plus a few variants, so one call can return more records than `limit`. 5–10 is enough to find a `recordId`. |
+| `limit` | number (1–100) | no | Vector matches to fetch. Default 10. The tool asks for the query to be searched as written. A PipesHub server that ignores that option rewrites it instead and searches the rewrite plus a few variants, `limit` matches each, so one call can return more records than `limit`. 5–10 is enough to find a `recordId`. |
 | `offset` | number | no | Records to skip. To read the next page of the same results, pass the previous call's `nextOffset` with the same other arguments. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
