@@ -169,7 +169,12 @@ call again with \`offset\` set to \`nextOffset\`.`,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
-    readOnlyHint: false,
+    // Search changes nothing in the org's data. The server keeps the caller's
+    // own search history (a history entry and the hits it returned), as it
+    // does for a search in the web app. Hosts such as Claude Code run tools
+    // side by side only when they are read-only, so `false` here made an
+    // agent's batch of searches run one after another.
+    readOnlyHint: true,
   },
   args,
   tool: async (client, args, ctx) => {
