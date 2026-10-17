@@ -59,6 +59,27 @@ export type ToolDefinition<
     ) => CallToolResult | Promise<CallToolResult>;
   };
 
+// Matched against the subtype only: a substring test on the whole header also
+// catches Office formats (`vnd.openxmlformats-...`), which are zip archives.
+const TEXT_SUBTYPE = /^(json|xml|yaml|x-yaml)$|\+(json|xml|yaml)$/;
+
+function isTextMime(contentType: string): boolean {
+  const [type = "", subtype = ""] = (contentType.split(";")[0] ?? "")
+    .trim()
+    .toLowerCase()
+    .split("/");
+  return type === "text"
+    || (type === "application" && TEXT_SUBTYPE.test(subtype));
+}
+
+function decodeUtf8(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 // Optional function to assist with formatting tool results
 export async function formatResult(
   response: Response,
@@ -76,22 +97,20 @@ export async function formatResult(
     content = data == null
       ? []
       : [{ type: "audio", data, mimeType: contentType }];
-  } else if (
-    contentType.startsWith("text/")
-    || contentType.includes("json")
-    || contentType.includes("xml")
-    || contentType.includes("yaml")
-  ) {
-    const text = await response.text();
-    content = [{ type: "text", text }];
   } else {
-    const blob = await valueToBase64(await response.arrayBuffer());
-    content = blob == null
-      ? []
-      : [{
-        type: "resource",
-        resource: { uri: response.url, mimeType: contentType, blob },
-      }];
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const text = isTextMime(contentType) ? decodeUtf8(bytes) : null;
+    if (text != null) {
+      content = [{ type: "text", text }];
+    } else {
+      const blob = await valueToBase64(bytes);
+      content = blob == null
+        ? []
+        : [{
+          type: "resource",
+          resource: { uri: response.url, mimeType: contentType, blob },
+        }];
+    }
   }
 
   return response.ok ? { content } : { content, isError: true };
