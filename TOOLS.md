@@ -4,13 +4,17 @@ Reference for the tools exposed by the PipesHub MCP server. These tools let an A
 
 The server exposes hand-written tools that cover the common PipesHub workflows. Each one wraps several lower-level API calls so the LLM gets a single, well-shaped response.
 
+**Recommended default: search and read.** An agent that can call tools answers best by running `pipeshub_search` and then reading the records that matter with `pipeshub_get_record_content`. `pipeshub_chat` is optional. In PipesHub's evaluation on 100 real questions about its own work (October 2026, Claude Opus as the agent, 200 answers per setup), search-and-read alone found 88% of the facts with 0.39 wrong claims per answer, at $0.54 and 78 seconds median per answer. Adding `pipeshub_chat` found the same 88%, with 0.47 wrong claims, at about $0.73 (estimated, since MCP does not report what PipesHub's assistant costs) and 97 seconds. Chat alone found 84%. For Claude Haiku the three setups were within 3 points of each other (71–74%), and search-and-read was the cheapest. The tool descriptions and server instructions steer agents this way. Guidance alone does not stop a capable agent from also calling chat, so to get the savings, leave chat out: set `PIPESHUB_MCP_CHAT=off` on the local server, or turn the tool off in the client (see [Leaving `pipeshub_chat` out](./README.md#leaving-pipeshub_chat-out)).
+
+Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, when you want PipesHub's own assistant to write the answer, to talk to a configured PipesHub agent, or to take an action through the user's connected tools.
+
 ---
 
 ### `pipeshub_chat`
 
-**Default tool for anything PipesHub-related.** Ask a question and get an answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web.
+**Optional.** Ask PipesHub's own assistant a question and get an answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web. An agent that can call tools does as well with `pipeshub_search` and `pipeshub_get_record_content`, with fewer wrong claims, at lower cost and latency (see the recommendation above).
 
-> **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Questions still belong here, but never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first.
+> **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Ask it questions, and never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first.
 
 > **Speed.** Every turn asks the backend for the short keyword-search wait (`keywordSearchBudget: "short"`): each search inside the assistant waits at most 5 seconds for its keyword (grep) matches after its vector results, and keeps what it found by then, instead of up to 35 seconds. Deployments running `HIGH_ACCURACY_MODE` still wait in full, and backends that predate the field ignore it.
 
@@ -23,9 +27,9 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 | `agentId` | string | no | PipesHub agent to converse with (`agentId` from `pipeshub_agents`). Runs the turn against that agent's prompt, tools and knowledge. Pass the same `agentId` on every follow-up turn. Omit for plain chat. |
 
 **When to pick it over the others:**
-- Open-ended / cross-document org questions (answer spans many files) → `pipeshub_chat`.
-- "What's our policy on Y?" (not tied to one named file) → `pipeshub_chat`.
-- "Summarize *a specific doc*" or "What does *document* say about X?" → `pipeshub_search` → top hit's `recordId` → `pipeshub_get_record_content` (not `pipeshub_chat`).
+- The client cannot run several tool calls of its own, or the user asks for PipesHub's answer → `pipeshub_chat`.
+- Talking to a configured PipesHub agent → `pipeshub_chat` with its `agentId`.
+- Any other question about the org's knowledge, including open-ended and cross-document ones → `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content`.
 - "Find / locate the file named X" → `pipeshub_search` (then `pipeshub_download_record` if the user wants the bytes).
 
 **Response:** the AI's `answer`, `citations[]`, `claims[]`, `uncitedSentences[]`, `followUpQuestions`, plus the `conversationId` to use for follow-ups; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
@@ -41,7 +45,7 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 ### `pipeshub_search`
 
-Vector / semantic search across the org's indexed documents. Use it to **locate a document** — by name, topic, or a phrase — and to resolve it to a `recordId`. It is also **step 1 of reading/summarizing a specific document**: search, take the top hit's `recordId`, then call `pipeshub_get_record_content`.
+Vector / semantic search across the org's indexed documents. It is **the default first step for a question about the org's knowledge**: search, then read the records that matter with `pipeshub_get_record_content` and answer from them. It also **locates a document** by name, topic, or phrase and resolves it to a `recordId`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -63,7 +67,7 @@ A result stays under 20,000 characters. When records were left out to fit, `next
 
 > Records are the best-matching ones, with a sample of their passages — not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
 >
-> For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. Reserve `pipeshub_chat` for open-ended questions that span many documents.
+> For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. For questions that span many documents, read each record that matters.
 
 Each passage's `text` is at most 280 characters. A passage that was cut carries `truncated: true` and its full length in `contentChars`. Within a record, the passages the search matched come first, by score, then the passages around them.
 
@@ -170,7 +174,7 @@ Each agent is returned as `{ agentId, name, description, systemPrompt, startMess
 
 **Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, say so.
 
-The list **may be empty**. For plain Q&A, use `pipeshub_chat` without `agentId`.
+The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the records with `pipeshub_get_record_content`.
 
 ---
 
@@ -180,8 +184,9 @@ The list **may be empty**. For plain Q&A, use `pipeshub_chat` without `agentId`.
 |---|---|
 | "What does the Q4 report say about ARR?" | `pipeshub_search` → top hit → `pipeshub_get_record_content` |
 | "Summarize the onboarding doc" | `pipeshub_search` → top hit → `pipeshub_get_record_content` |
-| "What do we know about X?" (spans many docs) | `pipeshub_chat` |
-| "What's our PTO policy?" (no single named file) | `pipeshub_chat` |
+| "What do we know about X?" (spans many docs) | `pipeshub_search` → read the records that matter with `pipeshub_get_record_content` |
+| "What's our PTO policy?" (no single named file) | `pipeshub_search` → read the top records with `pipeshub_get_record_content` |
+| The client cannot run its own tool loop, or wants PipesHub's own answer | `pipeshub_chat` |
 | "How many / list all / every X" | `pipeshub_get_record_content` `mode:"navigate"` — not `pipeshub_chat` |
 | "Find the file called *security-review.pdf*" | `pipeshub_search` |
 | "Download that file" (after a search or chat citation) | `pipeshub_download_record` |

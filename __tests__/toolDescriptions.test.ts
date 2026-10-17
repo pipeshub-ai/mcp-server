@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as z from "zod";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
 import { PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
+import { CHAT_ENV } from "../src/mcp-server/chat-setting.js";
 import { tool$pipeshubAgents } from "../src/mcp-server/tools/pipeshubAgents.js";
 import { tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
 import { tool$pipeshubDirectory } from "../src/mcp-server/tools/pipeshubDirectory.js";
@@ -83,15 +86,18 @@ describe("tool descriptions", () => {
 
   // Plain chat sends no `tools`, so the assistant gets every action the user
   // has connected, and actions default on. The model and the client both have
-  // to be told; questions still belong on chat, not search.
+  // to be told. Fear of actions must not be the reason to avoid chat, so the
+  // chat text never routes reading away on that ground.
   test("chat says it can act, that actions default on, and to write only when asked", () => {
     const chat = byName.get("pipeshub_chat") ?? "";
     expect(chat).toContain("It can also act");
     expect(chat).toContain("on unless an admin turns them off");
     expect(chat).toContain("Never ask it to write unless the");
     expect(chat).not.toMatch(/to read[^.]*use `pipeshub_search`/);
-    expect(PIPESHUB_INSTRUCTIONS).toContain("Actions are on unless an admin has turned them off");
-    expect(PIPESHUB_INSTRUCTIONS).toContain("Keep\nusing `pipeshub_chat` for questions");
+    expect(PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " "))
+      .toContain("Actions are on unless an admin has turned them off");
+    expect(PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " "))
+      .toContain("Ask it questions, and never ask it to write unless the user asked");
     expect(tool$pipeshubChat.annotations?.destructiveHint).toBe(true);
   });
 
@@ -276,9 +282,45 @@ describe("descriptions say what the tools actually return", () => {
     expect(text).toContain("without `apps`, across every source");
   });
 
-  // Which tool is the default is a product decision, not this change's.
-  test("chat stays the default tool", () => {
-    expect(PIPESHUB_INSTRUCTIONS).toContain("## Default tool: `pipeshub_chat`");
+  // Search and read is the default; chat is optional. Decided 2026-10-17 from
+  // the v3 eval: with Opus as the agent, search-and-read alone and all tools
+  // both found 88% of facts, but adding chat raised wrong claims per answer
+  // (0.39 → 0.47), cost (~$0.54 → ~$0.73) and median time (78 s → 97 s).
+  // Chat stays registered for clients that cannot run their own loop.
+  test("search and read is the default and chat is optional", () => {
+    const text = PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " ");
+    expect(text).toContain("## Default: search, then read");
+    expect(text).toContain("## `pipeshub_chat` is optional");
+    expect(text).not.toContain("Default tool: `pipeshub_chat`");
+    expect(text).toContain("do NOT answer from your own knowledge");
+    expect(flat("pipeshub_chat")).toMatch(/^Optional\./);
+    expect(flat("pipeshub_chat")).toContain("answer the question yourself");
+    expect(flat("pipeshub_search")).toContain("default first step for a question");
+    expect(flat("pipeshub_agents")).not.toContain("use `pipeshub_chat` WITHOUT");
+  });
+
+  // Clients may leave chat out (see README "Leaving pipeshub_chat out"). The
+  // guidance has to read as a whole without it, so it says so outright.
+  test("the instructions allow a client to leave chat out", () => {
+    expect(PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " "))
+      .toContain("a client may leave chat out");
+  });
+
+  // Hosts that show tools in order see search and read before chat.
+  test("search and read are registered before chat", () => {
+    const order = tools.map((t: any) => t.name as string);
+    const at = (n: string) => order.indexOf(n);
+    expect(at("pipeshub_search")).toBeLessThan(at("pipeshub_chat"));
+    expect(at("pipeshub_get_record_content")).toBeLessThan(at("pipeshub_chat"));
+  });
+
+  // The README documents the switch by name; a rename here must not leave it
+  // pointing at a variable the server ignores.
+  test("the README names the chat switch the server reads", () => {
+    const readme = readFileSync(join(import.meta.dir, "..", "README.md"), "utf8");
+    const section = readme.split("## Leaving `pipeshub_chat` out")[1]?.split("\n## ")[0] ?? "";
+    expect(section).toContain(`${CHAT_ENV}=off`);
+    expect(section).toContain(`"${CHAT_ENV}": "off"`);
   });
 });
 
