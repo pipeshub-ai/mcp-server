@@ -8,8 +8,11 @@
 
 export const CHAT_ENV = "PIPESHUB_MCP_CHAT";
 
-const ON = new Set(["", "on", "true", "1"]);
-const OFF = new Set(["off", "false", "0"]);
+// Only the two documented values (any case, trimmed): a near miss such as
+// "false" stops the server and names the choices, rather than being read one
+// way here and documented another.
+const ON = new Set(["", "on"]);
+const OFF = new Set(["off"]);
 
 /** Reads `PIPESHUB_MCP_CHAT`: unset or `on` mounts chat, `off` leaves it out. */
 export function chatEnabledFromEnv(

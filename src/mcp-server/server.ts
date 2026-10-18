@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import { withoutChatMentions } from "./chat-mentions.js";
 import { chatEnabledFromEnv } from "./chat-setting.js";
 import { pipeshubInstructions } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
@@ -98,14 +99,17 @@ export function createMCPServer(deps: {
   // optional, for clients that cannot run their own retrieval loop (PipesHub's
   // October 2026 evaluation, Claude Opus as the agent: same accuracy, fewer
   // wrong claims, ~$0.20 and ~20 s less per answer without it).
-  tool(tool$pipeshubSources);          // 1. discover sources + models
-  tool(tool$pipeshubSearch);           // 2. find records for a question
-  tool(tool$pipeshubGetRecordContent); // 3. read / navigate / look up records
-  tool(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
-  tool(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
+  // Without chat, a description that names pipeshub_chat is mounted with the
+  // mention cut, so no tool points the agent at one it cannot see.
+  const mount: typeof tool = chat ? tool : (def) => tool(withoutChatMentions(def));
+  mount(tool$pipeshubSources);          // 1. discover sources + models
+  mount(tool$pipeshubSearch);           // 2. find records for a question
+  mount(tool$pipeshubGetRecordContent); // 3. read / navigate / look up records
+  mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
+  mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
   if (chat) {
-    tool(tool$pipeshubChat);           // 6. optional: PipesHub's assistant
-    tool(tool$pipeshubAgents);         // 7. discover org agents (for chat)
+    tool(tool$pipeshubChat);            // 6. optional: PipesHub's assistant
+    tool(tool$pipeshubAgents);          // 7. discover org agents (for chat)
   }
 
   // Curated prompt: user-invokable tool-routing guidance.

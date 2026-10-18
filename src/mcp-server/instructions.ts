@@ -115,7 +115,8 @@ const CHAT_SECTION = `## \`pipeshub_chat\` is optional
 retrieves itself. An agent that searches and reads for itself is as
 accurate, with fewer wrong claims, at lower cost and latency, so a client
 may leave chat out. Use it only when you cannot run your own search-and-read
-loop, when the user asks for PipesHub's answer, or to run an org agent.
+loop, when the user asks for PipesHub's answer, to run an org agent, or to
+take an action the user asked for through their connected tools.
 Do NOT call it to cross-check, fill gaps in, or summarize what you searched
 and read: it reads less than you did. Search again with other wording.
 
@@ -151,6 +152,8 @@ agent, call \`pipeshub_chat\` with its \`agentId\` (from \`pipeshub_agents\`).
 either pick the best match or present the list to the user and let them
 choose. Do NOT guess an agent blindly, and do NOT refuse — list the agents
 and decide from real data. The list may be empty (no agents configured).
+When no agent fits an action the user asked for, call \`pipeshub_chat\`
+without an \`agentId\`: plain chat can use the user's connected tools.
 
 ## Conversation lifecycle
 

@@ -7,6 +7,7 @@ import { CHAT_ENV, chatEnabledFromEnv } from "../src/mcp-server/chat-setting.js"
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { pipeshubInstructions, PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
+import { withoutChatMentions } from "../src/mcp-server/chat-mentions.js";
 
 // Search and read is the default way to answer; chat is optional. Leaving it
 // out has to leave out everything that points at it, or the host is told to
@@ -39,17 +40,20 @@ afterEach(() => {
 describe("PIPESHUB_MCP_CHAT", () => {
   test("is on when unset or on, off when off", () => {
     expect(chatEnabledFromEnv({})).toBe(true);
-    for (const v of ["", "on", "ON", "true", "1", " on "]) {
+    for (const v of ["", "on", "ON", " on "]) {
       expect(chatEnabledFromEnv({ [CHAT_ENV]: v })).toBe(true);
     }
-    for (const v of ["off", "Off", "false", "0", " off "]) {
+    for (const v of ["off", "Off", " off "]) {
       expect(chatEnabledFromEnv({ [CHAT_ENV]: v })).toBe(false);
     }
   });
 
   test("any other value is an error that names the variable and the choices", () => {
-    expect(() => chatEnabledFromEnv({ [CHAT_ENV]: "no-chat" }))
-      .toThrow(/PIPESHUB_MCP_CHAT must be "on" or "off".*got "no-chat"/);
+    // README.md and server.json document "on" and "off" only.
+    for (const v of ["no-chat", "true", "1", "false", "0"]) {
+      expect(() => chatEnabledFromEnv({ [CHAT_ENV]: v }))
+        .toThrow(new RegExp(`PIPESHUB_MCP_CHAT must be "on" or "off".*got "${v}"`));
+    }
   });
 });
 
@@ -83,6 +87,14 @@ describe("a server without chat", () => {
     expect(flat).toContain("Reply Count: N");
     expect(flat).toContain("do NOT count search hits: navigate the record group");
 
+    // No mounted tool's description names one either.
+    for (const t of (await client.listTools()).tools) {
+      for (const named of t.description?.match(/pipeshub_[a-z_]+/g) ?? []) {
+        expect(`${t.name} names ${named}: ${mounted.has(named)}`)
+          .toBe(`${t.name} names ${named}: true`);
+      }
+    }
+
     const { prompts } = await client.listPrompts();
     expect(prompts[0]?.description).not.toContain("pipeshub_agents");
     const r = await client.getPrompt({
@@ -100,5 +112,26 @@ describe("a server without chat", () => {
     expect(pipeshubInstructions({ chat: true })).toBe(PIPESHUB_INSTRUCTIONS);
     expect(PIPESHUB_INSTRUCTIONS).toContain("pipeshub_chat");
     expect(PIPESHUB_INSTRUCTIONS).toContain("pipeshub_agents");
+  });
+});
+
+describe("cutting chat mentions from tool descriptions", () => {
+  test("a server with chat keeps the descriptions as written", () => {
+    const withChat = createMCPServer({ logger, chat: true }).tools;
+    const without = new Map(createMCPServer({ logger, chat: false }).tools
+      .map((t) => [t.name, t.description]));
+    const search = withChat.find((t) => t.name === "pipeshub_search");
+    expect(search?.description).toContain("pipeshub_chat");
+    expect(without.get("pipeshub_search")).not.toContain("pipeshub_chat");
+  });
+
+  test("a cut that no longer matches its description fails loudly", () => {
+    expect(() => withoutChatMentions({ name: "pipeshub_search", description: "rewritten" }))
+      .toThrow(/pipeshub_search: its description no longer contains the chat mention/);
+  });
+
+  test("a tool with nothing to cut is returned as is", () => {
+    const def = { name: "pipeshub_directory", description: "people" };
+    expect(withoutChatMentions(def)).toBe(def);
   });
 });

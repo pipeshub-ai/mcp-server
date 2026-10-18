@@ -84,10 +84,12 @@ every "how many" / "all"). That is as accurate as adding this tool, with fewer w
 at lower cost and latency.
 
 Use this tool only when you cannot run your own search-and-read loop, when
-the user asks for PipesHub's answer, or to run an org agent: pass an
+the user asks for PipesHub's answer, to run an org agent (pass an
 \`agentId\` from \`pipeshub_agents\` to use that agent's own prompt, tools
-and knowledge. Do NOT call it to cross-check or fill gaps in what you
-searched and read; search again instead.
+and knowledge), or to take an action the user asked for through their
+connected tools, with no \`agentId\` when no agent fits. Do NOT call it to
+cross-check or fill gaps in what you searched and read; search again
+instead.
 
 It answers from the org's indexed sources (Drive, Box, Confluence, Slack,
 Gmail, Jira, the org's KB, ...) and from the live web. It undercounts
