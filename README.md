@@ -10,7 +10,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
 
 > **Coding agent?** Start at [For coding agents](https://docs.pipeshub.com/for-agents.md). Install the skill into the *user's* repo with `npx skills add pipeshub-ai/mcp-server` (see [`skills/pipeshub`](./skills/pipeshub/SKILL.md)) and append the `AGENTS.md` snippet on that page. Listed on the [official MCP registry](https://registry.modelcontextprotocol.io) as `io.github.pipeshub-ai/mcp` and on [Cursor Directory](https://cursor.directory/plugins/mcp-server-3) as PipesHub. The listing files (`plugin.json`, `mcp.json`) default MCP to `http://localhost:3000/mcp` (Docker). Change the URL for a company instance; they contain no secrets. Contributors working in this repository: read [AGENTS.md](./AGENTS.md).
 >
-> **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`, `pipeshub_agents`).
+> **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`, `pipeshub_agents`). Searching and reading records is the recommended default; `pipeshub_chat` is optional (see [Leaving `pipeshub_chat` out](#leaving-pipeshub_chat-out)).
 >
 > **Using QM?** QM cannot attach a third-party MCP endpoint — it is an MCP *server* to its own harness, not a client. Follow [Use PipesHub with QM](./qm/docs/use-with-qm.md). The deployment-layer bundle in [`qm/`](./qm/) gives agents a `pipeshub` command inside their sandbox; this package ships that command as a second bin.
 
@@ -812,6 +812,25 @@ Both are set with environment variables, in the MCP client's `env` block or with
 | --- | --- | --- |
 | `PIPESHUB_MCP_MAX_ATTEMPTS` | `3` | Tries per request, the first one included, from 1 to 10. `1` turns retries off. |
 | `PIPESHUB_MCP_TIMEOUT_MS` | `60000` | Milliseconds to wait for PipesHub to start answering. `0` turns the timeout off. |
+
+---
+
+## Leaving `pipeshub_chat` out
+
+The server offers all seven tools, and its instructions and tool descriptions tell the agent to answer with `pipeshub_search` and `pipeshub_get_record_content` first. `pipeshub_chat` runs PipesHub's own assistant and is optional: for an agent that can call tools, it adds cost and time without adding accuracy. In PipesHub's evaluation (100 questions, Claude Opus as the agent), search and read alone found 88% of the facts at $0.54 and 78 seconds median per answer; adding chat also found 88%, at about $0.73 and 97 seconds. See [TOOLS.md](./TOOLS.md) for the full figures.
+
+Nothing changes unless you choose to: by default every tool stays. To hold an agent to search and read, leave `pipeshub_chat` out, together with `pipeshub_agents`, which only picks an agent for chat:
+
+- **Local stdio server:** set `PIPESHUB_MCP_CHAT=off` in the server's `env` block in your MCP client config, or pass `--env PIPESHUB_MCP_CHAT=off` to `start` or `serve`. The server then mounts five tools, and its instructions no longer mention chat or agents. Unset or `on` keeps today's behaviour; any other value stops the server with an error that says what it accepts.
+
+  ```json
+  "env": { "PIPESHUB_MCP_CHAT": "off" }
+  ```
+
+  To pick tools one by one instead, list the ones to keep with `--tool` (for example `--tool pipeshub_search --tool pipeshub_get_record_content`). `--tool` does not change the instructions.
+- **Remote endpoint (`/mcp`):** turn the tool off in the client. In Claude Code, run `claude --disallowedTools "mcp__pipeshub__pipeshub_chat,mcp__pipeshub__pipeshub_agents"`, where `pipeshub` is the name you gave the server, or put the same entries in the `permissions.deny` list of `.claude/settings.json`. In other clients, use the per-tool toggles in their MCP settings, where they offer them.
+
+Keep `pipeshub_chat` when the client cannot run its own tool loop, when you want PipesHub's assistant to write the answer, to talk to a configured PipesHub agent, or to take an action through the user's connected tools.
 
 ---
 

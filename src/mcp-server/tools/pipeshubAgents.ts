@@ -37,10 +37,11 @@ isActive, toolsets, knowledge }\`.
 are often generic or misleading. Match the request to the agent whose tools can
 actually perform it (e.g. "create a Jira ticket" → the agent whose toolset is
 \`jira\` and whose tools include \`jira.create_issue\`). If NO agent has a tool
-for the requested action, say so — don't force an unrelated agent.
+for the requested action, don't force an unrelated agent: call \`pipeshub_chat\`
+without an \`agentId\`, which can use the user's connected tools.
 
 The list **may be empty** (no agents configured). For plain Q&A when no
-specific agent is needed, use \`pipeshub_chat\` WITHOUT \`agentId\`. Use \`agentId\` everywhere an agent is referenced.`,
+specific agent is needed, use \`pipeshub_search\` and read the records. Use \`agentId\` everywhere an agent is referenced.`,
   scopes: ["read"],
   annotations: {
     title: "List PipesHub agents (with toolsets & knowledge)",
