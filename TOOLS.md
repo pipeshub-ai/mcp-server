@@ -46,7 +46,7 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | yes | Natural language query. |
-| `limit` | number (1–100) | no | Vector matches to fetch per query variant. Default 10. The backend searches a rewritten form of the query plus a few expanded variants, so one call can return more records than `limit`. 5–10 is enough to find a `recordId`. |
+| `limit` | number (1–100) | no | Vector matches to fetch. Default 10. The tool asks for the query to be searched as written. A PipesHub server that ignores that option rewrites it instead and searches the rewrite plus a few variants, `limit` matches each, so one call can return more records than `limit`. 5–10 is enough to find a `recordId`. |
 | `offset` | number | no | Records to skip. To read the next page of the same results, pass the previous call's `nextOffset` with the same other arguments. |
 | `apps` | string[] | no | Connector ids to search. Get them from `pipeshub_sources`, where `kind` is `"connector"`. Collection ids go in `kb`, not here. |
 | `kb` | string[] | no | Collection (knowledge base) ids to search. Get them from `pipeshub_sources`, where `kind` is `"knowledgeBase"`. |
@@ -54,6 +54,8 @@ Vector / semantic search across the org's indexed documents. Use it to **locate 
 | `modifiedAfter` / `modifiedBefore` | string | no | Only records last changed in their source within these dates, in the same format. |
 
 Leave out `apps` and `kb` to search everything. If you set either one, only the listed sources are searched.
+
+The tool asks the server to search the query as written (`rewriteQuery: false`), without the model rewrite and expanded variants PipesHub adds to a search from the web app. That saves two model calls on every search (about 4 s in the v3 eval); an agent already writes its own queries. A PipesHub server older than that option ignores it: it searches a rewritten form of the query and two variants, as before, not the query as written.
 
 A record with no source date is left out whenever a bound on that date is set. A date the server cannot read is an error that says why. A PipesHub server older than the date filter ignores the bounds; the tool then removes the records outside them and says so in `notes`, but fewer remain than a server that filters would find.
 
