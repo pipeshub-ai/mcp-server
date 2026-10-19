@@ -30,10 +30,11 @@ const args = {
     "Natural language query. Vector search across the org's indexed records.",
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
-    "Vector matches to fetch per query variant. Default 10. The backend "
-      + "searches a rewritten form of the query plus a few expanded variants, "
-      + "so one call can return more records than `limit`. 5–10 is enough to "
-      + "find a `recordId`.",
+    "Vector matches to fetch. Default 10. The tool asks for the query to be "
+      + "searched as written. A PipesHub server that ignores that option "
+      + "rewrites it instead and searches the rewrite plus a few variants, "
+      + "`limit` matches each, so one call can return more records than "
+      + "`limit`. 5–10 is enough to find a `recordId`.",
   ),
   offset: z.number().int().min(0).max(10_000).optional().describe(
     "Records to skip. To read the next page of the same results, pass the "
@@ -157,8 +158,9 @@ By default it searches everything. To search only some sources, pass
 connector ids in \`apps\` and collection ids in \`kb\`.
 
 Returns \`records\`, one per record, best first: \`recordId\`, name, type,
-\`webUrl\`, source dates, \`parent\`, \`passagesFound\` and up to 3
-\`passages\`. Results stay under 20,000 characters; if records were cut,
+\`webUrl\`, source dates, \`parent\`, a ticket's or PR's \`status\` with
+its date, linked records with theirs (\`links\`), \`passagesFound\` and up
+to 3 \`passages\`. Results stay under 20,000 characters; if records were cut,
 call again with \`offset\` set to \`nextOffset\`.`,
   scopes: ["read"],
   annotations: {
@@ -166,7 +168,12 @@ call again with \`offset\` set to \`nextOffset\`.`,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
-    readOnlyHint: false,
+    // Search changes nothing in the org's data. The server keeps the caller's
+    // own search history (a history entry and the hits it returned), as it
+    // does for a search in the web app. Hosts such as Claude Code run tools
+    // side by side only when they are read-only, so `false` here made an
+    // agent's batch of searches run one after another.
+    readOnlyHint: true,
   },
   args,
   tool: async (client, args, ctx) => {
@@ -211,6 +218,10 @@ call again with \`offset\` set to \`nextOffset\`.`,
         limit,
         filters: searchFilters(scope),
         ...bounds,
+        // The calling agent writes its own queries, so the server's model
+        // rewrite and expansion add about 4 s a search and little else. A
+        // server older than the option ignores it and rewrites as before.
+        rewriteQuery: false,
       }, { fetchOptions: { signal: ctx.signal } }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
 

@@ -23,7 +23,15 @@ export type SemanticSearchDateBounds = {
 
 export type SemanticSearchWithDatesRequest =
   & SemanticSearchRequest
-  & SemanticSearchDateBounds;
+  & SemanticSearchDateBounds
+  & {
+    /**
+     * `false` searches the query exactly as sent: the server skips its model
+     * rewrite and expanded variants. Left out, the server rewrites and
+     * expands. A server older than the option ignores it.
+     */
+    rewriteQuery?: boolean | undefined;
+  };
 
 export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
   SemanticSearchWithDatesRequest
@@ -39,4 +47,5 @@ export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
   query: z.string(),
   modifiedAfter: z.string().optional(),
   modifiedBefore: z.string().optional(),
+  rewriteQuery: z.boolean().optional(),
 });

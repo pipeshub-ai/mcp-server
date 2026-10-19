@@ -196,14 +196,16 @@ describe("tool descriptions", () => {
 describe("descriptions say what the tools actually return", () => {
   // Descriptions are hard-wrapped, so a phrase can straddle a line break.
   const flat = (name: string) => (byName.get(name) ?? "").replace(/\s+/g, " ");
-  // The backend runs a rewritten and expanded form of the query and fetches
-  // `limit` vector matches for each one, then expands a match inside a
-  // section (a thread, a PR's file change, a table) into every passage of that
-  // section. "Number of results" made `limit: 10` look like ten hits.
-  test("search's limit is per query variant, not a cap on records", () => {
+  // The tool asks for the query as written. A server that ignores that option
+  // searches a rewritten and expanded form instead and fetches `limit` vector
+  // matches for each one, then expands a match inside a section (a thread, a
+  // PR's file change, a table) into every passage of that section. "Number of
+  // results" made `limit: 10` look like ten hits.
+  test("search's limit is per query, not a cap on records", () => {
     const limit = argSchema("pipeshub_search").properties?.limit?.description ?? "";
     expect(limit).not.toContain("Number of results");
-    expect(limit).toContain("per query variant");
+    expect(limit).toContain("searched as written");
+    expect(limit).toContain("rewrite plus a few variants, `limit` matches each");
     expect(limit).toContain("more records than `limit`");
   });
 

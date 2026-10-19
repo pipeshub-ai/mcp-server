@@ -153,6 +153,48 @@ describe("pipeshub_download_record", () => {
     expect(out.content[0]).toMatchObject({ type: "resource" });
   });
 
+  test("an Office document arrives byte-for-byte, not decoded as XML text", async () => {
+    // A .docx is a zip archive whose MIME type contains "xml"; reading it as
+    // text replaced every non-UTF-8 byte and the file no longer opened.
+    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0xff, 0xfe, 0x80]);
+    for (const mime of [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ]) {
+      const out = await tool$pipeshubDownloadRecord.tool(
+        client(zip, 200, mime), { recordId: "rec-1" } as never, ctx(),
+      );
+
+      const [item] = out.content as Array<{ type: string; resource: { blob: string; mimeType: string } }>;
+      expect(item!.type).toBe("resource");
+      expect(item!.resource.mimeType).toBe(mime);
+      expect(Uint8Array.from(atob(item!.resource.blob), (c) => c.charCodeAt(0))).toEqual(zip);
+    }
+  });
+
+  test("structured text types with parameters still arrive as text", async () => {
+    for (const mime of ["application/json; charset=utf-8", "application/xml", "application/ld+json", "text/csv"]) {
+      const out = await tool$pipeshubDownloadRecord.tool(
+        client("{\"a\":1}", 200, mime), { recordId: "rec-1" } as never, ctx(),
+      );
+
+      expect(out.content).toEqual([{ type: "text", text: "{\"a\":1}" }]);
+    }
+  });
+
+  test("a text file that is not valid UTF-8 arrives as a resource rather than corrupted", async () => {
+    const latin1 = new Uint8Array([0x63, 0x61, 0x66, 0xe9]); // "café" in Latin-1
+
+    const out = await tool$pipeshubDownloadRecord.tool(
+      client(latin1, 200, "text/csv"), { recordId: "rec-1" } as never, ctx(),
+    );
+
+    const [item] = out.content as Array<{ type: string; resource: { blob: string } }>;
+    expect(item!.type).toBe("resource");
+    expect(Uint8Array.from(atob(item!.resource.blob), (c) => c.charCodeAt(0))).toEqual(latin1);
+  });
+
   test("a failed download is flagged rather than handed over as the document", async () => {
     const core = client("not found", 404, "text/plain");
 
