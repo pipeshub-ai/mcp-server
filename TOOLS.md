@@ -172,7 +172,7 @@ List the PipesHub **agents** configured for this org. To converse with one, take
 
 Each agent is returned as `{ agentId, name, description, systemPrompt, startMessage, tags, webSearch, isActive, toolsets, knowledge }`.
 
-**Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, say so.
+**Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, call `pipeshub_chat` without an `agentId`: plain chat can use the user's connected tools.
 
 The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the records with `pipeshub_get_record_content`.
 
@@ -195,4 +195,4 @@ The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the rec
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "Who is X?" / "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) — not `pipeshub_search` |
 | First call of a session, before chat or search | `pipeshub_sources` (cache the result) |
-| "Create a Jira ticket" / talk to a configured agent | `pipeshub_agents` → `pipeshub_chat` with that `agentId` |
+| "Create a Jira ticket" / talk to a configured agent | `pipeshub_agents` → `pipeshub_chat` with that `agentId`; if no agent fits an action, `pipeshub_chat` without one |

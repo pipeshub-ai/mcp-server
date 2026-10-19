@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { z } from "zod";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -87,12 +88,15 @@ describe("a server without chat", () => {
     expect(flat).toContain("Reply Count: N");
     expect(flat).toContain("do NOT count search hits: navigate the record group");
 
-    // No mounted tool's description names one either.
+    // No mounted tool's description or argument text names one either, or
+    // points at a chat citation.
     for (const t of (await client.listTools()).tools) {
-      for (const named of t.description?.match(/pipeshub_[a-z_]+/g) ?? []) {
+      const text = `${t.description ?? ""} ${JSON.stringify(t.inputSchema)}`;
+      for (const named of text.match(/pipeshub_[a-z_]+/g) ?? []) {
         expect(`${t.name} names ${named}: ${mounted.has(named)}`)
           .toBe(`${t.name} names ${named}: true`);
       }
+      expect(`${t.name}: ${/chat citation|citations\[\*\]/.test(text)}`).toBe(`${t.name}: false`);
     }
 
     const { prompts } = await client.listPrompts();
@@ -128,6 +132,12 @@ describe("cutting chat mentions from tool descriptions", () => {
   test("a cut that no longer matches its description fails loudly", () => {
     expect(() => withoutChatMentions({ name: "pipeshub_search", description: "rewritten" }))
       .toThrow(/pipeshub_search: its description no longer contains the chat mention/);
+  });
+
+  test("an argument text that no longer matches its cut fails loudly", () => {
+    const rewritten = { recordId: z.string().describe("rewritten") };
+    expect(() => withoutChatMentions({ name: "pipeshub_download_record", description: "Get `recordId` from a chat citation or a `pipeshub_search` hit.", args: rewritten }))
+      .toThrow(/pipeshub_download_record: its recordId argument no longer contains the chat mention/);
   });
 
   test("a tool with nothing to cut is returned as is", () => {

@@ -1,8 +1,11 @@
-// Some tool descriptions name `pipeshub_chat` where it helps the agent. A
-// server that leaves chat out (`PIPESHUB_MCP_CHAT=off`) must not point the
-// agent at a tool it cannot see, so it mounts those tools with each mention
-// cut. A cut that no longer matches its description throws when the server is
-// built, so an edit to a description cannot quietly bring a mention back.
+// Some tool descriptions and argument texts name `pipeshub_chat` or its
+// citations where it helps the agent. A server that leaves chat out
+// (`PIPESHUB_MCP_CHAT=off`) must not point the agent at a tool it cannot see,
+// so it mounts those tools with each mention cut. A cut that no longer matches
+// its text throws when the server is built, so an edit cannot quietly bring a
+// mention back.
+
+import type { ZodType } from "zod";
 
 type Cut = readonly [from: string, to: string];
 
@@ -37,23 +40,57 @@ const CUTS: Readonly<Record<string, readonly Cut[]>> = {
     ],
     ["a `pipeshub_search` top hit, a\nchat citation, or", "a `pipeshub_search` top hit or"],
   ],
+  pipeshub_download_record: [
+    ["Get `recordId` from a chat citation or a `pipeshub_search` hit.", "Get `recordId` from a `pipeshub_search` hit."],
+  ],
 };
 
-/** The tool as a server without chat mounts it: no mention of `pipeshub_chat`. */
-export function withoutChatMentions<T extends { name: string; description: string }>(
-  def: T,
-): T {
-  const cuts = CUTS[def.name];
-  if (!cuts) return def;
-  let description = def.description;
+const RECORD_ID_FROM_CHAT: Cut = [
+  "Get it from a chat citation (`citations[*].recordId`) or from a `pipeshub_search` hit.",
+  "Get it from a `pipeshub_search` hit.",
+];
+
+// Argument texts, by tool and argument name.
+const ARG_CUTS: Readonly<Record<string, Readonly<Record<string, readonly Cut[]>>>> = {
+  pipeshub_download_record: { recordId: [RECORD_ID_FROM_CHAT] },
+  pipeshub_get_record_content: { recordId: [RECORD_ID_FROM_CHAT] },
+};
+
+function applyCuts(where: string, text: string, cuts: readonly Cut[]): string {
+  let out = text;
   for (const [from, to] of cuts) {
-    if (!description.includes(from)) {
+    if (!out.includes(from)) {
       throw new Error(
-        `${def.name}: its description no longer contains the chat mention to cut: `
+        `${where} no longer contains the chat mention to cut: `
           + JSON.stringify(from.slice(0, 60)),
       );
     }
-    description = description.replace(from, to);
+    out = out.replace(from, to);
   }
-  return { ...def, description };
+  return out;
+}
+
+/** The tool as a server without chat mounts it: no mention of `pipeshub_chat`. */
+export function withoutChatMentions<
+  T extends { name: string; description: string; args?: unknown },
+>(def: T): T {
+  const cuts = CUTS[def.name];
+  const argCuts = ARG_CUTS[def.name];
+  if (!cuts && !argCuts) return def;
+  const description = cuts
+    ? applyCuts(`${def.name}: its description`, def.description, cuts)
+    : def.description;
+  let args = def.args;
+  if (argCuts) {
+    const shape = { ...(def.args as Record<string, ZodType>) };
+    for (const [name, list] of Object.entries(argCuts)) {
+      const schema = shape[name];
+      if (!schema?.description) {
+        throw new Error(`${def.name}.${name}: no argument text to cut a chat mention from`);
+      }
+      shape[name] = schema.describe(applyCuts(`${def.name}: its ${name} argument`, schema.description, list));
+    }
+    args = shape;
+  }
+  return { ...def, description, args };
 }
