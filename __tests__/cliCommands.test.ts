@@ -184,6 +184,26 @@ describe("search", () => {
     });
   });
 
+  test("a record's status, links and link count are passed on", async () => {
+    mcp.reply("pipeshub_search", textReply({
+      records: [{
+        recordId: "r1", recordName: "Thread", webUrl: "https://x/r1", score: 0.9,
+        status: "Merged 2026-09-25", links: ['links to PULL_REQUEST "Fix" — Merged 2026-09-25 [pr-1]'],
+        linksFound: 5, passagesFound: 1, passages: [{ text: "see the PR" }],
+      }],
+    }));
+
+    const out = await search(ctx(), "q", 10, [], []);
+
+    expect(out.payload).toMatchObject({
+      records: [{
+        recordId: "r1", status: "Merged 2026-09-25",
+        links: ['links to PULL_REQUEST "Fix" — Merged 2026-09-25 [pr-1]'],
+        linksFound: 5,
+      }],
+    });
+  });
+
   test("empty filters are left out of the request rather than sent as []", async () => {
     mcp.reply("pipeshub_search", textReply({ hits: [] }));
     await search(ctx(), "q", 10, [], []);
