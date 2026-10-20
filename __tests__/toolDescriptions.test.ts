@@ -355,7 +355,13 @@ describe("description budget", () => {
   // Raised 2026-09-15 by ~100 so directory can name pipeshub_search and
   // empty-list / next-page behaviour. Limit defaults live on the arg, not
   // in this budget.
-  const TOTAL_MAX = 12300;
+  // Raised 2026-10-19 by 500, deliberately, for search: when to use
+  // `timeline`, that date filters match when a record was written rather
+  // than when an event happened, searching both sides of "has this
+  // changed?", and checking every part of the question before answering.
+  // The 19 Oct eval found summaries and change questions were where agents
+  // with PipesHub fell short; the detail lives on the `timeline` argument.
+  const TOTAL_MAX = 12800;
   const INSTRUCTIONS_MAX = 8000;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
