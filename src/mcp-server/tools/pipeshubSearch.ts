@@ -66,7 +66,7 @@ const args = {
   modifiedBefore: dateArg(
     "Only records last changed in their source on or before this date.",
   ),
-  timeline: z.enum(["created", "modified"]).optional().describe(
+  timeline: z.enum(["created", "modified", "off"]).optional().describe(
     "Search a span of time period by period, for how something evolved, "
       + "what changed between two dates, or a summary over weeks or months. "
       + "A plain search returns the best matches, which bunch around one "
@@ -78,7 +78,10 @@ const args = {
       + "for `\"modified\"`); with no start it covers the year before the "
       + "end. Records are placed by when they were written, so widen the span "
       + "to take in write-ups made after the event. `limit` is then the "
-      + "matches per period.",
+      + "matches per period. A newer server also searches a range of more "
+      + "than a month period by period when this is left out; `\"off\"` "
+      + "asks for one ranked search instead. Send `\"off\"` only when a "
+      + "result's `notes` offer it: an older server refuses it.",
   ),
 };
 
@@ -385,8 +388,10 @@ call again with \`offset\` set to \`nextOffset\`.`,
         sr.omittedPassages ?? {},
       );
       let timeline: TimelineSummary | undefined;
-      // A newer server may run a timeline on its own for a wide date range.
-      if (args.timeline || Array.isArray(sr.timeline?.periods)) {
+      // A newer server may run a timeline on its own for a wide date range;
+      // "off" asked for a ranked search, so nothing is shaped or noted.
+      const asked = args.timeline === "created" || args.timeline === "modified";
+      if (asked || (args.timeline !== "off" && Array.isArray(sr.timeline?.periods))) {
         const shaped = shapeTimeline(entries, hits, sr.timeline);
         entries = shaped.entries;
         timeline = shaped.timeline;

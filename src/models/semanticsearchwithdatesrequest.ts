@@ -36,8 +36,10 @@ export type SemanticSearchWithDatesRequest =
      * by period and returns the matches in date order, each hit with its
      * `timelinePeriod`. The value is the date records are placed by. A
      * server older than the option ignores it and sends no `timeline`.
+     * `"off"` asks a server that would otherwise search a long range period
+     * by period for one ranked search; a server without that refuses it.
      */
-    timeline?: "created" | "modified" | undefined;
+    timeline?: "created" | "modified" | "off" | undefined;
   };
 
 export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
@@ -55,5 +57,5 @@ export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
   modifiedAfter: z.string().optional(),
   modifiedBefore: z.string().optional(),
   rewriteQuery: z.boolean().optional(),
-  timeline: z.enum(["created", "modified"]).optional(),
+  timeline: z.enum(["created", "modified", "off"]).optional(),
 });

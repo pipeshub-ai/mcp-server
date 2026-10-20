@@ -171,6 +171,19 @@ describe("pipeshub_search with timeline", () => {
     expect(out.notes ?? []).toEqual([]);
   });
 
+  test("off sends off and comes back ranked, with no timeline and no note about one", async () => {
+    const { core, sent } = client(PLAIN_RESPONSE);
+
+    const out = await run(core, {
+      query: "rollout", timeline: "off", createdAfter: "2026-03-01", createdBefore: "2026-05-31",
+    });
+
+    expect(sent[0].timeline).toBe("off");
+    expect(out.records.map((r: any) => r.recordId)).toEqual(["m2", "y1", "m1"]);
+    expect(out).not.toHaveProperty("timeline");
+    expect((out.notes ?? []).join(" ")).not.toContain("did not run a timeline search");
+  });
+
   test("a timeline the server ran on its own is shaped like one the agent asked for", async () => {
     const response = structuredClone(TIMELINE_RESPONSE) as any;
     response.timeline.automatic = true;
@@ -208,11 +221,12 @@ describe("pipeshub_search with timeline", () => {
     expect(sent.length).toBe(2);
   });
 
-  test("refuses a timeline that is not created or modified", () => {
+  test("refuses a timeline that is not created, modified or off", () => {
     const schema = z.object(tool$pipeshubSearch.args as any);
     expect(schema.safeParse({ query: "q", timeline: "created" }).success).toBe(true);
     expect(schema.safeParse({ query: "q", timeline: "modified" }).success).toBe(true);
-    for (const timeline of ["updated", true, ""]) {
+    expect(schema.safeParse({ query: "q", timeline: "off" }).success).toBe(true);
+    for (const timeline of ["updated", "none", true, ""]) {
       expect(schema.safeParse({ query: "q", timeline }).success).toBe(false);
     }
   });
