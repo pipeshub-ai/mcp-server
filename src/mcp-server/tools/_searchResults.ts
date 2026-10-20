@@ -43,6 +43,8 @@ export interface SearchPassage {
 }
 
 export interface SearchRecordEntry {
+  /** On a timeline search, the period the record is dated in. */
+  period?: string;
   recordId: string;
   recordName?: string;
   recordType?: string;
@@ -308,6 +310,8 @@ interface CachedSearch {
   searchId: unknown;
   entries: SearchRecordEntry[];
   notes: string[];
+  /** A timeline search's periods, sent with every page. */
+  timeline?: unknown;
 }
 
 const pageCache = new Map<string, CachedSearch>();

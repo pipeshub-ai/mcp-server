@@ -37,9 +37,18 @@ knowledge. Retrieve and read it yourself:
 2. \`pipeshub_get_record_content\` on the records that matter (the hit's
    \`recordId\`), and answer from what they say. Search passages are a
    sample of a record, not all of it.
+3. Before answering, list the parts of the question and confirm each is
+   answered from what you read. For "all", "every" or "how many", do not
+   stop at the first matches.
 
 A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
 instead, and "how many / all / every" with \`mode:"navigate"\` (below).
+
+A question over a span of time (how X evolved, what changed between dates,
+a summary over months) → \`pipeshub_search\` with \`timeline\`. Date
+filters match when a record was written or changed, not when an event
+happened, so leave them off unless that is the question. For "has this
+changed?", search for both the current state and the earlier one.
 
 Read the record whole whenever missing part of it could make the answer
 wrong:

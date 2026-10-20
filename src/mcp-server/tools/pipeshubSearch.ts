@@ -50,7 +50,8 @@ const args = {
       + "`pipeshub_sources`, where `kind` is \"knowledgeBase\".",
   ),
   createdAfter: dateArg(
-    "Only records created in their source on or after this date. "
+    "Only records created in their source on or after this date: when the "
+      + "record was written, not when an event in it happened. "
       + "`YYYY-MM-DD` (that whole day, UTC) or an ISO 8601 datetime with a "
       + "timezone, such as `2026-09-01T09:00:00Z`.",
   ),
@@ -64,6 +65,20 @@ const args = {
   ),
   modifiedBefore: dateArg(
     "Only records last changed in their source on or before this date.",
+  ),
+  timeline: z.enum(["created", "modified"]).optional().describe(
+    "Search a span of time period by period, for how something evolved, "
+      + "what changed between two dates, or a summary over weeks or months. "
+      + "A plain search returns the best matches, which bunch around one "
+      + "moment; this searches each period (a month, or a week within one "
+      + "month, up to 6) and returns records oldest first, each with its "
+      + "`period`. `\"created\"` places records by when they were created at "
+      + "their source, `\"modified\"` by their last change. The span is "
+      + "`createdAfter`/`createdBefore` (`modifiedAfter`/`modifiedBefore` "
+      + "for `\"modified\"`); with no start it covers the year before the "
+      + "end. Records are placed by when they were written, so widen the span "
+      + "to take in write-ups made after the event. `limit` is then the "
+      + "matches per period.",
   ),
 };
 
@@ -128,6 +143,100 @@ export function outsideDateBounds(record: any, bounds: SemanticSearchDateBounds)
   });
 }
 
+/** The search API's `timeline` object, on a server that ran one. */
+interface ServerTimeline {
+  dateField?: string;
+  start?: string;
+  end?: string;
+  periods?: Array<{
+    label?: string;
+    records?: number;
+    searchFailed?: boolean;
+    searchIncomplete?: string;
+  }>;
+  notes?: string[];
+}
+
+/** What the agent is told about the periods, ahead of the records. */
+export interface TimelineSummary {
+  dateField: string;
+  start?: string;
+  end?: string;
+  periods: Array<{ label: string; records: number }>;
+}
+
+const NO_TIMELINE_NOTE =
+  "This PipesHub server did not run a timeline search (it is older than the "
+  + "option, or it is turned off), so these are a plain ranked search, best "
+  + "first, which can bunch around one moment. To cover the span, search each "
+  + "part of it with its own date bounds.";
+
+const QUIET_PERIOD_NOTE =
+  "A period with no records may only mean nothing matched this query then. "
+  + "Before saying nothing happened, search that period with its own dates "
+  + "or other wording.";
+
+/**
+ * The records of a timeline search labelled with their period, oldest period
+ * first, and the periods themselves. The server sends its hits in date order,
+ * each with `timelinePeriod`, its index in `timeline.periods`; a record takes
+ * the period of its first hit. A server without the option sends no
+ * `timeline`, and the records stay as ranked, with a note that says so.
+ */
+export function shapeTimeline(
+  entries: SearchRecordEntry[],
+  hits: any[],
+  server: ServerTimeline | undefined,
+): { entries: SearchRecordEntry[]; timeline?: TimelineSummary; notes: string[] } {
+  const periods = Array.isArray(server?.periods) ? server.periods : undefined;
+  if (!server || !periods) return { entries, notes: [NO_TIMELINE_NOTE] };
+
+  const periodOf = new Map<string, number>();
+  for (const hit of hits) {
+    const id = hit?.metadata?.recordId;
+    const at = hit?.timelinePeriod;
+    if (typeof id === "string" && Number.isInteger(at) && !periodOf.has(id)) {
+      periodOf.set(id, at);
+    }
+  }
+  const label = (at: number | undefined) => {
+    const name = at === undefined ? undefined : periods[at]?.label;
+    return typeof name === "string" && name ? name : undefined;
+  };
+  const rank = (e: SearchRecordEntry) => periodOf.get(e.recordId) ?? periods.length;
+  const ordered = entries
+    .map((entry, at) => ({ entry, at }))
+    .sort((a, b) => rank(a.entry) - rank(b.entry) || a.at - b.at)
+    .map(({ entry }) => {
+      const period = label(periodOf.get(entry.recordId));
+      return period ? { period, ...entry } : entry;
+    });
+
+  const notes = (server.notes ?? []).filter((n) => typeof n === "string" && n);
+  for (const p of periods) {
+    if (p?.searchFailed) {
+      notes.push(`${p.label}: its own search failed; search it again before drawing conclusions.`);
+    } else if (typeof p?.searchIncomplete === "string" && p.searchIncomplete) {
+      notes.push(`${p.label}: ${p.searchIncomplete}`);
+    }
+  }
+  if (periods.some((p) => p?.records === 0)) notes.push(QUIET_PERIOD_NOTE);
+
+  return {
+    entries: ordered,
+    timeline: {
+      dateField: typeof server.dateField === "string" ? server.dateField : "created",
+      ...(typeof server.start === "string" ? { start: server.start } : {}),
+      ...(typeof server.end === "string" ? { end: server.end } : {}),
+      periods: periods.map((p, at) => ({
+        label: label(at) ?? `Period ${at + 1}`,
+        records: typeof p?.records === "number" ? p.records : 0,
+      })),
+    },
+    notes,
+  };
+}
+
 export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   name: "pipeshub_search",
   description:
@@ -157,10 +266,21 @@ navigate the record group instead, which reports its real total.
 By default it searches everything. To search only some sources, pass
 connector ids in \`apps\` and collection ids in \`kb\`.
 
+**Over a span of time** (how X evolved, what changed between dates, a
+summary over months) set \`timeline\`: it searches each period, so one
+moment's matches do not crowd out the rest.
+
+The date filters match when a record was written or last changed, not
+when an event happened, so they leave out pages written later about it.
+Leave them off unless the question is about when records were written.
+For "has this changed?", search for the current state and the earlier one.
+Before answering, check each part of the question against what you read.
+
 Returns \`records\`, one per record, best first: \`recordId\`, name, type,
 \`webUrl\`, source dates, \`parent\`, a ticket's or PR's \`status\` with
 its date, linked records with theirs (\`links\`), \`passagesFound\` and up
-to 3 \`passages\`. Results stay under 20,000 characters; if records were cut,
+to 3 \`passages\`. With \`timeline\`, oldest first, each with its
+\`period\`. Results stay under 20,000 characters; if records were cut,
 call again with \`offset\` set to \`nextOffset\`.`,
   scopes: ["read"],
   annotations: {
@@ -193,6 +313,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
       apps: args.apps ?? [],
       kb: args.kb ?? [],
       bounds,
+      timeline: args.timeline ?? null,
     });
     const pagingNotes: string[] = [];
     let search = offset > 0 ? recallSearch(key) : undefined;
@@ -222,6 +343,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
         // rewrite and expansion add about 4 s a search and little else. A
         // server older than the option ignores it and rewrites as before.
         rewriteQuery: false,
+        ...(args.timeline ? { timeline: args.timeline } : {}),
       }, { fetchOptions: { signal: ctx.signal } }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
 
@@ -233,6 +355,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
           omittedPassages?: Record<string, unknown>;
           status?: string;
           message?: string;
+          timeline?: ServerTimeline;
         };
       }>(result.value, "PipesHub search");
       if (!parsed.ok) return parsed.result;
@@ -253,12 +376,24 @@ call again with \`offset\` set to \`nextOffset\`.`,
             + "fewer remain than a server that filters by date would find.",
         );
       }
-      const entries: SearchRecordEntry[] = groupSearchResults(
+      let entries: SearchRecordEntry[] = groupSearchResults(
         hits,
         records,
         sr.omittedPassages ?? {},
       );
-      search = { searchId: parsed.value.searchId, entries, notes };
+      let timeline: TimelineSummary | undefined;
+      if (args.timeline) {
+        const shaped = shapeTimeline(entries, hits, sr.timeline);
+        entries = shaped.entries;
+        timeline = shaped.timeline;
+        notes.push(...shaped.notes);
+      }
+      search = {
+        searchId: parsed.value.searchId,
+        entries,
+        notes,
+        ...(timeline ? { timeline } : {}),
+      };
       rememberSearch(key, search);
     }
 
@@ -272,6 +407,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
     const notes = [...search.notes, ...pagingNotes, ...(note ? [note] : [])];
     return jsonResult({
       searchId: search.searchId,
+      ...(search.timeline ? { timeline: search.timeline } : {}),
       totalRecords: search.entries.length,
       records: page.records,
       ...(page.nextOffset !== undefined ? { nextOffset: page.nextOffset } : {}),
