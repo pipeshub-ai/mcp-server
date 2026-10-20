@@ -385,7 +385,8 @@ call again with \`offset\` set to \`nextOffset\`.`,
         sr.omittedPassages ?? {},
       );
       let timeline: TimelineSummary | undefined;
-      if (args.timeline) {
+      // A newer server may run a timeline on its own for a wide date range.
+      if (args.timeline || Array.isArray(sr.timeline?.periods)) {
         const shaped = shapeTimeline(entries, hits, sr.timeline);
         entries = shaped.entries;
         timeline = shaped.timeline;

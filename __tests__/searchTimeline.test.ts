@@ -162,13 +162,28 @@ describe("pipeshub_search with timeline", () => {
   });
 
   test("a plain search carries no period, timeline, or note about one", async () => {
-    const { core } = client(TIMELINE_RESPONSE);
+    const { core } = client(PLAIN_RESPONSE);
 
     const out = await run(core, { query: "rollout" });
 
     expect(out).not.toHaveProperty("timeline");
     expect(out.records.every((r: any) => r.period === undefined)).toBe(true);
     expect(out.notes ?? []).toEqual([]);
+  });
+
+  test("a timeline the server ran on its own is shaped like one the agent asked for", async () => {
+    const response = structuredClone(TIMELINE_RESPONSE) as any;
+    response.timeline.automatic = true;
+    response.timeline.notes = ["The dates cover more than 31 days, so this was searched period by period."];
+    const { core } = client(response);
+
+    const out = await run(core, { query: "rollout", createdAfter: "2026-03-01", createdBefore: "2026-05-31" });
+
+    expect(out.records.map((r: any) => r.recordId)).toEqual(["m1", "m2", "y1"]);
+    expect(out.records[0].period).toBe("March 2026 (2026-03-01 to 2026-03-31)");
+    expect(out.timeline.periods).toHaveLength(3);
+    expect(out.notes).toContain("The dates cover more than 31 days, so this was searched period by period.");
+    expect(out.notes.join(" ")).not.toContain("did not run a timeline search");
   });
 
   test("a later page keeps the periods, and a plain search is not served from a timeline's pages", async () => {
