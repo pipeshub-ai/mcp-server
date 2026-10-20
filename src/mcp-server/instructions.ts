@@ -45,10 +45,12 @@ A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
 instead, and "how many / all / every" with \`mode:"navigate"\` (below).
 
 A question over a span of time (how X evolved, what changed between dates,
-a summary over months) → \`pipeshub_search\` with \`timeline\`. Date
-filters match when a record was written or changed, not when an event
-happened, so leave them off unless that is the question. For "has this
-changed?", search for both the current state and the earlier one.
+a summary over months) → \`pipeshub_search\` with \`timeline\`, and set the
+date filters to that span, widened past its end to take in write-ups made
+later. On a plain search, date filters match when a record was written or
+changed, not when an event happened, so leave them off unless that is the
+question. For "has this changed?", search for both the current state and
+the earlier one.
 
 Read the record whole whenever missing part of it could make the answer
 wrong:

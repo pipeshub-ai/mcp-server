@@ -145,6 +145,8 @@ describe("pipeshub_search with timeline", () => {
     expect(out.notes).toContain("No start date was given, so this covers 2025-05-31 on.");
     expect(out.notes.join(" ")).toContain("April 2026 (2026-04-01 to 2026-04-30): its own search failed");
     expect(out.notes.join(" ")).toContain("May 2026 (2026-05-01 to 2026-05-31): Only part of the index");
+    // April is the only empty period and its search failed, so it is not called quiet.
+    expect(out.notes.join(" ")).not.toContain("A period with no records may only mean nothing matched");
   });
 
   test("an older server's plain search comes back as ranked, with a note saying so", async () => {
@@ -216,7 +218,14 @@ describe("what the agent is told", () => {
 
   test("date filters are when a record was written, not when an event happened", () => {
     expect(description).toContain("not when an event happened");
+    expect(description).toContain("set `timeline` and the date filters to that span, widened past its end");
+    expect(description).toContain("On a plain search, date filters match when a record was written");
     expect(description).toContain("Leave them off unless the question is about when records were written");
+    for (const chat of [true, false]) {
+      const text = flat(pipeshubInstructions({ chat }));
+      expect(text).toContain("with `timeline`, and set the date filters to that span, widened past its end");
+      expect(text).toContain("On a plain search, date filters match when a record was written");
+    }
     expect(timelineArg).toContain("widen the span to take in write-ups made after the event");
     const createdAfter = flat((tool$pipeshubSearch.args as any).createdAfter.description);
     expect(createdAfter).toContain("not when an event in it happened");

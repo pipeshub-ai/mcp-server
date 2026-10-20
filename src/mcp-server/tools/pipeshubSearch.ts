@@ -220,7 +220,9 @@ export function shapeTimeline(
       notes.push(`${p.label}: ${p.searchIncomplete}`);
     }
   }
-  if (periods.some((p) => p?.records === 0)) notes.push(QUIET_PERIOD_NOTE);
+  if (periods.some((p) => p?.records === 0 && !p?.searchFailed && !p?.searchIncomplete)) {
+    notes.push(QUIET_PERIOD_NOTE);
+  }
 
   return {
     entries: ordered,
@@ -267,12 +269,13 @@ By default it searches everything. To search only some sources, pass
 connector ids in \`apps\` and collection ids in \`kb\`.
 
 **Over a span of time** (how X evolved, what changed between dates, a
-summary over months) set \`timeline\`: it searches each period, so one
+summary over months) set \`timeline\` and the date filters to that span,
+widened past its end for later write-ups: it searches each period, so one
 moment's matches do not crowd out the rest.
 
-The date filters match when a record was written or last changed, not
-when an event happened, so they leave out pages written later about it.
-Leave them off unless the question is about when records were written.
+On a plain search, date filters match when a record was written or last
+changed, not when an event happened. Leave them off unless the question
+is about when records were written.
 For "has this changed?", search for the current state and the earlier one.
 Before answering, check each part of the question against what you read.
 
