@@ -140,14 +140,63 @@ function passageText(hit: any): string | undefined {
   return typeof text === "string" && text.trim() !== "" ? text : undefined;
 }
 
+/**
+ * How far past `SNIPPET_MAX_CHARS` a passage may run to finish the sentence,
+ * line or word it is in. A passage that ends within this reach is shown whole.
+ */
+export const PASSAGE_REACH_CHARS = 70;
+
+/** Put after the text of a cut passage, so its last words read as unfinished. */
+export const PASSAGE_CUT_MARK = " …";
+
+/**
+ * A plausible end of a sentence, or the end of a line. A run of stops
+ * (`.`, `...`, `?!`) counts when it follows a lowercase word of three
+ * letters or more (`don't` too), a call (`setup()`), or closing quotes,
+ * brackets or emphasis that follow a word of two letters or more, and comes
+ * before a space.
+ *
+ * It need not be exact: the cut only ever moves forward from where the old
+ * cut was, so a stop taken for a sentence end (`etc.`) only means a shorter
+ * extension, never less text than before.
+ */
+const SENTENCE_OR_LINE_END =
+  /(?<=\p{Ll}{3}|\p{L}['’]\p{Ll}{1,2}|\p{L}\(\)|\p{L}{2}["'”’)\]*_`]+)[.!?…]+["'”’)\]*_`]*(?=\s)|\n/gu;
+
+/**
+ * Where to cut a passage longer than `SNIPPET_MAX_CHARS` +
+ * `PASSAGE_REACH_CHARS`.
+ *
+ * A fixed cut at 280 characters stopped mid-word, often just before the
+ * detail the sentence was leading up to ("… should be assigned to someone
+ * who c"), and agents finished the sentence with a guess. The cut now never
+ * shows less than those 280 characters. It moves forward, within
+ * `PASSAGE_REACH_CHARS`, to the first sentence or line end; failing that, to
+ * the last space; and only when there is no space either (a long link, say)
+ * does it stay at the limit.
+ */
+export function passageCut(text: string): number {
+  const limit = SNIPPET_MAX_CHARS;
+  const reach = text.slice(0, limit + PASSAGE_REACH_CHARS + 1);
+  for (const m of reach.matchAll(SENTENCE_OR_LINE_END)) {
+    const end = (m.index ?? 0) + m[0].length;
+    if (end >= limit) return end;
+  }
+  const space = reach.search(/\s\S*$/);
+  if (space >= limit) return space;
+  // Not between the two halves of a character outside the Basic Multilingual Plane.
+  const code = text.charCodeAt(limit - 1);
+  return code >= 0xd800 && code <= 0xdbff ? limit - 1 : limit;
+}
+
 function toPassage(hit: any, text: string): SearchPassage {
-  const cut = text.length > SNIPPET_MAX_CHARS;
+  const cut = text.length > SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS;
   const pages = Array.isArray(hit?.metadata?.pageNum)
     ? hit.metadata.pageNum
     : [hit?.metadata?.pageNum];
   const page = pages.find((p: unknown) => typeof p === "number");
   return {
-    text: cut ? text.slice(0, SNIPPET_MAX_CHARS) : text,
+    text: cut ? text.slice(0, passageCut(text)).trimEnd() + PASSAGE_CUT_MARK : text,
     ...(cut ? { truncated: true as const, contentChars: text.length } : {}),
     ...(page !== undefined ? { pageNum: page } : {}),
   };

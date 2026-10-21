@@ -78,7 +78,7 @@ A result stays under 20,000 characters. When records were left out to fit, `next
 >
 > For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. For questions that span many documents, read each record that matters.
 
-Each passage's `text` is at most 280 characters. A passage that was cut carries `truncated: true` and its full length in `contentChars`. Within a record, the passages the search matched come first, by score, then the passages around them.
+Each passage's `text` is at most 350 characters, plus the ` …` mark when it was cut. A passage up to 350 characters is shown whole. A longer one shows at least its first 280 characters and is cut at the first sentence or line end between characters 280 and 350, or else at the last space before 350, and ends in ` …`. A passage that was cut carries `truncated: true` and its full length in `contentChars`. Within a record, the passages the search matched come first, by score, then the passages around them.
 
 ---
 

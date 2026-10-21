@@ -7,10 +7,14 @@ import {
   groupSearchResults,
   LINKS_PER_RECORD,
   linkLines,
+  PASSAGE_CUT_MARK,
+  PASSAGE_REACH_CHARS,
   pageSearchRecords,
   parentFromLocation,
+  passageCut,
   SEARCH_RESULT_MAX_CHARS,
 } from "../src/mcp-server/tools/_searchResults.js";
+import { SNIPPET_MAX_CHARS } from "../src/mcp-server/tools/_helpers.js";
 
 // A search for ten records used to return one hit per passage. A match inside
 // a thread or a pull request brought back every passage of it, so the median
@@ -88,7 +92,11 @@ describe("one entry per record", () => {
   test("a long passage is cut and says so", () => {
     const [entry] = groupSearchResults([hit("a", "x".repeat(1000), 0.5)], []);
 
-    expect(entry!.passages[0]).toEqual({ text: "x".repeat(280), truncated: true, contentChars: 1000 });
+    expect(entry!.passages[0]).toEqual({
+      text: "x".repeat(280) + PASSAGE_CUT_MARK,
+      truncated: true,
+      contentChars: 1000,
+    });
   });
 
   test("the record's type, dates and parent come from the record document", () => {
@@ -192,6 +200,117 @@ describe("one entry per record", () => {
     )).toBe("#eng-backend › Deploy thread");
     expect(parentFromLocation("Slack (App ID: a1)")).toBeUndefined();
     expect(parentFromLocation(undefined)).toBeUndefined();
+  });
+});
+
+// A search passage used to be cut at exactly 280 characters. In an eval of
+// agents answering from search results, about 7% of the facts an agent had
+// the right record for but never saw were cut off this way: a record summary
+// stopped at "… should be assigned to someone who c", and the agents finished
+// the sentence with a guess, when the next 55 characters said "for at least
+// one week". A cut now ends on a sentence, a line or a word, and is marked.
+describe("where a long passage is cut", () => {
+  /** A sentence of exactly `length` characters, ending in " ended. ". */
+  const sentence = (length: number, word = "word") =>
+    `${`${word} `.repeat(Math.ceil(length / (word.length + 1))).slice(0, length - 8)} ended. `;
+  const cutOf = (text: string) => groupSearchResults([hit("a", text, 0.5)], [])[0]!.passages[0]!;
+  const shownOf = (text: string) => cutOf(text).text.replace(PASSAGE_CUT_MARK, "");
+
+  test("it finishes the sentence the limit falls in, when that ends soon after", () => {
+    const first = sentence(200);
+    const second = sentence(SNIPPET_MAX_CHARS - 200 + 50, "detail");
+    const text = first + second + sentence(400, "rest");
+    const p = cutOf(text);
+
+    expect(p.text).toBe((first + second).trimEnd() + PASSAGE_CUT_MARK);
+    expect(p).toMatchObject({ truncated: true, contentChars: text.length });
+  });
+
+  test("otherwise it runs on to the last space within reach, never stopping inside a word", () => {
+    const text = "lorem ipsum ".repeat(60);
+    const p = cutOf(text);
+
+    expect(p.text.endsWith(`ipsum${PASSAGE_CUT_MARK}`) || p.text.endsWith(`lorem${PASSAGE_CUT_MARK}`)).toBe(true);
+    expect(p.text.length).toBeGreaterThan(SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS - 12);
+    expect(p.text.length).toBeLessThanOrEqual(SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS + PASSAGE_CUT_MARK.length);
+  });
+
+  test("a line end counts as the end of a sentence", () => {
+    const line = `${"chat ".repeat(60)}message`;
+    const text = `${line}\n${"next ".repeat(100)}`;
+
+    expect(passageCut(text)).toBe(line.length + 1);
+    expect(cutOf(text).text).toBe(line + PASSAGE_CUT_MARK);
+  });
+
+  test("a passage only a little over the limit is shown whole", () => {
+    const text = sentence(SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS);
+
+    expect(cutOf(text)).toEqual({ text });
+  });
+
+  test("it never shows less than the first 280 characters", () => {
+    const texts = [
+      sentence(900),
+      "word ".repeat(300),
+      "x".repeat(900),
+      sentence(190) + "y".repeat(700),
+      // Stops that are not the end of a sentence, from review: before the limit
+      // they used to pull the cut back over text the old cut showed.
+      "Background stays put. ".repeat(8)
+        + "Assign the work to someone who can, e.g. cover it for at least one week and then keep going without a stop ".repeat(3),
+      "word ".repeat(40) + "1. Assign someone who can focus on it for at least one week and keep going ".repeat(5),
+      "word ".repeat(44) + "1). Assign someone who can focus on it for at least one week and keep going ".repeat(5),
+      sentence(180) + "const go = () => { return ready ? startTheJob(now) : waitForTheQueue(later) } ".repeat(5),
+      "Background stays put. ".repeat(10) + "Cover it for at least one week and then stop... " + sentence(400),
+      "Background stays put. ".repeat(9) + "Can they cover it for at least one week?! " + "word ".repeat(100),
+    ];
+    for (const text of texts) {
+      const shown = shownOf(text);
+      expect(text.startsWith(shown)).toBe(true);
+      expect(shown.length).toBeGreaterThanOrEqual(text.slice(0, SNIPPET_MAX_CHARS).trimEnd().length);
+    }
+  });
+
+  test("a doubtful stop near the limit never costs text the old cut showed", () => {
+    // Strings from review. Before the limit, each used to pull the cut back;
+    // in the reach, each can at most end the extension early.
+    for (const marker of ["fn().", "items[0].", "it's.", "vs.", "etc.", "et al.", "Dr.", "*.", "(a).", "1)."]) {
+      for (const at of [200, 240, SNIPPET_MAX_CHARS - 2, SNIPPET_MAX_CHARS + 10]) {
+        const text = "word ".repeat(at / 5).slice(0, at) + `${marker} keep going for at least one week `.repeat(12);
+        const shown = shownOf(text);
+        expect({ marker, at, kept: text.startsWith(shown) && shown.length >= text.slice(0, SNIPPET_MAX_CHARS).trimEnd().length })
+          .toEqual({ marker, at, kept: true });
+      }
+    }
+  });
+
+  test("an abbreviation or a list marker just past the limit does not stop the sentence short", () => {
+    for (const text of [
+      "Word ".repeat(54) + "Follow U.S. policy for at least one week before changing it. " + sentence(300),
+      sentence(SNIPPET_MAX_CHARS - 4) + "So, e.g. covered for at least one week. " + sentence(300),
+      sentence(SNIPPET_MAX_CHARS - 4) + "(a). covered for at least one week. " + sentence(300),
+      sentence(SNIPPET_MAX_CHARS - 2) + "1). Assign someone for at least one week. " + sentence(300),
+    ]) {
+      expect(shownOf(text)).toContain("for at least one week");
+    }
+  });
+
+  test("a sentence that ends in ... or ?!, a call or a contraction is a sentence", () => {
+    const call = sentence(250) + "Cover it for at least one week then call setup(). " + sentence(400);
+    expect(shownOf(call)).toBe(call.slice(0, call.indexOf("setup().") + 8));
+    const contraction = sentence(250) + "Cover it for at least one week, or don't. " + sentence(400);
+    expect(shownOf(contraction)).toBe(contraction.slice(0, contraction.indexOf("don't.") + 6));
+    const dots = sentence(250) + "Cover it for at least one week and then stop... " + sentence(400);
+    expect(shownOf(dots)).toBe(dots.slice(0, dots.indexOf("stop...") + 7));
+    const asks = sentence(250) + "Can they cover it for at least one week?! " + "word ".repeat(100);
+    expect(shownOf(asks)).toBe(asks.slice(0, asks.indexOf("week?!") + 6));
+  });
+
+  test("a cut never splits a character in two", () => {
+    const text = "x".repeat(SNIPPET_MAX_CHARS - 1) + "😀".repeat(200);
+
+    expect(shownOf(text)).toBe("x".repeat(SNIPPET_MAX_CHARS - 1));
   });
 });
 
