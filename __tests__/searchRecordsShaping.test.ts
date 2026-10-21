@@ -233,6 +233,23 @@ describe("where a long passage is cut", () => {
     expect(cutOf(text).text).toBe(first.trimEnd() + PASSAGE_CUT_MARK);
   });
 
+  test("an abbreviation, a list number or a spaced ? is not the end of a sentence", () => {
+    // In the step-back window: the old 280-character cut showed the fact.
+    const stepBack = "Background stays put. ".repeat(8)
+      + "Assign the work to someone who can, e.g. cover it for at least one week and then keep going without a stop ".repeat(3);
+    expect(cutOf(stepBack).text).toContain("for at least one week");
+    const listed = "word ".repeat(40) + "1. Assign someone who can focus on it for at least one week and keep going ".repeat(5);
+    expect(cutOf(listed).text).toContain("for at least one week");
+    const code = sentence(180) + "const go = () => { return ready ? startTheJob(now) : waitForTheQueue(later) } ".repeat(5);
+    expect(cutOf(code).text).toContain("startTheJob");
+
+    // In the reach: the real end of the sentence comes after the abbreviation.
+    const usPolicy = "Word ".repeat(54) + "Follow U.S. policy for at least one week before changing it. " + sentence(300);
+    expect(cutOf(usPolicy).text).toContain("for at least one week before changing it.");
+    const eg = sentence(SNIPPET_MAX_CHARS - 4) + "So, e.g. covered for at least one week. " + sentence(300);
+    expect(cutOf(eg).text).toContain("for at least one week.");
+  });
+
   test("a line end counts as the end of a sentence", () => {
     const line = `${"chat ".repeat(50)}message`;
     const text = `${line}\n${"next ".repeat(100)}`;
