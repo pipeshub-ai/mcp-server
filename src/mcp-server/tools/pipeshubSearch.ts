@@ -146,6 +146,44 @@ export function outsideDateBounds(record: any, bounds: SemanticSearchDateBounds)
   });
 }
 
+/** The search API's `outsideDates` object, on a server with the date-filter safety net. */
+interface ServerOutsideDates {
+  note?: string;
+  searchResults?: any[];
+  records?: any[];
+}
+
+/** What the agent is told about the matches the date bounds left out. */
+export interface OutsideDates {
+  note: string;
+  records: SearchRecordEntry[];
+}
+
+const OUTSIDE_DATES_NOTE =
+  "Also matching, but written outside your dates, so the date filter left "
+  + "them out of `records`. A later write-up, such as release notes, a "
+  + "retrospective or a weekly summary, can still be about your period: if one "
+  + "may answer the question, read it with `pipeshub_get_record_content` "
+  + "before answering.";
+
+/**
+ * The records a dated search's server found outside the bounds, with the
+ * best passage of each. A newer PipesHub server runs the same search once
+ * without dates and sends its best matches outside them apart from the
+ * results; an older one sends nothing and this is undefined.
+ */
+export function shapeOutsideDates(server: ServerOutsideDates | undefined): OutsideDates | undefined {
+  const hits = Array.isArray(server?.searchResults) ? server.searchResults : [];
+  const records = Array.isArray(server?.records) ? server.records : [];
+  if (hits.length === 0 && records.length === 0) return undefined;
+  const entries = groupSearchResults(hits, records).map((entry) => ({
+    ...entry,
+    passages: entry.passages.slice(0, 1),
+  }));
+  if (entries.length === 0) return undefined;
+  return { note: OUTSIDE_DATES_NOTE, records: entries };
+}
+
 /** The search API's `timeline` object, on a server that ran one. */
 interface ServerTimeline {
   dateField?: string;
@@ -362,6 +400,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
           status?: string;
           message?: string;
           timeline?: ServerTimeline;
+          outsideDates?: ServerOutsideDates;
         };
       }>(result.value, "PipesHub search");
       if (!parsed.ok) return parsed.result;
@@ -397,16 +436,24 @@ call again with \`offset\` set to \`nextOffset\`.`,
         timeline = shaped.timeline;
         notes.push(...shaped.notes);
       }
+      const outsideDates = shapeOutsideDates(sr.outsideDates);
       search = {
         searchId: parsed.value.searchId,
         entries,
         notes,
         ...(timeline ? { timeline } : {}),
+        ...(outsideDates ? { outsideDates } : {}),
       };
       rememberSearch(key, search);
     }
 
-    const page = pageSearchRecords(search.entries, offset, SEARCH_RESULT_MAX_CHARS);
+    // On the first page only, inside the same size cap as the records.
+    const outsideDates = offset === 0 ? search.outsideDates : undefined;
+    const page = pageSearchRecords(
+      search.entries,
+      offset,
+      SEARCH_RESULT_MAX_CHARS - (outsideDates ? JSON.stringify(outsideDates).length : 0),
+    );
     const note = pageNote(
       offset,
       page.records.length,
@@ -420,6 +467,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
       totalRecords: search.entries.length,
       records: page.records,
       ...(page.nextOffset !== undefined ? { nextOffset: page.nextOffset } : {}),
+      ...(outsideDates ? { outsideDates } : {}),
       ...(notes.length > 0 ? { notes } : {}),
     });
   },

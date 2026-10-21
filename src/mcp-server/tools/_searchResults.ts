@@ -312,6 +312,8 @@ interface CachedSearch {
   notes: string[];
   /** A timeline search's periods, sent with every page. */
   timeline?: unknown;
+  /** Matches written outside the date bounds, sent with the first page. */
+  outsideDates?: unknown;
 }
 
 const pageCache = new Map<string, CachedSearch>();
