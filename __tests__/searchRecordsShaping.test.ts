@@ -175,6 +175,33 @@ describe("one entry per record", () => {
     expect(links).toEqual([`links to TICKET "Login fails (PROJ-42) 'again'" — DONE (x) [r1]`]);
   });
 
+  test("a linked record's preview says what it says, and ranks ahead of a bare name", () => {
+    const { links } = linkLines([
+      { relation: "mentionedIn", recordId: "m-1", recordName: "tech_2025-12-01_18-04-44", recordType: "MESSAGE" },
+      {
+        relation: "mentionedIn", recordId: "m-2", recordName: "tech_2025-12-01_18-04-44", recordType: "MESSAGE",
+        preview: 'One reply states that the first issue is in "todo" [now].',
+      },
+      { relation: "linksTo", recordId: "pr-1", recordName: "Fix", recordType: "PULL_REQUEST", status: "Merged" },
+      { relation: "mentionedIn", recordId: "m-3", recordName: "n", preview: "   " },
+    ]);
+    expect(links).toEqual([
+      'links to PULL_REQUEST "Fix" — Merged [pr-1]',
+      `mentioned in MESSAGE "tech_2025-12-01_18-04-44" — says: One reply states that the first issue is in 'todo' (now). [m-2]`,
+      'mentioned in MESSAGE "tech_2025-12-01_18-04-44" [m-1]',
+    ]);
+  });
+
+  test("a preview stays one bounded line", () => {
+    const { links } = linkLines([{
+      relation: "linksTo", recordId: "r1", recordName: "N", preview: `line one\nline two ${"y".repeat(600)}`,
+    }]);
+    expect(links[0]).not.toContain("\n");
+    expect(links[0]).toContain("— says: line one line two ");
+    expect(links[0]!.length).toBeLessThan(450);
+    expect(links[0]!.endsWith("… [r1]")).toBe(true);
+  });
+
   test("an older server sends no status or links, and the entry has none", () => {
     expect(linkLines(undefined)).toEqual({ links: [], found: 0 });
     const [entry] = groupSearchResults([], [{ _key: "a", recordName: "A" }]);

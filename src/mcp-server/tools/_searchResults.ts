@@ -26,6 +26,12 @@ export const LINKS_PER_RECORD = 3;
 const LINK_NAME_MAX_CHARS = 100;
 
 /**
+ * Longest preview of a linked record's own text. The server sends one on the
+ * first few linked records of a response, already this short or shorter.
+ */
+const LINK_PREVIEW_MAX_CHARS = 400;
+
+/**
  * Most characters one search result may take, as sent. Under Claude Code's
  * 25,000-token limit for one tool result with room to spare, and small enough
  * that a few searches leave the agent room to work.
@@ -58,7 +64,9 @@ export interface SearchRecordEntry {
   status?: string;
   /**
    * Records this one names or is named by, one line each:
-   * `links to PULL_REQUEST "Fix sign-in" — Merged 2026-09-25 [<recordId>]`.
+   * `links to PULL_REQUEST "Fix sign-in" — Merged 2026-09-25 [<recordId>]`,
+   * and, when the server sent one, what the record says:
+   * `mentioned in MESSAGE "eng_2026-09-26" — says: The thread asks … [<recordId>]`.
    */
   links?: string[];
   /** Linked records the server sent, shown or not, when some were left out. */
@@ -89,7 +97,10 @@ export function parentFromLocation(location: unknown): string | undefined {
 }
 
 /**
- * The record's linked records as short lines, those with a status first.
+ * The record's linked records as short lines, those with a status first, then
+ * those with a preview of their own text. A name such as
+ * "tech_2025-12-01_18-04-44" does not say what the message says; the preview
+ * does, so the agent can tell whether to open it.
  * `linkedRecords` is what the server sends on a record document (from
  * pipeshub-ai/pipeshub-ai, alongside `statusSummary`); an older server sends
  * none, and the entry carries no `links`.
@@ -103,6 +114,7 @@ export function linkLines(linked: unknown): { links: string[]; found: number } {
     .map((row: any, at: number) => ({ row, at }))
     .sort((a, b) =>
       Number(typeof b.row.status === "string") - Number(typeof a.row.status === "string")
+      || Number(hasPreview(b.row)) - Number(hasPreview(a.row))
       || a.at - b.at
     );
   const links = ranked.slice(0, LINKS_PER_RECORD).map(({ row }) => {
@@ -115,9 +127,17 @@ export function linkLines(linked: unknown): { links: string[]; found: number } {
     const status = typeof row.status === "string" && row.status
       ? ` — ${linkText(row.status)}`
       : "";
-    return `${relation}${type} "${name}"${status} [${row.recordId}]`;
+    const rawPreview = hasPreview(row) ? linkText(row.preview) : "";
+    const preview = rawPreview.length > LINK_PREVIEW_MAX_CHARS
+      ? ` — says: ${rawPreview.slice(0, LINK_PREVIEW_MAX_CHARS)}…`
+      : rawPreview ? ` — says: ${rawPreview}` : "";
+    return `${relation}${type} "${name}"${status}${preview} [${row.recordId}]`;
   });
   return { links, found: rows.length };
+}
+
+function hasPreview(row: any): boolean {
+  return typeof row?.preview === "string" && row.preview.trim() !== "";
 }
 
 function oneLine(text: string): string {
