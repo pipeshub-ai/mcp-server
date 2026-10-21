@@ -141,65 +141,50 @@ function passageText(hit: any): string | undefined {
 }
 
 /**
- * How far past `SNIPPET_MAX_CHARS` a passage may run to finish the sentence or
- * line it is in. A passage that ends within this reach is shown whole.
+ * How far past `SNIPPET_MAX_CHARS` a passage may run to finish the sentence,
+ * line or word it is in. A passage that ends within this reach is shown whole.
  */
 export const PASSAGE_REACH_CHARS = 70;
-
-/**
- * How far back from `SNIPPET_MAX_CHARS` a cut may move to end on a sentence or
- * a line instead of inside one.
- */
-const PASSAGE_STEP_BACK_CHARS = 93;
-
-/** How far back a cut may move to end between words. */
-const PASSAGE_WORD_STEP_BACK_CHARS = 40;
 
 /** Put after the text of a cut passage, so its last words read as unfinished. */
 export const PASSAGE_CUT_MARK = " …";
 
 /**
- * The end of a sentence (its stop, then any closing quote, bracket or
- * markdown emphasis) before a space, or the end of a line.
+ * A plausible end of a sentence, or the end of a line. A run of stops
+ * (`.`, `...`, `?!`) counts when it follows a lowercase word of three
+ * letters or more (`don't` too), a call (`setup()`), or closing quotes,
+ * brackets or emphasis that follow a word of two letters or more, and comes
+ * before a space.
  *
- * A stop counts only after a word of two letters or more or a number of three
- * digits or more, either of which may be followed by closing quotes, brackets
- * or emphasis, or after another stop (`...`, `?!`). So a list number (`1.`,
- * `1).`), a one-letter abbreviation (`e.g.`, `U.S.`, `(a).`) and a spaced `?`
- * (as in `ready ? a : b`) do not end a sentence. `vs.` and `Dr.` still do.
+ * It need not be exact: the cut only ever moves forward from where the old
+ * cut was, so a stop taken for a sentence end (`etc.`) only means a shorter
+ * extension, never less text than before.
  */
 const SENTENCE_OR_LINE_END =
-  /(?<=(?:\p{L}{2}|\d{3})["'”’)\]*_`]*|[.!?…])[.!?…]["'”’)\]*_`]*(?=\s)|\n/gu;
+  /(?<=\p{Ll}{3}|\p{L}['’]\p{Ll}{1,2}|\p{L}\(\)|\p{L}{2}["'”’)\]*_`]+)[.!?…]+["'”’)\]*_`]*(?=\s)|\n/gu;
 
 /**
  * Where to cut a passage longer than `SNIPPET_MAX_CHARS` +
- * `PASSAGE_REACH_CHARS`, so that what is shown ends on a sentence or a line,
- * not inside a word.
+ * `PASSAGE_REACH_CHARS`.
  *
  * A fixed cut at 280 characters stopped mid-word, often just before the
  * detail the sentence was leading up to ("… should be assigned to someone
- * who c"), and agents finished the sentence with a guess. The cut now
- * finishes the sentence it falls in when that ends within
- * `PASSAGE_REACH_CHARS`. Otherwise it steps back to the last sentence or line
- * ending within `PASSAGE_STEP_BACK_CHARS`, and failing that to the last space.
- * Over real search results the two moves cancel out, so passages are no
- * longer on average than before.
+ * who c"), and agents finished the sentence with a guess. The cut now never
+ * shows less than those 280 characters. It moves forward, within
+ * `PASSAGE_REACH_CHARS`, to the first sentence or line end; failing that, to
+ * the last space; and only when there is no space either (a long link, say)
+ * does it stay at the limit.
  */
 export function passageCut(text: string): number {
   const limit = SNIPPET_MAX_CHARS;
-  const ends: number[] = [];
-  const head = text.slice(0, limit + PASSAGE_REACH_CHARS + 1);
-  for (const m of head.matchAll(SENTENCE_OR_LINE_END)) {
-    ends.push((m.index ?? 0) + m[0].length);
+  const reach = text.slice(0, limit + PASSAGE_REACH_CHARS + 1);
+  for (const m of reach.matchAll(SENTENCE_OR_LINE_END)) {
+    const end = (m.index ?? 0) + m[0].length;
+    if (end >= limit) return end;
   }
-  const finish = ends.find((at) => at > limit && at <= limit + PASSAGE_REACH_CHARS);
-  if (finish !== undefined) return finish;
-  const back = ends.filter((at) => at >= limit - PASSAGE_STEP_BACK_CHARS && at <= limit).pop();
-  if (back !== undefined) return back;
-  const space = text.slice(0, limit + 1).search(/\s\S*$/);
-  if (space >= limit - PASSAGE_WORD_STEP_BACK_CHARS) return space;
-  // No break near the limit (a long link, say): cut at the limit, but not
-  // between the two halves of a character outside the Basic Multilingual Plane.
+  const space = reach.search(/\s\S*$/);
+  if (space >= limit) return space;
+  // Not between the two halves of a character outside the Basic Multilingual Plane.
   const code = text.charCodeAt(limit - 1);
   return code >= 0xd800 && code <= 0xdbff ? limit - 1 : limit;
 }
