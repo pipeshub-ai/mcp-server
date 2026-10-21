@@ -7,10 +7,14 @@ import {
   groupSearchResults,
   LINKS_PER_RECORD,
   linkLines,
+  PASSAGE_CUT_MARK,
+  PASSAGE_REACH_CHARS,
   pageSearchRecords,
   parentFromLocation,
+  passageCut,
   SEARCH_RESULT_MAX_CHARS,
 } from "../src/mcp-server/tools/_searchResults.js";
+import { SNIPPET_MAX_CHARS } from "../src/mcp-server/tools/_helpers.js";
 
 // A search for ten records used to return one hit per passage. A match inside
 // a thread or a pull request brought back every passage of it, so the median
@@ -88,7 +92,11 @@ describe("one entry per record", () => {
   test("a long passage is cut and says so", () => {
     const [entry] = groupSearchResults([hit("a", "x".repeat(1000), 0.5)], []);
 
-    expect(entry!.passages[0]).toEqual({ text: "x".repeat(280), truncated: true, contentChars: 1000 });
+    expect(entry!.passages[0]).toEqual({
+      text: "x".repeat(280) + PASSAGE_CUT_MARK,
+      truncated: true,
+      contentChars: 1000,
+    });
   });
 
   test("the record's type, dates and parent come from the record document", () => {
@@ -192,6 +200,75 @@ describe("one entry per record", () => {
     )).toBe("#eng-backend › Deploy thread");
     expect(parentFromLocation("Slack (App ID: a1)")).toBeUndefined();
     expect(parentFromLocation(undefined)).toBeUndefined();
+  });
+});
+
+// A search passage used to be cut at exactly 280 characters. In an eval of
+// agents answering from search results, about 7% of the facts an agent had
+// the right record for but never saw were cut off this way: a record summary
+// stopped at "… should be assigned to someone who c", and the agents finished
+// the sentence with a guess, when the next 55 characters said "for at least
+// one week". A cut now ends on a sentence, a line or a word, and is marked.
+describe("where a long passage is cut", () => {
+  /** A sentence of exactly `length` characters, ending in ". ". */
+  const sentence = (length: number, word = "word") =>
+    `${`${word} `.repeat(Math.ceil(length / (word.length + 1))).slice(0, length - 2)}. `;
+  const cutOf = (text: string) => groupSearchResults([hit("a", text, 0.5)], [])[0]!.passages[0]!;
+
+  test("it finishes the sentence the limit falls in, when that ends soon after", () => {
+    const first = sentence(200);
+    const second = sentence(SNIPPET_MAX_CHARS - 200 + 50, "detail");
+    const text = first + second + sentence(400, "rest");
+    const p = cutOf(text);
+
+    expect(p.text).toBe((first + second).trimEnd() + PASSAGE_CUT_MARK);
+    expect(p.text.length).toBeLessThanOrEqual(SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS + PASSAGE_CUT_MARK.length);
+    expect(p).toMatchObject({ truncated: true, contentChars: text.length });
+  });
+
+  test("it steps back to the last sentence when the one it falls in runs on", () => {
+    const first = sentence(230);
+    const text = first + sentence(600, "long");
+
+    expect(cutOf(text).text).toBe(first.trimEnd() + PASSAGE_CUT_MARK);
+  });
+
+  test("a line end counts as the end of a sentence", () => {
+    const line = `${"chat ".repeat(50)}message`;
+    const text = `${line}\n${"next ".repeat(100)}`;
+
+    expect(passageCut(text)).toBe(line.length + 1);
+    expect(cutOf(text).text).toBe(line + PASSAGE_CUT_MARK);
+  });
+
+  test("with no sentence end near the limit, it ends between words", () => {
+    const text = "lorem ipsum ".repeat(60);
+    const p = cutOf(text);
+
+    expect(p.text.endsWith(`ipsum${PASSAGE_CUT_MARK}`) || p.text.endsWith(`lorem${PASSAGE_CUT_MARK}`)).toBe(true);
+    expect(p.text.length).toBeLessThanOrEqual(SNIPPET_MAX_CHARS + PASSAGE_CUT_MARK.length);
+    expect(p.text.length).toBeGreaterThan(SNIPPET_MAX_CHARS - 40);
+  });
+
+  test("a passage only a little over the limit is shown whole", () => {
+    const text = sentence(SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS);
+
+    expect(cutOf(text)).toEqual({ text });
+  });
+
+  test("the start of the passage, where the match is, is always kept", () => {
+    for (const text of [sentence(900), "word ".repeat(300), "x".repeat(900), sentence(190) + "y".repeat(700)]) {
+      const shown = cutOf(text).text.replace(PASSAGE_CUT_MARK, "");
+      expect(text.startsWith(shown)).toBe(true);
+      expect(shown.length).toBeGreaterThanOrEqual(SNIPPET_MAX_CHARS - 93);
+    }
+  });
+
+  test("a cut never splits a character in two", () => {
+    const text = "x".repeat(SNIPPET_MAX_CHARS - 1) + "😀".repeat(200);
+    const shown = cutOf(text).text.replace(PASSAGE_CUT_MARK, "");
+
+    expect(shown).toBe("x".repeat(SNIPPET_MAX_CHARS - 1));
   });
 });
 

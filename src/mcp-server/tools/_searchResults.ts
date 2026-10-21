@@ -140,14 +140,71 @@ function passageText(hit: any): string | undefined {
   return typeof text === "string" && text.trim() !== "" ? text : undefined;
 }
 
+/**
+ * How far past `SNIPPET_MAX_CHARS` a passage may run to finish the sentence or
+ * line it is in. A passage that ends within this reach is shown whole.
+ */
+export const PASSAGE_REACH_CHARS = 70;
+
+/**
+ * How far back from `SNIPPET_MAX_CHARS` a cut may move to end on a sentence or
+ * a line instead of inside one.
+ */
+const PASSAGE_STEP_BACK_CHARS = 93;
+
+/** How far back a cut may move to end between words. */
+const PASSAGE_WORD_STEP_BACK_CHARS = 40;
+
+/** Put after the text of a cut passage, so its last words read as unfinished. */
+export const PASSAGE_CUT_MARK = " …";
+
+/**
+ * The end of a sentence (its stop, then any closing quote, bracket or
+ * markdown emphasis) before a space, or the end of a line.
+ */
+const SENTENCE_OR_LINE_END = /[.!?…]["'”’)\]*_`]*(?=\s)|\n/g;
+
+/**
+ * Where to cut a passage longer than `SNIPPET_MAX_CHARS` +
+ * `PASSAGE_REACH_CHARS`, so that what is shown ends on a sentence or a line,
+ * not inside a word.
+ *
+ * A fixed cut at 280 characters stopped mid-word, often just before the
+ * detail the sentence was leading up to ("… should be assigned to someone
+ * who c"), and agents finished the sentence with a guess. The cut now
+ * finishes the sentence it falls in when that ends within
+ * `PASSAGE_REACH_CHARS`. Otherwise it steps back to the last sentence or line
+ * ending within `PASSAGE_STEP_BACK_CHARS`, and failing that to the last space.
+ * Over real search results the two moves cancel out, so passages are no
+ * longer on average than before.
+ */
+export function passageCut(text: string): number {
+  const limit = SNIPPET_MAX_CHARS;
+  const ends: number[] = [];
+  const head = text.slice(0, limit + PASSAGE_REACH_CHARS + 1);
+  for (const m of head.matchAll(SENTENCE_OR_LINE_END)) {
+    ends.push((m.index ?? 0) + m[0].length);
+  }
+  const finish = ends.find((at) => at > limit && at <= limit + PASSAGE_REACH_CHARS);
+  if (finish !== undefined) return finish;
+  const back = ends.filter((at) => at >= limit - PASSAGE_STEP_BACK_CHARS && at <= limit).pop();
+  if (back !== undefined) return back;
+  const space = text.slice(0, limit + 1).search(/\s\S*$/);
+  if (space >= limit - PASSAGE_WORD_STEP_BACK_CHARS) return space;
+  // No break near the limit (a long link, say): cut at the limit, but not
+  // between the two halves of a character outside the Basic Multilingual Plane.
+  const code = text.charCodeAt(limit - 1);
+  return code >= 0xd800 && code <= 0xdbff ? limit - 1 : limit;
+}
+
 function toPassage(hit: any, text: string): SearchPassage {
-  const cut = text.length > SNIPPET_MAX_CHARS;
+  const cut = text.length > SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS;
   const pages = Array.isArray(hit?.metadata?.pageNum)
     ? hit.metadata.pageNum
     : [hit?.metadata?.pageNum];
   const page = pages.find((p: unknown) => typeof p === "number");
   return {
-    text: cut ? text.slice(0, SNIPPET_MAX_CHARS) : text,
+    text: cut ? text.slice(0, passageCut(text)).trimEnd() + PASSAGE_CUT_MARK : text,
     ...(cut ? { truncated: true as const, contentChars: text.length } : {}),
     ...(page !== undefined ? { pageNum: page } : {}),
   };
