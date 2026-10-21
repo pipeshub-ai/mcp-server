@@ -346,6 +346,32 @@ const lost = (block: number | null | undefined, record?: string) =>
 const call = (args: Record<string, unknown>) =>
   `pipeshub_get_record_content ${JSON.stringify(args)}`;
 
+// The Slack connectors end a message that started a thread with this line.
+// Its replies are separate records, so a read of this record does not hold
+// them all, whatever its header says.
+const REPLY_COUNT = /(?:^|\n)Reply Count: (\d+)[ \t]*(?=\n|$)/g;
+
+/**
+ * A line naming the thread read when the text shows messages with replies,
+ * or nothing. Agents took "Read: the whole record" over a parent message as
+ * the end of the conversation and never read the replies.
+ */
+function repliesLine(content: string, recordId: string): string[] {
+  const counts = [...content.matchAll(REPLY_COUNT)]
+    .map((m) => Number(m[1]))
+    .filter((n) => n > 0);
+  if (counts.length === 0) return [];
+  const total = counts.reduce((a, b) => a + b, 0);
+  const who = counts.length === 1
+    ? "A message here has"
+    : `${counts.length} messages here have`;
+  return [
+    `Replies: ${who} ${total} thread repl${total === 1 ? "y" : "ies"}, kept as `
+      + "separate records. Read the whole thread: "
+      + call({ mode: "thread", recordId }),
+  ];
+}
+
 const ranges = (shown: Array<[number, number]> | undefined) =>
   (shown ?? []).map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
 
@@ -423,11 +449,12 @@ export function renderRead(
   // A record with no content to read (`No record found`, or a `Not indexed:`
   // note) carries no block count. Saying it was read in full would tell the
   // model the record is empty, so its text goes through on its own.
+  const replies = repliesLine(content, recordId);
   if (
     read.mode !== "record" || read.complete == null
     || typeof read.totalBlocks !== "number"
   ) {
-    return content;
+    return replies.length ? `${content}\n\n${replies.join("\n")}` : content;
   }
 
   const total = read.totalBlocks;
@@ -444,13 +471,14 @@ export function renderRead(
       ? `Read: the whole record (${total} block${total === 1 ? "" : "s"}).`
       : `Read: to the end of the record (${total} block${total === 1 ? "" : "s"}`
         + `${start === 0 ? "" : `; blocks before ${start} were in earlier reads`}).`;
-    return `${content}\n\n${[head, ...lostLine].join("\n")}`;
+    return `${content}\n\n${[head, ...lostLine, ...replies].join("\n")}`;
   }
   const lines = [
     read.order === "relevance"
       ? `Read: the blocks most relevant to your query (${ranges(read.shownBlocks)} of ${total}); the rest were skipped.`
       : `Read: blocks ${ranges(read.shownBlocks)} of ${total}.`,
     ...lostLine,
+    ...replies,
   ];
   if (read.nextStartBlock != null) {
     lines.push(
