@@ -24,6 +24,15 @@ import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
 import { createPipeshubAssistantPrompt } from "./prompts/pipeshubAssistant.js";
 
+/**
+ * The most array elements and object members one tool call's arguments may
+ * hold, counted together at every depth. Without a cap the SDK validates
+ * arguments of any size, and one request carrying a huge array can run the
+ * server out of memory (GHSA-46jr-4wx8-v453). The curated tools take a query
+ * and short lists of ids, so this leaves ample room.
+ */
+export const DEFAULT_MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
 export function createMCPServer(deps: {
   logger: ConsoleLogger;
   allowedTools?: string[] | undefined;
@@ -39,6 +48,12 @@ export function createMCPServer(deps: {
    * `PIPESHUB_MCP_CHAT` environment variable, which defaults to on.
    */
   chat?: boolean | undefined;
+  /**
+   * Overrides DEFAULT_MAX_TOOL_INPUT_ELEMENTS. A number of at least 1, or
+   * `Infinity` for no cap. A call over the cap is answered with a tool error
+   * and its handler never runs.
+   */
+  maxToolInputElements?: number | undefined;
 }) {
   const chat = deps.chat ?? chatEnabledFromEnv();
   const server = new McpServer(
@@ -48,6 +63,8 @@ export function createMCPServer(deps: {
     },
     {
       instructions: pipeshubInstructions({ chat }),
+      maxToolInputElements:
+        deps.maxToolInputElements ?? DEFAULT_MAX_TOOL_INPUT_ELEMENTS,
     },
   );
 
