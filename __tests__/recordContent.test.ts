@@ -417,3 +417,84 @@ describe("thread mode", () => {
     expect(flat).toMatch(/Reply Count: N[^.]*\. `mode:"thread"`/);
   });
 });
+
+describe("a Slack record whose messages have replies", () => {
+  // The replies are separate records. Agents read "Read: the whole record"
+  // over the parent message, trusted a header that said "Has Replies: False",
+  // and never read the thread.
+  const threadCall =
+    `pipeshub_get_record_content {"mode":"thread","recordId":"${REC}"}`;
+
+  test("a single message with replies names the thread read", async () => {
+    const { core } = client({
+      content: "- **A**: who owns this?\n\nReply Count: 21",
+      mode: "record", totalBlocks: 1, shownBlocks: [[0, 0]], complete: true,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toBe(
+      "- **A**: who owns this?\n\nReply Count: 21\n\n"
+        + "Read: the whole record (1 block).\n"
+        + "Replies: A message here has 21 thread replies, kept as separate "
+        + `records. Read the whole thread: ${threadCall}`,
+    );
+  });
+
+  test("a burst with two parents counts both", async () => {
+    const { core } = client({
+      content: "- a\n\nReply Count: 6\n\n- b\n\n- c\n\nReply Count: 3",
+      mode: "record", totalBlocks: 3, shownBlocks: [[0, 2]], complete: true,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toContain("Replies: 2 messages here have 9 thread replies");
+  });
+
+  test("a partial read still points to the thread", async () => {
+    const { core } = client({
+      content: "- root\n\nReply Count: 1\n\n- r1",
+      mode: "record", order: "in_order", totalBlocks: 40,
+      shownBlocks: [[0, 1]], complete: false, nextStartBlock: 2,
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toContain("Replies: A message here has 1 thread reply,");
+    expect(text).toContain(`Next: pipeshub_get_record_content`);
+  });
+
+  test("an older server's whole record gets the line too", async () => {
+    const { core } = client({ content: "- root\n\nReply Count: 4" });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+    expect(text).toContain(`Read the whole thread: ${threadCall}`);
+  });
+
+  test("a message without replies, or one quoting the phrase, gets none", async () => {
+    for (const content of ["- quiet", "- it said Reply Count: 5 yesterday", "- x\n\nReply Count: 0"]) {
+      const { core } = client({
+        content, mode: "record", totalBlocks: 1, shownBlocks: [[0, 0]], complete: true,
+      });
+
+      const text = textOf(await run(core, { mode: "content", recordId: REC }));
+
+      expect(text).not.toContain("Replies:");
+    }
+  });
+
+  test("a thread read does not point to itself", async () => {
+    const { core } = client({
+      content: "- root\n\nReply Count: 2\n\n- r1\n\n- r2",
+      mode: "thread", threadRecordCount: 1, startRecord: 0,
+      records: [{ recordId: REC, complete: true }], complete: true,
+      nextStartRecord: null,
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).not.toContain("Replies:");
+  });
+});
