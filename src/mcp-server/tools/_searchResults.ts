@@ -162,13 +162,14 @@ export const PASSAGE_CUT_MARK = " …";
  * The end of a sentence (its stop, then any closing quote, bracket or
  * markdown emphasis) before a space, or the end of a line.
  *
- * A stop counts only after a word of two letters or more, a closing quote,
- * bracket or emphasis, or a number of three digits or more. So a list number
- * (`1.`), a one-letter abbreviation (`e.g.`, `U.S.`) and a spaced `?` (as in
- * `ready ? a : b`) do not end a sentence. `vs.` and `Dr.` still do.
+ * A stop counts only after a word of two letters or more or a number of three
+ * digits or more, either of which may be followed by closing quotes, brackets
+ * or emphasis, or after another stop (`...`, `?!`). So a list number (`1.`,
+ * `1).`), a one-letter abbreviation (`e.g.`, `U.S.`, `(a).`) and a spaced `?`
+ * (as in `ready ? a : b`) do not end a sentence. `vs.` and `Dr.` still do.
  */
 const SENTENCE_OR_LINE_END =
-  /(?<=\p{L}{2}|[)\]"'”’`*_]|\d{3})[.!?…]["'”’)\]*_`]*(?=\s)|\n/gu;
+  /(?<=(?:\p{L}{2}|\d{3})["'”’)\]*_`]*|[.!?…])[.!?…]["'”’)\]*_`]*(?=\s)|\n/gu;
 
 /**
  * Where to cut a passage longer than `SNIPPET_MAX_CHARS` +

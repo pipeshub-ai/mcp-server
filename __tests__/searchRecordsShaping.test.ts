@@ -242,12 +242,23 @@ describe("where a long passage is cut", () => {
     expect(cutOf(listed).text).toContain("for at least one week");
     const code = sentence(180) + "const go = () => { return ready ? startTheJob(now) : waitForTheQueue(later) } ".repeat(5);
     expect(cutOf(code).text).toContain("startTheJob");
+    const numbered = "word ".repeat(44) + "1). Assign someone who can focus on it for at least one week and keep going ".repeat(5);
+    expect(cutOf(numbered).text).toContain("for at least one week");
 
     // In the reach: the real end of the sentence comes after the abbreviation.
     const usPolicy = "Word ".repeat(54) + "Follow U.S. policy for at least one week before changing it. " + sentence(300);
     expect(cutOf(usPolicy).text).toContain("for at least one week before changing it.");
     const eg = sentence(SNIPPET_MAX_CHARS - 4) + "So, e.g. covered for at least one week. " + sentence(300);
     expect(cutOf(eg).text).toContain("for at least one week.");
+    const lettered = sentence(SNIPPET_MAX_CHARS - 4) + "(a). covered for at least one week. " + sentence(300);
+    expect(cutOf(lettered).text).toContain("for at least one week.");
+  });
+
+  test("a sentence that ends in ... or ?! is a sentence", () => {
+    const dots = "Background stays put. ".repeat(10) + "Cover it for at least one week and then stop... " + sentence(400);
+    expect(cutOf(dots).text).toBe(dots.slice(0, dots.indexOf("stop...") + 7) + PASSAGE_CUT_MARK);
+    const asks = "Background stays put. ".repeat(9) + "Can they cover it for at least one week?! " + "word ".repeat(100);
+    expect(cutOf(asks).text).toContain("for at least one week?!");
   });
 
   test("a line end counts as the end of a sentence", () => {
