@@ -272,6 +272,19 @@ describe("where a long passage is cut", () => {
     }
   });
 
+  test("a doubtful stop near the limit never costs text the old cut showed", () => {
+    // Strings from review. Before the limit, each used to pull the cut back;
+    // in the reach, each can at most end the extension early.
+    for (const marker of ["fn().", "items[0].", "it's.", "vs.", "etc.", "et al.", "Dr.", "*.", "(a).", "1)."]) {
+      for (const at of [200, 240, SNIPPET_MAX_CHARS - 2, SNIPPET_MAX_CHARS + 10]) {
+        const text = "word ".repeat(at / 5).slice(0, at) + `${marker} keep going for at least one week `.repeat(12);
+        const shown = shownOf(text);
+        expect({ marker, at, kept: text.startsWith(shown) && shown.length >= text.slice(0, SNIPPET_MAX_CHARS).trimEnd().length })
+          .toEqual({ marker, at, kept: true });
+      }
+    }
+  });
+
   test("an abbreviation or a list marker just past the limit does not stop the sentence short", () => {
     for (const text of [
       "Word ".repeat(54) + "Follow U.S. policy for at least one week before changing it. " + sentence(300),
