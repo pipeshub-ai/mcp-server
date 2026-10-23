@@ -40,8 +40,12 @@ PipesHub Claude Code plugin, run `/pipeshub:setup` to check it. Otherwise:
 
 ```bash
 claude mcp add --transport http pipeshub https://app.pipeshub.com/mcp \
-  --header "Authorization: Bearer $PIPESHUB_MCP_TOKEN"
+  --header 'Authorization: Bearer ${PIPESHUB_MCP_TOKEN}'
 ```
+
+Keep the single quotes: Claude Code stores the header as written and reads
+`PIPESHUB_MCP_TOKEN` from its environment when it connects, so the token is
+never written into its config.
 
 Other clients: see **Connect** with origin `https://app.pipeshub.com`, sending
 the token as `Authorization: Bearer`.
