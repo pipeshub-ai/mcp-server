@@ -32,10 +32,19 @@ https://docs.pipeshub.com/for-agents-bootstrap.md
 
 If they have no running PipesHub, **do not scaffold LangChain**.
 
-Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com and
-mint a personal access token in Workspace → Developer settings (into a local
-env file, never into chat). The origin is `https://app.pipeshub.com`; skip to
-**Connect**.
+Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com,
+connect a source or upload files and let it index, then mint a personal access
+token in Workspace → Developer settings. They export it in their shell profile
+as `PIPESHUB_MCP_TOKEN` (never into chat) and restart the agent. With the
+PipesHub Claude Code plugin, run `/pipeshub:setup` to check it. Otherwise:
+
+```bash
+claude mcp add --transport http pipeshub https://app.pipeshub.com/mcp \
+  --header "Authorization: Bearer $PIPESHUB_MCP_TOKEN"
+```
+
+Other clients: see **Connect** with origin `https://app.pipeshub.com`, sending
+the token as `Authorization: Bearer`.
 
 To self-host instead, offer a local Docker demo. Do not start it until they
 agree. Full playbook:
