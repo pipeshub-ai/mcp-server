@@ -153,41 +153,52 @@ describe("pipeshub_indexing_status", () => {
   const record = (id: string, indexingStatus: string, reason?: string) =>
     ({ id, name: `${id}.md`, nodeType: "record", indexingStatus, ...(reason ? { reason } : {}) });
 
-  test("counts records by status across pages and is not done while any are queued", async () => {
-    const { core, calls } = client((_req, seen) => {
-      const page = new URLSearchParams(seen.search).get("page");
-      return page === "1"
-        ? Response.json({
-          items: [{ id: "f", nodeType: "folder", name: "sub" }, record("a", "COMPLETED"), record("b", "QUEUED")],
-          pagination: { hasNext: true },
-        })
-        : Response.json({ items: [record("c", "FAILED", "corrupt file")], pagination: { hasNext: false } });
+  /** A collection of `counts` records per status; the listing filters by status like the server. */
+  function collection(counts: Record<string, number>, reasons: Record<string, string> = {}) {
+    return client((_req, seen) => {
+      const q = new URLSearchParams(seen.search);
+      const wanted = q.get("indexingStatus")?.split(",");
+      const limit = Number(q.get("limit"));
+      const matching = Object.entries(counts)
+        .filter(([s]) => !wanted || wanted.includes(s))
+        .flatMap(([s, n]) => Array.from({ length: n }, (_, i) => record(`${s}-${i}`, s, reasons[s])));
+      return Response.json({ items: matching.slice(0, limit), pagination: { totalItems: matching.length } });
     });
+  }
+
+  test("counts pending and failed exactly from filtered listings, and is not done while any are queued", async () => {
+    const { core, calls } = collection({ COMPLETED: 3, QUEUED: 1, FAILED: 1 }, { FAILED: "corrupt file" });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
-    expect(calls.map((c) => c.path)).toEqual([
-      `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
-      `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
-    ]);
-    expect(new URLSearchParams(calls[0]!.search).get("flattened")).toBe("true");
+    expect(calls.every((c) => c.path === `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`)).toBe(true);
+    const q = new URLSearchParams(calls[0]!.search);
+    expect([q.get("flattened"), q.get("nodeTypes")]).toEqual(["true", "record"]);
     expect(out).toMatchObject({
       done: false,
-      total: 3,
-      counts: { COMPLETED: 1, QUEUED: 1, FAILED: 1 },
-      pending: [{ recordId: "b", status: "QUEUED" }],
-      failed: [{ recordId: "c", status: "FAILED", reason: "corrupt file" }],
+      total: 5,
+      pendingCount: 1,
+      failedCount: 1,
+      pending: [{ status: "QUEUED" }],
+      failed: [{ status: "FAILED", reason: "corrupt file" }],
     });
   });
 
-  test("done once nothing is pending, even with failures", async () => {
-    const { core } = client(() =>
-      Response.json({ items: [record("a", "COMPLETED"), record("b", "FAILED")], pagination: { hasNext: false } })
-    );
+  test("a collection past any page size still reaches done when nothing is pending", async () => {
+    // A capped listing would report "not done" forever here; the totals do not.
+    const { core } = collection({ COMPLETED: 5000, FAILED: 2 });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
-    expect(out.done).toBe(true);
+    expect(out).toMatchObject({ done: true, total: 5002, pendingCount: 0, failedCount: 2 });
+    expect(out.failed).toHaveLength(2);
+  });
+
+  test("lists at most 25 pending records but counts them all", async () => {
+    const { core } = collection({ IN_PROGRESS: 40 });
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out.pendingCount).toBe(40);
+    expect(out.pending).toHaveLength(25);
   });
 
   test("an empty collection says so", async () => {
-    const { core } = client(() => Response.json({ items: [], pagination: { hasNext: false } }));
+    const { core } = collection({});
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
     expect(out).toMatchObject({ done: true, total: 0 });
     expect(out.note).toContain("no records");

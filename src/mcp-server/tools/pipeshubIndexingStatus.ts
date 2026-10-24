@@ -1,33 +1,69 @@
-// pipeshub_indexing_status — has a collection finished indexing? Counts the
-// collection's records by indexing status, one paged listing, no per-record calls.
+// pipeshub_indexing_status — has a collection finished indexing? Three
+// filtered listings (pending, failed, all records) whose totals are exact at
+// any collection size, so `done` never waits on a page cap.
 
+import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod";
+import { PipeshubCore } from "../../core.js";
 import { knowledgeHubCollectionRecords } from "../../funcs/knowledgeBaseWrite.js";
 import { ToolDefinition } from "../tools.js";
 import { errorResult, httpErrorResult, jsonResult, readJson } from "./_helpers.js";
 
-const PAGE_SIZE = 200;
-const MAX_PAGES = 10;
 /** Records still in flight, or failed, that the answer names. */
 const MAX_LISTED = 25;
-const PENDING = new Set(["NOT_STARTED", "QUEUED", "IN_PROGRESS", "PAUSED"]);
-const FAILED = new Set(["FAILED", "FILE_TYPE_NOT_SUPPORTED", "EMPTY", "ENABLE_MULTIMODAL_MODELS"]);
+const PENDING = ["NOT_STARTED", "QUEUED", "IN_PROGRESS", "PAUSED"] as const;
+const FAILED = ["FAILED", "FILE_TYPE_NOT_SUPPORTED", "EMPTY", "ENABLE_MULTIMODAL_MODELS"] as const;
 
 const args = {
   collectionId: z.string().uuid().describe("The collection to check (`collectionId` from create or upload)."),
 };
 
-type Node = { id?: string; name?: string; nodeType?: string; indexingStatus?: string | null; reason?: string | null };
+type Node = { id?: string; name?: string; indexingStatus?: string | null; reason?: string | null };
+
+/** The matching records' count and the first `limit` of them. */
+async function countRecords(
+  client: PipeshubCore,
+  kbId: string,
+  limit: number,
+  signal: AbortSignal,
+  indexingStatus?: readonly string[],
+): Promise<{ ok: true; count: number; records: object[] } | { ok: false; result: CallToolResult }> {
+  const r = await knowledgeHubCollectionRecords(
+    client,
+    kbId,
+    indexingStatus ? { limit, indexingStatus } : { limit },
+    { fetchOptions: { signal } },
+  );
+  if (!r.ok) return { ok: false, result: errorResult(`Indexing status: ${r.error.message}`) };
+  const httpErr = await httpErrorResult(r.value, "Indexing status");
+  if (httpErr) return { ok: false, result: httpErr };
+  const body = await readJson<{ items?: Node[]; pagination?: { totalItems?: number } | null }>(
+    r.value,
+    "Indexing status",
+  );
+  if (!body.ok) return { ok: false, result: body.result };
+  const items = body.value.items ?? [];
+  return {
+    ok: true,
+    count: body.value.pagination?.totalItems ?? items.length,
+    records: items.map((n) => ({
+      recordId: n.id,
+      name: n.name,
+      status: n.indexingStatus ?? "UNKNOWN",
+      ...(n.reason ? { reason: n.reason } : {}),
+    })),
+  };
+}
 
 export const tool$pipeshubIndexingStatus: ToolDefinition<typeof args> = {
   name: "pipeshub_indexing_status",
   description:
     `How far a collection's documents are through indexing. Call after
 \`pipeshub_upload\`, then every 15–30 s while \`done\` is false: search finds
-a document only once it is COMPLETED. Returns \`{ done, total, counts, pending,
-failed }\`; \`failed\` entries carry the server's \`reason\` (FAILED,
-FILE_TYPE_NOT_SUPPORTED, EMPTY: tell the user). AUTO_INDEX_OFF and SKIPPED are
-not indexed by the org's settings.`,
+a document only once it is COMPLETED. Returns \`{ done, total, pendingCount,
+failedCount, pending, failed }\`; \`failed\` entries carry the server's
+\`reason\` (FAILED, FILE_TYPE_NOT_SUPPORTED, EMPTY: tell the user). Counts are
+exact at any size.`,
   scopes: ["read"],
   annotations: {
     title: "Check a PipesHub collection's indexing progress",
@@ -38,52 +74,22 @@ not indexed by the org's settings.`,
   },
   args,
   tool: async (client, args, ctx) => {
-    const counts: Record<string, number> = {};
-    const pending: object[] = [];
-    const failed: object[] = [];
-    let total = 0;
-    let truncated = true;
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const r = await knowledgeHubCollectionRecords(
-        client,
-        args.collectionId,
-        { page, limit: PAGE_SIZE },
-        { fetchOptions: { signal: ctx.signal } },
-      );
-      if (!r.ok) return errorResult(`Indexing status: ${r.error.message}`);
-      const httpErr = await httpErrorResult(r.value, "Indexing status");
-      if (httpErr) return httpErr;
-      const body = await readJson<{ items?: Node[]; pagination?: { hasNext?: boolean } | null }>(
-        r.value,
-        "Indexing status",
-      );
-      if (!body.ok) return body.result;
-      const items = body.value.items ?? [];
-      for (const n of items) {
-        if (n.nodeType !== "record") continue;
-        const status = n.indexingStatus ?? "UNKNOWN";
-        total++;
-        counts[status] = (counts[status] ?? 0) + 1;
-        const entry = { recordId: n.id, name: n.name, status, ...(n.reason ? { reason: n.reason } : {}) };
-        if (PENDING.has(status) && pending.length < MAX_LISTED) pending.push(entry);
-        if (FAILED.has(status) && failed.length < MAX_LISTED) failed.push(entry);
-      }
-      if (!(body.value.pagination?.hasNext ?? items.length >= PAGE_SIZE) || items.length === 0) {
-        truncated = false;
-        break;
-      }
-    }
-    const stillGoing = Object.entries(counts)
-      .filter(([s]) => PENDING.has(s))
-      .reduce((sum, [, n]) => sum + n, 0);
+    const [pending, failed, all] = await Promise.all([
+      countRecords(client, args.collectionId, MAX_LISTED, ctx.signal, PENDING),
+      countRecords(client, args.collectionId, MAX_LISTED, ctx.signal, FAILED),
+      countRecords(client, args.collectionId, 1, ctx.signal),
+    ]);
+    if (!pending.ok) return pending.result;
+    if (!failed.ok) return failed.result;
+    if (!all.ok) return all.result;
     return jsonResult({
-      done: !truncated && stillGoing === 0,
-      total,
-      counts,
-      pending,
-      failed,
-      ...(truncated ? { truncated: true, note: `Counted the first ${MAX_PAGES * PAGE_SIZE} records only.` } : {}),
-      ...(total === 0 ? { note: "The collection has no records yet." } : {}),
+      done: pending.count === 0,
+      total: all.count,
+      pendingCount: pending.count,
+      failedCount: failed.count,
+      pending: pending.records,
+      failed: failed.records,
+      ...(all.count === 0 ? { note: "The collection has no records yet." } : {}),
     });
   },
 };

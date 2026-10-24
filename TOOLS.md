@@ -214,13 +214,13 @@ Uploads documents into a collection. The remote server cannot read the agent's d
 
 ### `pipeshub_indexing_status`
 
-Counts a collection's records by indexing status, so the agent knows when search will find them. One paged listing (up to 2,000 records), no call per record.
+Reports how far a collection's records are through indexing, so the agent knows when search will find them. Three filtered listings (pending, failed, all records) whose totals are exact at any collection size.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `collectionId` | string (uuid) | yes | The collection to check. |
 
-**Response:** `{ done, total, counts, pending, failed }`. `done` is true when nothing is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`. `failed` lists up to 25 records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
+**Response:** `{ done, total, pendingCount, failedCount, pending, failed }`. `done` is true when no record is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`. `pending` and `failed` list up to 25 records each; `failed` covers records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
 
 ### `pipeshub_connect_source`
 

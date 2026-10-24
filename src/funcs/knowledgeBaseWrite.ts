@@ -129,11 +129,15 @@ export function knowledgeBaseUpload(
   }, options);
 }
 
-/** `GET /knowledgeBase/knowledge-hub/nodes/app/{kbId}?flattened=true` — one page of a collection's records. */
+/**
+ * `GET /knowledgeBase/knowledge-hub/nodes/app/{kbId}?flattened=true` — one page
+ * of a collection's records, optionally only those in `indexingStatus`. The
+ * response's `pagination.totalItems` counts every match, not just the page.
+ */
 export function knowledgeHubCollectionRecords(
   client$: PipeshubCore,
   kbId: string,
-  page: { page: number; limit: number },
+  query: { limit: number; indexingStatus?: readonly string[] },
   options?: RequestOptions,
 ): Promise<SendResult> {
   return send(client$, {
@@ -143,8 +147,10 @@ export function knowledgeHubCollectionRecords(
     path: pathToFunc("/knowledgeBase/knowledge-hub/nodes/app/{kbId}")({ kbId }),
     query: encodeFormQuery({
       flattened: true,
-      page: page.page,
-      limit: page.limit,
+      nodeTypes: "record",
+      page: 1,
+      limit: query.limit,
+      indexingStatus: query.indexingStatus?.join(","),
     }),
   }, options);
 }
