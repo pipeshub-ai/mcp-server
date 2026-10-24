@@ -30,6 +30,10 @@ const CURATED = [
   "pipeshub_get_record_content",
   "pipeshub_download_record",
   "pipeshub_directory",
+  "pipeshub_create_collection",
+  "pipeshub_upload",
+  "pipeshub_indexing_status",
+  "pipeshub_connect_source",
   "pipeshub_chat",
   "pipeshub_agents",
 ];

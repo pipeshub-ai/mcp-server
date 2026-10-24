@@ -117,6 +117,8 @@ function tokenWith(scopes: string[]): string {
 const PRE_AGENT_TOKEN = [
   "conversation:chat", "semantic:write", "kb:read", "user:read", "connector:read",
 ];
+/** The write scopes the agent preset gained so an agent can fill an empty workspace. */
+const WRITE_SCOPES = ["kb:write", "kb:upload"];
 
 let server: ReturnType<typeof Bun.serve>;
 let origin: string;
@@ -145,7 +147,7 @@ const status = (token: string) =>
 
 describe("auth status", () => {
   test("warns that a token minted without agent:execute cannot run ask", async () => {
-    const out = await status(tokenWith(PRE_AGENT_TOKEN));
+    const out = await status(tokenWith([...PRE_AGENT_TOKEN, ...WRITE_SCOPES]));
 
     // Still connected and still exit 0: the token works for everything else.
     expect(out.exit).toBe(EXIT.OK);
@@ -158,10 +160,20 @@ describe("auth status", () => {
   });
 
   test("says nothing when the token has every scope the commands need", async () => {
-    const out = await status(tokenWith([...PRE_AGENT_TOKEN, "agent:execute"]));
+    const out = await status(tokenWith([...PRE_AGENT_TOKEN, ...WRITE_SCOPES, "agent:execute"]));
 
     expect(out.payload["missingScopes"]).toEqual({});
     expect(out.payload["warning"]).toBeUndefined();
+  });
+
+  test("a token minted before the write scopes is told which commands need a new one", async () => {
+    const out = await status(tokenWith([...PRE_AGENT_TOKEN, "agent:execute"]));
+
+    expect(out.exit).toBe(EXIT.OK);
+    expect(out.payload["missingScopes"]).toEqual({
+      "collection create": ["kb:write"],
+      upload: ["kb:upload"],
+    });
   });
 
   test("does not guess when the token's scopes cannot be read", async () => {
@@ -177,7 +189,7 @@ describe("auth status", () => {
 describe("what the agent and the operator are told", () => {
   test("whoami is not reported as refused without user:read", () => {
     // It falls back to the token's own claims on any refusal but 401.
-    const missing = missingScopesByCommand(["conversation:chat", "agent:execute", "semantic:write", "kb:read", "connector:read"]);
+    const missing = missingScopesByCommand(["conversation:chat", "agent:execute", "semantic:write", "kb:read", "connector:read", ...WRITE_SCOPES]);
     expect(missing).toEqual({});
   });
 

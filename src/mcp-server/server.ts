@@ -22,6 +22,10 @@ import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
 import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
+import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.js";
+import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
+import { tool$pipeshubIndexingStatus } from "./tools/pipeshubIndexingStatus.js";
+import { tool$pipeshubConnectSource } from "./tools/pipeshubConnectSource.js";
 import { createPipeshubAssistantPrompt } from "./prompts/pipeshubAssistant.js";
 
 /**
@@ -124,9 +128,15 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubGetRecordContent); // 3. read / navigate / look up records
   mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
+  // Filling the workspace: a server started with `--scope read` leaves out
+  // the two that write.
+  mount(tool$pipeshubCreateCollection); // 6. new collection to upload into
+  mount(tool$pipeshubUpload);           // 7. add documents
+  mount(tool$pipeshubIndexingStatus);   // 8. wait until they are searchable
+  mount(tool$pipeshubConnectSource);    // 9. link for the human to connect a tool
   if (chat) {
-    tool(tool$pipeshubChat);            // 6. optional: PipesHub's assistant
-    tool(tool$pipeshubAgents);          // 7. discover org agents (for chat)
+    tool(tool$pipeshubChat);            // 10. optional: PipesHub's assistant
+    tool(tool$pipeshubAgents);          // 11. discover org agents (for chat)
   }
 
   // Curated prompt: user-invokable tool-routing guidance.

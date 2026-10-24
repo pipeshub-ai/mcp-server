@@ -817,13 +817,19 @@ Both are set with environment variables, in the MCP client's `env` block or with
 
 ---
 
+## Read-only mode
+
+Two tools write: `pipeshub_create_collection` and `pipeshub_upload` add collections and documents (they never delete or overwrite). They need the `kb:write` and `kb:upload` scopes. To serve read tools only from the local server, pass `--scope read` to `start` or `serve`. On the remote `/mcp`, a token without those scopes is not offered the write tools.
+
+---
+
 ## Leaving `pipeshub_chat` out
 
-The server offers all seven tools, and its instructions and tool descriptions tell the agent to answer with `pipeshub_search` and `pipeshub_get_record_content` first. `pipeshub_chat` runs PipesHub's own assistant and is optional: for an agent that can call tools, it adds cost and time without adding accuracy. In PipesHub's evaluation (100 questions, Claude Opus as the agent), search and read alone found 88% of the facts at $0.54 and 78 seconds median per answer; adding chat also found 88%, at about $0.73 and 97 seconds. See [TOOLS.md](./TOOLS.md) for the full figures.
+The server offers all eleven tools, and its instructions and tool descriptions tell the agent to answer with `pipeshub_search` and `pipeshub_get_record_content` first. `pipeshub_chat` runs PipesHub's own assistant and is optional: for an agent that can call tools, it adds cost and time without adding accuracy. In PipesHub's evaluation (100 questions, Claude Opus as the agent), search and read alone found 88% of the facts at $0.54 and 78 seconds median per answer; adding chat also found 88%, at about $0.73 and 97 seconds. See [TOOLS.md](./TOOLS.md) for the full figures.
 
 Nothing changes unless you choose to: by default every tool stays. To hold an agent to search and read, leave `pipeshub_chat` out, together with `pipeshub_agents`, which only picks an agent for chat:
 
-- **Local stdio server:** set `PIPESHUB_MCP_CHAT=off` in the server's `env` block in your MCP client config, or pass `--env PIPESHUB_MCP_CHAT=off` to `start` or `serve`. The server then mounts five tools, and its instructions no longer mention chat or agents. Unset or `on` keeps today's behaviour; any other value stops the server with an error that says what it accepts.
+- **Local stdio server:** set `PIPESHUB_MCP_CHAT=off` in the server's `env` block in your MCP client config, or pass `--env PIPESHUB_MCP_CHAT=off` to `start` or `serve`. The server then mounts nine tools, and its instructions no longer mention chat or agents. Unset or `on` keeps today's behaviour; any other value stops the server with an error that says what it accepts.
 
   ```json
   "env": { "PIPESHUB_MCP_CHAT": "off" }

@@ -23,6 +23,10 @@ const CURATED = [
   "pipeshub_get_record_content",
   "pipeshub_download_record",
   "pipeshub_directory",
+  "pipeshub_create_collection",
+  "pipeshub_upload",
+  "pipeshub_indexing_status",
+  "pipeshub_connect_source",
   "pipeshub_chat",
   "pipeshub_agents",
 ];
@@ -89,8 +93,16 @@ describe("createMCPServer tool registration", () => {
     expect(tools.map((t) => t.name)).toEqual(["pipeshub_search", "pipeshub_agents"]);
   });
 
-  test("the read scope keeps every curated tool", async () => {
+  test("the read scope keeps every curated tool except the two that write", async () => {
     const { client } = await connect({ scopes: ["read"] });
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name)).toEqual(
+      CURATED.filter((n) => n !== "pipeshub_create_collection" && n !== "pipeshub_upload"),
+    );
+  });
+
+  test("read and write scopes together keep every curated tool", async () => {
+    const { client } = await connect({ scopes: ["read", "write"] });
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(CURATED);
   });
@@ -271,7 +283,7 @@ describe("dynamic mode", () => {
 
   test("list_scopes lists the server's scopes", async () => {
     const { client } = await connect({ dynamic: true });
-    expect(text(await client.callTool({ name: "list_scopes", arguments: {} }))).toBe("- read");
+    expect(text(await client.callTool({ name: "list_scopes", arguments: {} }))).toBe("- read\n- write");
   });
 });
 

@@ -28,6 +28,7 @@ import {
   type Ctx,
   type Outcome,
 } from "./commands.js";
+import { collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
 
 const USAGE = `pipeshub — query your organization's PipesHub context layer
 
@@ -43,6 +44,11 @@ COMMANDS
   ask <question>              ask a grounded question; returns citations
   get <recordId>              fetch a record's content
   directory whoami            the identity behind the current token
+  collection create <name>    create a collection to upload into
+  upload <collectionId> <path>...
+                              upload files or folders (walked) to a collection
+  status <collectionId>       indexing progress of a collection
+  connect [connector]         link to connect a source, e.g. connect Jira
 
 OPTIONS
   --json                      JSON output (default)
@@ -311,6 +317,31 @@ async function run(argv: string[]): Promise<number> {
       outcome = await get(ctx, recordId, flags.as, flags.out);
       break;
     }
+    case "collection": {
+      const name = positional.slice(2).join(" ").trim();
+      if (sub !== "create" || name === "") {
+        throw new CliError("usage: pipeshub collection create <name>", EXIT.USAGE);
+      }
+      outcome = await collectionCreate(ctx, name);
+      break;
+    }
+    case "upload": {
+      const [, collectionId = "", ...paths] = positional;
+      if (collectionId === "" || paths.length === 0) {
+        throw new CliError("usage: pipeshub upload <collectionId> <path>...", EXIT.USAGE);
+      }
+      outcome = await upload(ctx, collectionId, paths);
+      break;
+    }
+    case "status": {
+      const collectionId = positional[1] ?? "";
+      if (collectionId === "") throw new CliError("usage: pipeshub status <collectionId>", EXIT.USAGE);
+      outcome = await indexingStatus(ctx, collectionId);
+      break;
+    }
+    case "connect":
+      outcome = await connectSource(ctx, positional.slice(1).join(" ").trim() || undefined);
+      break;
     case "directory":
       if (sub !== "whoami") {
         throw new CliError(

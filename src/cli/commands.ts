@@ -97,6 +97,9 @@ function arr(value: unknown): unknown[] {
  *                      → assistant agent chat (Python)           agent:execute
  *   get                GET  /connectors/record/:id/content       connector:read
  *   get --as / --out   GET  /knowledgeBase/stream/record/:id     kb:read
+ *   collection create  POST /knowledgeBase                       kb:write
+ *   upload             POST /knowledgeBase/:id/upload            kb:upload
+ *   status             GET  /knowledgeBase/knowledge-hub/nodes/… kb:read
  *
  * `directory whoami` is left out on purpose. It probes GET /users/:id
  * (user:read), but on any refusal other than 401 it still returns the
@@ -109,6 +112,9 @@ export const COMMAND_SCOPES: Readonly<Record<string, readonly string[]>> = {
   ask: ["conversation:chat", "agent:execute"],
   get: ["connector:read"],
   "get --as/--out": ["kb:read"],
+  "collection create": ["kb:write"],
+  upload: ["kb:upload"],
+  status: ["kb:read"],
 };
 
 /**
