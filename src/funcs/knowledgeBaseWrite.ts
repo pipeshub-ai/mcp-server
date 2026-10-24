@@ -98,6 +98,7 @@ export function knowledgeBaseCreate(
   }, options);
 }
 
+/** `name` may be a `/`-separated path; the collection stores the file in those folders. */
 export type UploadFile = { name: string; bytes: Uint8Array; type: string };
 
 /**
@@ -113,7 +114,7 @@ export function knowledgeBaseUpload(
   const form = new FormData();
   const now = Date.now();
   for (const f of files) {
-    form.append("files", new Blob([f.bytes], { type: f.type }), f.name);
+    form.append("files", new Blob([f.bytes], { type: f.type }), f.name.slice(f.name.lastIndexOf("/") + 1));
   }
   form.append(
     "files_metadata",

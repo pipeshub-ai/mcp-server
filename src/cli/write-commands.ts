@@ -5,7 +5,7 @@
 // /mcp: the files are on this machine, and /mcp caps a request body at 5 MB.
 
 import { lstat, readdir, readFile, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { PipeshubCore } from "../core.js";
 import { uploadMimeType, uploadToCollection } from "../mcp-server/tools/_writeHelpers.js";
 import { callTool, decodeToolJson, joinText, toolErrorToExit } from "./client.js";
@@ -43,9 +43,15 @@ export async function connectSource(ctx: Ctx, connector: string | undefined): Pr
  * folder, dot-entries and symlinks are skipped, so a link cannot pull in a
  * file from outside it (or loop back on a parent).
  */
-async function listFiles(paths: string[]): Promise<{ files: string[]; links: string[] }> {
-  const files: string[] = [];
+async function listFiles(
+  paths: string[],
+): Promise<{ files: Array<{ path: string; name: string }>; links: string[] }> {
+  const files: Array<{ path: string; name: string }> = [];
   const links: string[] = [];
+  // `name` is the path the collection stores, `/`-separated: the server makes
+  // folders from it and refuses a second file of the same name in a folder,
+  // so `docs/readme.md` and `notes/readme.md` must stay apart.
+  let root = "";
   const walk = async (p: string, named: boolean): Promise<void> => {
     const s = await (named ? stat(p) : lstat(p)).catch(() => {
       throw new CliError(`no such file or directory: ${p}`, EXIT.USAGE);
@@ -55,10 +61,12 @@ async function listFiles(paths: string[]): Promise<{ files: string[]; links: str
       return;
     }
     if (s.isFile()) {
-      files.push(p);
+      const name = named ? basename(p) : [basename(resolve(root)), ...relative(root, p).split(sep)].join("/");
+      files.push({ path: p, name });
       return;
     }
     if (!s.isDirectory()) return;
+    if (named) root = p;
     for (const entry of await readdir(p)) {
       if (!entry.startsWith(".")) await walk(join(p, entry), false);
     }
@@ -73,9 +81,9 @@ export async function upload(ctx: Ctx, collectionId: string, paths: string[]): P
   const { files, links } = await listFiles(paths);
   const skipped = [
     ...links.map((f) => ({ path: f, reason: "symlink inside a folder" })),
-    ...files.filter((f) => !uploadMimeType(f)).map((f) => ({ path: f, reason: "unsupported extension" })),
+    ...files.filter((f) => !uploadMimeType(f.path)).map((f) => ({ path: f.path, reason: "unsupported extension" })),
   ];
-  const wanted = files.filter((f) => uploadMimeType(f));
+  const wanted = files.filter((f) => uploadMimeType(f.path));
   if (wanted.length === 0) {
     throw new CliError(
       `nothing to upload: ${files.length === 0 ? "no files found" : "no file has a supported extension"}`,
@@ -111,10 +119,10 @@ export async function upload(ctx: Ctx, collectionId: string, paths: string[]): P
     batch = [];
     batchBytes = 0;
   };
-  for (const path of wanted) {
+  for (const { path, name } of wanted) {
     const bytes = new Uint8Array(await readFile(path));
     if (batch.length >= BATCH_FILES || (batch.length > 0 && batchBytes + bytes.length > BATCH_BYTES)) await flush();
-    batch.push({ name: basename(path), bytes, type: uploadMimeType(path)! });
+    batch.push({ name, bytes, type: uploadMimeType(path)! });
     batchBytes += bytes.length;
   }
   await flush();

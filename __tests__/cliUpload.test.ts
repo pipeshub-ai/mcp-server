@@ -15,6 +15,7 @@ let outside = "";
 let server: ReturnType<typeof Bun.serve>;
 let fail = new Set<string>();
 const received: string[][] = [];
+const stored: string[][] = [];
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "pipeshub-upload-"));
@@ -35,6 +36,7 @@ beforeAll(async () => {
       const form = await req.formData();
       const names = (form.getAll("files") as File[]).map((f) => f.name);
       received.push(names);
+      stored.push(JSON.parse(form.get("files_metadata") as string).map((m: { file_path: string }) => m.file_path));
       const frames = names.map((n) =>
         fail.has(n)
           ? `event: file:failed\ndata: ${JSON.stringify({ fileName: n, errors: ["bad"] })}\n\n`
@@ -77,6 +79,23 @@ describe("pipeshub upload", () => {
     expect((out.payload["skipped"] as Array<{ path: string }>).map((s) => s.path).sort()).toEqual(
       [join(dir, "dangling.md"), join(dir, "notes.txt"), join(dir, "run.exe"), join(dir, "sub", "loop")].sort(),
     );
+  });
+
+  test("files keep their path under the named folder, so same-named files in different folders do not collide", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pipeshub-docs-"));
+    await mkdir(join(root, "sub"));
+    await mkdir(join(root, "other"));
+    await writeFile(join(root, "sub", "a.md"), "1");
+    await writeFile(join(root, "other", "a.md"), "2");
+    fail = new Set();
+    stored.length = 0;
+    try {
+      await upload(ctx(), KB, [root, join(dir, "a.md")]);
+      const top = root.slice(root.lastIndexOf("/") + 1);
+      expect(stored.flat().sort()).toEqual([`${top}/other/a.md`, `${top}/sub/a.md`, "a.md"].sort());
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   test("a symlink named on the command line is followed, since the user chose it", async () => {
