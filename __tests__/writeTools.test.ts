@@ -135,6 +135,29 @@ describe("pipeshub_upload", () => {
     expect(jsonOf(out).note).toContain("without a summary");
   });
 
+  test("a connection that drops mid-stream keeps what was reported, marked incomplete", async () => {
+    const { core } = client(() => {
+      const enc = new TextEncoder();
+      let sent = false;
+      // Error on the read after the first frame: erroring in the same tick drops queued chunks.
+      const body = new ReadableStream({
+        pull(c) {
+          if (sent) return c.error(new Error("socket hang up"));
+          sent = true;
+          c.enqueue(enc.encode(`event: file:succeeded\ndata: ${JSON.stringify({ recordId: "r-1", fileName: "a.md" })}\n\n`));
+        },
+      });
+      return new Response(body, { headers: { "content-type": "text/event-stream" } });
+    });
+    const out = await tool$pipeshubUpload.tool(core, {
+      collectionId: KB,
+      documents: [{ name: "a.md", text: "hi" }, { name: "b.md", text: "yo" }],
+    }, ctx());
+    expect(out.isError).toBeFalsy();
+    expect(jsonOf(out)).toMatchObject({ uploaded: [{ recordId: "r-1" }], summary: null });
+    expect(jsonOf(out).note).toContain("without a summary");
+  });
+
   test("an error frame mid-stream is an error that counts what was stored", async () => {
     const { core } = client(() =>
       sse([["file:succeeded", { recordId: "r-1", fileName: "a.md" }], ["error", { message: "storage down" }]])

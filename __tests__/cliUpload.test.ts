@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { upload } from "../src/cli/write-commands.js";
@@ -11,6 +11,7 @@ import { EXIT } from "../src/cli/config.js";
 
 const KB = "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90";
 let dir = "";
+let outside = "";
 let server: ReturnType<typeof Bun.serve>;
 let fail = new Set<string>();
 const received: string[][] = [];
@@ -22,6 +23,12 @@ beforeAll(async () => {
   await writeFile(join(dir, ".hidden.md"), "secret");
   await mkdir(join(dir, "sub"));
   await writeFile(join(dir, "sub", "c.txt"), "C");
+  // Links inside the folder must not be followed: out of the tree, dangling, or back to a parent.
+  outside = await mkdtemp(join(tmpdir(), "pipeshub-outside-"));
+  await writeFile(join(outside, "secret.txt"), "private");
+  await symlink(join(outside, "secret.txt"), join(dir, "notes.txt"));
+  await symlink(join(dir, "gone.md"), join(dir, "dangling.md"));
+  await symlink(dir, join(dir, "sub", "loop"));
   server = Bun.serve({
     port: 0,
     async fetch(req) {
@@ -43,6 +50,7 @@ beforeAll(async () => {
 afterAll(async () => {
   server.stop(true);
   await rm(dir, { recursive: true, force: true });
+  await rm(outside, { recursive: true, force: true });
 });
 
 const ctx = () => ({
@@ -65,8 +73,23 @@ describe("pipeshub upload", () => {
       collectionId: KB,
       uploaded: [{ recordId: "r-a.md", name: "a.md" }, { recordId: "r-c.txt", name: "c.txt" }],
       failed: [],
-      skipped: [{ path: join(dir, "run.exe"), reason: "unsupported extension" }],
     });
+    expect((out.payload["skipped"] as Array<{ path: string }>).map((s) => s.path).sort()).toEqual(
+      [join(dir, "dangling.md"), join(dir, "notes.txt"), join(dir, "run.exe"), join(dir, "sub", "loop")].sort(),
+    );
+  });
+
+  test("a symlink named on the command line is followed, since the user chose it", async () => {
+    fail = new Set();
+    received.length = 0;
+    await upload(ctx(), KB, [join(dir, "notes.txt")]);
+    expect(received.flat()).toEqual(["notes.txt"]);
+  });
+
+  test("a public cleartext origin is refused before any file is read or sent", async () => {
+    received.length = 0;
+    await expect(upload({ ...ctx(), origin: "http://pipeshub.example.com" }, KB, [dir])).rejects.toThrow();
+    expect(received).toHaveLength(0);
   });
 
   test("a file the server rejects makes the command exit non-zero", async () => {

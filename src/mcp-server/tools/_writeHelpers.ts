@@ -75,33 +75,39 @@ export async function uploadToCollection(
   if (httpErr) return { ok: false, result: httpErr };
 
   const outcome: UploadOutcome = { uploaded: [], failed: [], summary: null };
-  for await (const frame of iterateSSE(r.value)) {
-    const d = (frame.data ?? {}) as {
-      recordId?: unknown;
-      fileName?: unknown;
-      errors?: unknown;
-      summary?: UploadOutcome["summary"];
-      message?: unknown;
-    };
-    if (frame.event === "file:succeeded") {
-      outcome.uploaded.push({ recordId: String(d.recordId), name: String(d.fileName) });
-    } else if (frame.event === "file:failed") {
-      outcome.failed.push({
-        name: String(d.fileName),
-        errors: Array.isArray(d.errors) ? d.errors.map(String) : [],
-        ...(d.recordId ? { recordId: String(d.recordId) } : {}),
-      });
-    } else if (frame.event === "done") {
-      outcome.summary = d.summary ?? null;
-    } else if (frame.event === "error") {
-      return {
-        ok: false,
-        result: errorResult(
-          `Upload stopped: ${typeof d.message === "string" ? d.message : "server error"}. `
-            + `${outcome.uploaded.length} file(s) were stored before it stopped.`,
-        ),
+  try {
+    for await (const frame of iterateSSE(r.value)) {
+      const d = (frame.data ?? {}) as {
+        recordId?: unknown;
+        fileName?: unknown;
+        errors?: unknown;
+        summary?: UploadOutcome["summary"];
+        message?: unknown;
       };
+      if (frame.event === "file:succeeded") {
+        outcome.uploaded.push({ recordId: String(d.recordId), name: String(d.fileName) });
+      } else if (frame.event === "file:failed") {
+        outcome.failed.push({
+          name: String(d.fileName),
+          errors: Array.isArray(d.errors) ? d.errors.map(String) : [],
+          ...(d.recordId ? { recordId: String(d.recordId) } : {}),
+        });
+      } else if (frame.event === "done") {
+        outcome.summary = d.summary ?? null;
+      } else if (frame.event === "error") {
+        return {
+          ok: false,
+          result: errorResult(
+            `Upload stopped: ${typeof d.message === "string" ? d.message : "server error"}. `
+              + `${outcome.uploaded.length} file(s) were stored before it stopped.`,
+          ),
+        };
+      }
     }
+  } catch (err) {
+    // A dropped connection keeps what was already reported (summary stays
+    // null, which callers report as incomplete); a cancelled call does not.
+    if (signal?.aborted) throw err;
   }
   return { ok: true, outcome };
 }
