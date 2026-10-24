@@ -1,11 +1,12 @@
 {
   "manifest_version": "0.3",
   "name": "mcp",
-  "version": "0.0.4",
-  "description": "",
-  "long_description": "PipesHub API: # PipesHub MCP — read-only tool set\n\nThis server exposes 10 read-style tools over the PipesHub workplace AI\nplatform.  All tools require a bearer token (or OAuth `read` scope).\n\n## Discovery (call first if you don't already have these ids)\n\n- `pipeshub-list-sources` — root nodes of the knowledge hub: one entry\n  per connector instance (e.g. Box, Drive) and one per collection\n  (`connector: \"KB\"`), each with a UUID `id`.  For search, connector ids\n  go in `apps` and collection ids in `kb`.\n- `pipeshub-list-models` — configured AI models of a given `modelType`\n  (default: `llm`).  Each item's `modelKey` is what to pass on chat /\n  search requests.  Pick `isDefault: true` unless the user asked for a\n  specific model.\n\n## Chat with the user's enterprise data\n\n1. **Start a chat** with `pipeshub-chat` (POST /conversations/create).\n   Pass the user's question in `query`.  For source scoping, see the\n   tool's `filters` argument.\n2. **Continue the chat** with `pipeshub-chat-continue`\n   (POST /conversations/{conversationId}/messages).  Pass the\n   `conversationId` you captured from the previous response and the\n   user's next question in `query`.  Server-side context is preserved on\n   the conversation; do NOT call `pipeshub-chat` again unless the user\n   explicitly asks to start over.\n3. The AI's reply is the last `bot_response` message in\n   `conversation.messages`.  Citations on that message tell you which\n   records the answer was grounded in\n   (`citations[*].metadata.recordId`).\n\n## Find and download documents\n\n- `pipeshub-search` (POST /search) does semantic search across the org's\n  indexed records.  Use it to resolve a filename / topic into a\n  `recordId`.  Read\n  `searchResponse.searchResults[*].metadata.recordId`.  Scope with\n  connector ids in `apps` and collection ids in `kb`, both from\n  `pipeshub-list-sources`.\n- `pipeshub-download-record`\n  (GET /knowledgeBase/stream/record/{recordId}) streams the file bytes.\n  Get the `recordId` from a chat citation OR from a search result.\n- For \"download the file the AI just cited\": pull `recordId` straight\n  from the chat's `citations[*].metadata.recordId`, no extra search call\n  needed.\n\n## Look up people, groups, and teams\n\n- `pipeshub-list-users` (GET /users) — list / search org users.  Pass\n  `search=<substring>` to match by name or email.\n- `pipeshub-get-user` (GET /users/{id}) — full profile for one user,\n  including the authenticated user themself (decode the JWT `userId`\n  claim to find their id, or list-and-match-on-email).\n- `pipeshub-list-user-groups` (GET /userGroups) — list user groups.\n- `pipeshub-list-my-teams` (GET /teams/user/teams) — teams the caller\n  belongs to.\n\n## Behavior hints\n\n- These tools are **read / query**; none of them is destructive.  The\n  three POST tools (`pipeshub-chat`, `pipeshub-chat-continue`,\n  `pipeshub-search`) persist a conversation / search record but never\n  mutate org data.\n- Scoping ids are UUIDs from `pipeshub-list-sources` — never connector\n  type names (`\"drive\"`, `\"gmail\"`, ...).\n- `Conversation.status` values are mixed-case\n  (`Complete`, `Failed`, `Inprogress`, `None`).  `Message.confidence`\n  values are `High`, `Medium`, `Low`, `Very High`, `Unknown`.\n",
+  "version": "4.4.0",
+  "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, and 50+ workplace sources.",
+  "long_description": "Permissioned search and cited answers over your company's Slack, Google Drive, Gmail, Jira, Confluence, SharePoint, and 50+ other sources, with the signed-in user's permissions.\n\nSet `instance_url` to your PipesHub origin (PipesHub Cloud: `https://app.pipeshub.com`) and paste a personal access token into `bearer_auth`. It acts as you, so results follow your permissions. Start with `pipeshub_sources`, then `pipeshub_search` and `pipeshub_get_record_content`; cite `recordId` / `webUrl`. Tool reference: https://github.com/pipeshub-ai/mcp-server/blob/main/TOOLS.md",
   "author": {
-    "name": "Speakeasy"
+    "name": "PipesHub",
+    "url": "https://www.pipeshub.com"
   },
   "server": {
     "type": "node",
@@ -20,17 +21,11 @@
         "--instance-url",
         "${user_config.instance_url}",
         "--bearer-auth",
-        "${user_config.bearer_auth}",
-        "--client-id",
-        "${user_config.client_id}",
-        "--client-secret",
-        "${user_config.client_secret}",
-        "--token-url",
-        "${user_config.token_url}"
+        "${user_config.bearer_auth}"
       ]
     }
   },
-  "display_name": "Mcp",
+  "display_name": "PipesHub",
   "prompts": [],
   "keywords": [
     "mcp",
@@ -50,37 +45,15 @@
     "instance_url": {
       "type": "string",
       "title": "instance_url",
-      "description": "Base server URL Templated in https://{instance_url}.",
+      "description": "Your PipesHub origin, e.g. https://app.pipeshub.com (PipesHub Cloud) or http://localhost:3000.",
       "required": false,
       "default": "https://app.pipeshub.com"
     },
     "bearer_auth": {
       "type": "string",
-      "title": "bearerAuth",
-      "description": "The bearerAuth to use for the request",
-      "required": false,
-      "sensitive": true
-    },
-    "client_id": {
-      "type": "string",
-      "title": "ClientID",
-      "description": "The ClientID to use for the request",
+      "title": "Personal access token",
+      "description": "A PipesHub personal access token (phpat_…), minted in Workspace → Developer settings. It acts as you, with your permissions.",
       "required": true,
-      "sensitive": true
-    },
-    "client_secret": {
-      "type": "string",
-      "title": "ClientSecret",
-      "description": "The ClientSecret to use for the request",
-      "required": true,
-      "sensitive": true
-    },
-    "token_url": {
-      "type": "string",
-      "title": "TokenURL",
-      "description": "The TokenURL to use for the request",
-      "required": true,
-      "default": "/api/v1/oauth2/token",
       "sensitive": true
     }
   },

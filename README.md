@@ -10,13 +10,15 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
 
 > **Coding agent?** Start at [For coding agents](https://docs.pipeshub.com/for-agents.md). Install the skill into the *user's* repo with `npx skills add pipeshub-ai/mcp-server` (see [`skills/pipeshub`](./skills/pipeshub/SKILL.md)) and append the `AGENTS.md` snippet on that page. Listed on the [official MCP registry](https://registry.modelcontextprotocol.io) as `io.github.pipeshub-ai/mcp` and on [Cursor Directory](https://cursor.directory/plugins/mcp-server-3) as PipesHub. The listing files (`plugin.json`, `mcp.json`) default MCP to `http://localhost:3000/mcp` (Docker). Change the URL for a company instance; they contain no secrets. Contributors working in this repository: read [AGENTS.md](./AGENTS.md).
 >
+> **Claude Code plugin:** `/plugin marketplace add pipeshub-ai/mcp-server`, then `/plugin install pipeshub@pipeshub`, adds the MCP server, the skill, and the `/pipeshub:ask` and `/pipeshub:setup` commands. It connects to `${PIPESHUB_MCP_URL:-https://app.pipeshub.com/mcp}` with `Authorization: Bearer ${PIPESHUB_MCP_TOKEN}`; export both in your shell (self-hosted: set the URL to `https://<your-instance>/mcp`), then restart Claude Code.
+>
 > **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`, `pipeshub_agents`). Searching and reading records is the recommended default; `pipeshub_chat` is optional (see [Leaving `pipeshub_chat` out](#leaving-pipeshub_chat-out)).
 >
 > **Using QM?** QM cannot attach a third-party MCP endpoint — it is an MCP *server* to its own harness, not a client. Follow [Use PipesHub with QM](./qm/docs/use-with-qm.md). The deployment-layer bundle in [`qm/`](./qm/) gives agents a `pipeshub` command inside their sandbox; this package ships that command as a second bin.
 
 ## Prerequisites
 
-- A running PipesHub instance (self-hosted or cloud). If they have none yet, the [local Docker demo](https://docs.pipeshub.com/for-agents-local-demo.md) playbook covers install and first-run — do not scaffold LangChain. First-run (account + LLM) is still in the browser; search 500s until an LLM is configured.
+- A running PipesHub instance: [PipesHub Cloud](https://app.pipeshub.com) or self-hosted. To self-host, the [local Docker demo](https://docs.pipeshub.com/for-agents-local-demo.md) playbook covers install and first-run — do not scaffold LangChain. First-run (account + LLM) is still in the browser; search 500s until an LLM is configured.
 - An OAuth app created in PipesHub (see [Step 1](#step-1-create-an-oauth-app-in-pipeshub))
 
 ## Step 1: Create an OAuth App in PipesHub

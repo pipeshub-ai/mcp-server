@@ -1,0 +1,15 @@
+{
+  "name": "pipeshub",
+  "description": "PipesHub plugins for Claude Code.",
+  "owner": {
+    "name": "PipesHub",
+    "url": "https://www.pipeshub.com"
+  },
+  "plugins": [
+    {
+      "name": "pipeshub",
+      "source": ".",
+      "description": "Permissioned search and cited answers over your company's Slack, Drive, Jira, Confluence, and 50+ sources."
+    }
+  ]
+}
