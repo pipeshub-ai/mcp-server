@@ -203,7 +203,7 @@ Creates an empty collection (a knowledge base the caller owns) to upload into. N
 
 ### `pipeshub_upload`
 
-Uploads documents into a collection. The remote server cannot read the agent's disk, so each document travels inline: `text` for text formats, `base64` for binary ones. Up to 20 documents and about 3 MB per call (the `/mcp` request body is capped at 5 MB). For larger files or a folder, use the CLI: `pipeshub upload <collectionId> <path>...`. Supported extensions: pdf, txt, md, mdx, html, htm, csv, tsv, json, xml, rtf, docx, doc, xlsx, xls, pptx, ppt, odt, epub, png, jpg, jpeg.
+Uploads documents into a collection. The remote server cannot read the agent's disk, so each document travels inline: `text` for text formats, `base64` for binary ones. Up to 20 documents and about 3 MB per call (the `/mcp` request body is capped at 5 MB). For larger files or a folder, use the CLI: `pipeshub upload <collectionId> <path>...` (sign it in first with `pipeshub login`; an agent runs `pipeshub login --no-wait`, gives the user the link and code, then `pipeshub login --wait`). Supported extensions: pdf, txt, md, mdx, html, htm, csv, tsv, json, xml, rtf, docx, doc, xlsx, xls, pptx, ppt, odt, epub, png, jpg, jpeg.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|

@@ -28,6 +28,8 @@ import {
 export interface Ctx extends ClientOptions {
   json: boolean;
   maxChars: number;
+  /** Where the token came from when it was not the environment, e.g. "pipeshub login". */
+  tokenSource?: string;
 }
 
 /** Result of a command: what to print, and what to exit with. */
@@ -161,7 +163,7 @@ export async function authStatus(ctx: Ctx): Promise<Outcome> {
       requestId: ctx.requestId,
       connected,
       baseUrl: ctx.origin,
-      tokenSource: tokenSource(),
+      tokenSource: ctx.tokenSource ?? tokenSource(),
       // Identity and scopes come from the token's own claims. The token
       // itself is never included, in any field, in any mode.
       user: claims.fullName,
@@ -179,9 +181,13 @@ export async function authStatus(ctx: Ctx): Promise<Outcome> {
         ? {
           warning: `This token lacks ${lacking.join(", ")}, so `
             + `${Object.keys(missingScopes ?? {}).map((c) => `'${c}'`).join(", ")} `
-            + "will be refused. Scopes cannot be added to an existing token: "
-            + "create a new personal access token in PipesHub under Developer "
-            + "Settings → Personal Access Tokens with them selected.",
+            + "will be refused. "
+            + (ctx.tokenSource === "pipeshub login"
+              ? "The instance did not grant them to CLI sign-ins (its MCP_SCOPES "
+                + "setting); once an admin adds them, run 'pipeshub login' again."
+              : "Scopes cannot be added to an existing token: create a new "
+                + "personal access token in PipesHub under Developer Settings → "
+                + "Personal Access Tokens with them selected."),
         }
         : {}),
       error,

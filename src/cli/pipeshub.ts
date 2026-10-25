@@ -3,15 +3,18 @@
 // Design constraints worth stating at the top, because they are easy to erode:
 //
 //   - There is NO way to supply a credential on the command line. No
-//     `auth set`, no `auth import`, no `--token`, no `--print-token`. The
-//     keychain is the only credential path. A flag that accepts a token would
-//     end up in shell history, process listings, and eventually a transcript.
+//     `auth set`, no `auth import`, no `--token`, no `--print-token`. A token
+//     comes from the environment (the QM keychain) or from `pipeshub login`,
+//     which gets one from the browser and stores it in a 0600 file. A flag
+//     that accepts a token would end up in shell history, process listings,
+//     and eventually a transcript.
 //   - The token is never printed, in any command, in any mode.
 //   - Exit codes are contractual: agents branch on them.
 
 import {
   CliError,
   EXIT,
+  describeToken,
   resolveOrigin,
   resolveToken,
 } from "./config.js";
@@ -29,6 +32,17 @@ import {
   type Outcome,
 } from "./commands.js";
 import { collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
+import {
+  CLOUD_ORIGIN,
+  credentialsPath,
+  logout,
+  readPending,
+  startLogin,
+  storedLogin,
+  waitForLogin,
+  type PendingLogin,
+  type StoredLogin,
+} from "./login.js";
 
 const USAGE = `pipeshub — query your organization's PipesHub context layer
 
@@ -36,6 +50,8 @@ USAGE
   pipeshub <command> [options]
 
 COMMANDS
+  login [--url <origin>]      sign in from the browser (default PipesHub Cloud)
+  logout                      sign out and forget the stored sign-in
   auth status                 show connection, user, org, scopes, expiry
   auth connect-help           print the keychain setup steps
   init-qm <dir>               scaffold the QM deployment-layer bundle (admin)
@@ -63,9 +79,12 @@ OPTIONS
   --max-chars <n>             cap snippet/content length (default 2000)
   --insecure-http             allow cleartext to a host outside the private allowlist
   --force                     init-qm: overwrite files that already exist
+  --url <origin>              login: the PipesHub to sign in to
+  --no-wait                   login: print the code and link, then exit
+  --wait                      login: finish a sign-in started with --no-wait
 
 ENVIRONMENT
-  PIPESHUB_TOKEN     preferred; PIPESHUB_MCP_TOKEN also accepted
+  PIPESHUB_TOKEN     preferred over a stored login; PIPESHUB_MCP_TOKEN also accepted
   PIPESHUB_BASE_URL  origin, e.g. https://pipeshub.example.com
                      PIPESHUB_MCP_URL also accepted (its /mcp path is stripped)
 
@@ -73,8 +92,9 @@ EXIT CODES
   0 ok · 2 usage · 3 not authenticated · 4 forbidden · 5 rate limited
   6 no results (also: an 'ask' answer with no citations)
 
-Credentials come from your QM keychain. This CLI cannot accept one as an
-argument, by design. Run 'pipeshub auth connect-help' for setup steps.`;
+Credentials come from 'pipeshub login' or the environment (in QM, your
+keychain). This CLI cannot accept one as an argument, by design. In QM, run
+'pipeshub auth connect-help' for setup steps.`;
 
 interface Flags {
   json: boolean;
@@ -88,6 +108,8 @@ interface Flags {
   maxChars: number;
   insecureHttp: boolean;
   force: boolean;
+  url: string | null;
+  wait: boolean | null;
 }
 
 function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
@@ -103,6 +125,8 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     maxChars: 2000,
     insecureHttp: false,
     force: false,
+    url: null,
+    wait: null,
   };
   const positional: string[] = [];
 
@@ -121,6 +145,9 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--text": flags.json = false; break;
       case "--insecure-http": flags.insecureHttp = true; break;
       case "--force": flags.force = true; break;
+      case "--wait": flags.wait = true; break;
+      case "--no-wait": flags.wait = false; break;
+      case "--url": flags.url = needValue(a, argv[++i]); break;
       case "--limit": flags.limit = Number(needValue(a, argv[++i])); break;
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
       case "--kb": flags.kb.push(needValue(a, argv[++i])); break;
@@ -192,19 +219,32 @@ async function run(argv: string[]): Promise<number> {
 
   // Refuse the credential-mutating shapes explicitly, so the failure explains
   // itself instead of looking like a typo. These names must never work.
-  if (command === "auth" && ["set", "import", "login", "add"].includes(sub)) {
+  if (command === "auth" && ["set", "import", "add"].includes(sub)) {
     await writeFlushed(
       process.stderr,
       `pipeshub auth ${sub} does not exist, deliberately.\n`
-        + "Credentials come from your QM keychain — run "
-        + "'pipeshub auth connect-help' for the steps.\n",
+        + "Run 'pipeshub login' to sign in from the browser, or in QM "
+        + "'pipeshub auth connect-help' for the keychain steps.\n",
     );
     return EXIT.USAGE;
   }
 
   const requestId = newRequestId();
-  const token = resolveToken();
-  const origin = resolveOrigin();
+  let token = resolveToken();
+  let origin = resolveOrigin();
+
+  if (command === "login" || (command === "auth" && sub === "login")) {
+    return login(flags.url !== null ? resolveOrigin({ PIPESHUB_BASE_URL: flags.url }) : origin, flags, requestId);
+  }
+  if (command === "logout") {
+    const out = await logout();
+    await emit({
+      exit: EXIT.OK,
+      payload: { requestId, loggedOut: true, origin: out.origin, revoked: out.revoked },
+      text: out.origin ? `Signed out of ${out.origin}.` : "No stored sign-in.",
+    }, flags.json);
+    return EXIT.OK;
+  }
 
   // connect-help must work with no credential at all — it is the thing you run
   // precisely when you have none.
@@ -247,6 +287,17 @@ async function run(argv: string[]): Promise<number> {
     return EXIT.OK;
   }
 
+  // The environment wins; a stored login is used only for its own origin.
+  let source: string | undefined;
+  if (token === null) {
+    const stored = await storedLogin(origin);
+    if (stored) {
+      token = stored.accessToken;
+      origin ??= stored.origin;
+      source = "pipeshub login";
+    }
+  }
+
   if (origin === null) {
     // Report the missing credential too when both are absent. Otherwise a
     // person whose actual problem is "I never added my token" is told about a
@@ -258,14 +309,16 @@ async function run(argv: string[]): Promise<number> {
       "PIPESHUB_BASE_URL is not set — it must reach the sandbox as an env var "
         + "(keychain or org service credential, not sandbox.env)."
         + alsoNoToken
-        + " Run 'pipeshub auth connect-help' for the steps.",
+        + " Run 'pipeshub auth connect-help' for the steps. Outside QM, run "
+        + "'pipeshub login' to sign in from the browser.",
       EXIT.USAGE,
     );
   }
   if (token === null) {
     throw new CliError(
       "No PipesHub credential found ($PIPESHUB_TOKEN is unset). "
-        + "Run 'pipeshub auth connect-help' for setup steps.",
+        + "Run 'pipeshub auth connect-help' for setup steps, or outside QM "
+        + `'pipeshub login --url ${origin}'.`,
       EXIT.UNAUTHENTICATED,
     );
   }
@@ -277,6 +330,7 @@ async function run(argv: string[]): Promise<number> {
     requestId,
     json: flags.json,
     maxChars: flags.maxChars,
+    ...(source ? { tokenSource: source } : {}),
   };
 
   let outcome: Outcome;
@@ -360,6 +414,61 @@ async function run(argv: string[]): Promise<number> {
 
   await emit(outcome, flags.json);
   return outcome.exit;
+}
+
+async function login(origin: string | null, flags: Flags, requestId: string): Promise<number> {
+  let pending: PendingLogin | null;
+  if (flags.wait === true) {
+    pending = await readPending();
+    if (pending === null) {
+      throw new CliError("No sign-in in progress. Run 'pipeshub login --no-wait' first.", EXIT.USAGE);
+    }
+  } else {
+    pending = await startLogin(origin ?? CLOUD_ORIGIN, flags.insecureHttp);
+    const prompt = `Open ${pending.verificationUriComplete} and confirm the code ${pending.userCode}.`;
+    if (flags.wait === false) {
+      // For agents, whose output appears only when the command ends: hand the
+      // link to the person, then finish with --wait.
+      await emit({
+        exit: EXIT.OK,
+        payload: {
+          requestId,
+          origin: pending.origin,
+          verificationUri: pending.verificationUri,
+          verificationUriComplete: pending.verificationUriComplete,
+          userCode: pending.userCode,
+          expiresAt: new Date(pending.expiresAt).toISOString(),
+          message: `Ask the user to ${prompt[0]!.toLowerCase()}${prompt.slice(1)}`,
+          next: "pipeshub login --wait",
+        },
+        text: `${prompt}\nThen run: pipeshub login --wait`,
+      }, flags.json);
+      return EXIT.OK;
+    }
+    await writeFlushed(process.stderr, `${prompt}\nWaiting for approval...\n`);
+  }
+  const stored: StoredLogin = await waitForLogin(pending);
+  const claims = describeToken(stored.accessToken);
+  await emit({
+    exit: EXIT.OK,
+    payload: {
+      requestId,
+      loggedIn: true,
+      origin: stored.origin,
+      user: claims.fullName,
+      userId: claims.userId,
+      org: claims.orgId,
+      scopes: claims.scopes,
+      expiresAt: new Date(stored.expiresAt).toISOString(),
+      credentials: credentialsPath(),
+      // Some instances grant no refresh token; say so now, not in an hour.
+      ...(stored.refreshToken
+        ? {}
+        : { note: `${stored.origin} issued no refresh token, so this sign-in ends at expiresAt. Run 'pipeshub login' again then.` }),
+    },
+    text: `Signed in to ${stored.origin}${claims.fullName ? ` as ${claims.fullName}` : ""}.`,
+  }, flags.json);
+  return EXIT.OK;
 }
 
 const code = await run(process.argv.slice(2)).catch(async (e: unknown) => {
