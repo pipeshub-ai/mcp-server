@@ -215,7 +215,8 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
       const hit = hits.find((h) => h.recordName === "b.py");
       expect(hit, JSON.stringify(hits.map((h) => h.recordName))).toBeDefined();
       expect(hit!.recordId).toMatch(/[0-9a-f-]{20,}/);
-      expect(hit!.webUrl).toContain("pkg/b.py");
+      expect(hit!.webUrl).toBe(`http://127.0.0.1:${PORT}/record/${hit!.recordId}`); // a link that opens, never the repository key
+      expect(JSON.stringify(hits)).not.toContain("local-repo://");
       expect(hit!.passages.map((p) => p.text).join("")).toContain("helper(x)");
     } finally {
       await c.close();
