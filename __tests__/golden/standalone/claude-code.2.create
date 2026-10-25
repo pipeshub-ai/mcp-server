@@ -1,10 +1,7 @@
-<!-- pipeshub:begin (managed by pipeshub init; remove with: pipeshub init --uninstall) -->
-## PipesHub
+---
+description: Index this repository into PipesHub
+---
 
-PipesHub is connected as the MCP server `pipeshub` and runs on this computer.
+<!-- managed by pipeshub init -->
 
-- For a question about what the team knows (decisions, tickets, docs, chat, who owns what), call `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content`, and answer from what they say. Do not answer from memory.
-- Try other wording when the first search misses. For "all" or "how many", do not stop at the first matches.
-- If the `pipeshub_code_*` tools are listed, use them for questions about this repository's code (callers, callees, impact) before reading many files.
-- If a tool says PipesHub is not reachable, tell the user to run `pipeshub dev up`.
-<!-- pipeshub:end -->
+Call the `index_workspace` tool of the `pipeshub` MCP server for the current working directory (pass it as `path`). Report the files sent, the state and whether the `pipeshub_code_*` tools are listed now. On an error, show it and suggest running `npx @pipeshub-ai/standalone index` in the repository.
