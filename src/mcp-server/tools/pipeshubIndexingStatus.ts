@@ -58,12 +58,12 @@ async function countRecords(
 export const tool$pipeshubIndexingStatus: ToolDefinition<typeof args> = {
   name: "pipeshub_indexing_status",
   description:
-    `How far a collection's documents are through indexing. Call after
-\`pipeshub_upload\`, then every 15–30 s while \`done\` is false: search finds
-a document only once it is COMPLETED. Returns \`{ done, total, pendingCount,
-failedCount, pending, failed }\`; \`failed\` entries carry the server's
-\`reason\` (FAILED, FILE_TYPE_NOT_SUPPORTED, EMPTY: tell the user). Counts are
-exact at any size.`,
+    `Indexing progress of a collection. Call after \`pipeshub_upload\`, then
+every 15–30 s while \`done\` is false: search finds only COMPLETED
+documents. Returns \`{ done, total, pendingCount, failedCount, pending,
+failed }\`; tell the user about \`failed\` entries (FAILED,
+FILE_TYPE_NOT_SUPPORTED, EMPTY, ENABLE_MULTIMODAL_MODELS, with a \`reason\`).
+AUTO_INDEX_OFF and SKIPPED count in \`total\` only.`,
   scopes: ["read"],
   annotations: {
     title: "Check a PipesHub collection's indexing progress",
