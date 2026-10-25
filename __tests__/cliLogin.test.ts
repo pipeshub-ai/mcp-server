@@ -24,6 +24,9 @@ let refreshDown = false;
 let elsewhere = "";
 let redirectToken = false;
 let verificationOrigin = "";
+let completeOrigin = "";
+// Runs just before a token response: stands in for a `pipeshub logout` in another terminal.
+let beforeTokens: (() => Promise<void>) | null = null;
 let scope = "kb:read kb:write";
 let issued = 0;
 const seen: Array<{ path: string; form?: Record<string, string>; authorization?: string | null }> = [];
@@ -70,7 +73,7 @@ beforeAll(() => {
           device_code: "dev-secret",
           user_code: "ABCD-EFGH",
           verification_uri: `${verificationOrigin || origin}/oauth/device`,
-          verification_uri_complete: `${verificationOrigin || origin}/oauth/device?user_code=ABCD-EFGH`,
+          verification_uri_complete: `${completeOrigin || verificationOrigin || origin}/oauth/device?user_code=ABCD-EFGH`,
           expires_in: 60,
           interval: 1,
         });
@@ -82,11 +85,13 @@ beforeAll(() => {
         polls += 1;
         if (polls < 2) return Response.json({ error: "authorization_pending" }, { status: 400 });
         if (decision === "deny") return Response.json({ error: "access_denied" }, { status: 400 });
+        await beforeTokens?.();
         return Response.json(mint());
       }
       if (path.endsWith("/token") && form["grant_type"] === "refresh_token") {
         if (refreshDown) return Response.json({ error: "server_error" }, { status: 503 });
         if (form["refresh_token"] !== `refresh-${issued}`) return Response.json({ error: "invalid_grant" }, { status: 400 });
+        await beforeTokens?.();
         return Response.json(mint());
       }
       if (path.endsWith("/revoke")) return new Response("", { status: 200 });
@@ -107,6 +112,8 @@ beforeEach(async () => {
   elsewhere = "";
   redirectToken = false;
   verificationOrigin = "";
+  completeOrigin = "";
+  beforeTokens = null;
   scope = "kb:read kb:write";
   seen.length = 0;
 });
@@ -265,6 +272,37 @@ describe("pipeshub login", () => {
     const r = await cli(["login", "--url", origin, "--no-wait"]);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("cleartext");
+  });
+
+  test("a cleartext public link in verification_uri_complete alone is refused", async () => {
+    completeOrigin = "http://pipeshub.example.com";
+    const r = await cli(["login", "--url", origin, "--no-wait"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("cleartext");
+  });
+
+  test("a logout during a refresh is not undone by the refresh", async () => {
+    await cli(["login", "--url", origin]);
+    const before = JSON.parse(await readFile(credentials(), "utf8"));
+    await writeFile(credentials(), JSON.stringify({ ...before, expiresAt: 0 }), { mode: 0o600 });
+    beforeTokens = () => rm(credentials(), { force: true });
+    seen.length = 0;
+    const r = await cli(["auth", "status"]);
+    expect(r.code).toBe(3);
+    await expect(stat(credentials())).rejects.toThrow();
+    // The tokens the refresh just minted are revoked, not left valid.
+    expect(seen.find((x) => x.path.endsWith("/revoke"))?.form?.["token"]).toBe(`refresh-${issued}`);
+  });
+
+  test("a logout while login --wait polls is not undone when approval lands", async () => {
+    await cli(["login", "--url", origin, "--no-wait"]);
+    beforeTokens = () => rm(join(home, ".config", "pipeshub", "pending-login.json"), { force: true });
+    seen.length = 0;
+    const r = await cli(["login", "--wait"]);
+    expect(r.code).toBe(3);
+    expect(r.stderr).toContain("cancelled");
+    await expect(stat(credentials())).rejects.toThrow();
+    expect(seen.some((x) => x.path.endsWith("/revoke"))).toBe(true);
   });
 
   test("a denial in the browser exits 3", async () => {

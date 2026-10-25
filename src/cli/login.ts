@@ -152,14 +152,15 @@ export async function startLogin(
   if (r.status !== 200 || !deviceCode || !userCode || !verificationUri) {
     throw new CliError(`sign-in could not start: ${oauthError(r)}`);
   }
-  // The person opens this link and signs in there, so it meets the transport rule too.
-  assertTransport(new URL(verificationUri).origin, insecureHttp);
+  const verificationUriComplete = str(r.body["verification_uri_complete"]) ?? verificationUri;
+  // The person opens these links and signs in there, so they meet the transport rule too.
+  for (const link of [verificationUri, verificationUriComplete]) assertTransport(new URL(link).origin, insecureHttp);
   const pending: PendingLogin = {
     ...endpoints,
     deviceCode,
     userCode,
     verificationUri,
-    verificationUriComplete: str(r.body["verification_uri_complete"]) ?? verificationUri,
+    verificationUriComplete,
     intervalSeconds: Number(r.body["interval"]) || 5,
     expiresAt: Date.now() + (Number(r.body["expires_in"]) || 600) * 1000,
   };
@@ -214,6 +215,16 @@ export async function waitForLogin(
     });
     if (r.status === 200) {
       const stored = toStored(pending, r.body);
+      // shortcut: re-read then rename leaves a moment for a concurrent logout; a file lock would close it.
+      if ((await readPending(env))?.deviceCode !== pending.deviceCode) {
+        // `logout`, or a newer `login`, dropped this sign-in while it waited: do not undo that.
+        await revokeAll(stored);
+        throw new CliError(
+          "this sign-in was cancelled while it waited (pipeshub logout, or a newer pipeshub login). "
+            + "Run 'pipeshub login' again.",
+          EXIT.UNAUTHENTICATED,
+        );
+      }
       await writeSecretFile(credentialsPath(env), stored);
       await rm(pendingPath(env), { force: true });
       return stored;
@@ -257,6 +268,14 @@ export async function storedLogin(
   });
   if (r.status === 200) {
     const next = toStored(stored, r.body, stored.refreshToken);
+    // Write only over the file this refresh started from. A logout, or another
+    // process's refresh or sign-in, since then wins; our new tokens are revoked.
+    const current = await readStored(path);
+    if (current?.refreshToken !== stored.refreshToken) {
+      await revokeAll(next);
+      if (current?.origin === stored.origin && current.expiresAt > Date.now()) return current;
+      throw signInAgain(stored.origin);
+    }
     await writeSecretFile(path, next);
     return next;
   }
@@ -272,6 +291,19 @@ export async function storedLogin(
     );
   }
   throw signInAgain(stored.origin);
+}
+
+/** Ask to revoke the refresh and access token; true when the server answered 200 to either. */
+async function revokeAll(login: StoredLogin): Promise<boolean> {
+  if (!login.revocationEndpoint) return false;
+  let answered = false;
+  for (const [token, hint] of [[login.refreshToken, "refresh_token"], [login.accessToken, "access_token"]] as const) {
+    if (!token) continue;
+    const r = await postForm(login.revocationEndpoint, { token, token_type_hint: hint, client_id: login.clientId })
+      .catch(() => null);
+    answered ||= r?.status === 200;
+  }
+  return answered;
 }
 
 function signInAgain(origin: string): CliError {
@@ -290,21 +322,7 @@ export async function logout(
 ): Promise<{ origin: string | null; revokeRequested: boolean }> {
   const path = credentialsPath(env);
   const stored = await readStored(path);
-  let revokeRequested = false;
-  if (stored?.revocationEndpoint) {
-    const tokens: Array<[string, string]> = [
-      ...(stored.refreshToken ? [[stored.refreshToken, "refresh_token"] as [string, string]] : []),
-      [stored.accessToken, "access_token"],
-    ];
-    for (const [token, hint] of tokens) {
-      const r = await postForm(stored.revocationEndpoint, {
-        token,
-        token_type_hint: hint,
-        client_id: stored.clientId,
-      }).catch(() => null);
-      revokeRequested ||= r?.status === 200;
-    }
-  }
+  const revokeRequested = stored ? await revokeAll(stored) : false;
   await rm(path, { force: true });
   await rm(pendingPath(env), { force: true });
   return { origin: stored?.origin ?? null, revokeRequested };
