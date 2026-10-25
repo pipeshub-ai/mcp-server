@@ -158,12 +158,13 @@ describe("pipeshub mcp install", () => {
     expect(JSON.parse(r.stdout).note).toContain("pipeshub login");
   });
 
-  test("the minimum version is not older than this package, so it includes this start", async () => {
-    const own = (JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as { version: string }).version;
-    const parts = (v: string) => v.split(".").map(Number);
-    const [a, b] = [parts(FIRST_START_WITH_SIGN_IN), parts(own)];
-    // Before the release, this package is still at the previous version; after it, at or above the minimum.
-    expect(a[0]! > b[0]! || (a[0] === b[0] && a[1]! >= b[1]!)).toBe(true);
+  test("the minimum excludes 4.6.0, the last published start without the sign-in fallback", () => {
+    const cmp = (x: string, y: string) => {
+      const [a, b] = [x.split(".").map(Number), y.split(".").map(Number)];
+      for (let k = 0; k < 3; k++) if (a[k] !== b[k]) return a[k]! - b[k]!;
+      return 0;
+    };
+    expect(cmp("4.6.0", FIRST_START_WITH_SIGN_IN)).toBeLessThan(0);
   });
 
   test("an unknown client is a usage error", async () => {
