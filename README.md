@@ -504,7 +504,22 @@ Instead of connecting to PipesHub's remote MCP endpoint, you can run the MCP ser
 
 - Node.js 18+ installed
 - A PipesHub instance URL
-- A [personal access token](https://docs.pipeshub.com/developer/personal-access-tokens) (`phpat_…`), minted in PipesHub under Developer Settings. It acts as you, so results follow your permissions.
+- A credential that acts as you, so results follow your permissions. Either:
+  - **No token in the config:** run `pipeshub login` once (`npm i -g @pipeshub-ai/mcp`; `--url <origin>` when self-hosted). With no `--bearer-auth`, `start` uses that sign-in, refreshes it (on PipesHub versions that issue device-login refresh tokens; otherwise it lasts an hour), and defaults `--server-url` to the instance you signed in to. It also reads `PIPESHUB_TOKEN` from the environment, sent only to `--server-url` or `PIPESHUB_BASE_URL`.
+  - **A [personal access token](https://docs.pipeshub.com/developer/personal-access-tokens)** (`phpat_…`), minted in PipesHub under Developer Settings and passed as `--bearer-auth`, as in the examples below.
+
+With `pipeshub login`, a Claude Desktop entry is just:
+
+```json
+{
+  "mcpServers": {
+    "pipeshub": {
+      "command": "npx",
+      "args": ["@pipeshub-ai/mcp", "start"]
+    }
+  }
+}
+```
 
 ### Placeholders
 

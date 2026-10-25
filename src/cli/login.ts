@@ -287,7 +287,9 @@ export async function storedLogin(
   // The server rotates refresh tokens, so a second CLI process refreshing at
   // the same moment makes ours stale. If the file moved on meanwhile, use it.
   const current = await readStored(path);
-  if (current && current.refreshToken !== stored.refreshToken && current.expiresAt > Date.now()) return current;
+  if (current?.origin === stored.origin && current.refreshToken !== stored.refreshToken && current.expiresAt > Date.now()) {
+    return current;
+  }
   // A server error or rate limit says nothing about the refresh token, which is still good.
   if (r.status >= 500 || r.status === 429) {
     throw new CliError(
