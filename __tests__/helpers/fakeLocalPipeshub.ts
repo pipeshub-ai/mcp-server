@@ -16,8 +16,8 @@ export interface FakeLocal {
   revoked: string[];
   log: string[];
   /** What `/mcp` lists, and every tools/call it received. */
-  mcp: { tools: Record<string, unknown>[]; calls: { name: string; args: unknown; authorization: string | null }[]; status: number; hang: boolean };
-  repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[]; status: string | null; error: string | null };
+  mcp: { tools: Record<string, unknown>[]; calls: { name: string; args: unknown; authorization: string | null }[]; status: number; hang: boolean; reply: ((tool: string) => string | null) | null };
+  repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[]; status: string | null; error: string | null; maxManifestEntries: number; getDelayMs: number; refuse: string[] };
   stop(): void;
 }
 
@@ -30,8 +30,8 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
     password: null,
     revoked: [],
     log: [],
-    mcp: { tools: [], calls: [], status: 200, hang: false },
-    repo: { name: null, files: new Map(), commits: 0, deleted: [], status: null, error: null },
+    mcp: { tools: [], calls: [], status: 200, hang: false, reply: null },
+    repo: { name: null, files: new Map(), commits: 0, deleted: [], status: null, error: null, maxManifestEntries: 20000, getDelayMs: 0, refuse: [] },
     stop: () => server.stop(true),
   };
   let org = opts.orgExists ?? false;
@@ -62,7 +62,8 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
         if (rpc.method === "tools/list") result = { tools: state.mcp.tools };
         if (rpc.method === "tools/call") {
           state.mcp.calls.push({ name: rpc.params!.name!, args: rpc.params!.arguments, authorization: req.headers.get("authorization") });
-          result = rpc.params!.name === "pipeshub_broken"
+          const canned = state.mcp.reply?.(rpc.params!.name!) ?? null;
+          result = canned !== null ? { content: [{ type: "text", text: canned }] } : rpc.params!.name === "pipeshub_broken"
             ? { isError: true, content: [{ type: "text", text: "Search failed (HTTP 403 Forbidden)." }] }
             : { content: [{ type: "text", text: JSON.stringify({ tool: rpc.params!.name, args: rpc.params!.arguments }) }] };
         }
@@ -121,7 +122,7 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
       if (p.startsWith("/api/v1/local-repos")) {
         if (bearer !== state.issuedToken) return json({ detail: "no" }, 401);
         const rest = p.slice("/api/v1/local-repos".length).split("/").filter(Boolean);
-        const limits = { maxFiles: 20000, maxFileBytes: 1048576, maxBatchFiles: 100, maxBatchBytes: 4194304, maxManifestEntries: 20000 };
+        const limits = { maxFiles: 20000, maxFileBytes: 1048576, maxBatchFiles: 100, maxBatchBytes: 4194304, maxManifestEntries: state.repo.maxManifestEntries };
         if (rest.length === 1 && req.method === "PUT") {
           state.repo.name = body["name"];
           return json({ repoKey: rest[0], name: body["name"], connectorId: "c1", created: true, limits, state: "empty", files: 0, generation: 0 }, 201);
@@ -138,14 +139,19 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
           return json({ upload: want.map((f) => f.path), deleted: gone, unchanged: body["files"].length - want.length, rejected: [] });
         }
         if (rest[1] === "files") {
-          for (const f of body["files"] as { path: string; content: string; sha256: string }[]) state.repo.files.set(f.path, f.content);
-          return json({ stored: body["files"].map((f: { path: string }) => f.path), rejected: [] });
+          const bad: { path: string; reason: string }[] = [];
+          for (const f of body["files"] as { path: string; content: string; sha256: string }[]) {
+            if (state.repo.refuse.includes(f.path) || createHash("sha256").update(f.content).digest("hex") !== f.sha256) { bad.push({ path: f.path, reason: "hash_mismatch" }); continue; }
+            state.repo.files.set(f.path, f.content);
+          }
+          return json({ stored: body["files"].map((f: { path: string }) => f.path).filter((p: string) => !bad.some((b) => b.path === p)), rejected: bad });
         }
         if (rest[1] === "commit") {
           state.repo.commits++;
           return json({ state: "syncing" }, 202);
         }
         if (rest.length === 1 && req.method === "GET") {
+          if (state.repo.getDelayMs) await new Promise((r) => setTimeout(r, state.repo.getDelayMs));
           return json({ repoKey: rest[0], state: state.repo.status ?? (state.repo.commits > 0 ? "ready" : "empty"), ...(state.repo.error ? { error: state.repo.error } : {}), files: state.repo.files.size, indexing: { total: state.repo.files.size, completed: state.repo.files.size } });
         }
       }

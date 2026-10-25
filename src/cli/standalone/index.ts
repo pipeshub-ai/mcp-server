@@ -9,11 +9,12 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, readFile, writeFile } from "node:fs/promises";
 import { watch } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { CliError, EXIT, assertTransport, resolveOrigin, resolveToken } from "../config.js";
-import { postMcp } from "../client.js";
+import { postMcp, unreachableNextStep } from "../client.js";
+import { describeFetchFailure } from "../../lib/fetch-failure.js";
 import { storedLogin } from "../login.js";
 
 interface Limits { maxFiles: number; maxFileBytes: number; maxBatchFiles: number; maxBatchBytes: number; maxManifestEntries: number }
@@ -25,6 +26,15 @@ const git = (cwd: string, args: string[]): string => {
   if (r.error || r.status !== 0) throw new CliError(`git ${args[0]} failed in ${cwd}: ${(r.stderr || r.error?.message || "").trim()}. Is this a git repository?`, EXIT.USAGE);
   return r.stdout;
 };
+
+/** The top of the git repository holding `path`, or null when it is not in one. */
+export function gitRoot(path: string): string | null {
+  try {
+    return git(resolve(path), ["rev-parse", "--show-toplevel"]).trim();
+  } catch {
+    return null;
+  }
+}
 
 async function identity(root: string): Promise<string> {
   const file = join(resolve(root, git(root, ["rev-parse", "--git-dir"]).trim()), "pipeshub-repo-id");
@@ -42,6 +52,8 @@ async function call(origin: string, token: string, method: string, path: string,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     redirect: "error",
     signal: AbortSignal.timeout(120_000),
+  }).catch((e: unknown) => {
+    throw new CliError(`could not reach ${origin}: ${describeFetchFailure(e)}\n${unreachableNextStep(origin)}`);
   });
   const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 401) throw new CliError("not signed in to this PipesHub. Run 'pipeshub init' or 'pipeshub login'.", EXIT.UNAUTHENTICATED);
@@ -51,16 +63,27 @@ async function call(origin: string, token: string, method: string, path: string,
   return { status: res.status, body: parsed };
 }
 
-/** The files to send: `git ls-files` (tracked + untracked, .gitignore respected), minus binary and oversize ones. */
-async function collect(root: string, limits: Limits, cache: Map<string, { m: number; s: number; sha: string }>): Promise<{ entries: Entry[]; skipped: number }> {
+// The server's default ignore list (scan.py DEFAULT_IGNORES), directories only: counting them against its file limit refused vendored repos.
+const IGNORED_DIRS = new Set([
+  ".git", ".hg", ".svn", "node_modules", "venv", ".venv", "env", "__pycache__", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".idea", ".vscode",
+  "dist", "build", "target", "out", ".next", ".nuxt", ".gradle", "coverage", "vendor", ".terraform",
+]);
+const inIgnoredDir = (path: string) => path.split("/").slice(0, -1).some((d) => IGNORED_DIRS.has(d));
+
+/** The files to send: `git ls-files` (tracked + untracked, .gitignore respected), minus binary, oversize, symlinked and server-ignored ones. */
+async function collect(root: string, limits: Limits, cache: Map<string, { m: number; s: number; sha: string }>): Promise<{ entries: Entry[]; skipped: number; ignored: number }> {
   const names = git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]).split("\0").filter(Boolean);
   const entries: Entry[] = [];
   let skipped = 0;
-  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let ignored = 0;
+  // ignoreBOM: keep a leading byte-order mark in the text, so the server hashes the same bytes this side did.
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   for (const path of names) {
+    if (inIgnoredDir(path)) { ignored++; continue; }
     try {
-      const st = await stat(join(root, path));
-      if (!st.isFile() || st.size > limits.maxFileBytes) { skipped++; continue; }
+      const st = await lstat(join(root, path));
+      // A link is never followed: it may point outside the repository (a key, a config) and its content is not this repository's.
+      if (st.isSymbolicLink() || !st.isFile() || st.size > limits.maxFileBytes) { skipped++; continue; }
       const bytes = await readFile(join(root, path));
       if (bytes.subarray(0, 4096).includes(0)) { skipped++; continue; }
       const content = decoder.decode(bytes);
@@ -72,7 +95,7 @@ async function collect(root: string, limits: Limits, cache: Map<string, { m: num
       skipped++; // deleted since ls-files, unreadable, or not UTF-8
     }
   }
-  return { entries, skipped };
+  return { entries, skipped, ignored };
 }
 
 export type HashCache = Map<string, { m: number; s: number; sha: string }>;
@@ -80,7 +103,7 @@ export type HashCache = Map<string, { m: number; s: number; sha: string }>;
 async function pass(origin: string, token: string, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number, startSeconds = START_SECONDS) {
   const reg = await call(origin, token, "PUT", `/${key}`, { name });
   const limits = reg.body["limits"] as Limits;
-  const { entries, skipped } = await collect(root, limits, cache);
+  const { entries, skipped, ignored } = await collect(root, limits, cache);
   if (entries.length > limits.maxManifestEntries) throw new CliError(`${entries.length} files is over this PipesHub's limit of ${limits.maxManifestEntries}.`, EXIT.USAGE);
   const m = (await call(origin, token, "POST", `/${key}/manifest`, {
     files: entries.map(({ path, sha256, size }) => ({ path, sha256, size })),
@@ -91,8 +114,12 @@ async function pass(origin: string, token: string, root: string, key: string, na
   const todo = entries.filter((e) => want.has(e.path) && !rejected.has(e.path));
   let batch: Entry[] = [];
   let bytes = 0;
+  const refused: { path: string; reason: string }[] = [];
   const flush = async () => {
-    if (batch.length) await call(origin, token, "PUT", `/${key}/files`, { files: batch.map(({ path, sha256, content }) => ({ path, sha256, content })) });
+    if (batch.length) {
+      const put = await call(origin, token, "PUT", `/${key}/files`, { files: batch.map(({ path, sha256, content }) => ({ path, sha256, content })) });
+      refused.push(...((put.body["rejected"] as { path: string; reason: string }[] | undefined) ?? []));
+    }
     batch = [];
     bytes = 0;
   };
@@ -103,20 +130,22 @@ async function pass(origin: string, token: string, root: string, key: string, na
   }
   await flush();
   await call(origin, token, "POST", `/${key}/commit`);
-  say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large or unreadable).`);
+  say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large, linked or unreadable${ignored ? `; ${ignored} in ignored folders` : ""}).`);
+  if (refused.length) say(`PipesHub refused ${refused.length} file(s): ${refused.slice(0, 10).map((r) => `${r.path} (${r.reason})`).join(", ")}${refused.length > 10 ? ", ..." : ""}`);
   let status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
   const began = Date.now();
-  for (let i = 0; i < Math.ceil(waitSeconds / 2); i++) {
+  const deadline = began + waitSeconds * 1000;
+  for (;;) {
     if (status.state === "stuck") throw new CliError(`${status.error ?? "the sync did not start"} Look at: docker compose -p pipeshub-slim logs pipeshub-slim`, EXIT.ERROR);
-    if (["ready", "failed"].includes(status.state)) break;
+    if (["ready", "failed"].includes(status.state) || Date.now() >= deadline) break;
     // "syncing" with no records yet means the server has not picked the commit up.
     if (status.state === "syncing" && Date.now() - began > startSeconds * 1000) {
       throw new CliError(`PipesHub stored the files but has not started syncing them after ${startSeconds} s. Run the command again; if it repeats, look at: docker compose -p pipeshub-slim logs pipeshub-slim`, EXIT.ERROR);
     }
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1000));
     status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
   }
-  return { sent: todo.length, files: entries.length, skipped, state: status.state, indexing: status.indexing };
+  return { sent: todo.length, files: entries.length, skipped, ignored, rejected: refused, state: status.state, indexing: status.indexing };
 }
 
 const START_SECONDS = 90;
@@ -152,7 +181,7 @@ export async function indexRepo(
   const key = await identity(root);
   let cache = caches.get(root);
   if (!cache) caches.set(root, (cache = new Map()));
-  const name = basename(root);
+  const name = basename(root).replace(/[<>]/g, "_"); // the server refuses markup in a repository name
   const r = await pass(auth.origin, auth.token, root, key, name, cache, say, waitSeconds);
   const codeTools = r.state === "ready" ? await waitForCodeTools(auth, CODE_TOOLS_SECONDS) : false;
   return { repo: name, root, repoKey: key, ...r, codeTools };
@@ -164,24 +193,32 @@ export async function indexCommand(
   say: (s: string) => void,
 ): Promise<{ exit: number; payload: Record<string, unknown> }> {
   const root = git(resolve(opts.path), ["rev-parse", "--show-toplevel"]).trim();
-  let token = resolveToken(env);
-  let origin = resolveOrigin(env);
-  if (token === null) {
-    const s = await storedLogin(origin, false, env);
-    if (s) { token = s.accessToken; origin ??= s.origin; }
-  }
-  if (origin === null || token === null) throw new CliError("not signed in. Run 'pipeshub init' first.", EXIT.UNAUTHENTICATED);
-  assertTransport(origin, false);
+  const envToken = resolveToken(env);
+  const origin0 = resolveOrigin(env);
+  // The stored sign-in is read (and renewed) for every pass: an access token lives an hour and a watcher runs for days.
+  const auth = async (): Promise<{ origin: string; token: string }> => {
+    let token = envToken;
+    let origin = origin0;
+    if (token === null) {
+      const s = await storedLogin(origin0, false, env);
+      if (s) { token = s.accessToken; origin ??= s.origin; }
+    }
+    if (origin === null || token === null) throw new CliError("not signed in. Run 'pipeshub init' first.", EXIT.UNAUTHENTICATED);
+    assertTransport(origin, false);
+    return { origin, token };
+  };
+  const first0 = await auth();
+  const origin = first0.origin;
   const key = await identity(root);
-  const name = basename(root);
+  const name = basename(root).replace(/[<>]/g, "_"); // the server refuses markup in a repository name
   const cache = new Map<string, { m: number; s: number; sha: string }>();
   const wait = Number(env["PIPESHUB_INDEX_WAIT_SECONDS"] ?? 600);
-  const first = await pass(origin, token, root, key, name, cache, say, wait, Number(env["PIPESHUB_INDEX_START_SECONDS"] ?? START_SECONDS));
+  const first = await pass(origin, first0.token, root, key, name, cache, say, wait, Number(env["PIPESHUB_INDEX_START_SECONDS"] ?? START_SECONDS));
   if (first.state !== "ready" && first.state !== "failed") {
     throw new CliError(`${name} is still ${first.state} after ${wait} s. The files are stored and PipesHub keeps going; run this again later to see it finish.`, EXIT.ERROR);
   }
   say(`${name}: ${first.state} (${first.files} files).`);
-  const codeTools = first.state === "ready" ? await waitForCodeTools({ origin, token }, Number(env["PIPESHUB_INDEX_TOOLS_SECONDS"] ?? CODE_TOOLS_SECONDS)) : false;
+  const codeTools = first.state === "ready" ? await waitForCodeTools(first0, Number(env["PIPESHUB_INDEX_TOOLS_SECONDS"] ?? CODE_TOOLS_SECONDS)) : false;
   if (first.state === "ready") {
     say(codeTools
       ? "The code tools are available: ask your agent what calls a function."
@@ -197,7 +234,8 @@ export async function indexCommand(
     if (running) { again = true; return; }
     running = true;
     try {
-      const r = await pass(origin!, token!, root, key, name, cache, say, 0);
+      const a = await auth();
+      const r = await pass(a.origin, a.token, root, key, name, cache, say, 0);
       say(`${name}: sent ${r.sent}, ${r.state}.`);
     } catch (e) {
       say(`index failed: ${(e as Error).message}`);

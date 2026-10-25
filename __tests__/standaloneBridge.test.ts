@@ -111,6 +111,25 @@ describe("tools/call", () => {
     expect(fake.mcp.calls.at(-1)!.authorization).toBe("Bearer refreshed-token");
   });
 
+  test("a link the person cannot open is replaced by the record's page, and a pushed repository's key never reaches the agent", async () => {
+    fake.mcp.reply = (tool) => tool === "pipeshub_search"
+      ? JSON.stringify({ records: [
+        { recordId: "r-1", recordName: "b.py", webUrl: "local-repo://0123456789abcdef/pkg/b.py" },
+        { recordId: "r-2", recordName: "page", webUrl: "https://example.com/page" },
+        { recordId: "r-3", recordName: "no link" },
+      ] })
+      : JSON.stringify({ file_path: "pkg/b.py", web_url: "local-repo://0123456789abcdef/pkg/b.py#L1-L4", code: "x" });
+    const c = await connect();
+    const hits = jsonOf(await c.callTool({ name: "pipeshub_search", arguments: { query: "x" } })).records;
+    expect(hits[0].webUrl).toBe(`${fake.origin}/record/r-1`);
+    expect(hits[1].webUrl).toBe("https://example.com/page");
+    expect(hits[2]).not.toHaveProperty("webUrl");
+    const read = jsonOf(await c.callTool({ name: "pipeshub_code_read", arguments: { repo: "r", file_path: "pkg/b.py" } }));
+    expect(read).not.toHaveProperty("web_url");
+    expect(read.code).toBe("x");
+    expect(JSON.stringify([hits, read])).not.toContain("0123456789abcdef");
+  });
+
   test("a tool error from the server is passed on as a tool error with its text", async () => {
     const c = await connect();
     const r = await c.callTool({ name: "pipeshub_broken", arguments: {} });
@@ -232,6 +251,8 @@ describe("when PipesHub is down", () => {
     const r = await c.callTool({ name: "pipeshub_search", arguments: { query: "x" } });
     expect(r.isError).toBe(true);
     expect(JSON.stringify(r.content)).toContain("could not reach");
+    // a person who ran init never set a base URL: the hint names the commands for the local stack
+    expect(JSON.stringify(r.content)).toContain("pipeshub dev status");
     expect(Date.now() - t).toBeLessThan(5000);
   });
 
@@ -250,7 +271,8 @@ describe("when PipesHub is down", () => {
     const c = await connect({ roots: [dir], origin: await deadOrigin() });
     const r = await c.callTool({ name: "index_workspace", arguments: {} });
     expect(r.isError).toBe(true);
-    expect(jsonOf(r).folders[0].error).toBeTruthy();
+    expect(jsonOf(r).folders[0].error).toContain("could not reach");
+    expect(jsonOf(r).folders[0].error).toContain("pipeshub dev status");
   });
 });
 

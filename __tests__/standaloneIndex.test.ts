@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
@@ -142,4 +142,117 @@ describe("pipeshub index and the code tools", () => {
     expect(JSON.parse(r.stdout).codeTools).toBe(false);
     expect(r.stderr).toContain("not listed yet");
   });
+});
+
+describe("pipeshub index on awkward repositories", () => {
+  let dir: string;
+  let f2: FakeLocal;
+  let h2: string;
+  const sh = (cwd: string, ...a: string[]) => {
+    const r = spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...a], { cwd, encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+  };
+  async function run(args: string[], env: Record<string, string> = {}, cwd = dir) {
+    const proc = Bun.spawn([process.execPath, ENTRY, ...args], {
+      cwd, env: { PATH: "/usr/bin:/bin", HOME: h2, PIPESHUB_BASE_URL: f2.origin, PIPESHUB_TOKEN: f2.issuedToken, GIT_CEILING_DIRECTORIES: root, ...env }, stdout: "pipe", stderr: "pipe",
+    });
+    const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+    return { code, stdout, stderr };
+  }
+  beforeEach(async () => {
+    dir = await mkdtemp(join(root, "awk-"));
+    h2 = join(dir, "..", "home-" + Math.random().toString(36).slice(2));
+    f2 = startFakeLocal({ orgExists: true });
+    f2.mcp.tools = [{ name: "pipeshub_code_repos", inputSchema: { type: "object" } }];
+    sh(dir, "init", "-q");
+  });
+  afterEach(() => f2.stop());
+
+  test("a file that starts with a UTF-8 byte-order mark arrives with its mark and is not dropped", async () => {
+    await writeFile(join(dir, "bom.py"), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("x = 1\n")]));
+    await writeFile(join(dir, "ok.py"), "y = 2\n");
+    sh(dir, "add", "-A");
+    const r = await run(["index"]);
+    expect(r.code).toBe(0);
+    expect([...f2.repo.files.keys()].sort()).toEqual(["bom.py", "ok.py"]);
+    expect(f2.repo.files.get("bom.py")!.charCodeAt(0)).toBe(0xfeff);
+  });
+
+  test("files the server refuses are listed in the summary, not hidden", async () => {
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    sh(dir, "add", "-A");
+    f2.repo.refuse = ["a.py"];
+    const r = await run(["index"]);
+    expect(JSON.parse(r.stdout).rejected).toEqual([{ path: "a.py", reason: "hash_mismatch" }]);
+    expect(r.stderr).toContain("a.py");
+  });
+
+  test("a symlink is recorded as skipped and what it points at outside the repository is never read", async () => {
+    const outside = join(root, "outside-secret.txt");
+    await writeFile(outside, "SECRET_OUTSIDE_FILE_CONTENT\n");
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    await symlink(outside, join(dir, "link_out.txt"));
+    await symlink("a.py", join(dir, "link_in.py"));
+    sh(dir, "add", "-A");
+    const r = await run(["index"]);
+    expect(r.code).toBe(0);
+    expect([...f2.repo.files.keys()]).toEqual(["a.py"]);
+    expect([...f2.repo.files.values()].join("")).not.toContain("SECRET_OUTSIDE");
+    expect(JSON.parse(r.stdout).skipped).toBe(2);
+  });
+
+  test("files under vendor/ and node_modules/ do not count toward the server's file limit", async () => {
+    await mkdir(join(dir, "vendor", "x"), { recursive: true });
+    await mkdir(join(dir, "node_modules", "y"), { recursive: true });
+    for (let i = 0; i < 4; i++) await writeFile(join(dir, "vendor", "x", `v${i}.go`), "package x\n");
+    for (let i = 0; i < 4; i++) await writeFile(join(dir, "node_modules", "y", `n${i}.js`), "x\n");
+    for (let i = 0; i < 3; i++) await writeFile(join(dir, `m${i}.py`), `a = ${i}\n`);
+    sh(dir, "add", "-A");
+    f2.repo.maxManifestEntries = 5;
+    const r = await run(["index"]);
+    expect(r.code).toBe(0);
+    expect([...f2.repo.files.keys()].sort()).toEqual(["m0.py", "m1.py", "m2.py"]);
+  });
+
+  test("the wait is in seconds, whatever the server's own speed", async () => {
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    sh(dir, "add", "-A");
+    f2.repo.status = "indexing";
+    f2.repo.getDelayMs = 1500;
+    const t = Date.now();
+    const r = await run(["index"], { PIPESHUB_INDEX_WAIT_SECONDS: "4" });
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("still indexing");
+    expect(Date.now() - t).toBeLessThan(9000);
+  }, 30_000);
+
+  test("--watch signs in again when the access token has expired, instead of failing every later edit", async () => {
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    sh(dir, "add", "-A");
+    const creds = {
+      origin: f2.origin, clientId: "c", tokenEndpoint: `${f2.origin}/api/v1/oauth2/token`,
+      accessToken: f2.issuedToken, refreshToken: "refresh-0", expiresAt: Date.now() + 3_600_000,
+    };
+    await mkdir(join(h2, ".config", "pipeshub"), { recursive: true });
+    await writeFile(join(h2, ".config", "pipeshub", "credentials.json"), JSON.stringify(creds), { mode: 0o600 });
+    // Node, on the built file: recursive fs.watch is what the installed command uses, and Bun's differs.
+    const proc = Bun.spawn(["node", join(import.meta.dir, "..", "standalone", "bin", "pipeshub.js"), "index", "--watch"], {
+      cwd: dir, env: { PATH: "/usr/bin:/bin", HOME: h2, PIPESHUB_BASE_URL: f2.origin, GIT_CEILING_DIRECTORIES: root }, stdout: "pipe", stderr: "pipe",
+    });
+    try {
+      for (let i = 0; i < 40 && f2.repo.commits < 1; i++) await new Promise((r) => setTimeout(r, 250));
+      expect(f2.repo.commits).toBeGreaterThanOrEqual(1);
+      // an hour passes: the stored access token is past its expiry and the server no longer accepts it
+      const file = join(h2, ".config", "pipeshub", "credentials.json");
+      await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, "utf8")), expiresAt: Date.now() - 1000 }), { mode: 0o600 });
+      f2.issuedToken = "rotated-by-the-server";
+      await writeFile(join(dir, "b.py"), "z = 3\n");
+      sh(dir, "add", "-A");
+      for (let i = 0; i < 80 && !f2.repo.files.has("b.py"); i++) await new Promise((r) => setTimeout(r, 250));
+      proc.kill();
+      expect(f2.repo.files.has("b.py"), await new Response(proc.stderr).text()).toBe(true);
+    } finally {
+      proc.kill();
+    }
+  }, 60_000);
 });

@@ -148,6 +148,10 @@ export interface ContentBlock {
 const UNREACHABLE_NEXT_STEP = "Check that PIPESHUB_BASE_URL is your PipesHub "
   + "instance's address and that it is reachable from here. From a sandbox, "
   + "localhost and LAN addresses are not.";
+/** For a PipesHub on this computer, where the person ran `pipeshub init` and never set a base URL. */
+export const LOCAL_UNREACHABLE_NEXT_STEP = "For a PipesHub on this computer: check it with 'pipeshub dev status' and start it with 'pipeshub dev up' (needs Docker).";
+const isLoopbackUrl = (url: string) => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname);
+export const unreachableNextStep = (url: string) => (isLoopbackUrl(url) ? `${UNREACHABLE_NEXT_STEP}\n${LOCAL_UNREACHABLE_NEXT_STEP}` : UNREACHABLE_NEXT_STEP);
 const TIMED_OUT_NEXT_STEP = "PipesHub did not answer in time. Try again; if it "
   + "keeps timing out, the instance may be overloaded.";
 
@@ -245,7 +249,7 @@ export async function postMcp(
       const detail = timedOut ? "request timed out" : describeFetchFailure(e);
       throw new CliError(
         `could not reach ${url}: ${detail}\n`
-          + (timedOut ? TIMED_OUT_NEXT_STEP : UNREACHABLE_NEXT_STEP),
+          + (timedOut ? TIMED_OUT_NEXT_STEP : unreachableNextStep(url)),
       );
     }
     const location = REDIRECT_STATUSES.has(response.status)

@@ -8,9 +8,9 @@ import { join } from "node:path";
 
 // The L9 golden path, run the way a developer would, on a real slim stack:
 //
-//   1. npx @pipeshub-ai/standalone init --yes     (starts the stack, signs in, writes Claude Code + Codex)
-//   2. npx @pipeshub-ai/standalone index .        (pushes a small multi-language git repository)
-//   3. ask the agent: the stdio bridge, spawned exactly as the written config says, answers
+//   1. npx @pipeshub-ai/standalone init --yes     (run in a small multi-language git repository: starts the stack, signs in,
+//      writes Claude Code + Codex, and indexes the repository)
+//   2. ask the agent: the stdio bridge, spawned exactly as the written config says, answers
 //      "what calls X" / "what does X call" and a search with a cited hit.
 //
 // It measures the commands and the wall time from nothing running to the first correct code answer,
@@ -53,7 +53,7 @@ let repo = "";
 let tarball = "";
 let before = new Map<string, string>();
 let t0 = 0;
-// commands = what the developer types to get the first answer: init, index, and the question to the agent.
+// commands = what the developer types in a shell before the first answer: `npx ... init --yes`.
 let npxCalls = 0;
 const report: Record<string, number | string | boolean> = {};
 
@@ -111,7 +111,7 @@ async function codexEntry(): Promise<Entry> {
 /** Spawn the bridge exactly as the agent's config says; only `npx -y @pipeshub-ai/mcp@...` (not published yet) is this checkout's build. */
 async function bridge(entry: Entry): Promise<Client> {
   expect(entry.command).toBe("npx");
-  expect(entry.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.7.0"]);
+  expect(entry.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.8.0"]);
   const t = new StdioClientTransport({ command: "node", args: [BRIDGE, ...entry.args.slice(2)], env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: home, ...entry.env }, stderr: "pipe" });
   const c = new Client({ name: "golden", version: "0" });
   await c.connect(t);
@@ -162,15 +162,17 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
     if (base) await rm(base, { recursive: true, force: true });
   }, 400_000);
 
-  test("command 1, npx init --yes: starts the stack, signs in with the device grant, writes Claude Code and Codex without touching the person's other entries", async () => {
+  test("the one command, npx init --yes in the repository: starts the stack, signs in with the device grant, writes Claude Code and Codex without touching the person's other entries, and indexes the repository", async () => {
     t0 = Date.now();
     const r = await npx(["init", "--yes", "--port", PORT], repo);
     report["init_s"] = Math.round((Date.now() - t0) / 100) / 10;
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("started the local stack");
     expect(r.stdout).toContain("created the first account");
+    // the repository init was run in is indexed by the same command
+    expect(r.stdout).toMatch(/^Code: +repo: 9 files, ready$/m);
     // run through npx, the hints must be typeable
-    expect(r.stdout).toContain("npx @pipeshub-ai/standalone index");
+    expect(r.stdout).toContain("npx @pipeshub-ai/standalone uninstall");
     const claude = JSON.parse(await readFile(join(home, ".claude.json"), "utf8"));
     expect(claude.numStartups).toBe(7);
     expect(claude.mcpServers.other).toEqual({ command: "echo", args: ["hi"] });
@@ -183,38 +185,14 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
     expect(JSON.parse(await new Response(st.stdout).text()).scopes).toEqual(expect.arrayContaining(["code:write", "kb:write", "code:read"]));
   }, 900_000);
 
-  test("the agent starts first: its tool list has index_workspace but no code tools yet (this primes the server's cache the way a real session does)", async () => {
-    const c = await bridge(await claudeEntry());
-    try {
-      const names = await toolNames(c);
-      expect(names).toContain("index_workspace");
-      expect(names).toContain("pipeshub_search");
-      expect(names.some((n) => n.startsWith("pipeshub_code_"))).toBe(false);
-      expect(names).not.toContain("pipeshub_chat");
-    } finally {
-      await c.close();
-    }
-  }, 60_000);
-
-  test("command 2, npx index .: the repository is indexed and the code tools are listed when it returns", async () => {
-    const t = Date.now();
-    const r = await npx(["index", "."], repo, 600_000);
-    report["index_s"] = Math.round((Date.now() - t) / 100) / 10;
-    expect(r.code).toBe(0);
-    const out = JSON.parse(r.stdout);
-    expect(out).toMatchObject({ repo: "repo", state: "ready", files: Object.keys(FIXTURE).length, codeTools: true });
-    expect(out.indexing.failed).toBe(0);
-    expect(r.stderr).toContain("The code tools are available");
-  }, 600_000);
-
-  test("command 3, ask: through the Claude Code bridge the 9 code tools and index_workspace are listed; callers and callees are right in four languages", async () => {
+  test("ask: through the Claude Code bridge the 9 code tools and index_workspace are listed; callers and callees are right in four languages", async () => {
     const c = await bridge(await claudeEntry());
     try {
       const names = await toolNames(c);
       expect(names.filter((n) => n.startsWith("pipeshub_code_"))).toHaveLength(9);
       expect(names).toContain("index_workspace");
-      report["commands"] = npxCalls + 1; // init, index, and this question
-      expect(report["commands"]).toBeLessThanOrEqual(3);
+      report["commands"] = npxCalls; // init; the question is asked to the agent, not typed as a command
+      expect(report["commands"]).toBe(1);
       let first = true;
       for (const [lang, [cf, cq, rf, rq]] of Object.entries(PAIRS)) {
         expect(await neighbours(c, cf, cq, "inbound"), `what calls ${cq} (${lang})`).toEqual([`${rf}#${rq}`]);

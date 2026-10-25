@@ -70,6 +70,40 @@ const INDEX_TOOL_DEF: Tool = {
   annotations: { title: "Index the open workspace", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
 };
 
+/**
+ * A link in a tool result the person can open. A pushed repository's records carry an internal `local-repo://<key>/<path>` link: a search
+ * hit gets the record's page in PipesHub instead, and a bare `web_url` (no record to point to) is dropped, so the key is never shown.
+ */
+function openableLinks(value: unknown, origin: string): unknown {
+  const isWeb = (v: unknown) => typeof v === "string" && /^https?:\/\//i.test(v);
+  if (Array.isArray(value)) return value.map((v) => openableLinks(v, origin));
+  if (typeof value !== "object" || value === null) return value;
+  const out: Record<string, unknown> = {};
+  const obj = value as Record<string, unknown>;
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "webUrl" && typeof v === "string" && !isWeb(v)) {
+      if (typeof obj["recordId"] === "string") out[k] = `${origin}/record/${obj["recordId"]}`;
+    } else if (k === "web_url" && typeof v === "string" && !isWeb(v)) {
+      continue;
+    } else {
+      out[k] = openableLinks(v, origin);
+    }
+  }
+  return out;
+}
+
+const withOpenableLinks = (result: CallToolResult, origin: string): CallToolResult => ({
+  ...result,
+  content: (result.content ?? []).map((c) => {
+    if (c.type !== "text" || !/"web_?[Uu]rl"\s*:\s*"(?!https?:)/.test(c.text)) return c; // nothing to fix: left byte for byte
+    try {
+      return { ...c, text: JSON.stringify(openableLinks(JSON.parse(c.text), origin)) };
+    } catch {
+      return c; // not JSON: left as the server wrote it
+    }
+  }),
+});
+
 const textError = (text: string): CallToolResult => ({ isError: true, content: [{ type: "text", text }] });
 
 export function createBridge(opts: BridgeOptions): Server {
@@ -112,7 +146,7 @@ export function createBridge(opts: BridgeOptions): Server {
     if (name === INDEX_TOOL) return indexWorkspace(args ?? {});
     if (hidden.has(name)) return textError(`${name} is turned off for this client (PIPESHUB_MCP_CHAT=off).`);
     try {
-      return (await upstream("tools/call", { name, arguments: args ?? {} })) as CallToolResult;
+      return withOpenableLinks((await upstream("tools/call", { name, arguments: args ?? {} })) as CallToolResult, auth.origin);
     } catch (e) {
       return textError(e instanceof CliError ? e.message : `PipesHub did not answer: ${(e as Error).message}`);
     }

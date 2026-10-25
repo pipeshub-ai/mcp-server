@@ -58,7 +58,7 @@ async function files(dir: string): Promise<string[]> {
 async function bridge(): Promise<Client> {
   // The entry exactly as the agent's config has it; only `npx -y @pipeshub-ai/mcp@...` is swapped for this checkout's build.
   const e = JSON.parse(await readFile(join(home, ".cursor", "mcp.json"), "utf8")).mcpServers.pipeshub as { command: string; args: string[]; env: Record<string, string> };
-  expect(e.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.7.0"]);
+  expect(e.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.8.0"]);
   const t = new StdioClientTransport({
     command: "node",
     args: [BRIDGE, ...e.args.slice(2)],
