@@ -222,11 +222,13 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
     await writeAtomic(manifestPath(env), JSON.stringify(m, null, 2) + "\n", 0o600);
   }
 
+  const cmd = env["npm_command"] === "exec" ? "npx @pipeshub-ai/standalone" : "pipeshub";
   report.next.push(
     "Restart your coding agent (or open a new session) so it picks up the PipesHub server.",
     'Then ask it a question about what your team knows, e.g. "search PipesHub for our deployment process".',
     "Put documents in: " + join(env["HOME"] || homedir(), ".pipeshub", "standalone", "workspace") + " (or connect a source at " + origin + ").",
-    "Index this repository's code: pipeshub index   (undo everything with: pipeshub uninstall)",
+    // Run through npx there is no `pipeshub` on the PATH, so the hints must be typeable as they stand.
+    `Index this repository's code: ${cmd} index   (undo everything with: ${cmd} uninstall)`,
   );
   return { exit: report.files.some((f) => f.status === "malformed") ? EXIT.ERROR : EXIT.OK, report };
 }

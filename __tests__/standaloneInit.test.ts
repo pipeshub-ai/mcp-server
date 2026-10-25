@@ -284,3 +284,22 @@ describe("uninstall", () => {
     expect(await readFile(join(w.home, ".cursor/mcp.json"), "utf8")).toBe(theirs);
   });
 });
+
+describe("the next steps name a command the person can type", () => {
+  freshStack();
+
+  test("run through npx there is no 'pipeshub' on the path, so the hints say npx; installed, they say pipeshub", async () => {
+    const via = await world("hint-npx", [".cursor"]);
+    const npx = await cli(via.home, via.cwd, ["init", "--yes", "--url", fake.origin], { npm_command: "exec" });
+    expect(npx.stdout).toContain("npx @pipeshub-ai/standalone index");
+    expect(npx.stdout).toContain("npx @pipeshub-ai/standalone uninstall");
+    expect(npx.stdout).not.toMatch(/: pipeshub index/);
+
+    fake.stop();
+    fake = startFakeLocal(); // a fresh stack: this home has no account on the first one
+    const installed = await world("hint-installed", [".cursor"]);
+    const plain = await cli(installed.home, installed.cwd, ["init", "--yes", "--url", fake.origin]);
+    expect(plain.stdout).toContain("pipeshub index");
+    expect(plain.stdout).not.toContain("npx @pipeshub-ai/standalone index");
+  }, 30_000);
+});

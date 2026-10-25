@@ -20,10 +20,10 @@ const git = (...a: string[]) => {
   if (r.status !== 0) throw new Error(r.stderr);
 };
 
-async function cli(args: string[]) {
+async function cli(args: string[], env: Record<string, string> = {}) {
   const proc = Bun.spawn([process.execPath, ENTRY, ...args], {
     cwd: repo,
-    env: { PATH: "/usr/bin:/bin", HOME: home, PIPESHUB_BASE_URL: fake.origin, PIPESHUB_TOKEN: fake.issuedToken },
+    env: { PATH: "/usr/bin:/bin", HOME: home, PIPESHUB_BASE_URL: fake.origin, PIPESHUB_TOKEN: fake.issuedToken, ...env },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -37,6 +37,7 @@ beforeAll(async () => {
   home = join(root, "home");
   await mkdir(join(repo, "src"), { recursive: true });
   fake = startFakeLocal({ orgExists: true });
+  fake.mcp.tools = [{ name: "pipeshub_code_repos", inputSchema: { type: "object" } }];
   await writeFile(join(repo, "src", "a.py"), "def a():\n    return 1\n");
   await writeFile(join(repo, "src", "b.py"), "def b():\n    return 2\n");
   await writeFile(join(repo, "README.md"), "# Demo\n");
@@ -88,5 +89,57 @@ describe("pipeshub index", () => {
     const [err, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
     expect(code).toBe(3);
     expect(err).toContain("pipeshub init");
+  });
+});
+
+describe("pipeshub index when the server does not finish", () => {
+  const after = () => { fake.repo.status = null; fake.repo.error = null; };
+
+  test("a sync that never starts ends with a clear message and exit 1, not an endless wait", async () => {
+    fake.repo.status = "syncing";
+    const t = Date.now();
+    const r = await cli(["index"], { PIPESHUB_INDEX_START_SECONDS: "2" });
+    after();
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("has not started syncing");
+    expect(r.stderr).toContain("docker compose");
+    expect(Date.now() - t).toBeLessThan(20_000);
+  });
+
+  test("a stuck status from the server is reported with the server's own message", async () => {
+    fake.repo.status = "stuck";
+    fake.repo.error = "the sync of this repository did not start; the files are stored.";
+    const r = await cli(["index"]);
+    after();
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("did not start");
+  });
+
+  test("an index that is still running when the wait ends is exit 1 and says it continues", async () => {
+    fake.repo.status = "indexing";
+    const r = await cli(["index"], { PIPESHUB_INDEX_WAIT_SECONDS: "2" });
+    after();
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("still indexing after 2 s");
+  });
+});
+
+describe("pipeshub index and the code tools", () => {
+  test("waits for the code tools to be listed and says so", async () => {
+    fake.mcp.tools = [];
+    setTimeout(() => { fake.mcp.tools = [{ name: "pipeshub_code_repos", inputSchema: { type: "object" } }]; }, 3000);
+    const r = await cli(["index"], { PIPESHUB_INDEX_TOOLS_SECONDS: "20" });
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).codeTools).toBe(true);
+    expect(r.stderr).toContain("code tools are available");
+  });
+
+  test("when they never appear it still succeeds and tells the person what to do", async () => {
+    fake.mcp.tools = [];
+    const r = await cli(["index"], { PIPESHUB_INDEX_TOOLS_SECONDS: "2" });
+    fake.mcp.tools = [{ name: "pipeshub_code_repos", inputSchema: { type: "object" } }];
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).codeTools).toBe(false);
+    expect(r.stderr).toContain("not listed yet");
   });
 });

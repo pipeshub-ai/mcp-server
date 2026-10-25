@@ -13,10 +13,11 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import { watch } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { CliError, EXIT, assertTransport, resolveOrigin, resolveToken } from "../config.js";
+import { postMcp } from "../client.js";
 import { storedLogin } from "../login.js";
 
 interface Limits { maxFiles: number; maxFileBytes: number; maxBatchFiles: number; maxBatchBytes: number; maxManifestEntries: number }
-interface Status { state: string; files: number; indexing?: Record<string, number> }
+interface Status { state: string; files: number; error?: string; indexing?: Record<string, number> }
 interface Entry { path: string; sha256: string; size: number; content: string }
 
 const git = (cwd: string, args: string[]): string => {
@@ -76,7 +77,7 @@ async function collect(root: string, limits: Limits, cache: Map<string, { m: num
 
 export type HashCache = Map<string, { m: number; s: number; sha: string }>;
 
-async function pass(origin: string, token: string, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number) {
+async function pass(origin: string, token: string, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number, startSeconds = START_SECONDS) {
   const reg = await call(origin, token, "PUT", `/${key}`, { name });
   const limits = reg.body["limits"] as Limits;
   const { entries, skipped } = await collect(root, limits, cache);
@@ -104,14 +105,36 @@ async function pass(origin: string, token: string, root: string, key: string, na
   await call(origin, token, "POST", `/${key}/commit`);
   say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large or unreadable).`);
   let status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
-  for (let i = 0; i < Math.ceil(waitSeconds / 2) && !["ready", "failed"].includes(status.state); i++) {
+  const began = Date.now();
+  for (let i = 0; i < Math.ceil(waitSeconds / 2); i++) {
+    if (status.state === "stuck") throw new CliError(`${status.error ?? "the sync did not start"} Look at: docker compose -p pipeshub-slim logs pipeshub-slim`, EXIT.ERROR);
+    if (["ready", "failed"].includes(status.state)) break;
+    // "syncing" with no records yet means the server has not picked the commit up.
+    if (status.state === "syncing" && Date.now() - began > startSeconds * 1000) {
+      throw new CliError(`PipesHub stored the files but has not started syncing them after ${startSeconds} s. Run the command again; if it repeats, look at: docker compose -p pipeshub-slim logs pipeshub-slim`, EXIT.ERROR);
+    }
     await new Promise((r) => setTimeout(r, 2000));
     status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
   }
   return { sent: todo.length, files: entries.length, skipped, state: status.state, indexing: status.indexing };
 }
 
+const START_SECONDS = 90;
+const CODE_TOOLS_SECONDS = 15;
 const caches = new Map<string, HashCache>();
+
+/** True once the server lists a pipeshub_code_* tool for this sign-in (it can lag the first indexed repository by a few seconds). */
+export async function waitForCodeTools(auth: { origin: string; token: string }, seconds: number): Promise<boolean> {
+  const deadline = Date.now() + seconds * 1000;
+  for (;;) {
+    try {
+      const r = (await postMcp({ origin: auth.origin, token: auth.token, insecureHttp: false, requestId: "code-tools" }, { method: "tools/list" }, 10_000)) as { tools?: { name: string }[] };
+      if ((r.tools ?? []).some((t) => t.name.startsWith("pipeshub_code_"))) return true;
+    } catch { /* not answering: treated as not listed */ }
+    if (Date.now() >= deadline) return false;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
 
 /**
  * One full pass over the git repository holding `path` (the code behind both
@@ -131,7 +154,8 @@ export async function indexRepo(
   if (!cache) caches.set(root, (cache = new Map()));
   const name = basename(root);
   const r = await pass(auth.origin, auth.token, root, key, name, cache, say, waitSeconds);
-  return { repo: name, root, repoKey: key, ...r };
+  const codeTools = r.state === "ready" ? await waitForCodeTools(auth, CODE_TOOLS_SECONDS) : false;
+  return { repo: name, root, repoKey: key, ...r, codeTools };
 }
 
 export async function indexCommand(
@@ -151,9 +175,19 @@ export async function indexCommand(
   const key = await identity(root);
   const name = basename(root);
   const cache = new Map<string, { m: number; s: number; sha: string }>();
-  const first = await pass(origin, token, root, key, name, cache, say, 600);
+  const wait = Number(env["PIPESHUB_INDEX_WAIT_SECONDS"] ?? 600);
+  const first = await pass(origin, token, root, key, name, cache, say, wait, Number(env["PIPESHUB_INDEX_START_SECONDS"] ?? START_SECONDS));
+  if (first.state !== "ready" && first.state !== "failed") {
+    throw new CliError(`${name} is still ${first.state} after ${wait} s. The files are stored and PipesHub keeps going; run this again later to see it finish.`, EXIT.ERROR);
+  }
   say(`${name}: ${first.state} (${first.files} files).`);
-  if (!opts.watch) return { exit: first.state === "failed" ? EXIT.ERROR : EXIT.OK, payload: { repo: name, repoKey: key, ...first } };
+  const codeTools = first.state === "ready" ? await waitForCodeTools({ origin, token }, Number(env["PIPESHUB_INDEX_TOOLS_SECONDS"] ?? CODE_TOOLS_SECONDS)) : false;
+  if (first.state === "ready") {
+    say(codeTools
+      ? "The code tools are available: ask your agent what calls a function."
+      : "The code tools are not listed yet (PipesHub lists them a few seconds after the first repository is indexed). If your agent does not show them, restart it.");
+  }
+  if (!opts.watch) return { exit: first.state === "failed" ? EXIT.ERROR : EXIT.OK, payload: { repo: name, repoKey: key, ...first, codeTools } };
 
   say("Watching for changes (Ctrl-C to stop)...");
   let timer: ReturnType<typeof setTimeout> | undefined;

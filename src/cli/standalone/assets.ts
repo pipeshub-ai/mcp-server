@@ -5,14 +5,14 @@
 /**
  * The slim stack: the app and PostgreSQL with pgvector, nothing else. This is
  * the compose file of the `launch/slim` branch of pipeshub-ai (deployment/slim,
- * commit 339269b1e: device sign-in fix, OAUTH_ISSUER, write scopes) with the `build:` sections removed, so no repository
+ * the integration of the local sign-in fixes and local repository indexing: device sign-in, OAUTH_ISSUER, write scopes) with the `build:` sections removed, so no repository
  * checkout is needed, and the image names overridable from the environment.
  *
  * shortcut: the default image tags are the names that branch uses and are not
  * published yet. Pin the published tags here (or set PIPESHUB_IMAGE/IMAGE_TAG/
  * PG_IMAGE/PG_IMAGE_REV) before the package is published.
  */
-export const COMPOSE_REVISION = "launch/slim-local-auth@339269b1e";
+export const COMPOSE_REVISION = "launch/l9-integration";
 
 const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up'; ${COMPOSE_REVISION}.
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.

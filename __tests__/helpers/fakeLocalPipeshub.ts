@@ -17,7 +17,7 @@ export interface FakeLocal {
   log: string[];
   /** What `/mcp` lists, and every tools/call it received. */
   mcp: { tools: Record<string, unknown>[]; calls: { name: string; args: unknown; authorization: string | null }[]; status: number; hang: boolean };
-  repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[] };
+  repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[]; status: string | null; error: string | null };
   stop(): void;
 }
 
@@ -31,7 +31,7 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
     revoked: [],
     log: [],
     mcp: { tools: [], calls: [], status: 200, hang: false },
-    repo: { name: null, files: new Map(), commits: 0, deleted: [] },
+    repo: { name: null, files: new Map(), commits: 0, deleted: [], status: null, error: null },
     stop: () => server.stop(true),
   };
   let org = opts.orgExists ?? false;
@@ -146,7 +146,7 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
           return json({ state: "syncing" }, 202);
         }
         if (rest.length === 1 && req.method === "GET") {
-          return json({ repoKey: rest[0], state: state.repo.commits > 0 ? "ready" : "empty", files: state.repo.files.size, indexing: { total: state.repo.files.size, completed: state.repo.files.size } });
+          return json({ repoKey: rest[0], state: state.repo.status ?? (state.repo.commits > 0 ? "ready" : "empty"), ...(state.repo.error ? { error: state.repo.error } : {}), files: state.repo.files.size, indexing: { total: state.repo.files.size, completed: state.repo.files.size } });
         }
       }
       return json({ detail: "not found" }, 404);

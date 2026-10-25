@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { ListRootsRequestSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
+import { ListRootsRequestSchema, ToolListChangedNotificationSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -42,9 +42,10 @@ beforeEach(() => {
 });
 afterEach(() => fake.stop());
 
-async function connect(opts: { chat?: boolean; roots?: string[] | null; timeoutMs?: number; origin?: string } = {}) {
+async function connect(opts: { chat?: boolean; roots?: string[] | null; timeoutMs?: number; origin?: string; onListChanged?: () => void } = {}) {
   const bridge = createBridge({ auth: { origin: opts.origin ?? fake.origin, token: async () => token }, chat: opts.chat ?? false, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) });
   const client = new Client({ name: "t", version: "0" }, { capabilities: opts.roots ? { roots: {} } : {} });
+  if (opts.onListChanged) client.setNotificationHandler(ToolListChangedNotificationSchema, opts.onListChanged);
   if (opts.roots) client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: opts.roots!.map((p) => ({ uri: pathToFileURL(p).href })) }));
   const [a, b] = InMemoryTransport.createLinkedPair();
   await Promise.all([bridge.connect(a), client.connect(b)]);
@@ -160,6 +161,20 @@ describe("index_workspace", () => {
     const c = await connect({ roots: null });
     const r = await c.callTool({ name: "index_workspace", arguments: { path: dir, waitSeconds: 0 } });
     expect(jsonOf(r).folders[0]).toMatchObject({ ok: true, repo: "ws-explicit" });
+  });
+
+  test("waits for the code tools and then tells the client the tool list changed", async () => {
+    const dir = await repo("ws-tools");
+    fake.mcp.tools = SERVER_TOOLS.filter((t) => !t.name.startsWith("pipeshub_code_")) as unknown as Record<string, unknown>[];
+    setTimeout(() => { fake.mcp.tools = SERVER_TOOLS as unknown as Record<string, unknown>[]; }, 2000);
+    let changed = 0;
+    const c = await connect({ roots: [dir], onListChanged: () => { changed++; } });
+    expect((await c.listTools()).tools.some((t) => t.name.startsWith("pipeshub_code_"))).toBe(false);
+    const r = await c.callTool({ name: "index_workspace", arguments: { waitSeconds: 0 } });
+    expect(jsonOf(r).folders[0]).toMatchObject({ ok: true, codeTools: true });
+    await new Promise((res) => setTimeout(res, 200));
+    expect(changed).toBe(1);
+    expect((await c.listTools()).tools.some((t) => t.name.startsWith("pipeshub_code_"))).toBe(true);
   });
 
   test("a folder that cannot be indexed is reported per folder; the others still run", async () => {

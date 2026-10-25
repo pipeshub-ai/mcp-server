@@ -78,7 +78,7 @@ export function createBridge(opts: BridgeOptions): Server {
   const server = new Server(
     { name: "pipeshub", version: "1.0.0" },
     {
-      capabilities: { tools: {} },
+      capabilities: { tools: { listChanged: true } },
       instructions: pipeshubInstructions({ chat: opts.chat })
         + `\n## Code in this workspace\n\nIf \`${INDEX_TOOL}\` is listed, call it once before code questions about the open repository; the \`pipeshub_code_*\` tools, when listed, read what it indexed.\n`,
     },
@@ -148,6 +148,8 @@ export function createBridge(opts: BridgeOptions): Server {
         }
       }
       const ok = results.some((r) => r["ok"] === true);
+      // The server lists the code tools only once a repository is indexed; a client that listed tools earlier must list them again.
+      if (results.some((r) => r["codeTools"] === true)) void server.sendToolListChanged().catch(() => undefined);
       const note = results.some((r) => r["ok"] === true && r["state"] !== "ready")
         ? "Indexing continues on the server; call index_workspace again (or ask a code question) shortly."
         : undefined;
