@@ -164,7 +164,9 @@ searchable, fill it instead of scaffolding a RAG stack:
    `pipeshub_sources`.
 2. `pipeshub_upload` the documents inline (`text`, or `base64` for binary; up
    to 20 and ~3 MB per call). For a folder or big files, have the user run
-   `pipeshub upload <collectionId> <path>`.
+   `pipeshub upload <collectionId> <path>` (the CLI is in
+   `npm i -g @pipeshub-ai/mcp`; sign it in once with `pipeshub login`, or
+   `pipeshub login --url <origin>` when self-hosted).
 3. Poll `pipeshub_indexing_status` every 15–30 s until `done`, then search.
 4. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
    link the user signs in on. You cannot connect a source for them.

@@ -77,7 +77,7 @@ describe("usage", () => {
   });
 
   test("the credential-setting subcommands refuse, and say where credentials come from", async () => {
-    for (const sub of ["set", "import", "login", "add"]) {
+    for (const sub of ["set", "import", "add"]) {
       const r = await cli(["auth", sub]);
       expect(r.code).toBe(2);
       expect(r.stderr).toContain(`pipeshub auth ${sub} does not exist, deliberately.`);
