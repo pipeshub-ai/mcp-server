@@ -20,6 +20,7 @@ import {
 } from "./config.js";
 import { newRequestId } from "./client.js";
 import { initQm, renderInitReport } from "./init-qm.js";
+import { MCP_CLIENTS, mcpInstall, type McpClient } from "./mcp-install.js";
 import {
   ask,
   authStatus,
@@ -65,6 +66,8 @@ COMMANDS
                               upload files or folders (walked) to a collection
   status <collectionId>       indexing progress of a collection
   connect [connector]         link to connect a source, e.g. connect Jira
+  mcp install --client <name> add PipesHub to an MCP client, with no token in its config:
+                              claude-code, cursor, codex, gemini, claude-desktop
 
 OPTIONS
   --json                      JSON output (default)
@@ -78,7 +81,10 @@ OPTIONS
   --out <path>                get: write to a file instead of stdout
   --max-chars <n>             cap snippet/content length (default 2000)
   --insecure-http             allow cleartext to a host outside the private allowlist
-  --force                     init-qm: overwrite files that already exist
+  --force                     init-qm: overwrite files that already exist;
+                              mcp install: replace an existing pipeshub entry
+  --client <name>             mcp install: the client to configure
+  --dry-run                   mcp install: show what would change, change nothing
   --url <origin>              login: the PipesHub to sign in to
   --no-wait                   login: print the code and link, then exit
   --wait                      login: finish a sign-in started with --no-wait
@@ -110,6 +116,8 @@ interface Flags {
   force: boolean;
   url: string | null;
   wait: boolean | null;
+  client: string | null;
+  dryRun: boolean;
 }
 
 function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
@@ -127,6 +135,8 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     force: false,
     url: null,
     wait: null,
+    client: null,
+    dryRun: false,
   };
   const positional: string[] = [];
 
@@ -148,6 +158,8 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--wait": flags.wait = true; break;
       case "--no-wait": flags.wait = false; break;
       case "--url": flags.url = needValue(a, argv[++i]); break;
+      case "--client": flags.client = needValue(a, argv[++i]); break;
+      case "--dry-run": flags.dryRun = true; break;
       case "--limit": flags.limit = Number(needValue(a, argv[++i])); break;
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
       case "--kb": flags.kb.push(needValue(a, argv[++i])); break;
@@ -398,6 +410,29 @@ async function run(argv: string[]): Promise<number> {
       const collectionId = positional[1] ?? "";
       if (collectionId === "") throw new CliError("usage: pipeshub status <collectionId>", EXIT.USAGE);
       outcome = await indexingStatus(ctx, collectionId);
+      break;
+    }
+    case "mcp": {
+      if (sub !== "install" || flags.client === null) {
+        throw new CliError(`usage: pipeshub mcp install --client <${MCP_CLIENTS.join("|")}>`, EXIT.USAGE);
+      }
+      if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
+        throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
+      }
+      const result = await mcpInstall(flags.client as McpClient, ctx.origin, { force: flags.force, dryRun: flags.dryRun });
+      outcome = {
+        exit: EXIT.OK,
+        payload: {
+          requestId,
+          ...result,
+          // The client starts the server without this shell's environment.
+          ...(ctx.tokenSource === "pipeshub login"
+            ? {}
+            : { note: "This entry carries no token. It works once you run 'pipeshub login' for this origin." }),
+        },
+        text: `${flags.dryRun ? "Would add" : "Added"} PipesHub to ${flags.client}`
+          + `${result.wrote ? ` (${result.wrote})` : ""}. ${result.next}.`,
+      };
       break;
     }
     case "connect":

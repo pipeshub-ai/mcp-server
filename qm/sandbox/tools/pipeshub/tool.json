@@ -53,6 +53,11 @@
       "reason": "Credentials come from the QM keychain. `pipeshub login` would store a sign-in on the sandbox's disk, outside it."
     },
     {
+      "command": "mcp install",
+      "decision": "deny",
+      "reason": "Writes an MCP client entry that authenticates only through a `pipeshub login` sign-in, which QM does not allow. The sandbox has no MCP client of the person's to configure."
+    },
+    {
       "command": "logout",
       "decision": "deny",
       "reason": "Pairs with the `login` rule: there is no stored sign-in in QM to remove, and the keychain is managed in QM."
