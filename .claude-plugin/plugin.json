@@ -15,7 +15,8 @@
       "type": "http",
       "url": "${PIPESHUB_MCP_URL:-https://app.pipeshub.com/mcp}",
       "headers": {
-        "Authorization": "Bearer ${PIPESHUB_MCP_TOKEN}"
+        "Authorization": "Bearer ${PIPESHUB_MCP_TOKEN}",
+        "X-PipesHub-Channel": "claude-code-plugin"
       }
     }
   }

@@ -227,6 +227,8 @@ async function postMcp(
       // QM provides no turn or trace identifier in the sandbox environment,
       // so correlation has to start here. Echoed back in the JSON output.
       "x-pipeshub-request-id": opts.requestId,
+      // Lets the instance's usage events tell CLI traffic from other clients.
+      "x-pipeshub-channel": "pipeshub-cli",
     },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...rpc }),
     // Redirects are handled below: fetch would carry the POST to another
