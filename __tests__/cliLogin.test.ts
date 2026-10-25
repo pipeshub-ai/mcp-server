@@ -27,6 +27,7 @@ let verificationOrigin = "";
 let completeOrigin = "";
 // Runs just before a token response: stands in for a `pipeshub logout` in another terminal.
 let beforeTokens: (() => Promise<void>) | null = null;
+let duringRevoke: (() => Promise<void>) | null = null;
 let scope = "kb:read kb:write";
 let issued = 0;
 const seen: Array<{ path: string; form?: Record<string, string>; authorization?: string | null }> = [];
@@ -94,7 +95,12 @@ beforeAll(() => {
         await beforeTokens?.();
         return Response.json(mint());
       }
-      if (path.endsWith("/revoke")) return new Response("", { status: 200 });
+      if (path.endsWith("/revoke")) {
+        const hook = duringRevoke;
+        duringRevoke = null;
+        await hook?.();
+        return new Response("", { status: 200 });
+      }
       return new Response("not found", { status: 404 });
     },
   });
@@ -114,6 +120,7 @@ beforeEach(async () => {
   verificationOrigin = "";
   completeOrigin = "";
   beforeTokens = null;
+  duringRevoke = null;
   scope = "kb:read kb:write";
   seen.length = 0;
 });
@@ -292,6 +299,20 @@ describe("pipeshub login", () => {
     await expect(stat(credentials())).rejects.toThrow();
     // The tokens the refresh just minted are revoked, not left valid.
     expect(seen.find((x) => x.path.endsWith("/revoke"))?.form?.["token"]).toBe(`refresh-${issued}`);
+  });
+
+  test("a refresh that writes while logout is revoking is revoked too, not left behind", async () => {
+    await cli(["login", "--url", origin]);
+    const before = JSON.parse(await readFile(credentials(), "utf8"));
+    const late = { ...before, accessToken: "e30.late.sig", refreshToken: "refresh-late" };
+    duringRevoke = () => writeFile(credentials(), JSON.stringify(late), { mode: 0o600 });
+    seen.length = 0;
+    const r = await cli(["logout"]);
+    expect(r.code).toBe(0);
+    await expect(stat(credentials())).rejects.toThrow();
+    const revoked = seen.filter((x) => x.path.endsWith("/revoke")).map((x) => x.form?.["token"]);
+    expect(revoked).toContain(before.refreshToken);
+    expect(revoked).toContain("refresh-late");
   });
 
   test("a logout while login --wait polls is not undone when approval lands", async () => {

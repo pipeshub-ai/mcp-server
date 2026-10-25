@@ -320,10 +320,22 @@ function signInAgain(origin: string): CliError {
 export async function logout(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ origin: string | null; revokeRequested: boolean }> {
-  const path = credentialsPath(env);
-  const stored = await readStored(path);
-  const revokeRequested = stored ? await revokeAll(stored) : false;
-  await rm(path, { force: true });
+  // Drop the pending sign-in and take the file away first, so a refresh or
+  // `login --wait` still in flight finds nothing and revokes its own tokens.
   await rm(pendingPath(env), { force: true });
-  return { origin: stored?.origin ?? null, revokeRequested };
+  const path = credentialsPath(env);
+  let first: StoredLogin | null = null;
+  let revokeRequested = false;
+  // A second pass catches a write that landed between that process's re-read and its rename.
+  for (let pass = 0; pass < 2; pass++) {
+    const taken = `${path}.logout-${process.pid}-${pass}`;
+    const moved = await rename(path, taken).then(() => true, () => false);
+    if (!moved) continue;
+    const stored = await readStored(taken);
+    await rm(taken, { force: true });
+    if (stored === null) continue;
+    first ??= stored;
+    revokeRequested = (await revokeAll(stored)) || revokeRequested;
+  }
+  return { origin: first?.origin ?? null, revokeRequested };
 }
