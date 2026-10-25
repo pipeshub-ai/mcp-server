@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +23,7 @@ const jwt = (claims: Record<string, unknown>): string =>
   ["h", Buffer.from(JSON.stringify(claims)).toString("base64url"), "s"].join(".");
 const BEARER = jwt({ userId: USER_ID, exp: 4102444800 });
 const OTHER_BEARER = jwt({ userId: USER_ID, exp: 4102444800, who: "header" });
+const REFRESHED = jwt({ userId: USER_ID, exp: 4102444800, who: "refreshed" });
 
 const CURATED = [
   "pipeshub_sources",
@@ -53,10 +54,12 @@ beforeAll(async () => {
     hostname: "127.0.0.1",
     port: 0,
     fetch(req) {
-      apiCalls.push({
-        path: new URL(req.url).pathname,
-        authorization: req.headers.get("authorization"),
-      });
+      const path = new URL(req.url).pathname;
+      apiCalls.push({ path, authorization: req.headers.get("authorization") });
+      // The token endpoint a stored `pipeshub login` refreshes against.
+      if (path === "/api/v1/oauth2/token") {
+        return Response.json({ access_token: REFRESHED, refresh_token: "refresh-2", expires_in: 3600 });
+      }
       return Response.json({ _id: USER_ID });
     },
   });
@@ -311,6 +314,87 @@ async function stdioClient(
   }));
   return c;
 }
+
+// A `pipeshub login` sign-in, as `src/cli/login.ts` stores it.
+async function signedInHome(login: { origin: string; accessToken: string; expiresAt: number }): Promise<string> {
+  const h = await mkdtemp(join(tmpdir(), "mcpcov-login-"));
+  await mkdir(join(h, ".config", "pipeshub"), { recursive: true });
+  await writeFile(join(h, ".config", "pipeshub", "credentials.json"), JSON.stringify({
+    clientId: "pipeshub-agent",
+    tokenEndpoint: `${login.origin}/api/v1/oauth2/token`,
+    refreshToken: "refresh-1",
+    ...login,
+  }), { mode: 0o600 });
+  return h;
+}
+
+describe("start (stdio) with no --bearer-auth", () => {
+  test("PIPESHUB_TOKEN from the environment is the bearer", async () => {
+    const c = await stdioClient(["--server-url", `${apiOrigin}/api/v1`], { PIPESHUB_TOKEN: BEARER });
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls.at(-1)?.authorization).toBe(`Bearer ${BEARER}`);
+    } finally {
+      await c.close();
+    }
+  }, 20_000);
+
+  test("a pipeshub login sign-in is used, and names the instance when --server-url is absent", async () => {
+    const h = await signedInHome({ origin: apiOrigin, accessToken: BEARER, expiresAt: Date.now() + 3_600_000 });
+    const c = await stdioClient([], { HOME: h });
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls).toEqual([{ path: `/api/v1/users/${USER_ID}`, authorization: `Bearer ${BEARER}` }]);
+    } finally {
+      await c.close();
+      await rm(h, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("an expiring sign-in is refreshed before the call, and the file keeps the rotated token", async () => {
+    const h = await signedInHome({ origin: apiOrigin, accessToken: OTHER_BEARER, expiresAt: 0 });
+    apiCalls.length = 0;
+    const c = await stdioClient([], { HOME: h });
+    try {
+      await whoami(c);
+      expect(apiCalls.map((a) => a.path)).toContain("/api/v1/oauth2/token");
+      expect(apiCalls.at(-1)).toEqual({ path: `/api/v1/users/${USER_ID}`, authorization: `Bearer ${REFRESHED}` });
+      const stored = JSON.parse(await readFile(join(h, ".config", "pipeshub", "credentials.json"), "utf8"));
+      expect(stored.refreshToken).toBe("refresh-2");
+    } finally {
+      await c.close();
+      await rm(h, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("an empty --bearer-auth falls through to the sign-in", async () => {
+    const h = await signedInHome({ origin: apiOrigin, accessToken: BEARER, expiresAt: Date.now() + 3_600_000 });
+    const c = await stdioClient(["--server-url", `${apiOrigin}/api/v1`, "--bearer-auth", ""], { HOME: h });
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls.at(-1)?.authorization).toBe(`Bearer ${BEARER}`);
+    } finally {
+      await c.close();
+      await rm(h, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("a sign-in for another origin is never sent to --server-url", async () => {
+    const h = await signedInHome({ origin: "http://127.0.0.1:9", accessToken: OTHER_BEARER, expiresAt: Date.now() + 3_600_000 });
+    const c = await stdioClient(["--server-url", `${apiOrigin}/api/v1`], { HOME: h });
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls.some((a) => (a.authorization ?? "").includes(OTHER_BEARER))).toBe(false);
+    } finally {
+      await c.close();
+      await rm(h, { recursive: true, force: true });
+    }
+  }, 20_000);
+});
 
 describe("start (stdio)", () => {
   test("lists the curated tools and calls the API with the flag's bearer", async () => {
