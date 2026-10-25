@@ -15,7 +15,7 @@ import { MCPServerFlags } from "../../flags.js";
 import { createMCPServer } from "../../server.js";
 
 import { landingPageExpress } from "../../../landing-page.js";
-import { resolveToken } from "../../../cli/config.js";
+import { assertTransport, resolveOrigin, resolveToken } from "../../../cli/config.js";
 import { storedLogin } from "../../../cli/login.js";
 import { SDKOptions } from "../../../lib/config.js";
 
@@ -73,24 +73,52 @@ async function stdioCredential(
   };
   // An empty --bearer-auth (a client config with the field left blank) counts as none.
   if (flags["bearer-auth"] || fromFlags.security.oauth2) return fromFlags;
-  const envToken = resolveToken();
-  if (envToken !== null) return { ...fromFlags, security: { bearerAuth: envToken } };
 
-  // A sign-in is used only for its own origin; without --server-url, it names the instance.
-  const origin = flags["server-url"] ? new URL(flags["server-url"]).origin : null;
+  // A token goes only to an address that was named (--server-url, else
+  // PIPESHUB_BASE_URL / PIPESHUB_MCP_URL), never to the SDK's default, and only
+  // under the CLI's cleartext rule. `start` has no --insecure-http.
+  const allowed = (origin: string): boolean => {
+    try {
+      assertTransport(origin, false);
+      return true;
+    } catch (e) {
+      logger.error((e as Error).message);
+      return false;
+    }
+  };
+  let origin: string | null;
+  try {
+    origin = flags["server-url"] ? new URL(flags["server-url"]).origin : resolveOrigin();
+  } catch (e) {
+    logger.error((e as Error).message);
+    return fromFlags;
+  }
+  const apiBase = (o: string): string => flags["server-url"] ?? `${o}/api/v1`;
+  const envToken = resolveToken();
+  if (envToken !== null && origin !== null) {
+    return allowed(origin) ? { security: { bearerAuth: envToken }, serverURL: apiBase(origin) } : fromFlags;
+  }
+
+  // A sign-in is used only for its own origin; with no address named, it names the instance.
   const signedIn = await storedLogin(origin, false).catch((e: unknown) => {
     logger.error((e as Error).message);
     return null;
   });
   if (signedIn === null) {
     logger.error(
-      "No PipesHub credential: pass --bearer-auth, set PIPESHUB_TOKEN, or run 'pipeshub login'.",
+      envToken !== null
+        ? "PIPESHUB_TOKEN is set but no PipesHub address is: pass --server-url or set PIPESHUB_BASE_URL."
+        : "No PipesHub credential: pass --bearer-auth, set PIPESHUB_TOKEN, or run 'pipeshub login'.",
     );
     return fromFlags;
   }
+  if (!allowed(signedIn.origin)) return fromFlags;
   return {
-    security: async () => ({ bearerAuth: (await storedLogin(signedIn.origin, false))?.accessToken ?? "" }),
-    serverURL: flags["server-url"] ?? `${signedIn.origin}/api/v1`,
+    security: async () => {
+      assertTransport(signedIn.origin, false);
+      return { bearerAuth: (await storedLogin(signedIn.origin, false))?.accessToken ?? "" };
+    },
+    serverURL: apiBase(signedIn.origin),
   };
 }
 

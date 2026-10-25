@@ -315,6 +315,27 @@ async function stdioClient(
   return c;
 }
 
+/** A stdio client plus what the server wrote to stderr, for the credential hints. */
+async function stdioClientWithStderr(args: string[], env: Record<string, string>): Promise<{ c: Client; stderr: () => string }> {
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [join(import.meta.dir, "..", "src", "mcp-server", "mcp-server.ts"), "start", ...args],
+    env: { HOME: home, PATH: process.env["PATH"] ?? "", ...env },
+    stderr: "pipe",
+  });
+  let err = "";
+  transport.stderr?.on("data", (d: Buffer) => { err += d.toString(); });
+  const c = new Client({ name: "test", version: "1" });
+  await c.connect(transport);
+  return { c, stderr: () => err };
+}
+
+/** stderr arrives on its own pipe, so wait briefly for the line rather than racing it. */
+async function eventually(read: () => string, needle: string): Promise<string> {
+  for (let i = 0; i < 40 && !read().includes(needle); i++) await Bun.sleep(50);
+  return read();
+}
+
 // A `pipeshub login` sign-in, as `src/cli/login.ts` stores it.
 async function signedInHome(login: { origin: string; accessToken: string; expiresAt: number }): Promise<string> {
   const h = await mkdtemp(join(tmpdir(), "mcpcov-login-"));
@@ -376,6 +397,37 @@ describe("start (stdio) with no --bearer-auth", () => {
       apiCalls.length = 0;
       await whoami(c);
       expect(apiCalls.at(-1)?.authorization).toBe(`Bearer ${BEARER}`);
+    } finally {
+      await c.close();
+      await rm(h, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  test("PIPESHUB_TOKEN goes to PIPESHUB_BASE_URL when --server-url is absent", async () => {
+    const c = await stdioClient([], { PIPESHUB_TOKEN: BEARER, PIPESHUB_BASE_URL: apiOrigin });
+    try {
+      apiCalls.length = 0;
+      await whoami(c);
+      expect(apiCalls.at(-1)).toEqual({ path: `/api/v1/users/${USER_ID}`, authorization: `Bearer ${BEARER}` });
+    } finally {
+      await c.close();
+    }
+  }, 20_000);
+
+  test("PIPESHUB_TOKEN with no address is not used, so it never reaches the default instance", async () => {
+    const { c, stderr } = await stdioClientWithStderr([], { PIPESHUB_TOKEN: BEARER });
+    try {
+      expect(await eventually(stderr, "no PipesHub address")).toContain("no PipesHub address");
+    } finally {
+      await c.close();
+    }
+  }, 20_000);
+
+  test("a sign-in for a public cleartext host is refused before its token is used", async () => {
+    const h = await signedInHome({ origin: "http://pipeshub.example.com", accessToken: BEARER, expiresAt: Date.now() + 3_600_000 });
+    const { c, stderr } = await stdioClientWithStderr([], { HOME: h });
+    try {
+      expect(await eventually(stderr, "cleartext")).toContain("cleartext");
     } finally {
       await c.close();
       await rm(h, { recursive: true, force: true });
