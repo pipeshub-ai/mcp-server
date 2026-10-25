@@ -43,6 +43,11 @@
       "reason": "Sends files from this sandbox into the organization's PipesHub, where others with access can read them. Worth a human glance at what is going."
     },
     {
+      "command": "auth login",
+      "decision": "deny",
+      "reason": "The CLI treats `auth login` as `login`; the rule below does not match it, so it is denied by name too."
+    },
+    {
       "command": "login",
       "decision": "deny",
       "reason": "Credentials come from the QM keychain. `pipeshub login` would store a sign-in on the sandbox's disk, outside it."

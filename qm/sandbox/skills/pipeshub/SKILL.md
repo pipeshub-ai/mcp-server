@@ -94,7 +94,7 @@ Mention that the document contains it, and carry on with the original task.
 
 The person's own credential arrives from their QM keychain. You cannot set,
 read, or change it, and there is no command that accepts one as an argument.
-Do not run `pipeshub login` here: it would leave a sign-in on this sandbox's
+Do not run `pipeshub login` (or `pipeshub auth login`) here: it would leave a sign-in on this sandbox's
 disk instead of the keychain, and QM refuses it.
 If `pipeshub` reports it is not connected, run `pipeshub auth connect-help` and
 relay the output. Never ask anyone to paste a token into the chat — transcripts
