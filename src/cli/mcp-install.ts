@@ -1,12 +1,14 @@
 // `pipeshub mcp install --client <name>`: add PipesHub to an MCP client's
-// config. The entry runs the local stdio server (`npx @pipeshub-ai/mcp start`),
-// which uses the `pipeshub login` sign-in, so no token is written anywhere.
+// config. The entry runs the local stdio server (`npx @pipeshub-ai/mcp@<this
+// version> start`), which uses the `pipeshub login` sign-in, so no token is
+// written anywhere. Pinned to this package's own version: an unpinned `npx`
+// would fetch whatever npm has, which may predate the sign-in fallback.
 //
 // Clients with their own `mcp add` command get it run for them, since they own
-// their config format. The rest have a small, documented file we merge into.
+// their config format. The two without one have a small JSON file we merge into.
 
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { CliError, EXIT } from "./config.js";
@@ -26,8 +28,8 @@ export interface InstallResult {
   next: string;
 }
 
-function entryFor(origin: string): { command: string; args: string[] } {
-  return { command: "npx", args: ["-y", "@pipeshub-ai/mcp", "start", "--server-url", origin] };
+function entryFor(origin: string, version: string): { command: string; args: string[] } {
+  return { command: "npx", args: ["-y", `@pipeshub-ai/mcp@${version}`, "start", "--server-url", origin] };
 }
 
 function home(env: NodeJS.ProcessEnv): string {
@@ -61,27 +63,21 @@ async function mergeJson(path: string, entry: object, force: boolean, dryRun: bo
   if (dryRun) return;
   config["mcpServers"] = { ...servers, [NAME]: entry };
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(config, null, 2) + "\n");
+  // Via rename, so a crash mid-write cannot leave the client with half a config.
+  const tmp = `${path}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify(config, null, 2) + "\n");
+  await rename(tmp, path);
 }
 
-/** Append a `[mcp_servers.pipeshub]` table to Codex's config.toml. */
-async function appendCodex(path: string, entry: { command: string; args: string[] }, dryRun: boolean): Promise<void> {
-  const current = await readFile(path, "utf8").catch(() => "");
-  // shortcut: no TOML parser; a table already present is refused rather than rewritten.
-  if (/^\s*\[mcp_servers\.pipeshub\]/m.test(current)) {
-    throw new CliError(`${path} already has [mcp_servers.${NAME}]; edit or remove it, then run this again.`, EXIT.USAGE);
-  }
-  if (dryRun) return;
-  const block = `[mcp_servers.${NAME}]\ncommand = ${JSON.stringify(entry.command)}\n`
-    + `args = [${entry.args.map((a) => JSON.stringify(a)).join(", ")}]\n`;
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, (current && !current.endsWith("\n") ? current + "\n" : current) + (current ? "\n" : "") + block);
-}
-
-/** Run a client's own `mcp add`; the command line is returned for the report. */
-function runAdd(binary: string, args: string[], dryRun: boolean): string {
+/**
+ * Run a client's own `mcp add` (after its `mcp remove`, with --force); the
+ * command line is returned for the report. The client refuses a duplicate itself.
+ */
+function runAdd(binary: string, args: string[], remove: string[] | null, dryRun: boolean): string {
   const shown = [binary, ...args].join(" ");
-  if (dryRun) return shown;
+  if (dryRun) return remove ? `${[binary, ...remove].join(" ")} && ${shown}` : shown;
+  // Nothing to remove is fine; the add below reports anything real.
+  if (remove) spawnSync(binary, remove, { encoding: "utf8" });
   const r = spawnSync(binary, args, { encoding: "utf8" });
   if (r.error) {
     throw new CliError(`could not run ${binary} (${r.error.message}). Is it installed and on PATH?`, EXIT.ERROR);
@@ -95,20 +91,31 @@ function runAdd(binary: string, args: string[], dryRun: boolean): string {
 export async function mcpInstall(
   client: McpClient,
   origin: string,
+  version: string,
   opts: { force: boolean; dryRun: boolean },
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<InstallResult> {
-  const entry = entryFor(origin);
+  const entry = entryFor(origin, version);
   const base = { client, entry, dryRun: opts.dryRun };
+  // `--` before the server command, or the client reads the server's `-y` as its own flag.
+  const server = ["--", entry.command, ...entry.args];
   switch (client) {
     case "claude-code": {
-      const ran = runAdd("claude", ["mcp", "add", "--scope", "user", NAME, "--", entry.command, ...entry.args], opts.dryRun);
+      const ran = runAdd(
+        "claude",
+        ["mcp", "add", "--scope", "user", NAME, ...server],
+        opts.force ? ["mcp", "remove", "--scope", "user", NAME] : null,
+        opts.dryRun,
+      );
       return { ...base, ran, next: "Restart Claude Code, then check it with: claude mcp list" };
     }
     case "gemini": {
-      // `--` as in the README, or gemini reads the server's `-y` as its own flag.
-      const ran = runAdd("gemini", ["mcp", "add", NAME, "--", entry.command, ...entry.args], opts.dryRun);
+      const ran = runAdd("gemini", ["mcp", "add", NAME, ...server], opts.force ? ["mcp", "remove", NAME] : null, opts.dryRun);
       return { ...base, ran, next: "Restart Gemini CLI, then check it with: gemini mcp list" };
+    }
+    case "codex": {
+      const ran = runAdd("codex", ["mcp", "add", NAME, ...server], opts.force ? ["mcp", "remove", NAME] : null, opts.dryRun);
+      return { ...base, ran, next: "Start a new Codex session, then check it with: codex mcp list" };
     }
     case "cursor": {
       const path = join(home(env), ".cursor", "mcp.json");
@@ -119,11 +126,6 @@ export async function mcpInstall(
       const path = desktopConfigPath(env);
       await mergeJson(path, entry, opts.force, opts.dryRun);
       return { ...base, wrote: path, next: "Quit and reopen Claude Desktop" };
-    }
-    case "codex": {
-      const path = join(home(env), ".codex", "config.toml");
-      await appendCodex(path, entry, opts.dryRun);
-      return { ...base, wrote: path, next: "Start a new Codex session" };
     }
   }
 }
