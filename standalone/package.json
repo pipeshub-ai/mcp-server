@@ -1,0 +1,24 @@
+{
+  "name": "@pipeshub-ai/standalone",
+  "version": "0.1.0",
+  "description": "Run PipesHub on your own computer and connect it to your coding agents: npx @pipeshub-ai/standalone init",
+  "license": "Apache-2.0",
+  "author": "Pipeshub",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pipeshub-ai/mcp-server.git",
+    "directory": "standalone"
+  },
+  "type": "module",
+  "bin": {
+    "pipeshub": "bin/pipeshub.js"
+  },
+  "files": [
+    "bin/pipeshub.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": ["pipeshub", "mcp", "claude-code", "codex", "cursor", "windsurf", "gemini-cli", "zed", "cline"]
+}

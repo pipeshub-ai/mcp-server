@@ -1,0 +1,21 @@
+{
+  // my settings
+  "theme": "dark",
+  "servers": {
+    "other": { "command": "other-server", "args": ["--x"] }, // keep
+    "pipeshub": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pipeshub-ai/mcp@>=4.7.0",
+        "start",
+        "--server-url",
+        "http://127.0.0.1:3000"
+      ],
+      "env": {
+        "PIPESHUB_MCP_CHAT": "off"
+      }
+    }
+  }
+}

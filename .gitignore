@@ -37,3 +37,4 @@ coverage/
 .pnpm-debug.log
 # TypeScript
 *.tsbuildinfo
+/standalone/bin

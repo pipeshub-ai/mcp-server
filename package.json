@@ -11,8 +11,9 @@
     "pipeshub": "bin/pipeshub.js"
   },
   "scripts": {
-    "build": "bun i && bun src/mcp-server/build.mts && tsc",
+    "build": "bun i && bun src/mcp-server/build.mts && bun scripts/build-standalone.mts && tsc",
     "mcpb:build": "bun i && bun src/mcp-server/build.mts --pack && tsc",
+    "test:e2e": "PIPESHUB_E2E=1 bun test __tests__/standaloneE2e.test.ts",
     "check": "npm run lint",
     "lint": "eslint --cache --max-warnings=0 src",
     "prepublishOnly": "npm run build"

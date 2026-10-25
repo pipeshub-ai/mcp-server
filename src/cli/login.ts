@@ -43,7 +43,7 @@ export interface PendingLogin extends Endpoints {
   expiresAt: number;
 }
 
-function configDir(env: NodeJS.ProcessEnv): string {
+export function configDir(env: NodeJS.ProcessEnv): string {
   const base = (env["XDG_CONFIG_HOME"] ?? "").trim() || join(env["HOME"] || homedir(), ".config");
   return join(base, "pipeshub");
 }
@@ -71,7 +71,7 @@ const readStored = (path: string) =>
   readJsonFile<StoredLogin>(path, { ...ENDPOINT_FIELDS, accessToken: "string", expiresAt: "number" });
 
 /** Write via rename so a reader never sees half a file, with 0600 from the first byte. */
-async function writeSecretFile(path: string, value: unknown): Promise<void> {
+export async function writeSecretFile(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
@@ -126,6 +126,22 @@ export async function discover(origin: string, insecureHttp: boolean): Promise<E
     );
   }
   const revocationEndpoint = str(meta["revocation_endpoint"]);
+  return checked(origin, { deviceEndpoint, tokenEndpoint, revocationEndpoint, clientId });
+}
+
+const isLoopbackHost = (u: string) => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(u).hostname);
+
+function checked(
+  origin: string,
+  found: { deviceEndpoint: string; tokenEndpoint: string; revocationEndpoint: string | undefined; clientId: string },
+): Endpoints & { deviceEndpoint: string } {
+  const { clientId } = found;
+  // A stack on this computer advertises the address it was configured with (the container's own port), which is
+  // not the port it is published on. It is the same machine: keep the path, use the origin we were pointed at.
+  const here = (u: string | undefined) => (u && isLoopbackHost(origin) && isLoopbackHost(u) ? origin + new URL(u).pathname : u);
+  const deviceEndpoint = here(found.deviceEndpoint)!;
+  const tokenEndpoint = here(found.tokenEndpoint)!;
+  const revocationEndpoint = here(found.revocationEndpoint);
   // These receive the device and refresh tokens: they must be on the instance we were pointed at.
   for (const endpoint of [deviceEndpoint, tokenEndpoint, revocationEndpoint]) {
     const at = endpoint ? new URL(endpoint).origin : origin;

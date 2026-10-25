@@ -1,0 +1,10 @@
+<!-- pipeshub:begin (managed by pipeshub init; remove with: pipeshub init --uninstall) -->
+## PipesHub
+
+PipesHub is connected as the MCP server `pipeshub` and runs on this computer.
+
+- For a question about what the team knows (decisions, tickets, docs, chat, who owns what), call `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content`, and answer from what they say. Do not answer from memory.
+- Try other wording when the first search misses. For "all" or "how many", do not stop at the first matches.
+- If the `pipeshub_code_*` tools are listed, use them for questions about this repository's code (callers, callees, impact) before reading many files.
+- If a tool says PipesHub is not reachable, tell the user to run `pipeshub dev up`.
+<!-- pipeshub:end -->
