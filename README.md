@@ -600,13 +600,11 @@ args = [
   "@pipeshub-ai/mcp",
   "start",
   "--server-url",
-  "PIPESHUB_INSTANCE_URL/api/v1",
+  "PIPESHUB_INSTANCE_URL",
   "--bearer-auth",
   "YOUR_BEARER_TOKEN",
 ]
 ```
-
-`--server-url` must include `/api/v1`.
 
 </details>
 
