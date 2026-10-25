@@ -31,6 +31,26 @@
       "command": "get",
       "decision": "require_approval",
       "reason": "Fetches a document's full contents rather than a snippet. Worth a human glance before bulk text enters the transcript."
+    },
+    {
+      "command": "collection create",
+      "decision": "require_approval",
+      "reason": "Creates a collection in the organization's PipesHub. A write the person should see before it happens."
+    },
+    {
+      "command": "upload",
+      "decision": "require_approval",
+      "reason": "Sends files from this sandbox into the organization's PipesHub, where others with access can read them. Worth a human glance at what is going."
+    },
+    {
+      "command": "login",
+      "decision": "deny",
+      "reason": "Credentials come from the QM keychain. `pipeshub login` would store a sign-in on the sandbox's disk, outside it."
+    },
+    {
+      "command": "logout",
+      "decision": "deny",
+      "reason": "Pairs with the `login` rule: there is no stored sign-in in QM to remove, and the keychain is managed in QM."
     }
   ]
 }

@@ -40,6 +40,10 @@ it because a search creates a record; `semantic:read` guards reading search
 security reviewer to stop here — it is the most confusing thing in the scope
 model, and it is worth saying so before they ask.
 
+`kb:write` and `kb:upload` are needed only for `pipeshub collection create`
+and `pipeshub upload`, which the bundle sends for the person's approval
+(`tool.json`). Leave them off the token for a read-only deployment.
+
 Deliberately excluded: `agent:execute`, `agent:read`, `conversation:write`,
 `team:read`, `offline_access` (a PAT has no refresh token anyway), and the OIDC
 trio. `usergroup:read` is not merely excluded — it is absent from the stock
