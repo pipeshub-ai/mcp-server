@@ -245,8 +245,10 @@ async function run(argv: string[]): Promise<number> {
     const out = await logout();
     await emit({
       exit: EXIT.OK,
-      payload: { requestId, loggedOut: true, origin: out.origin, revoked: out.revoked },
-      text: out.origin ? `Signed out of ${out.origin}.` : "No stored sign-in.",
+      payload: { requestId, loggedOut: true, origin: out.origin, revokeRequested: out.revokeRequested },
+      text: out.origin
+        ? `Signed out of ${out.origin}: the stored sign-in is deleted${out.revokeRequested ? " and the server was asked to revoke it" : ""}.`
+        : "No stored sign-in.",
     }, flags.json);
     return EXIT.OK;
   }

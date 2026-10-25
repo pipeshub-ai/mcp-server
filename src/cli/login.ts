@@ -88,6 +88,8 @@ async function postForm(url: string, form: Record<string, string>): Promise<OAut
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
       body: new URLSearchParams(form),
+      // A redirect would replay the device code or refresh token in the body to its target.
+      redirect: "error",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (e: unknown) {
@@ -122,9 +124,15 @@ export async function discover(origin: string, insecureHttp: boolean): Promise<E
     );
   }
   const revocationEndpoint = str(meta["revocation_endpoint"]);
-  // These receive the device and refresh tokens, so they meet the origin's transport rule.
+  // These receive the device and refresh tokens: they must be on the instance we were pointed at.
   for (const endpoint of [deviceEndpoint, tokenEndpoint, revocationEndpoint]) {
-    if (endpoint) assertTransport(new URL(endpoint).origin, insecureHttp);
+    const at = endpoint ? new URL(endpoint).origin : origin;
+    if (at !== origin) {
+      throw new CliError(
+        `${origin} sends sign-in to another address (${at}), and tokens go only to the origin you named. `
+          + `If ${at} is the same PipesHub, run 'pipeshub login --url ${at}'.`,
+      );
+    }
   }
   return { origin, clientId, tokenEndpoint, deviceEndpoint, ...(revocationEndpoint ? { revocationEndpoint } : {}) };
 }
@@ -144,6 +152,8 @@ export async function startLogin(
   if (r.status !== 200 || !deviceCode || !userCode || !verificationUri) {
     throw new CliError(`sign-in could not start: ${oauthError(r)}`);
   }
+  // The person opens this link and signs in there, so it meets the transport rule too.
+  assertTransport(new URL(verificationUri).origin, insecureHttp);
   const pending: PendingLogin = {
     ...endpoints,
     deviceCode,
@@ -271,20 +281,31 @@ function signInAgain(origin: string): CliError {
   );
 }
 
-/** Revoke the refresh token (best effort) and forget the sign-in. */
-export async function logout(env: NodeJS.ProcessEnv = process.env): Promise<{ origin: string | null; revoked: boolean }> {
+/**
+ * Ask the server to revoke both tokens (best effort) and forget the sign-in.
+ * RFC 7009 answers 200 whatever happened, so this reports the request, not the outcome.
+ */
+export async function logout(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ origin: string | null; revokeRequested: boolean }> {
   const path = credentialsPath(env);
   const stored = await readStored(path);
-  let revoked = false;
-  if (stored?.revocationEndpoint && stored.refreshToken) {
-    const r = await postForm(stored.revocationEndpoint, {
-      token: stored.refreshToken,
-      token_type_hint: "refresh_token",
-      client_id: stored.clientId,
-    }).catch(() => null);
-    revoked = r?.status === 200;
+  let revokeRequested = false;
+  if (stored?.revocationEndpoint) {
+    const tokens: Array<[string, string]> = [
+      ...(stored.refreshToken ? [[stored.refreshToken, "refresh_token"] as [string, string]] : []),
+      [stored.accessToken, "access_token"],
+    ];
+    for (const [token, hint] of tokens) {
+      const r = await postForm(stored.revocationEndpoint, {
+        token,
+        token_type_hint: hint,
+        client_id: stored.clientId,
+      }).catch(() => null);
+      revokeRequested ||= r?.status === 200;
+    }
   }
   await rm(path, { force: true });
   await rm(pendingPath(env), { force: true });
-  return { origin: stored?.origin ?? null, revoked };
+  return { origin: stored?.origin ?? null, revokeRequested };
 }

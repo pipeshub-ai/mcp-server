@@ -21,6 +21,9 @@ let decision: "approve" | "deny" = "approve";
 let polls = 0;
 let noRefresh = false;
 let refreshDown = false;
+let elsewhere = "";
+let redirectToken = false;
+let verificationOrigin = "";
 let scope = "kb:read kb:write";
 let issued = 0;
 const seen: Array<{ path: string; form?: Record<string, string>; authorization?: string | null }> = [];
@@ -42,7 +45,7 @@ beforeAll(() => {
     async fetch(req) {
       const path = new URL(req.url).pathname;
       if (path === "/.well-known/openid-configuration") {
-        const base = `${origin}/api/v1/oauth2`;
+        const base = `${elsewhere || origin}/api/v1/oauth2`;
         return Response.json({
           token_endpoint: `${base}/token`,
           revocation_endpoint: `${base}/revoke`,
@@ -66,11 +69,14 @@ beforeAll(() => {
         return Response.json({
           device_code: "dev-secret",
           user_code: "ABCD-EFGH",
-          verification_uri: `${origin}/oauth/device`,
-          verification_uri_complete: `${origin}/oauth/device?user_code=ABCD-EFGH`,
+          verification_uri: `${verificationOrigin || origin}/oauth/device`,
+          verification_uri_complete: `${verificationOrigin || origin}/oauth/device?user_code=ABCD-EFGH`,
           expires_in: 60,
           interval: 1,
         });
+      }
+      if (redirectToken && path.endsWith("/token")) {
+        return new Response("", { status: 307, headers: { location: `${origin}/elsewhere/token` } });
       }
       if (path.endsWith("/token") && form["grant_type"]?.endsWith("device_code")) {
         polls += 1;
@@ -98,6 +104,9 @@ beforeEach(async () => {
   decision = "approve";
   noRefresh = false;
   refreshDown = false;
+  elsewhere = "";
+  redirectToken = false;
+  verificationOrigin = "";
   scope = "kb:read kb:write";
   seen.length = 0;
 });
@@ -235,6 +244,29 @@ describe("pipeshub login", () => {
     expect(r.stderr).toContain(`in progress is for ${origin}`);
   });
 
+  test("sign-in endpoints on another origin are refused before any token is sent", async () => {
+    elsewhere = "http://127.0.0.2:9";
+    const r = await cli(["login", "--url", origin, "--no-wait"]);
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toContain("pipeshub login --url http://127.0.0.2:9");
+    expect(seen.filter((s) => s.form)).toHaveLength(0);
+  });
+
+  test("a redirect on the token endpoint is not followed with the device code", async () => {
+    redirectToken = true;
+    const r = await cli(["login", "--url", origin]);
+    expect(r.code).not.toBe(0);
+    expect(seen.some((s) => s.path === "/elsewhere/token")).toBe(false);
+    await expect(stat(credentials())).rejects.toThrow();
+  });
+
+  test("a cleartext verification link to a public host is refused", async () => {
+    verificationOrigin = "http://pipeshub.example.com";
+    const r = await cli(["login", "--url", origin, "--no-wait"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("cleartext");
+  });
+
   test("a denial in the browser exits 3", async () => {
     decision = "deny";
     const r = await cli(["login", "--url", origin]);
@@ -260,11 +292,16 @@ describe("pipeshub login", () => {
     expect(r.stderr).toContain("cleartext");
   });
 
-  test("logout revokes the refresh token and forgets the sign-in", async () => {
+  test("logout asks to revoke both tokens as a public client and forgets the sign-in", async () => {
     await cli(["login", "--url", origin]);
+    const stored = JSON.parse(await readFile(credentials(), "utf8"));
     const r = await cli(["logout"]);
-    expect(JSON.parse(r.stdout)).toMatchObject({ loggedOut: true, origin, revoked: true });
-    expect(seen.find((s) => s.path.endsWith("/revoke"))?.form).toMatchObject({ token: `refresh-${issued}` });
+    expect(JSON.parse(r.stdout)).toMatchObject({ loggedOut: true, origin, revokeRequested: true });
+    const revokes = seen.filter((s) => s.path.endsWith("/revoke")).map((s) => s.form);
+    expect(revokes).toEqual([
+      { token: stored.refreshToken, token_type_hint: "refresh_token", client_id: "pipeshub-agent" },
+      { token: stored.accessToken, token_type_hint: "access_token", client_id: "pipeshub-agent" },
+    ]);
     await expect(stat(credentials())).rejects.toThrow();
     expect((await cli(["auth", "status"])).stderr).toContain("run 'pipeshub login'");
   });
