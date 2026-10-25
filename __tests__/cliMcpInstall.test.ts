@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { FIRST_START_WITH_SIGN_IN } from "../src/cli/mcp-install.js";
 
 // `pipeshub mcp install` edits another program's config, so what can go wrong
 // is local: a token written into that config, other servers in it dropped, an
@@ -14,7 +15,6 @@ const ROOT = join(import.meta.dir, "..");
 const ENTRY = join(ROOT, "src", "cli", "pipeshub.ts");
 const USER_ID = "507f1f77bcf86cd799439011";
 const ACCESS = ["h", Buffer.from(JSON.stringify({ userId: USER_ID, exp: 4102444800 })).toString("base64url"), "s"].join(".");
-const VERSION = (JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as { version: string }).version;
 
 let api: ReturnType<typeof Bun.serve>;
 let origin = "";
@@ -65,7 +65,7 @@ async function cli(args: string[], env: Record<string, string> = {}) {
   return { code, stdout, stderr };
 }
 
-const entryArgs = () => ["-y", `@pipeshub-ai/mcp@${VERSION}`, "start", "--server-url", origin];
+const entryArgs = () => ["-y", `@pipeshub-ai/mcp@>=${FIRST_START_WITH_SIGN_IN}`, "start", "--server-url", origin];
 
 /** A stub client CLI on PATH that appends each invocation's argv to a file. */
 async function stubCli(name: string): Promise<{ path: string; calls: () => Promise<string[][]> }> {
@@ -101,7 +101,7 @@ describe("pipeshub mcp install", () => {
     const { args } = JSON.parse(await readFile(join(home, ".cursor", "mcp.json"), "utf8")).mcpServers.pipeshub as {
       args: string[];
     };
-    // Run what `npx @pipeshub-ai/mcp@<version>` would, from this checkout.
+    // Runs this checkout's `start`, which is what FIRST_START_WITH_SIGN_IN ships; npm cannot be reached here.
     const c = new Client({ name: "test", version: "1" });
     await c.connect(new StdioClientTransport({
       command: process.execPath,
@@ -156,6 +156,14 @@ describe("pipeshub mcp install", () => {
   test("with only an environment token, it says the entry needs pipeshub login", async () => {
     const r = await cli(["--client", "cursor", "--dry-run"], { PIPESHUB_TOKEN: "env-token", PIPESHUB_BASE_URL: origin });
     expect(JSON.parse(r.stdout).note).toContain("pipeshub login");
+  });
+
+  test("the minimum version is not older than this package, so it includes this start", async () => {
+    const own = (JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as { version: string }).version;
+    const parts = (v: string) => v.split(".").map(Number);
+    const [a, b] = [parts(FIRST_START_WITH_SIGN_IN), parts(own)];
+    // Before the release, this package is still at the previous version; after it, at or above the minimum.
+    expect(a[0]! > b[0]! || (a[0] === b[0] && a[1]! >= b[1]!)).toBe(true);
   });
 
   test("an unknown client is a usage error", async () => {

@@ -19,7 +19,7 @@ import { CliError, EXIT } from "./config.js";
  * layouts — `bin/pipeshub.js` (bundled) and `esm/cli/pipeshub.js` (tsc) — so a
  * fixed number of `..` would be wrong for one of them.
  */
-export async function packageRoot(): Promise<string> {
+async function packageRoot(): Promise<string> {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 6; i++) {
     try {
@@ -38,7 +38,7 @@ export async function packageRoot(): Promise<string> {
   );
 }
 
-export async function packageVersion(root: string): Promise<string> {
+async function packageVersion(root: string): Promise<string> {
   const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as {
     version?: string;
   };

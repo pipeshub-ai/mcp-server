@@ -19,7 +19,7 @@ import {
   resolveToken,
 } from "./config.js";
 import { newRequestId } from "./client.js";
-import { initQm, packageRoot, packageVersion, renderInitReport } from "./init-qm.js";
+import { initQm, renderInitReport } from "./init-qm.js";
 import { MCP_CLIENTS, mcpInstall, type McpClient } from "./mcp-install.js";
 import {
   ask,
@@ -419,12 +419,7 @@ async function run(argv: string[]): Promise<number> {
       if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
         throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
       }
-      const result = await mcpInstall(
-        flags.client as McpClient,
-        ctx.origin,
-        await packageVersion(await packageRoot()),
-        { force: flags.force, dryRun: flags.dryRun },
-      );
+      const result = await mcpInstall(flags.client as McpClient, ctx.origin, { force: flags.force, dryRun: flags.dryRun });
       outcome = {
         exit: EXIT.OK,
         payload: {

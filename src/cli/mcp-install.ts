@@ -1,8 +1,9 @@
 // `pipeshub mcp install --client <name>`: add PipesHub to an MCP client's
-// config. The entry runs the local stdio server (`npx @pipeshub-ai/mcp@<this
-// version> start`), which uses the `pipeshub login` sign-in, so no token is
-// written anywhere. Pinned to this package's own version: an unpinned `npx`
-// would fetch whatever npm has, which may predate the sign-in fallback.
+// config. The entry runs the local stdio server (`npx @pipeshub-ai/mcp@>=X
+// start`), which uses the `pipeshub login` sign-in, so no token is written
+// anywhere. The range starts at the first release whose `start` reads that
+// sign-in: an older one would run with no credential, and before X is on npm
+// the entry fails loudly instead.
 //
 // Clients with their own `mcp add` command get it run for them, since they own
 // their config format. The two without one have a small JSON file we merge into.
@@ -28,8 +29,14 @@ export interface InstallResult {
   next: string;
 }
 
-function entryFor(origin: string, version: string): { command: string; args: string[] } {
-  return { command: "npx", args: ["-y", `@pipeshub-ai/mcp@${version}`, "start", "--server-url", origin] };
+/** The first release whose stdio `start` falls back to the `pipeshub login` sign-in. Ships with this command. */
+export const FIRST_START_WITH_SIGN_IN = "4.7.0";
+
+function entryFor(origin: string): { command: string; args: string[] } {
+  return {
+    command: "npx",
+    args: ["-y", `@pipeshub-ai/mcp@>=${FIRST_START_WITH_SIGN_IN}`, "start", "--server-url", origin],
+  };
 }
 
 function home(env: NodeJS.ProcessEnv): string {
@@ -91,11 +98,10 @@ function runAdd(binary: string, args: string[], remove: string[] | null, dryRun:
 export async function mcpInstall(
   client: McpClient,
   origin: string,
-  version: string,
   opts: { force: boolean; dryRun: boolean },
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<InstallResult> {
-  const entry = entryFor(origin, version);
+  const entry = entryFor(origin);
   const base = { client, entry, dryRun: opts.dryRun };
   // `--` before the server command, or the client reads the server's `-y` as its own flag.
   const server = ["--", entry.command, ...entry.args];
