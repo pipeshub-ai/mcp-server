@@ -32,8 +32,13 @@ https://docs.pipeshub.com/for-agents-bootstrap.md
 
 If they have no running PipesHub, **do not scaffold LangChain**.
 
-Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com,
-connect a source or upload files and let it index, then mint a personal access
+Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com and
+connect a source or upload files and let it index. To connect a local client
+with no token copied anywhere, run `npm i -g @pipeshub-ai/mcp`, then
+`pipeshub login --no-wait`: give the user the link and code, and finish with
+`pipeshub login --wait`. Then run `pipeshub mcp install --client claude-code`
+(or `cursor`, `codex`, `gemini`, `claude-desktop`) and restart the client.
+Otherwise they mint a personal access
 token in Workspace → Developer settings. They export it in their shell profile
 as `PIPESHUB_MCP_TOKEN` (never into chat) and restart the agent. With the
 PipesHub Claude Code plugin, run `/pipeshub:setup` to check it. Otherwise:

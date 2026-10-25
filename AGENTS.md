@@ -53,7 +53,7 @@ Exit `6` on `ask` means the response had no citation objects. Relay the answer a
 
 Environment: `PIPESHUB_TOKEN` then `PIPESHUB_MCP_TOKEN`; `PIPESHUB_BASE_URL` then `PIPESHUB_MCP_URL`. Normalize the URL to an origin. The MCP path is always `{origin}/mcp`.
 
-With no token in the environment, the CLI uses the sign-in `pipeshub login` stored (device code against the instance's `pipeshub_device_client_id`; `~/.config/pipeshub/credentials.json`, 0600), and only for the origin that issued it. The environment always wins, so QM is unchanged. `login` takes no token: it is not `auth set`.
+With no token in the environment, the CLI uses the sign-in `pipeshub login` stored (device code against the instance's `pipeshub_device_client_id`; `~/.config/pipeshub/credentials.json`, 0600), and only for the origin that issued it. The environment always wins, so QM is unchanged. `login` takes no token: it is not `auth set`. `mcp install --client <name>` writes a client entry that runs `npx @pipeshub-ai/mcp start`, which uses that sign-in; it never writes a token into a client config.
 
 Cleartext HTTP is allowed only for loopback, RFC1918, link-local, and names ending in `.local` / `.internal` / `.svc`, plus `host.docker.internal`. Public DNS needs HTTPS (`--insecure-http` override).
 
