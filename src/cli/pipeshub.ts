@@ -234,7 +234,12 @@ async function run(argv: string[]): Promise<number> {
   let origin = resolveOrigin();
 
   if (command === "login" || (command === "auth" && sub === "login")) {
-    return login(flags.url !== null ? resolveOrigin({ PIPESHUB_BASE_URL: flags.url }) : origin, flags, requestId);
+    if (flags.url !== null) {
+      // A blank --url (an unset variable) must not fall through to Cloud.
+      origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
+      if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
+    }
+    return login(origin, flags, requestId);
   }
   if (command === "logout") {
     const out = await logout();
@@ -422,6 +427,12 @@ async function login(origin: string | null, flags: Flags, requestId: string): Pr
     pending = await readPending();
     if (pending === null) {
       throw new CliError("No sign-in in progress. Run 'pipeshub login --no-wait' first.", EXIT.USAGE);
+    }
+    if (flags.url !== null && pending.origin !== origin) {
+      throw new CliError(
+        `The sign-in in progress is for ${pending.origin}. Run 'pipeshub login --url ${origin} --no-wait' to start one for ${origin}.`,
+        EXIT.USAGE,
+      );
     }
   } else {
     pending = await startLogin(origin ?? CLOUD_ORIGIN, flags.insecureHttp);

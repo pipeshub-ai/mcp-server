@@ -20,6 +20,7 @@ let deviceEnabled = true;
 let decision: "approve" | "deny" = "approve";
 let polls = 0;
 let noRefresh = false;
+let refreshDown = false;
 let scope = "kb:read kb:write";
 let issued = 0;
 const seen: Array<{ path: string; form?: Record<string, string>; authorization?: string | null }> = [];
@@ -78,6 +79,7 @@ beforeAll(() => {
         return Response.json(mint());
       }
       if (path.endsWith("/token") && form["grant_type"] === "refresh_token") {
+        if (refreshDown) return Response.json({ error: "server_error" }, { status: 503 });
         if (form["refresh_token"] !== `refresh-${issued}`) return Response.json({ error: "invalid_grant" }, { status: 400 });
         return Response.json(mint());
       }
@@ -95,6 +97,7 @@ beforeEach(async () => {
   deviceEnabled = true;
   decision = "approve";
   noRefresh = false;
+  refreshDown = false;
   scope = "kb:read kb:write";
   seen.length = 0;
 });
@@ -197,6 +200,39 @@ describe("pipeshub login", () => {
     const r = await cli(["auth", "status"]);
     expect(r.code).toBe(3);
     expect(r.stderr).toContain("Run 'pipeshub login' again");
+  });
+
+  test("a server error during refresh is not reported as an expired sign-in", async () => {
+    await cli(["login", "--url", origin]);
+    const before = JSON.parse(await readFile(credentials(), "utf8"));
+    await writeFile(credentials(), JSON.stringify({ ...before, expiresAt: 0 }), { mode: 0o600 });
+    refreshDown = true;
+    const r = await cli(["auth", "status"]);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("Try again shortly");
+    expect(r.stderr).not.toContain("expired");
+    // The refresh token is kept for the next try.
+    expect(JSON.parse(await readFile(credentials(), "utf8")).refreshToken).toBe(before.refreshToken);
+  });
+
+  test("a stored file missing fields reads as not signed in, not as a crash", async () => {
+    await cli(["login", "--url", origin]);
+    await writeFile(credentials(), JSON.stringify({ origin, accessToken: "x" }), { mode: 0o600 });
+    const r = await cli(["auth", "status"]);
+    expect(r.stderr).toContain("run 'pipeshub login'");
+  });
+
+  test("a blank --url is a usage error, not a sign-in to Cloud", async () => {
+    const r = await cli(["login", "--url", "", "--no-wait"]);
+    expect(r.code).toBe(2);
+    expect(seen).toHaveLength(0);
+  });
+
+  test("--wait for a different --url than the pending sign-in is refused", async () => {
+    await cli(["login", "--url", origin, "--no-wait"]);
+    const r = await cli(["login", "--wait", "--url", "http://127.0.0.1:9"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(`in progress is for ${origin}`);
   });
 
   test("a denial in the browser exits 3", async () => {

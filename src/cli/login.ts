@@ -51,13 +51,24 @@ function configDir(env: NodeJS.ProcessEnv): string {
 export const credentialsPath = (env: NodeJS.ProcessEnv = process.env) => join(configDir(env), "credentials.json");
 const pendingPath = (env: NodeJS.ProcessEnv) => join(configDir(env), "pending-login.json");
 
-async function readJsonFile<T>(path: string): Promise<T | null> {
+/** The file's JSON when it has the fields we use; a hand-edited or truncated file reads as absent. */
+async function readJsonFile<T>(path: string, required: Record<string, "string" | "number">): Promise<T | null> {
   try {
-    return JSON.parse(await readFile(path, "utf8")) as T;
+    const value: unknown = JSON.parse(await readFile(path, "utf8"));
+    if (typeof value !== "object" || value === null) return null;
+    const fields = value as Record<string, unknown>;
+    const ok = Object.entries(required).every(([k, type]) =>
+      type === "number" ? Number.isFinite(fields[k]) : typeof fields[k] === "string" && fields[k] !== ""
+    );
+    return ok ? (value as T) : null;
   } catch {
     return null;
   }
 }
+
+const ENDPOINT_FIELDS = { origin: "string", clientId: "string", tokenEndpoint: "string" } as const;
+const readStored = (path: string) =>
+  readJsonFile<StoredLogin>(path, { ...ENDPOINT_FIELDS, accessToken: "string", expiresAt: "number" });
 
 /** Write via rename so a reader never sees half a file, with 0600 from the first byte. */
 async function writeSecretFile(path: string, value: unknown): Promise<void> {
@@ -147,7 +158,15 @@ export async function startLogin(
 }
 
 export function readPending(env: NodeJS.ProcessEnv = process.env): Promise<PendingLogin | null> {
-  return readJsonFile<PendingLogin>(pendingPath(env));
+  return readJsonFile<PendingLogin>(pendingPath(env), {
+    ...ENDPOINT_FIELDS,
+    deviceCode: "string",
+    userCode: "string",
+    verificationUri: "string",
+    verificationUriComplete: "string",
+    intervalSeconds: "number",
+    expiresAt: "number",
+  });
 }
 
 function oauthError(r: OAuthReply): string {
@@ -216,8 +235,8 @@ export async function storedLogin(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<StoredLogin | null> {
   const path = credentialsPath(env);
-  const stored = await readJsonFile<StoredLogin>(path);
-  if (!stored?.accessToken || (origin !== null && stored.origin !== origin)) return null;
+  const stored = await readStored(path);
+  if (stored === null || (origin !== null && stored.origin !== origin)) return null;
   if (stored.expiresAt - REFRESH_MARGIN_MS > Date.now()) return stored;
   if (!stored.refreshToken) throw signInAgain(stored.origin);
 
@@ -233,8 +252,15 @@ export async function storedLogin(
   }
   // The server rotates refresh tokens, so a second CLI process refreshing at
   // the same moment makes ours stale. If the file moved on meanwhile, use it.
-  const current = await readJsonFile<StoredLogin>(path);
+  const current = await readStored(path);
   if (current && current.refreshToken !== stored.refreshToken && current.expiresAt > Date.now()) return current;
+  // A server error or rate limit says nothing about the refresh token, which is still good.
+  if (r.status >= 500 || r.status === 429) {
+    throw new CliError(
+      `could not refresh the sign-in to ${stored.origin} (${oauthError(r)}). Try again shortly.`,
+      r.status === 429 ? EXIT.RATE_LIMITED : EXIT.ERROR,
+    );
+  }
   throw signInAgain(stored.origin);
 }
 
@@ -248,7 +274,7 @@ function signInAgain(origin: string): CliError {
 /** Revoke the refresh token (best effort) and forget the sign-in. */
 export async function logout(env: NodeJS.ProcessEnv = process.env): Promise<{ origin: string | null; revoked: boolean }> {
   const path = credentialsPath(env);
-  const stored = await readJsonFile<StoredLogin>(path);
+  const stored = await readStored(path);
   let revoked = false;
   if (stored?.revocationEndpoint && stored.refreshToken) {
     const r = await postForm(stored.revocationEndpoint, {
