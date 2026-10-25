@@ -15,7 +15,7 @@ import {
   type ClientId, type Ctx, type Edit, type Target,
 } from "./clients.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, dockerProblem, findLocal, devDown, devUp, readState } from "./stack.js";
-import { forgetAccount, localSignIn, revokeMintedToken } from "./signin.js";
+import { forgetAccount, localSignIn } from "./signin.js";
 
 export interface InitOptions {
   dryRun: boolean;
@@ -258,10 +258,9 @@ async function uninstall(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: string
   if (o.dryRun) {
     report.signedIn = "would sign out and forget the local account";
   } else {
-    const revoked = await revokeMintedToken(env);
-    const out = await logout(false, env).catch(() => ({ origin: null }));
+    const out = await logout(false, env).catch(() => ({ origin: null, revokeRequested: false }));
     await forgetAccount(env);
-    report.signedIn = out.origin ? `signed out of ${out.origin}${revoked ? " and revoked its access token" : ""}` : "no stored sign-in";
+    report.signedIn = out.origin ? `signed out of ${out.origin}${out.revokeRequested ? " and asked the server to revoke it" : ""}` : "no stored sign-in";
     if (manifest?.startedStack) {
       say("Stopping the local stack (its data is kept)...");
       await devDown(false, env).then(() => { report.stack = "stopped the local stack (data kept; remove it with: pipeshub dev down --volumes)"; },

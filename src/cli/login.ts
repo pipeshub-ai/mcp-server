@@ -126,22 +126,6 @@ export async function discover(origin: string, insecureHttp: boolean): Promise<E
     );
   }
   const revocationEndpoint = str(meta["revocation_endpoint"]);
-  return checked(origin, { deviceEndpoint, tokenEndpoint, revocationEndpoint, clientId });
-}
-
-const isLoopbackHost = (u: string) => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(u).hostname);
-
-function checked(
-  origin: string,
-  found: { deviceEndpoint: string; tokenEndpoint: string; revocationEndpoint: string | undefined; clientId: string },
-): Endpoints & { deviceEndpoint: string } {
-  const { clientId } = found;
-  // A stack on this computer advertises the address it was configured with (the container's own port), which is
-  // not the port it is published on. It is the same machine: keep the path, use the origin we were pointed at.
-  const here = (u: string | undefined) => (u && isLoopbackHost(origin) && isLoopbackHost(u) ? origin + new URL(u).pathname : u);
-  const deviceEndpoint = here(found.deviceEndpoint)!;
-  const tokenEndpoint = here(found.tokenEndpoint)!;
-  const revocationEndpoint = here(found.revocationEndpoint);
   // These receive the device and refresh tokens: they must be on the instance we were pointed at.
   for (const endpoint of [deviceEndpoint, tokenEndpoint, revocationEndpoint]) {
     const at = endpoint ? new URL(endpoint).origin : origin;
@@ -280,15 +264,7 @@ export async function storedLogin(
   const stored = await readStored(path);
   if (stored === null || (origin !== null && stored.origin !== origin)) return null;
   if (stored.expiresAt - REFRESH_MARGIN_MS > Date.now()) return stored;
-  if (!stored.refreshToken) {
-    // A token `pipeshub init` minted on this computer is renewed with the account it created.
-    if (stored.clientId === "personal-access-token") {
-      const { renewMintedToken } = await import("./standalone/signin.js");
-      const next = await renewMintedToken(env).catch(() => null);
-      if (next && next.origin === stored.origin) return next;
-    }
-    throw signInAgain(stored.origin);
-  }
+  if (!stored.refreshToken) throw signInAgain(stored.origin);
 
   const r = await postForm(stored.tokenEndpoint, {
     grant_type: "refresh_token",

@@ -13,17 +13,14 @@
 
 import { randomBytes } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
-import { hostname } from "node:os";
 import { join } from "node:path";
 import { CliError } from "../config.js";
-import { configDir, credentialsPath, startLogin, storedLogin, waitForLogin, writeSecretFile, type StoredLogin } from "../login.js";
+import { configDir, discover, startLogin, storedLogin, waitForLogin, writeSecretFile } from "../login.js";
 
 export interface LocalAccount {
   origin: string;
   email: string;
   password: string;
-  /** Id of the access token this command minted, so uninstall can revoke it. */
-  tokenId?: string;
 }
 
 export const isLoopback = (origin: string) => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(origin).hostname);
@@ -91,86 +88,12 @@ export interface SignIn {
   email?: string;
 }
 
-/** What an agent may do through the CLI: the agent preset plus knowledge writes and repository indexing. */
-const WANTED_SCOPES = ["conversation:chat", "semantic:write", "kb:read", "kb:write", "kb:upload", "user:read", "connector:read", "code:read", "code:write"];
-/** The server's shortest personal-token lifetime. */
-const PAT_DAYS = 30;
-/** The CLI treats the token as expired after this long and renews it, revoking the old one, so a copy of the file is useless the next day. */
-const SOFT_LIFETIME_MS = 24 * 3_600_000;
-export const MINTED_TOKEN_CLIENT = "personal-access-token";
-
 /**
- * A personal access token for the signed-in account, kept in the CLI's own
- * credential file. The account's password session mints it (the API accepts
- * no other caller for this), so nothing is pasted and nothing is approved in a
- * browser.
- *
- * shortcut: the device-code grant would give a refreshable token tied to the
- * "PipesHub agent" app, but the slim server cannot create that app yet
- * (discovery fails with "no org context is bound"). Until it can, the token is
- * renewed by `renewMintedToken` (called from `storedLogin` when it lapses) with
- * the stored account password. Switch back to the device grant when slim can.
+ * The usual device-code sign-in (login.ts), approved by this command when the
+ * stack is this computer's own and the account is one we created. The server's
+ * first-party "PipesHub agent" login grants the agent preset, which the slim
+ * stack extends with the knowledge-write and repository-indexing scopes.
  */
-async function mintToken(origin: string, access: string, env: NodeJS.ProcessEnv): Promise<StoredLogin> {
-  const headers = { "content-type": "application/json", authorization: `Bearer ${access}` };
-  const avail = await api(origin, "/api/v1/personal-access-tokens/scopes", { headers });
-  const names = JSON.stringify(avail.body);
-  const scopes = WANTED_SCOPES.filter((s) => names.includes(`"${s}"`));
-  const made = await api(origin, "/api/v1/personal-access-tokens", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ name: `pipeshub CLI on ${hostname()}`, ...(scopes.length ? { scopes } : {}), expiryDays: PAT_DAYS }),
-  });
-  const token = (made.body["token"] ?? {}) as Record<string, unknown>;
-  const secret = token["accessToken"];
-  if (made.status !== 201 || typeof secret !== "string") {
-    throw new CliError(`could not create the CLI's access token on ${origin} (HTTP ${made.status}).`);
-  }
-  const stored: StoredLogin = {
-    origin,
-    clientId: MINTED_TOKEN_CLIENT,
-    tokenEndpoint: `${origin}/api/v1/oauth2/token`,
-    accessToken: secret,
-    expiresAt: Date.now() + SOFT_LIFETIME_MS,
-  };
-  await writeSecretFile(credentialsPath(env), stored);
-  const account = await readAccount(env);
-  if (account && typeof token["id"] === "string") await writeSecretFile(accountPath(env), { ...account, tokenId: token["id"] });
-  return stored;
-}
-
-async function revokeById(origin: string, access: string, id: string): Promise<boolean> {
-  const res = await fetch(`${origin}/api/v1/personal-access-tokens/${id}`, {
-    method: "DELETE",
-    headers: { authorization: `Bearer ${access}` },
-    signal: AbortSignal.timeout(30_000),
-  }).catch(() => null);
-  return res?.ok === true;
-}
-
-/** Revoke the token `mintToken` made, when the stored account can still sign in. Best effort. */
-export async function revokeMintedToken(env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
-  const account = await readAccount(env);
-  if (!account?.tokenId) return false;
-  const access = await session(account).catch(() => null);
-  return access ? revokeById(account.origin, access, account.tokenId) : false;
-}
-
-/**
- * The renewal behind `storedLogin` for a token this command minted: sign in as
- * the stored account, mint a new token, revoke the old one. Null when there is
- * no stored account or the stack does not take it (the caller then asks for a new sign-in).
- */
-export async function renewMintedToken(env: NodeJS.ProcessEnv = process.env): Promise<StoredLogin | null> {
-  const account = await readAccount(env);
-  if (!account) return null;
-  const access = await session(account).catch(() => null);
-  if (!access) return null;
-  const stored = await mintToken(account.origin, access, env);
-  if (account.tokenId) await revokeById(account.origin, access, account.tokenId);
-  return stored;
-}
-
 export async function localSignIn(
   origin: string,
   opts: { email: string; env?: NodeJS.ProcessEnv; say: (s: string) => void },
@@ -179,7 +102,7 @@ export async function localSignIn(
   const existing = await storedLogin(origin, false, env).catch(() => null);
   if (existing) return { how: "already", createdAccount: false };
 
-  // Only this computer's own PipesHub may have an account made for the person.
+  // Only this computer's own PipesHub may have an account made or a code approved for the person.
   const local = isLoopback(origin);
   let account = local ? await readAccount(env) : null;
   if (account && account.origin !== origin) account = null;
@@ -188,23 +111,31 @@ export async function localSignIn(
     account = await createFirstAccount(origin, opts.email, env);
     created = account !== null;
   }
-  if (account) {
-    let access = await session(account);
-    // A new account's event reaches the other services a moment later.
-    for (let i = 0; !access && created && i < 20; i++) {
-      await new Promise((r) => setTimeout(r, 1500));
-      access = await session(account);
-    }
-    if (access) {
-      await mintToken(origin, access, env);
-      return { how: "automatic", createdAccount: created, email: account.email };
-    }
-    opts.say("The stored local account no longer signs in; falling back to the browser.");
+  // The sign-in app exists once an org does, and appears a moment after the first account.
+  let found = await discover(origin, false).catch((e: unknown) => e as CliError);
+  for (let i = 0; found instanceof Error && created && i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    found = await discover(origin, false).catch((e: unknown) => e as CliError);
   }
-
-  // An account this command did not create: the usual device-code sign-in.
+  if (found instanceof Error) throw found;
   const pending = await startLogin(origin, false, env);
-  opts.say(`Open ${pending.verificationUriComplete} and confirm the code ${pending.userCode}. Waiting for approval...`);
+
+  let access = account ? await session(account) : null;
+  for (let i = 0; account && !access && created && i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    access = await session(account);
+  }
+  let how: SignIn["how"] = "browser";
+  if (access) {
+    const consent = await api(origin, new URL(found.deviceEndpoint).pathname.replace(/\/device_authorization$/, "/device/consent"), {
+      ...json({ user_code: pending.userCode, consent: "granted" }),
+      headers: { "content-type": "application/json", authorization: `Bearer ${access}` },
+    });
+    if (consent.status === 200) how = "automatic";
+  }
+  if (how === "browser") {
+    opts.say(`Open ${pending.verificationUriComplete} and confirm the code ${pending.userCode}. Waiting for approval...`);
+  }
   await waitForLogin(pending, false, env);
-  return { how: "browser", createdAccount: false };
+  return { how, createdAccount: created, ...(account ? { email: account.email } : {}) };
 }

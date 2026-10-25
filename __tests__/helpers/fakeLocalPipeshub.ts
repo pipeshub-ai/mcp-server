@@ -1,6 +1,7 @@
-// A stand-in for the pieces of a fresh local PipesHub that `pipeshub init`
-// and `pipeshub index` talk to: health, first-run account creation, password
-// sign-in, personal access tokens, and the local-repos API. Loopback only.
+// A stand-in for the pieces of a fresh local PipesHub that `pipeshub init`,
+// `pipeshub index` and the bridge talk to: health, first-run account creation,
+// password sign-in, the device-code login (discovery, device_authorization,
+// consent, token, revoke), /mcp, and the local-repos API. Loopback only.
 
 import { createHash, randomBytes } from "node:crypto";
 
@@ -8,7 +9,7 @@ export interface FakeLocal {
   origin: string;
   /** The access token last minted, as the server issued it (so a test can look for it in files). */
   issuedToken: string;
-  /** How many access tokens have been minted. */
+  /** How many access tokens the device login has issued. */
   mints: number;
   /** The password init generated for the first account. */
   password: string | null;
@@ -20,7 +21,7 @@ export interface FakeLocal {
   stop(): void;
 }
 
-export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
+export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: number } = {}): FakeLocal {
   const fresh = () => "fake-pat-" + randomBytes(12).toString("hex");
   const state: FakeLocal = {
     origin: "",
@@ -34,6 +35,8 @@ export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
     stop: () => server.stop(true),
   };
   let org = opts.orgExists ?? false;
+  let codes = 0;
+  const approved = new Set<string>();
   let email = "";
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
@@ -46,7 +49,10 @@ export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
       const p = url.pathname;
       state.log.push(`${req.method} ${p}`);
       const bearer = req.headers.get("authorization")?.replace(/^Bearer /, "");
-      const body = req.method === "GET" || req.method === "DELETE" ? {} : ((await req.json().catch(() => ({}))) as Record<string, any>);
+      const isForm = (req.headers.get("content-type") ?? "").includes("x-www-form-urlencoded");
+      const body: Record<string, any> = req.method === "GET" || req.method === "DELETE"
+        ? {}
+        : isForm ? Object.fromEntries(new URLSearchParams(await req.text())) : ((await req.json().catch(() => ({}))) as Record<string, any>);
 
       if (p === "/mcp") {
         if (state.mcp.hang) return new Promise<Response>(() => undefined);
@@ -76,19 +82,39 @@ export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
         const ok = org && body["email"] === email && body["credentials"]?.password === state.password;
         return ok ? json({ accessToken: "session-" + randomBytes(6).toString("hex") }) : json({ detail: "bad" }, 401);
       }
-      if (p === "/api/v1/personal-access-tokens/scopes") {
-        return json({ scopes: ["semantic:write", "kb:read", "user:read", "connector:read", "code:read", "conversation:chat"].map((name) => ({ name })) });
+      if (p === "/.well-known/openid-configuration") {
+        return json({
+          device_authorization_endpoint: `${state.origin}/api/v1/oauth2/device_authorization`,
+          token_endpoint: `${state.origin}/api/v1/oauth2/token`,
+          revocation_endpoint: `${state.origin}/api/v1/oauth2/revoke`,
+          ...(org ? { pipeshub_device_client_id: "pipeshub-agent" } : {}),
+        });
       }
-      if (p === "/api/v1/personal-access-tokens" && req.method === "POST") {
+      if (p === "/api/v1/oauth2/device_authorization") {
+        if (!org) return json({ error: "server_error" }, 400);
+        const n = String(++codes);
+        return json({
+          device_code: "dev-" + n, user_code: "CODE-" + n, verification_uri: `${state.origin}/device`,
+          verification_uri_complete: `${state.origin}/device?user_code=CODE-${n}`, interval: 0.05, expires_in: opts.deviceExpiresIn ?? 600,
+        });
+      }
+      if (p === "/api/v1/oauth2/device/consent") {
         if (!bearer?.startsWith("session-")) return json({}, 401);
-        state.log.push(`scopes ${JSON.stringify(body["scopes"])}`);
-        if (state.mints++ > 0) state.issuedToken = fresh();
-        state.log.push(`expiryDays ${body["expiryDays"]}`);
-        return json({ token: { id: `pat${state.mints}`, accessToken: state.issuedToken } }, 201);
+        if (body["consent"] === "granted") approved.add(body["user_code"]);
+        return json({ ok: true, consent: body["consent"] });
       }
-      if (p.startsWith("/api/v1/personal-access-tokens/") && req.method === "DELETE") {
-        state.revoked.push(p.split("/").pop()!);
-        return json({ ok: true });
+      if (p === "/api/v1/oauth2/token") {
+        if (body["grant_type"] === "refresh_token") {
+          state.issuedToken = fresh();
+          return json({ access_token: state.issuedToken, refresh_token: "refresh-" + ++state.mints, expires_in: 3600 });
+        }
+        if (!approved.has("CODE-" + String(body["device_code"]).replace("dev-", ""))) return json({ error: "authorization_pending" }, 400);
+        if (state.mints++ > 0) state.issuedToken = fresh();
+        return json({ access_token: state.issuedToken, refresh_token: "refresh-" + state.mints, expires_in: 3600 });
+      }
+      if (p === "/api/v1/oauth2/revoke") {
+        state.revoked.push(body["token"]);
+        return json({});
       }
 
       // local repositories (notes handoffs/L9-C-api.md)

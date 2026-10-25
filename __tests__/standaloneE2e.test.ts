@@ -139,7 +139,10 @@ describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
     expect((await stat(join(home, ".config/pipeshub/credentials.json"))).mode & 0o777).toBe(0o600);
     const status = JSON.parse((await cli(["auth", "status"])).stdout);
     expect(status).toMatchObject({ connected: true, baseUrl: origin });
-  });
+    // the device grant, not a minted token: refreshable, and with the slim write scopes
+    expect(JSON.parse(await readFile(join(home, ".config/pipeshub/credentials.json"), "utf8")).refreshToken).toBeTruthy();
+    expect(status.scopes).toEqual(expect.arrayContaining(["kb:write", "kb:upload", "code:read"]));
+  }, 180_000);
 
   test("the stdio bridge from the written entry lists exactly the server's /mcp tools minus chat, plus index_workspace", async () => {
     const creds = JSON.parse(await readFile(join(home, ".config/pipeshub/credentials.json"), "utf8"));

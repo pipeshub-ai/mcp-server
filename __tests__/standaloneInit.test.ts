@@ -162,38 +162,33 @@ describe("init options", () => {
     expect(fake.log.length).toBe(asked);
   });
 
-  test("the minted token is short-lived on our side: 24 h, renewed silently with the stored account, the old one revoked", async () => {
-    const w = await world("renew", [".cursor"]);
+  test("signs in with the device grant, approved by init on loopback: a refresh token is stored, no personal token is minted", async () => {
+    const w = await world("device", [".cursor"]);
     expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
-    const file = join(w.home, ".config/pipeshub/credentials.json");
-    const first = JSON.parse(await readFile(file, "utf8"));
-    expect(first.expiresAt - Date.now()).toBeLessThanOrEqual(24 * 3_600_000);
-    expect(first.expiresAt - Date.now()).toBeGreaterThan(23 * 3_600_000);
-    expect(fake.log).toContain("expiryDays 30");
-    expect(first.refreshToken).toBeUndefined();
-
-    await writeFile(file, JSON.stringify({ ...first, expiresAt: Date.now() - 1000 }), { mode: 0o600 });
-    const r = await cli(w.home, w.cwd, ["search", "anything"]);
-    expect(r.stderr).not.toContain("expired");
-    const second = JSON.parse(await readFile(file, "utf8"));
-    expect(fake.mints).toBe(2);
-    expect(second.accessToken).toBe(fake.issuedToken);
-    expect(second.accessToken).not.toBe(first.accessToken);
-    expect(second.expiresAt).toBeGreaterThan(Date.now() + 23 * 3_600_000);
-    expect(fake.revoked).toEqual(["pat1"]);
-    // the new token is what a request carries
-    expect(fake.mcp.calls.at(-1)?.authorization).toBe(`Bearer ${fake.issuedToken}`);
-    expect((await stat(file)).mode & 0o777).toBe(0o600);
+    const creds = JSON.parse(await readFile(join(w.home, ".config/pipeshub/credentials.json"), "utf8"));
+    expect(creds.accessToken).toBe(fake.issuedToken);
+    expect(creds.refreshToken).toMatch(/^refresh-/);
+    expect(creds.tokenEndpoint).toBe(`${fake.origin}/api/v1/oauth2/token`);
+    const asked = fake.log.filter((l) => l.startsWith("POST /api/v1/oauth2/"));
+    expect(asked).toContain("POST /api/v1/oauth2/device_authorization");
+    expect(asked).toContain("POST /api/v1/oauth2/device/consent");
+    expect(fake.log.some((l) => l.includes("personal-access-tokens"))).toBe(false);
+    // the account's password is kept only for the next approval, in the CLI's own store
+    expect((await stat(join(w.home, ".config/pipeshub/local-account.json"))).mode & 0o777).toBe(0o600);
   });
 
-  test("a lapsed token with no stored account asks for a new sign-in", async () => {
-    const w = await world("lapsed", []);
-    await mkdir(join(w.home, ".config/pipeshub"), { recursive: true });
-    await writeFile(join(w.home, ".config/pipeshub/credentials.json"), JSON.stringify({
-      origin: fake.origin, clientId: "personal-access-token", tokenEndpoint: fake.origin + "/t", accessToken: "x", expiresAt: Date.now() - 1000 }), { mode: 0o600 });
-    const r = await cli(w.home, w.cwd, ["search", "x"], { PIPESHUB_BASE_URL: fake.origin });
-    expect(r.code).toBe(3);
-    expect(r.stderr).toContain("expired");
+  test("an account init did not create is signed in from the browser: the link and code are shown, and it waits", async () => {
+    const other = startFakeLocal({ orgExists: true, deviceExpiresIn: 1 });
+    try {
+      const w = await world("browser", [".cursor"]);
+      const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", other.origin]);
+      expect(r.stderr).toContain(`${other.origin}/device?user_code=CODE-1`);
+      expect(r.stdout).not.toContain("already signed in");
+      expect(r.code).toBe(3); // nobody approved it before the code expired
+      expect(other.log.some((l) => l.includes("device/consent"))).toBe(false);
+    } finally {
+      other.stop();
+    }
   });
 
   test("project files are written only when asked (--project)", async () => {
@@ -230,14 +225,13 @@ describe("init options", () => {
   });
 
   test("a stored sign-in for another origin is not reused", async () => {
-    const other = startFakeLocal({ orgExists: true });
+    const other = startFakeLocal({ orgExists: true, deviceExpiresIn: 1 });
     try {
       const w = await world("other", [".cursor"]);
       await mkdir(join(w.home, ".config/pipeshub"), { recursive: true });
       await writeFile(join(w.home, ".config/pipeshub/credentials.json"), JSON.stringify({
         origin: fake.origin, clientId: "c", tokenEndpoint: fake.origin + "/t", accessToken: "x", expiresAt: Date.now() + 3_600_000 }));
       await chmod(join(w.home, ".config/pipeshub/credentials.json"), 0o600);
-      // an existing org with an account we did not create: init cannot sign in on its own, so it does not claim to
       const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", other.origin]);
       expect(r.stdout).not.toContain("already signed in");
     } finally {
@@ -267,7 +261,8 @@ describe("uninstall", () => {
 
     const r = await cli(w.home, w.cwd, ["uninstall"]);
     expect(r.code).toBe(0);
-    expect(fake.revoked).toContain("pat1");
+    expect(fake.revoked).toContain(fake.issuedToken);
+    expect(r.stdout).toContain("asked the server to revoke it");
     const after = await snapshot();
     expect([...after.keys()]).toEqual([...empty.keys()]);
     expect(after.get(join(w.home, ".config/zed/settings.json"))).toBe(zed);

@@ -5,14 +5,14 @@
 /**
  * The slim stack: the app and PostgreSQL with pgvector, nothing else. This is
  * the compose file of the `launch/slim` branch of pipeshub-ai (deployment/slim,
- * commit d7a51232d) with the `build:` sections removed, so no repository
+ * commit 339269b1e: device sign-in fix, OAUTH_ISSUER, write scopes) with the `build:` sections removed, so no repository
  * checkout is needed, and the image names overridable from the environment.
  *
  * shortcut: the default image tags are the names that branch uses and are not
  * published yet. Pin the published tags here (or set PIPESHUB_IMAGE/IMAGE_TAG/
  * PG_IMAGE/PG_IMAGE_REV) before the package is published.
  */
-export const COMPOSE_REVISION = "launch/slim@d7a51232d";
+export const COMPOSE_REVISION = "launch/slim-local-auth@339269b1e";
 
 const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up'; ${COMPOSE_REVISION}.
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.
@@ -40,6 +40,11 @@ services:
       SCOPED_JWT_SECRET: @{SCOPED_JWT_SECRET:?}
       COOKIE_SECRET: @{COOKIE_SECRET:?}
       FRONTEND_PUBLIC_URL: http://localhost:@{PIPESHUB_PORT:-3000}
+      # The address discovery advertises: the one the CLI is pointed at (127.0.0.1 on the published port).
+      OAUTH_ISSUER: @{OAUTH_ISSUER:-http://127.0.0.1:@{PIPESHUB_PORT:-3000}}
+      # A local single-user laptop: the stock scopes plus the write ones, so agent write tools and pipeshub index work. kb:delete stays off. offline_access gives the login a refresh token (an older base lacks it).
+      MCP_SCOPES: @{MCP_SCOPES:-openid,profile,email,offline_access,semantic:write,conversation:write,conversation:chat,kb:read,kb:write,kb:upload,team:read,user:read,usergroup:read,config:read,agent:read,agent:execute,connector:read,code:read,code:write}
+      AGENT_EXTRA_SCOPES: @{AGENT_EXTRA_SCOPES:-kb:write,kb:upload,code:write,offline_access}
       DATA_STORE: postgres
       DOC_STORE: postgres
       VECTOR_DB_TYPE: pgvector
