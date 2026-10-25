@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -28,6 +28,7 @@ let completeOrigin = "";
 // Runs just before a token response: stands in for a `pipeshub logout` in another terminal.
 let beforeTokens: (() => Promise<void>) | null = null;
 let duringRevoke: (() => Promise<void>) | null = null;
+let pollOutage = 0;
 let scope = "kb:read kb:write";
 let issued = 0;
 const seen: Array<{ path: string; form?: Record<string, string>; authorization?: string | null }> = [];
@@ -84,6 +85,10 @@ beforeAll(() => {
       }
       if (path.endsWith("/token") && form["grant_type"]?.endsWith("device_code")) {
         polls += 1;
+        if (pollOutage > 0) {
+          pollOutage -= 1;
+          return Response.json({ error: "server_error" }, { status: 503 });
+        }
         if (polls < 2) return Response.json({ error: "authorization_pending" }, { status: 400 });
         if (decision === "deny") return Response.json({ error: "access_denied" }, { status: 400 });
         await beforeTokens?.();
@@ -121,6 +126,7 @@ beforeEach(async () => {
   completeOrigin = "";
   beforeTokens = null;
   duringRevoke = null;
+  pollOutage = 0;
   scope = "kb:read kb:write";
   seen.length = 0;
 });
@@ -324,6 +330,56 @@ describe("pipeshub login", () => {
     expect(r.stderr).toContain("cancelled");
     await expect(stat(credentials())).rejects.toThrow();
     expect(seen.some((x) => x.path.endsWith("/revoke"))).toBe(true);
+  });
+
+  test("a passing server error while polling does not end the sign-in", async () => {
+    pollOutage = 1;
+    const r = await cli(["login", "--url", origin]);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).loggedIn).toBe(true);
+  }, 30_000);
+
+  // A stored sign-in for a public cleartext host: only reachable by an earlier --insecure-http.
+  const cleartext = {
+    origin: "http://pipeshub.example.com",
+    clientId: "pipeshub-agent",
+    tokenEndpoint: "http://pipeshub.example.com/api/v1/oauth2/token",
+    revocationEndpoint: "http://pipeshub.example.com/api/v1/oauth2/revoke",
+    accessToken: "e30.x.sig",
+    refreshToken: "refresh-x",
+    expiresAt: 0,
+  };
+
+  test("a refresh to a public cleartext host is refused before the refresh token is sent", async () => {
+    await mkdir(join(home, ".config", "pipeshub"), { recursive: true });
+    await writeFile(credentials(), JSON.stringify(cleartext), { mode: 0o600 });
+    const r = await cli(["auth", "status"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("cleartext");
+  });
+
+  test("logout to a public cleartext host refuses and keeps the sign-in for a rerun", async () => {
+    await mkdir(join(home, ".config", "pipeshub"), { recursive: true });
+    await writeFile(credentials(), JSON.stringify(cleartext), { mode: 0o600 });
+    const r = await cli(["logout"]);
+    expect(r.code).toBe(2);
+    expect(JSON.parse(await readFile(credentials(), "utf8")).refreshToken).toBe("refresh-x");
+  });
+
+  test("login --wait to a public cleartext host is refused before the device code is sent", async () => {
+    await mkdir(join(home, ".config", "pipeshub"), { recursive: true });
+    await writeFile(join(home, ".config", "pipeshub", "pending-login.json"), JSON.stringify({
+      ...cleartext,
+      deviceCode: "dev",
+      userCode: "ABCD-EFGH",
+      verificationUri: "https://x/device",
+      verificationUriComplete: "https://x/device",
+      intervalSeconds: 1,
+      expiresAt: Date.now() + 60_000,
+    }), { mode: 0o600 });
+    const r = await cli(["login", "--wait"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("cleartext");
   });
 
   test("a denial in the browser exits 3", async () => {

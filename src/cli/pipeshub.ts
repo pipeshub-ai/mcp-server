@@ -242,7 +242,7 @@ async function run(argv: string[]): Promise<number> {
     return login(origin, flags, requestId);
   }
   if (command === "logout") {
-    const out = await logout();
+    const out = await logout(flags.insecureHttp);
     await emit({
       exit: EXIT.OK,
       payload: { requestId, loggedOut: true, origin: out.origin, revokeRequested: out.revokeRequested },
@@ -297,7 +297,7 @@ async function run(argv: string[]): Promise<number> {
   // The environment wins; a stored login is used only for its own origin.
   let source: string | undefined;
   if (token === null) {
-    const stored = await storedLogin(origin);
+    const stored = await storedLogin(origin, flags.insecureHttp);
     if (stored) {
       token = stored.accessToken;
       origin ??= stored.origin;
@@ -460,7 +460,7 @@ async function login(origin: string | null, flags: Flags, requestId: string): Pr
     }
     await writeFlushed(process.stderr, `${prompt}\nWaiting for approval...\n`);
   }
-  const stored: StoredLogin = await waitForLogin(pending);
+  const stored: StoredLogin = await waitForLogin(pending, flags.insecureHttp);
   const claims = describeToken(stored.accessToken);
   await emit({
     exit: EXIT.OK,

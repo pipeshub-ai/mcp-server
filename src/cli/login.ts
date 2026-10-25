@@ -81,7 +81,9 @@ async function writeSecretFile(path: string, value: unknown): Promise<void> {
 
 type OAuthReply = { status: number; body: Record<string, unknown> };
 
-async function postForm(url: string, form: Record<string, string>): Promise<OAuthReply> {
+/** Every request that carries a device code or token: the transport rule is checked here, before sending. */
+async function postForm(url: string, form: Record<string, string>, insecureHttp: boolean): Promise<OAuthReply> {
+  assertTransport(new URL(url).origin, insecureHttp);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -145,7 +147,7 @@ export async function startLogin(
 ): Promise<PendingLogin> {
   const { deviceEndpoint, ...endpoints } = await discover(origin, insecureHttp);
   // No `scope`: the server grants the first-party app's preset.
-  const r = await postForm(deviceEndpoint, { client_id: endpoints.clientId });
+  const r = await postForm(deviceEndpoint, { client_id: endpoints.clientId }, insecureHttp);
   const deviceCode = str(r.body["device_code"]);
   const userCode = str(r.body["user_code"]);
   const verificationUri = str(r.body["verification_uri"]);
@@ -202,6 +204,7 @@ function toStored(endpoints: Endpoints, body: Record<string, unknown>, previousR
 /** Poll until the person approves, denies, or the code expires. */
 export async function waitForLogin(
   pending: PendingLogin,
+  insecureHttp: boolean,
   env: NodeJS.ProcessEnv = process.env,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
 ): Promise<StoredLogin> {
@@ -212,13 +215,13 @@ export async function waitForLogin(
       grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       device_code: pending.deviceCode,
       client_id: pending.clientId,
-    });
+    }, insecureHttp);
     if (r.status === 200) {
       const stored = toStored(pending, r.body);
       // shortcut: re-read then rename leaves a moment for a concurrent logout; a file lock would close it.
       if ((await readPending(env))?.deviceCode !== pending.deviceCode) {
         // `logout`, or a newer `login`, dropped this sign-in while it waited: do not undo that.
-        await revokeAll(stored);
+        await revokeAll(stored, insecureHttp);
         throw new CliError(
           "this sign-in was cancelled while it waited (pipeshub logout, or a newer pipeshub login). "
             + "Run 'pipeshub login' again.",
@@ -231,7 +234,8 @@ export async function waitForLogin(
     }
     const error = str(r.body["error"]);
     if (error === "authorization_pending") continue;
-    if (error === "slow_down") {
+    // A server error or rate limit does not end the device code; back off and keep polling until it expires.
+    if (error === "slow_down" || r.status >= 500 || r.status === 429) {
       interval += 5;
       continue;
     }
@@ -253,6 +257,7 @@ export async function waitForLogin(
  */
 export async function storedLogin(
   origin: string | null,
+  insecureHttp: boolean,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<StoredLogin | null> {
   const path = credentialsPath(env);
@@ -265,14 +270,14 @@ export async function storedLogin(
     grant_type: "refresh_token",
     refresh_token: stored.refreshToken,
     client_id: stored.clientId,
-  });
+  }, insecureHttp);
   if (r.status === 200) {
     const next = toStored(stored, r.body, stored.refreshToken);
     // Write only over the file this refresh started from. A logout, or another
     // process's refresh or sign-in, since then wins; our new tokens are revoked.
     const current = await readStored(path);
     if (current?.refreshToken !== stored.refreshToken) {
-      await revokeAll(next);
+      await revokeAll(next, insecureHttp);
       if (current?.origin === stored.origin && current.expiresAt > Date.now()) return current;
       throw signInAgain(stored.origin);
     }
@@ -294,12 +299,14 @@ export async function storedLogin(
 }
 
 /** Ask to revoke the refresh and access token; true when the server answered 200 to either. */
-async function revokeAll(login: StoredLogin): Promise<boolean> {
+async function revokeAll(login: StoredLogin, insecureHttp: boolean): Promise<boolean> {
   if (!login.revocationEndpoint) return false;
+  // Thrown, not swallowed with the request errors below: refusing to send is not "best effort".
+  assertTransport(new URL(login.revocationEndpoint).origin, insecureHttp);
   let answered = false;
   for (const [token, hint] of [[login.refreshToken, "refresh_token"], [login.accessToken, "access_token"]] as const) {
     if (!token) continue;
-    const r = await postForm(login.revocationEndpoint, { token, token_type_hint: hint, client_id: login.clientId })
+    const r = await postForm(login.revocationEndpoint, { token, token_type_hint: hint, client_id: login.clientId }, insecureHttp)
       .catch(() => null);
     answered ||= r?.status === 200;
   }
@@ -318,8 +325,12 @@ function signInAgain(origin: string): CliError {
  * RFC 7009 answers 200 whatever happened, so this reports the request, not the outcome.
  */
 export async function logout(
+  insecureHttp: boolean,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ origin: string | null; revokeRequested: boolean }> {
+  // Refuse before touching anything, so the sign-in is still there to log out with --insecure-http.
+  const current = await readStored(credentialsPath(env));
+  if (current?.revocationEndpoint) assertTransport(new URL(current.revocationEndpoint).origin, insecureHttp);
   // Drop the pending sign-in and take the file away first, so a refresh or
   // `login --wait` still in flight finds nothing and revokes its own tokens.
   await rm(pendingPath(env), { force: true });
@@ -335,7 +346,7 @@ export async function logout(
     await rm(taken, { force: true });
     if (stored === null) continue;
     first ??= stored;
-    revokeRequested = (await revokeAll(stored)) || revokeRequested;
+    revokeRequested = (await revokeAll(stored, insecureHttp).catch(() => false)) || revokeRequested;
   }
   return { origin: first?.origin ?? null, revokeRequested };
 }
