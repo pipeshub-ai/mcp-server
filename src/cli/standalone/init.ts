@@ -4,18 +4,20 @@
 // up first, writes atomically, and records it in a manifest so --uninstall can
 // reverse exactly what was added. Re-running changes nothing.
 
+import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { chmod, copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { CliError, EXIT, resolveOrigin } from "../config.js";
-import { configDir, logout } from "../login.js";
+import { configDir, logout, storedLogin } from "../login.js";
 import {
   CLIENT_IDS, LABEL, bridgeEntry, detect, edit, targets,
   type ClientId, type Ctx, type Edit, type Target,
 } from "./clients.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, dockerProblem, findLocal, devDown, devUp, readState } from "./stack.js";
 import { forgetAccount, localSignIn } from "./signin.js";
+import { gitRoot, indexRepo } from "./index.js";
 
 export interface InitOptions {
   dryRun: boolean;
@@ -28,6 +30,8 @@ export interface InitOptions {
   url: string | null;
   port: number;
   noStart: boolean;
+  /** Index the git repository init is run in (same code as `pipeshub index`). */
+  index: boolean;
   email: string;
   cwd: string;
 }
@@ -48,18 +52,27 @@ export interface InitReport {
   origin?: string;
   stack?: string;
   signedIn?: string;
+  /** The repository init indexed (or would), one line. */
+  code?: string;
   clients: string[];
   files: FileReport[];
   warnings: string[];
   next: string[];
 }
 
+/** What init wrote to one file: its hash, the backup of what was there before (null = it did not exist), and the folders init made. */
+interface Written { sha: string; original: string | null; madeDirs: string[] }
+
 interface Manifest {
   version: 1;
   origin: string;
   startedStack: boolean;
   projectDirs: string[];
+  /** Per file init changed. While a file still has the hash init left, uninstall puts the original back byte for byte. */
+  files?: Record<string, Written>;
 }
+
+const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
 const manifestPath = (env: NodeJS.ProcessEnv) => join(configDir(env), "init-manifest.json");
 
@@ -93,7 +106,8 @@ async function writeAtomic(path: string, text: string, mode?: number): Promise<v
 async function backup(file: string, stamp: string, env: NodeJS.ProcessEnv): Promise<string> {
   const dest = join(configDir(env), "backups", stamp, file.replace(/^[/\\]+/, "").replace(/[/\\:]/g, "__"));
   await mkdir(dirname(dest), { recursive: true, mode: 0o700 });
-  await copyFile(file, dest);
+  await writeFile(dest, await readFile(file), { mode: 0o600 }); // a copy of the person's file: private like the rest of our store
+  await chmod(dest, 0o600);
   return dest;
 }
 
@@ -111,17 +125,48 @@ async function confirm(question: string, def: boolean, opts: InitOptions): Promi
   return a === "" ? def : a.startsWith("y");
 }
 
-/** Plan one target and, unless dry-run, write it. */
-async function apply(t: Target, mode: "add" | "remove", o: InitOptions, env: NodeJS.ProcessEnv, stamp: string): Promise<FileReport> {
+/** The folders on the way to `dir` that do not exist yet, outermost first. */
+async function missingDirs(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  for (let d = dir; !(await stat(d).then(() => true, () => false)); d = dirname(d)) out.unshift(d);
+  return out;
+}
+
+/** Plan one target and, unless dry-run, write it. `known` is what an earlier init recorded for files (updated here). */
+async function apply(t: Target, mode: "add" | "remove", o: InitOptions, env: NodeJS.ProcessEnv, stamp: string, known: Record<string, Written>): Promise<FileReport> {
   const before = await readText(t.file);
+  const rec = known[t.file];
+  // Uninstall: a file still exactly as init left it goes back to what it was, byte for byte (or is deleted if init created it).
+  if (mode === "remove" && rec && before !== null && sha(before) === rec.sha) {
+    const original = rec.original === null ? null : await readText(rec.original);
+    if (rec.original === null || original !== null) {
+      const status: Edit["status"] = original === null ? "deleted" : "removed";
+      if (!o.dryRun) {
+        if (original === null) {
+          await rm(t.file, { force: true });
+          for (const d of [...rec.madeDirs].reverse()) if ((await readdir(d).catch(() => ["x"])).length === 0) await rmdir(d).catch(() => undefined);
+        } else {
+          await writeAtomic(t.file, original);
+        }
+        delete known[t.file];
+      }
+      return { client: t.client, file: t.file, what: t.what, status };
+    }
+  }
   const r = edit(t, before, mode, o.force);
-  const rep: FileReport = { client: t.client, file: t.file, what: t.what, status: r.status, ...(r.note ? { note: r.note } : {}) };
-  if (o.dryRun && r.after !== before) rep.added = addedLines(before, r.after);
-  if (o.dryRun || r.after === before) return rep;
-  if (before !== null) rep.note = `backup: ${await backup(t.file, stamp, env)}`;
+  const out: FileReport = { client: t.client, file: t.file, what: t.what, status: r.status, ...(r.note ? { note: r.note } : {}) };
+  if (o.dryRun && r.after !== before) out.added = addedLines(before, r.after);
+  if (o.dryRun || r.after === before) return out;
+  const madeDirs = before === null ? await missingDirs(dirname(t.file)) : [];
+  const backupPath = before !== null ? await backup(t.file, stamp, env) : null;
+  if (backupPath) out.note = `backup: ${backupPath}`;
   if (r.after === null) await rm(t.file, { force: true });
   else await writeAtomic(t.file, r.after);
-  return rep;
+  if (mode === "add" && r.after !== null) {
+    // The first original wins: a later run that changes our entry again still restores what the person had.
+    known[t.file] = { sha: sha(r.after), original: rec ? rec.original : backupPath, madeDirs: rec ? rec.madeDirs : madeDirs };
+  } else if (mode === "remove") delete known[t.file];
+  return out;
 }
 
 function baseCtx(env: NodeJS.ProcessEnv, cwd: string): Ctx {
@@ -195,12 +240,14 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const wantProject = o.project || (clients.length > 0 && (await confirm("Also add a PipesHub section to this repository's AGENTS.md / CLAUDE.md and per-client rule files?", false, o)));
   const projectDirs = new Set<string>();
+  const prior = await readManifest(env);
+  const known: Record<string, Written> = { ...(prior?.files ?? {}) };
   for (const id of clients) {
     for (const t of targets(id, ctx, entry)) {
       if (t.project && !wantProject) continue;
       let rep: FileReport;
       try {
-        rep = await apply(t, "add", o, env, stamp);
+        rep = await apply(t, "add", o, env, stamp, known);
       } catch (e) {
         rep = { client: id, file: t.file, what: t.what, status: "malformed", note: (e as Error).message };
       }
@@ -212,23 +259,51 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
 
   // 4. Remember what we did, so --uninstall can undo it.
   if (!o.dryRun) {
-    const prior = await readManifest(env);
     const m: Manifest = {
       version: 1,
       origin,
       startedStack: startedStack || (prior?.startedStack ?? false),
       projectDirs: [...new Set([...(prior?.projectDirs ?? []), ...projectDirs])],
+      files: known,
     };
     await writeAtomic(manifestPath(env), JSON.stringify(m, null, 2) + "\n", 0o600);
   }
 
   const cmd = env["npm_command"] === "exec" ? "npx @pipeshub-ai/standalone" : "pipeshub";
+
+  // 5. The repository init was run in: one command sets up the agents and indexes the code.
+  const inRepo = gitRoot(o.cwd);
+  const repoRoot = o.index ? inRepo : null;
+  let indexedHere = false;
+  if (repoRoot !== null) {
+    if (o.dryRun) {
+      report.code = `would index ${repoRoot}`;
+    } else {
+      say(`Indexing ${repoRoot} ...`);
+      try {
+        const login = await storedLogin(origin, false, env);
+        if (!login) throw new CliError("not signed in", EXIT.UNAUTHENTICATED);
+        const r = await indexRepo(repoRoot, { origin, token: login.accessToken }, (m) => say(m), Number(env["PIPESHUB_INDEX_WAIT_SECONDS"] ?? 180));
+        const files = `${r.files} file${r.files === 1 ? "" : "s"}`;
+        report.code = r.state === "ready"
+          ? `${r.repo}: ${files}, ready${r.codeTools ? "" : " (code tools appear in a few seconds)"}`
+          : `${r.repo}: ${files}, ${r.state}; indexing continues in the background`;
+        indexedHere = true;
+      } catch (e) {
+        report.warnings.push(`Could not index ${repoRoot}: ${(e as Error).message}\nThe agents are set up; retry with: ${cmd} index`);
+      }
+    }
+  }
+
   report.next.push(
     "Restart your coding agent (or open a new session) so it picks up the PipesHub server.",
-    'Then ask it a question about what your team knows, e.g. "search PipesHub for our deployment process".',
+    ...(indexedHere
+      ? ['Then ask it about this repository, e.g. "what calls <a function>?" or "search PipesHub for our deployment process".']
+      : ['Then ask it a question about what your team knows, e.g. "search PipesHub for our deployment process".']),
     "Put documents in: " + join(env["HOME"] || homedir(), ".pipeshub", "standalone", "workspace") + " (or connect a source at " + origin + ").",
-    // Run through npx there is no `pipeshub` on the PATH, so the hints must be typeable as they stand.
-    `Index this repository's code: ${cmd} index   (undo everything with: ${cmd} uninstall)`,
+    ...(indexedHere || (o.dryRun && repoRoot !== null) ? [`Undo everything with: ${cmd} uninstall`]
+      : inRepo !== null ? [`Index this repository's code: ${cmd} index   (undo everything with: ${cmd} uninstall)`]
+      : [`Index a repository's code: cd <repository> && ${cmd} index   (undo everything with: ${cmd} uninstall)`]),
   );
   return { exit: report.files.some((f) => f.status === "malformed") ? EXIT.ERROR : EXIT.OK, report };
 }
@@ -237,6 +312,7 @@ async function uninstall(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: string
   const ctx = baseCtx(env, o.cwd);
   const report: InitReport = { dryRun: o.dryRun, uninstall: true, clients: [], files: [], warnings: [], next: [] };
   const manifest = await readManifest(env);
+  const known: Record<string, Written> = { ...(manifest?.files ?? {}) };
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const clients = o.clients.length > 0 ? chooseClients(o, ctx) : [...CLIENT_IDS];
   const dirs = [...new Set([o.cwd, ...(manifest?.projectDirs ?? [])])];
@@ -248,7 +324,7 @@ async function uninstall(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: string
         if (!t.project && dir !== dirs[0]) continue;
         let rep: FileReport;
         try {
-          rep = await apply(t, "remove", o, env, stamp);
+          rep = await apply(t, "remove", o, env, stamp, known);
         } catch (e) {
           rep = { client: id, file: t.file, what: t.what, status: "malformed", note: (e as Error).message };
         }
@@ -284,6 +360,7 @@ export function renderReport(r: InitReport): string {
   if (r.dryRun) lines.push("Dry run: nothing was changed.");
   if (r.stack) lines.push(`Stack:   ${r.stack}`);
   if (r.signedIn) lines.push(`Sign-in: ${r.signedIn}`);
+  if (r.code) lines.push(`Code:    ${r.code}`);
   for (const f of r.files) {
     const [done, would] = VERB[f.status] ?? [f.status, f.status];
     lines.push(`${r.dryRun ? would : done} ${f.file}  (${LABEL[f.client]} ${f.what})${f.note && !f.note.startsWith("backup:") ? `: ${f.note}` : ""}`);

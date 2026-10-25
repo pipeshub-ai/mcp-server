@@ -16,8 +16,8 @@ export const CLIENT_IDS = [
 ] as const;
 export type ClientId = (typeof CLIENT_IDS)[number];
 
-/** The first @pipeshub-ai/mcp release whose stdio `start` falls back to the `pipeshub` sign-in. */
-export const BRIDGE_PACKAGE = "@pipeshub-ai/mcp@>=4.7.0";
+/** The first @pipeshub-ai/mcp release whose stdio `start` is the bridge: a proxy of the instance's /mcp with index_workspace (4.7.x has neither). */
+export const BRIDGE_PACKAGE = "@pipeshub-ai/mcp@>=4.8.0";
 
 export interface McpEntry {
   command: string;
@@ -110,7 +110,7 @@ export function detect(id: ClientId, c: Ctx): boolean {
     case "codex": return onPath("codex", c) || existsSync(codexHome(c));
     case "claude-desktop": { const f = desktopConfig(c); return f !== null && existsSync(join(f, ".."));  }
     case "cursor": return onPath("cursor", c) || dir(".cursor");
-    case "windsurf": return onPath("windsurf", c) || dir(".codeium", "windsurf");
+    case "windsurf": return onPath("windsurf", c) || dir(".codeium", "windsurf") || dir(".config", "devin");
     case "vscode": return onPath("code", c) || existsSync(vscodeUser(c));
     case "gemini": return onPath("gemini", c) || dir(".gemini");
     case "zed": return onPath("zed", c) || existsSync(join(zedSettings(c), ".."));
@@ -132,7 +132,8 @@ export const LABEL: Record<ClientId, string> = {
  *                 https://developers.openai.com/codex/guides/agents-md (~/.codex/AGENTS.md, ./AGENTS.md)
  *  - Claude Desktop  https://modelcontextprotocol.io/quickstart/user (`mcpServers` in claude_desktop_config.json)
  *  - Cursor       https://cursor.com/docs/context/mcp (~/.cursor/mcp.json), https://cursor.com/docs/context/rules (.cursor/rules/*.mdc)
- *  - Windsurf     https://docs.windsurf.com/windsurf/cascade/mcp (~/.codeium/windsurf/mcp_config.json),
+ *  - Windsurf     https://docs.windsurf.com/windsurf/cascade/mcp -> docs.devin.ai/desktop/cascade/mcp (~/.config/devin/mcp_config.json; the older
+ *                 ~/.codeium/windsurf/mcp_config.json is kept up to date where it exists),
  *                 https://docs.windsurf.com/windsurf/cascade/memories (.windsurf/rules/*.md)
  *  - VS Code      https://code.visualstudio.com/docs/copilot/customization/mcp-servers (`servers` in the user mcp.json),
  *                 https://code.visualstudio.com/docs/copilot/customization/custom-instructions (.github/instructions/*.instructions.md)
@@ -169,11 +170,16 @@ export function targets(id: ClientId, c: Ctx, entry: McpEntry): Target[] {
     }
     case "cursor":
       return [json(join(c.home, ".cursor", "mcp.json"), "mcpServers", std), proj(join(".cursor", "rules", "pipeshub.mdc"), "file", ruleFile("cursor"))];
-    case "windsurf":
+    case "windsurf": {
+      // The vendor's current doc (docs.devin.ai/desktop/cascade/mcp) names ~/.config/devin; older installs read ~/.codeium/windsurf, so that file
+      // is kept up to date too where it already exists.
+      const legacy = join(c.home, ".codeium", "windsurf");
       return [
-        json(join(c.home, ".codeium", "windsurf", "mcp_config.json"), "mcpServers", std),
+        json(join(c.home, ".config", "devin", "mcp_config.json"), "mcpServers", std),
+        ...(existsSync(legacy) ? [json(join(legacy, "mcp_config.json"), "mcpServers", std)] : []),
         proj(join(".windsurf", "rules", "pipeshub.md"), "file", ruleFile("windsurf")),
       ];
+    }
     case "vscode":
       return [
         json(join(vscodeUser(c), "mcp.json"), "servers", { type: "stdio", ...std }),

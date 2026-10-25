@@ -100,6 +100,7 @@ OPTIONS
   --project                   init: also write this repository's AGENTS.md / CLAUDE.md block and rule files
   --port <n>                  init, dev up: port of the local stack (default 3000)
   --no-start                  init: do not start the stack; fail if none is running
+  --no-index                  init: do not index the git repository it is run in
   --volumes                   dev down: also delete the stack's data
   --watch                     index: keep the index current as files change
   --url <origin>              login: the PipesHub to sign in to
@@ -144,6 +145,7 @@ interface Flags {
   project: boolean;
   port: number;
   noStart: boolean;
+  noIndex: boolean;
   volumes: boolean;
   watch: boolean;
 }
@@ -172,6 +174,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     project: false,
     port: DEFAULT_PORT,
     noStart: false,
+    noIndex: false,
     volumes: false,
     watch: false,
   };
@@ -194,6 +197,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--uninstall": flags.uninstall = true; break;
       case "--project": flags.project = true; break;
       case "--no-start": flags.noStart = true; break;
+      case "--no-index": flags.noIndex = true; break;
       case "--volumes": flags.volumes = true; break;
       case "--watch": flags.watch = true; break;
       case "--port": flags.port = Number(needValue(a, argv[++i])); break;
@@ -314,6 +318,7 @@ async function run(argv: string[]): Promise<number> {
       url: flags.url,
       port: flags.port,
       noStart: flags.noStart,
+      index: !flags.noIndex,
       email: "developer@pipeshub.local",
       cwd: process.cwd(),
     }, process.env, (s) => void progress(s));

@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -301,5 +302,137 @@ describe("the next steps name a command the person can type", () => {
     const plain = await cli(installed.home, installed.cwd, ["init", "--yes", "--url", fake.origin]);
     expect(plain.stdout).toContain("pipeshub index");
     expect(plain.stdout).not.toContain("npx @pipeshub-ai/standalone index");
+  }, 30_000);
+});
+
+describe("uninstall gives back the person's files exactly", () => {
+  freshStack();
+
+  const seeds: Record<string, string> = {
+    ".cursor/mcp.json": '{"mcpServers":{"other":{"command":"echo"}}}',                  // compact, no final newline
+    ".codeium/windsurf/mcp_config.json": '{"mcpServers":{}}',                              // an empty servers object
+    ".config/zed/settings.json": '// Zed\n{\n  "vim_mode": true, // yes\n}\n',            // JSONC with a trailing comma
+    ".gemini/settings.json": '{\r\n\t"theme": "dark"\r\n}\r\n',                            // tabs and CRLF
+    ".codex/config.toml": 'model = "gpt-5"\n',
+  };
+
+  async function dirs(root: string): Promise<string[]> {
+    const out: string[] = [];
+    for (const e of await readdir(root, { withFileTypes: true }).catch(() => [])) {
+      if (!e.isDirectory() || e.name === ".bun") continue;
+      out.push(join(root, e.name), ...(await dirs(join(root, e.name))));
+    }
+    return out.sort();
+  }
+
+  test("init then uninstall leaves every file byte for byte and every directory as it was", async () => {
+    const w = await world("exact", [".claude"]);
+    for (const [rel, body] of Object.entries(seeds)) {
+      await mkdir(join(w.home, rel, ".."), { recursive: true });
+      await writeFile(join(w.home, rel), body);
+    }
+    const ours = (f: string) => f.includes("/.config/pipeshub");
+    const filesBefore = (await tree(w.home)).filter((f) => !ours(f));
+    const dirsBefore = (await dirs(w.home)).filter((f) => !ours(f));
+    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect(await readFile(join(w.home, ".claude/skills/pipeshub/SKILL.md"), "utf8")).toContain("pipeshub");
+    expect((await cli(w.home, w.cwd, ["uninstall"])).code).toBe(0);
+    expect((await tree(w.home)).filter((f) => !ours(f))).toEqual(filesBefore);
+    for (const [rel, body] of Object.entries(seeds)) expect(await readFile(join(w.home, rel), "utf8"), rel).toBe(body);
+    expect((await dirs(w.home)).filter((f) => !ours(f))).toEqual(dirsBefore);
+  }, 30_000);
+
+  test("a file the person changed after init is edited, not overwritten", async () => {
+    const w = await world("edited", [".cursor"]);
+    await writeFile(join(w.home, ".cursor/mcp.json"), '{"mcpServers":{"other":{"command":"echo"}}}');
+    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    const mine = JSON.parse(await readFile(join(w.home, ".cursor/mcp.json"), "utf8"));
+    mine.mcpServers.added = { command: "later" };
+    await writeFile(join(w.home, ".cursor/mcp.json"), JSON.stringify(mine, null, 2));
+    expect((await cli(w.home, w.cwd, ["uninstall"])).code).toBe(0);
+    const after = JSON.parse(await readFile(join(w.home, ".cursor/mcp.json"), "utf8"));
+    expect(Object.keys(after.mcpServers).sort()).toEqual(["added", "other"]);
+  }, 30_000);
+
+  test("the backups of the person's files are private", async () => {
+    const w = await world("private", [".cursor"]);
+    await writeFile(join(w.home, ".cursor/mcp.json"), '{"mcpServers":{}}');
+    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    const b = (await tree(join(w.home, ".config/pipeshub/backups"))).filter((f) => f.endsWith("mcp.json"));
+    expect(b).toHaveLength(1);
+    expect((await stat(b[0]!)).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe("init indexes the repository it is run in", () => {
+  freshStack();
+  const git = (cwd: string, ...a: string[]) => {
+    const r = spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...a], { cwd, encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+  };
+  const ceiling = () => ({ GIT_CEILING_DIRECTORIES: root });
+  const pushed = () => fake.log.filter((l) => l.includes("/api/v1/local-repos"));
+  async function repoWorld(name: string, makeRepo: boolean) {
+    const w = await world(name, [".cursor"]);
+    await writeFile(join(w.cwd, "a.py"), "def a():\n    return 1\n");
+    if (makeRepo) { git(w.cwd, "init", "-q"); git(w.cwd, "add", "-A"); }
+    fake.mcp.tools = [{ name: "pipeshub_code_repos", inputSchema: { type: "object" } }];
+    return w;
+  }
+
+  test("inside a git repository: the one command indexes it and says so in a few lines", async () => {
+    const w = await repoWorld("in-repo", true);
+    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain("Indexing");
+    expect([...fake.repo.files.keys()]).toEqual(["a.py"]);
+    expect(fake.repo.commits).toBe(1);
+    expect(r.stdout).toMatch(/^Code: +project: 1 file, ready/m);
+    expect(r.stdout).not.toContain("Index this repository's code"); // nothing left to do
+    expect(r.stdout.split("\n").length).toBeLessThan(16);
+  }, 30_000);
+
+  test("outside a git repository: nothing is pushed and the hint says how to index one", async () => {
+    const w = await repoWorld("no-repo", false);
+    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    expect(r.code).toBe(0);
+    expect(pushed()).toEqual([]);
+    expect(r.stdout).toContain("Index a repository's code");
+    expect(r.stdout).not.toMatch(/^Code:/m);
+  }, 30_000);
+
+  test("--no-index leaves the repository alone and keeps the hint", async () => {
+    const w = await repoWorld("opt-out", true);
+    const r = await cli(w.home, w.cwd, ["init", "--yes", "--no-index", "--url", fake.origin], ceiling());
+    expect(r.code).toBe(0);
+    expect(pushed()).toEqual([]);
+    expect(r.stdout).toContain("Index this repository's code");
+  }, 30_000);
+
+  test("a repository that cannot be indexed does not undo the setup: a warning, exit 0", async () => {
+    const w = await repoWorld("refused", true);
+    fake.repo.status = "stuck";
+    fake.repo.error = "the sync of this repository did not start";
+    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("Warning");
+    expect(r.stdout).toContain("did not start");
+    expect(JSON.parse(await readFile(join(w.home, ".cursor/mcp.json"), "utf8")).mcpServers.pipeshub).toBeDefined();
+  }, 30_000);
+
+  test("--dry-run says it would index and pushes nothing", async () => {
+    const w = await repoWorld("dry-index", true);
+    const r = await cli(w.home, w.cwd, ["init", "--dry-run", "--url", fake.origin], ceiling());
+    expect(r.stdout).toContain("would index");
+    expect(pushed()).toEqual([]);
+  });
+
+  test("the installed skill tells the agent to call index_workspace when the open folder is not indexed", async () => {
+    const w = await repoWorld("skill", false);
+    await mkdir(join(w.home, ".claude"), { recursive: true });
+    await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    const skill = await readFile(join(w.home, ".claude/skills/pipeshub/SKILL.md"), "utf8");
+    expect(skill).toMatch(/index_workspace/);
+    expect(skill).toMatch(/not (been )?indexed|no repository/i);
   }, 30_000);
 });

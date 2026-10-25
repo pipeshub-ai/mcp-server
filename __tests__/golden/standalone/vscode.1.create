@@ -11,4 +11,5 @@ PipesHub is connected as the MCP server `pipeshub` and runs on this computer.
 - For a question about what the team knows (decisions, tickets, docs, chat, who owns what), call `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content`, and answer from what they say. Do not answer from memory.
 - Try other wording when the first search misses. For "all" or "how many", do not stop at the first matches.
 - If the `pipeshub_code_*` tools are listed, use them for questions about this repository's code (callers, callees, impact) before reading many files.
+- If `index_workspace` is listed and the folder you are working in is not indexed yet (the `pipeshub_code_*` tools are not listed, or `pipeshub_code_repos` has no repository for it), call `index_workspace` once, then ask again. It is incremental, so it is also the way to refresh after large changes.
 - If a tool says PipesHub is not reachable, tell the user to run `pipeshub dev up`.

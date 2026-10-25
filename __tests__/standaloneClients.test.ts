@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CLIENT_IDS, bridgeEntry, edit, targets, type ClientId, type Ctx, type Target } from "../src/cli/standalone/clients.js";
 
@@ -48,6 +49,18 @@ describe("every client has the targets the plan lists", () => {
 
   test("Claude Desktop has no file on Linux, where it does not exist", () => {
     expect(targets("claude-desktop", { ...ctx("claude-desktop"), platform: "linux" }, entry)).toEqual([]);
+  });
+});
+
+describe("Windsurf keeps both config locations it has used", () => {
+  const home = "/home/u";
+  const files = (c: Ctx) => targets("windsurf", c, entry).filter((t) => t.what === "mcp").map((t) => t.file);
+
+  test("the vendor's current path is the primary one; the old path only where the person already has it", () => {
+    expect(files(ctx("windsurf"))).toEqual([join(home, ".config", "devin", "mcp_config.json")]);
+    const base = join(tmpdir(), "ws-legacy-" + process.pid);
+    mkdirSync(join(base, ".codeium", "windsurf"), { recursive: true });
+    expect(files({ ...ctx("windsurf"), home: base })).toEqual([join(base, ".config", "devin", "mcp_config.json"), join(base, ".codeium", "windsurf", "mcp_config.json")]);
   });
 });
 
@@ -133,7 +146,7 @@ describe.each(all)("$id file $n", (c) => {
   test(`${label(c)}: an entry from an older install (another origin) is updated without --force`, () => {
     if (t.kind !== "json") return;
     const root = t.path![0]!;
-    const old = `{\n  "${root}": {\n    "pipeshub": { "command": "npx", "args": ["-y", "@pipeshub-ai/mcp@>=4.7.0", "start", "--server-url", "http://127.0.0.1:9999"] }\n  }\n}\n`;
+    const old = `{\n  "${root}": {\n    "pipeshub": { "command": "npx", "args": ["-y", "@pipeshub-ai/mcp@>=4.8.0", "start", "--server-url", "http://127.0.0.1:9999"] }\n  }\n}\n`;
     const r = edit(t, old, "add");
     expect(r.status).toBe("updated");
     expect(r.after).toContain(ORIGIN);
@@ -153,7 +166,7 @@ describe("what is written", () => {
 
   test("the entry runs the stdio bridge for the given origin and no other command", () => {
     expect(entry.command).toBe("npx");
-    expect(entry.args).toEqual(["-y", "@pipeshub-ai/mcp@>=4.7.0", "start", "--server-url", ORIGIN]);
+    expect(entry.args).toEqual(["-y", "@pipeshub-ai/mcp@>=4.8.0", "start", "--server-url", ORIGIN]);
     expect(bridgeEntry("http://127.0.0.1:64600").args.at(-1)).toBe("http://127.0.0.1:64600");
   });
 
