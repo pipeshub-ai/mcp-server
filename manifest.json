@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "mcp",
-  "version": "4.6.0",
+  "version": "4.7.0",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, and 50+ workplace sources.",
   "long_description": "Permissioned search and cited answers over your company's Slack, Google Drive, Gmail, Jira, Confluence, SharePoint, and 50+ other sources, with the signed-in user's permissions.\n\nSet `instance_url` to your PipesHub origin (PipesHub Cloud: `https://app.pipeshub.com`) and paste a personal access token into `bearer_auth`. It acts as you, so results follow your permissions. Start with `pipeshub_sources`, then `pipeshub_search` and `pipeshub_get_record_content`; cite `recordId` / `webUrl`. Tool reference: https://github.com/pipeshub-ai/mcp-server/blob/main/TOOLS.md",
   "author": {
