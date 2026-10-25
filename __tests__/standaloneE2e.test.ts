@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { postMcp } from "../src/cli/client.js";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -140,13 +141,21 @@ describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
     expect(status).toMatchObject({ connected: true, baseUrl: origin });
   });
 
-  test("the stdio bridge from the written entry answers tools/list with chat off", async () => {
+  test("the stdio bridge from the written entry lists exactly the server's /mcp tools minus chat, plus index_workspace", async () => {
+    const creds = JSON.parse(await readFile(join(home, ".config/pipeshub/credentials.json"), "utf8"));
+    const server = (await postMcp({ origin, token: creds.accessToken, insecureHttp: false, requestId: "e2e" }, { method: "tools/list" }, 30_000) as { tools: { name: string }[] }).tools;
     const c = await bridge();
     try {
-      const names = (await c.listTools()).tools.map((t) => t.name);
+      const listed = (await c.listTools()).tools;
+      const names = listed.map((t) => t.name);
+      expect(names.filter((n) => n !== "index_workspace")).toEqual(server.map((t) => t.name).filter((n) => n !== "pipeshub_chat" && n !== "pipeshub_agents"));
+      expect(names).toContain("index_workspace");
       expect(names).toContain("pipeshub_search");
-      expect(names).toContain("pipeshub_get_record_content");
       expect(names).not.toContain("pipeshub_chat");
+      expect(listed.find((t) => t.name === "pipeshub_search")).toEqual(server.find((t) => t.name === "pipeshub_search") as never);
+      // a client with no roots is told what to do
+      const r = await c.callTool({ name: "index_workspace", arguments: {} });
+      expect(r.isError).toBe(true);
     } finally {
       await c.close();
     }

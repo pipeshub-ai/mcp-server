@@ -20,7 +20,7 @@ interface Status { state: string; files: number; indexing?: Record<string, numbe
 interface Entry { path: string; sha256: string; size: number; content: string }
 
 const git = (cwd: string, args: string[]): string => {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  const r = spawnSync("git", args, { cwd, env: process.env, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
   if (r.error || r.status !== 0) throw new CliError(`git ${args[0]} failed in ${cwd}: ${(r.stderr || r.error?.message || "").trim()}. Is this a git repository?`, EXIT.USAGE);
   return r.stdout;
 };
@@ -74,7 +74,9 @@ async function collect(root: string, limits: Limits, cache: Map<string, { m: num
   return { entries, skipped };
 }
 
-async function pass(origin: string, token: string, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitReady: boolean) {
+export type HashCache = Map<string, { m: number; s: number; sha: string }>;
+
+async function pass(origin: string, token: string, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number) {
   const reg = await call(origin, token, "PUT", `/${key}`, { name });
   const limits = reg.body["limits"] as Limits;
   const { entries, skipped } = await collect(root, limits, cache);
@@ -102,11 +104,34 @@ async function pass(origin: string, token: string, root: string, key: string, na
   await call(origin, token, "POST", `/${key}/commit`);
   say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large or unreadable).`);
   let status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
-  for (let i = 0; waitReady && !["ready", "failed"].includes(status.state) && i < 300; i++) {
+  for (let i = 0; i < Math.ceil(waitSeconds / 2) && !["ready", "failed"].includes(status.state); i++) {
     await new Promise((r) => setTimeout(r, 2000));
     status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
   }
   return { sent: todo.length, files: entries.length, skipped, state: status.state, indexing: status.indexing };
+}
+
+const caches = new Map<string, HashCache>();
+
+/**
+ * One full pass over the git repository holding `path` (the code behind both
+ * `pipeshub index` and the bridge's `index_workspace`). Throws CliError when
+ * the folder is missing or not a git repository, or the server refuses it.
+ */
+export async function indexRepo(
+  path: string,
+  auth: { origin: string; token: string },
+  say: (s: string) => void,
+  waitSeconds: number,
+) {
+  const root = git(resolve(path), ["rev-parse", "--show-toplevel"]).trim();
+  assertTransport(auth.origin, false);
+  const key = await identity(root);
+  let cache = caches.get(root);
+  if (!cache) caches.set(root, (cache = new Map()));
+  const name = basename(root);
+  const r = await pass(auth.origin, auth.token, root, key, name, cache, say, waitSeconds);
+  return { repo: name, root, repoKey: key, ...r };
 }
 
 export async function indexCommand(
@@ -126,7 +151,7 @@ export async function indexCommand(
   const key = await identity(root);
   const name = basename(root);
   const cache = new Map<string, { m: number; s: number; sha: string }>();
-  const first = await pass(origin, token, root, key, name, cache, say, true);
+  const first = await pass(origin, token, root, key, name, cache, say, 600);
   say(`${name}: ${first.state} (${first.files} files).`);
   if (!opts.watch) return { exit: first.state === "failed" ? EXIT.ERROR : EXIT.OK, payload: { repo: name, repoKey: key, ...first } };
 
@@ -138,7 +163,7 @@ export async function indexCommand(
     if (running) { again = true; return; }
     running = true;
     try {
-      const r = await pass(origin!, token!, root, key, name, cache, say, false);
+      const r = await pass(origin!, token!, root, key, name, cache, say, 0);
       say(`${name}: sent ${r.sent}, ${r.state}.`);
     } catch (e) {
       say(`index failed: ${(e as Error).message}`);

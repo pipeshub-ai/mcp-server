@@ -6,24 +6,30 @@ import { createHash, randomBytes } from "node:crypto";
 
 export interface FakeLocal {
   origin: string;
-  /** The access token init minted, as the server issued it (so a test can look for it in files). */
+  /** The access token last minted, as the server issued it (so a test can look for it in files). */
   issuedToken: string;
+  /** How many access tokens have been minted. */
+  mints: number;
   /** The password init generated for the first account. */
   password: string | null;
   revoked: string[];
   log: string[];
+  /** What `/mcp` lists, and every tools/call it received. */
+  mcp: { tools: Record<string, unknown>[]; calls: { name: string; args: unknown; authorization: string | null }[]; status: number; hang: boolean };
   repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[] };
   stop(): void;
 }
 
 export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
-  const issuedToken = "fake-pat-" + randomBytes(12).toString("hex");
+  const fresh = () => "fake-pat-" + randomBytes(12).toString("hex");
   const state: FakeLocal = {
     origin: "",
-    issuedToken,
+    issuedToken: fresh(),
+    mints: 0,
     password: null,
     revoked: [],
     log: [],
+    mcp: { tools: [], calls: [], status: 200, hang: false },
     repo: { name: null, files: new Map(), commits: 0, deleted: [] },
     stop: () => server.stop(true),
   };
@@ -42,6 +48,20 @@ export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
       const bearer = req.headers.get("authorization")?.replace(/^Bearer /, "");
       const body = req.method === "GET" || req.method === "DELETE" ? {} : ((await req.json().catch(() => ({}))) as Record<string, any>);
 
+      if (p === "/mcp") {
+        if (state.mcp.hang) return new Promise<Response>(() => undefined);
+        if (state.mcp.status !== 200) return new Response("", { status: state.mcp.status });
+        const rpc = body as { id?: number; method: string; params?: { name?: string; arguments?: unknown } };
+        let result: unknown = {};
+        if (rpc.method === "tools/list") result = { tools: state.mcp.tools };
+        if (rpc.method === "tools/call") {
+          state.mcp.calls.push({ name: rpc.params!.name!, args: rpc.params!.arguments, authorization: req.headers.get("authorization") });
+          result = rpc.params!.name === "pipeshub_broken"
+            ? { isError: true, content: [{ type: "text", text: "Search failed (HTTP 403 Forbidden)." }] }
+            : { content: [{ type: "text", text: JSON.stringify({ tool: rpc.params!.name, args: rpc.params!.arguments }) }] };
+        }
+        return new Response(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result })}\n\n`, { headers: { "content-type": "text/event-stream" } });
+      }
       if (p === "/api/v1/health") return json({ status: "ok" });
       if (p === "/api/v1/org/exists") return json({ exists: org });
       if (p === "/api/v1/org" && req.method === "POST") {
@@ -62,7 +82,9 @@ export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
       if (p === "/api/v1/personal-access-tokens" && req.method === "POST") {
         if (!bearer?.startsWith("session-")) return json({}, 401);
         state.log.push(`scopes ${JSON.stringify(body["scopes"])}`);
-        return json({ token: { id: "pat1", accessToken: issuedToken } }, 201);
+        if (state.mints++ > 0) state.issuedToken = fresh();
+        state.log.push(`expiryDays ${body["expiryDays"]}`);
+        return json({ token: { id: `pat${state.mints}`, accessToken: state.issuedToken } }, 201);
       }
       if (p.startsWith("/api/v1/personal-access-tokens/") && req.method === "DELETE") {
         state.revoked.push(p.split("/").pop()!);
@@ -71,7 +93,7 @@ export function startFakeLocal(opts: { orgExists?: boolean } = {}): FakeLocal {
 
       // local repositories (notes handoffs/L9-C-api.md)
       if (p.startsWith("/api/v1/local-repos")) {
-        if (bearer !== issuedToken) return json({ detail: "no" }, 401);
+        if (bearer !== state.issuedToken) return json({ detail: "no" }, 401);
         const rest = p.slice("/api/v1/local-repos".length).split("/").filter(Boolean);
         const limits = { maxFiles: 20000, maxFileBytes: 1048576, maxBatchFiles: 100, maxBatchBytes: 4194304, maxManifestEntries: 20000 };
         if (rest.length === 1 && req.method === "PUT") {

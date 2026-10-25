@@ -162,6 +162,40 @@ describe("init options", () => {
     expect(fake.log.length).toBe(asked);
   });
 
+  test("the minted token is short-lived on our side: 24 h, renewed silently with the stored account, the old one revoked", async () => {
+    const w = await world("renew", [".cursor"]);
+    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    const file = join(w.home, ".config/pipeshub/credentials.json");
+    const first = JSON.parse(await readFile(file, "utf8"));
+    expect(first.expiresAt - Date.now()).toBeLessThanOrEqual(24 * 3_600_000);
+    expect(first.expiresAt - Date.now()).toBeGreaterThan(23 * 3_600_000);
+    expect(fake.log).toContain("expiryDays 30");
+    expect(first.refreshToken).toBeUndefined();
+
+    await writeFile(file, JSON.stringify({ ...first, expiresAt: Date.now() - 1000 }), { mode: 0o600 });
+    const r = await cli(w.home, w.cwd, ["search", "anything"]);
+    expect(r.stderr).not.toContain("expired");
+    const second = JSON.parse(await readFile(file, "utf8"));
+    expect(fake.mints).toBe(2);
+    expect(second.accessToken).toBe(fake.issuedToken);
+    expect(second.accessToken).not.toBe(first.accessToken);
+    expect(second.expiresAt).toBeGreaterThan(Date.now() + 23 * 3_600_000);
+    expect(fake.revoked).toEqual(["pat1"]);
+    // the new token is what a request carries
+    expect(fake.mcp.calls.at(-1)?.authorization).toBe(`Bearer ${fake.issuedToken}`);
+    expect((await stat(file)).mode & 0o777).toBe(0o600);
+  });
+
+  test("a lapsed token with no stored account asks for a new sign-in", async () => {
+    const w = await world("lapsed", []);
+    await mkdir(join(w.home, ".config/pipeshub"), { recursive: true });
+    await writeFile(join(w.home, ".config/pipeshub/credentials.json"), JSON.stringify({
+      origin: fake.origin, clientId: "personal-access-token", tokenEndpoint: fake.origin + "/t", accessToken: "x", expiresAt: Date.now() - 1000 }), { mode: 0o600 });
+    const r = await cli(w.home, w.cwd, ["search", "x"], { PIPESHUB_BASE_URL: fake.origin });
+    expect(r.code).toBe(3);
+    expect(r.stderr).toContain("expired");
+  });
+
   test("project files are written only when asked (--project)", async () => {
     const w = await world("noproj", [".codex"]);
     expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);

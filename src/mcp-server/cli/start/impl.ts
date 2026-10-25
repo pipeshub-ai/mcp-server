@@ -17,6 +17,9 @@ import { createMCPServer } from "../../server.js";
 import { landingPageExpress } from "../../../landing-page.js";
 import { assertTransport, resolveOrigin, resolveToken } from "../../../cli/config.js";
 import { storedLogin } from "../../../cli/login.js";
+import { createBridge, type BridgeAuth } from "../../../cli/bridge.js";
+import { postMcp, newRequestId } from "../../../cli/client.js";
+import { chatEnabledFromEnv } from "../../chat-setting.js";
 import { SDKOptions } from "../../../lib/config.js";
 
 interface StartCommandFlags extends MCPServerFlags {
@@ -57,7 +60,7 @@ export async function main(this: LocalContext, flags: StartCommandFlags) {
 async function stdioCredential(
   flags: StartCommandFlags,
   logger: ReturnType<typeof createConsoleLogger>,
-): Promise<{ security: SDKOptions["security"]; serverURL: string | undefined }> {
+): Promise<{ security: SDKOptions["security"]; serverURL: string | undefined; proxy?: BridgeAuth }> {
   const fromFlags = {
     security: {
       bearerAuth: flags["bearer-auth"] ?? "",
@@ -72,7 +75,13 @@ async function stdioCredential(
     serverURL: flags["server-url"],
   };
   // An empty --bearer-auth (a client config with the field left blank) counts as none.
-  if (flags["bearer-auth"] || fromFlags.security.oauth2) return fromFlags;
+  if (flags["bearer-auth"] || fromFlags.security.oauth2) {
+    const bearer = flags["bearer-auth"];
+    const named = flags["server-url"];
+    return bearer && named && !fromFlags.security.oauth2
+      ? { ...fromFlags, proxy: { origin: new URL(named).origin, token: async () => bearer } }
+      : fromFlags;
+  }
 
   // A token goes only to an address that was named (--server-url, else
   // PIPESHUB_BASE_URL / PIPESHUB_MCP_URL), never to the SDK's default, and only
@@ -96,7 +105,9 @@ async function stdioCredential(
   const apiBase = (o: string): string => flags["server-url"] ?? `${o}/api/v1`;
   const envToken = resolveToken();
   if (envToken !== null && origin !== null) {
-    return allowed(origin) ? { security: { bearerAuth: envToken }, serverURL: apiBase(origin) } : fromFlags;
+    return allowed(origin)
+      ? { security: { bearerAuth: envToken }, serverURL: apiBase(origin), proxy: { origin, token: async () => envToken } }
+      : fromFlags;
   }
 
   // A sign-in is used only for its own origin; with no address named, it names the instance.
@@ -119,13 +130,50 @@ async function stdioCredential(
       return { bearerAuth: (await storedLogin(signedIn.origin, false))?.accessToken ?? "" };
     },
     serverURL: apiBase(signedIn.origin),
+    proxy: {
+      origin: signedIn.origin,
+      token: async () => {
+        assertTransport(signedIn.origin, false);
+        return (await storedLogin(signedIn.origin, false))?.accessToken ?? "";
+      },
+    },
   };
+}
+
+/**
+ * False only when /mcp is not an MCP endpoint there (404/405, or an answer that is not a JSON-RPC response): an older
+ * server. An instance that is down, refuses the sign-in or errors still gets the proxy, which says so on each call.
+ */
+async function hasMcpEndpoint(auth: BridgeAuth, logger: ReturnType<typeof createConsoleLogger>): Promise<boolean> {
+  try {
+    await postMcp({ origin: auth.origin, token: await auth.token(), insecureHttp: false, requestId: newRequestId(), timeoutMs: 10_000 }, { method: "tools/list" }, 10_000);
+    return true;
+  } catch (e) {
+    if (/HTTP (404|405)\b|could not parse the MCP response|MCP response contained no result|empty response from the MCP|sent no JSON-RPC response/.test((e as Error).message)) {
+      logger.warning(`${auth.origin} has no /mcp endpoint; using the per-tool server instead.`);
+      return false;
+    }
+    return true;
+  }
 }
 
 async function startStdio(flags: StartCommandFlags) {
   const logger = createConsoleLogger(flags["log-level"]);
   const transport = new StdioServerTransport();
-  const { security, serverURL } = await stdioCredential(flags, logger);
+  const { security, serverURL, proxy } = await stdioCredential(flags, logger);
+  // Default: a proxy to the instance's own /mcp, so the agent sees the server's full tool set. The generated per-tool
+  // server is used when the person asked for its modes (--tool, --scope, --mode dynamic), or the instance has no /mcp.
+  if (proxy && !flags.tool?.length && !flags.scope?.length && !flags.mode && (await hasMcpEndpoint(proxy, logger))) {
+    const bridge = createBridge({ auth: proxy, chat: chatEnabledFromEnv(), log: (l) => logger.info(l) });
+    await bridge.connect(transport);
+    const stop = async () => {
+      await bridge.close();
+      process.exit(0);
+    };
+    process.on("SIGTERM", stop);
+    process.on("SIGINT", stop);
+    return;
+  }
   const { server } = createMCPServer({
     logger,
     allowedTools: flags.tool,

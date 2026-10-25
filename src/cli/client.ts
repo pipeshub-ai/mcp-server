@@ -211,7 +211,7 @@ function redirectedElsewhere(from: string, to: URL, token: string): string {
  * here, so every command reports a timeout, an HTTP refusal and the server's
  * reason for it the same way.
  */
-async function postMcp(
+export async function postMcp(
   opts: ClientOptions,
   rpc: { method: string; params?: Record<string, unknown> },
   defaultTimeoutMs: number,

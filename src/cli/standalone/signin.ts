@@ -93,7 +93,11 @@ export interface SignIn {
 
 /** What an agent may do through the CLI: the agent preset plus knowledge writes and repository indexing. */
 const WANTED_SCOPES = ["conversation:chat", "semantic:write", "kb:read", "kb:write", "kb:upload", "user:read", "connector:read", "code:read", "code:write"];
-const PAT_DAYS = 365;
+/** The server's shortest personal-token lifetime. */
+const PAT_DAYS = 30;
+/** The CLI treats the token as expired after this long and renews it, revoking the old one, so a copy of the file is useless the next day. */
+const SOFT_LIFETIME_MS = 24 * 3_600_000;
+export const MINTED_TOKEN_CLIENT = "personal-access-token";
 
 /**
  * A personal access token for the signed-in account, kept in the CLI's own
@@ -103,10 +107,11 @@ const PAT_DAYS = 365;
  *
  * shortcut: the device-code grant would give a refreshable token tied to the
  * "PipesHub agent" app, but the slim server cannot create that app yet
- * (discovery fails with "no org context is bound"). A token lasts PAT_DAYS;
- * `pipeshub init` mints a new one when it lapses. Switch back when slim can.
+ * (discovery fails with "no org context is bound"). Until it can, the token is
+ * renewed by `renewMintedToken` (called from `storedLogin` when it lapses) with
+ * the stored account password. Switch back to the device grant when slim can.
  */
-async function mintToken(origin: string, access: string, env: NodeJS.ProcessEnv): Promise<void> {
+async function mintToken(origin: string, access: string, env: NodeJS.ProcessEnv): Promise<StoredLogin> {
   const headers = { "content-type": "application/json", authorization: `Bearer ${access}` };
   const avail = await api(origin, "/api/v1/personal-access-tokens/scopes", { headers });
   const names = JSON.stringify(avail.body);
@@ -123,14 +128,24 @@ async function mintToken(origin: string, access: string, env: NodeJS.ProcessEnv)
   }
   const stored: StoredLogin = {
     origin,
-    clientId: "personal-access-token",
+    clientId: MINTED_TOKEN_CLIENT,
     tokenEndpoint: `${origin}/api/v1/oauth2/token`,
     accessToken: secret,
-    expiresAt: Date.now() + (PAT_DAYS - 1) * 86_400_000,
+    expiresAt: Date.now() + SOFT_LIFETIME_MS,
   };
   await writeSecretFile(credentialsPath(env), stored);
   const account = await readAccount(env);
   if (account && typeof token["id"] === "string") await writeSecretFile(accountPath(env), { ...account, tokenId: token["id"] });
+  return stored;
+}
+
+async function revokeById(origin: string, access: string, id: string): Promise<boolean> {
+  const res = await fetch(`${origin}/api/v1/personal-access-tokens/${id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${access}` },
+    signal: AbortSignal.timeout(30_000),
+  }).catch(() => null);
+  return res?.ok === true;
 }
 
 /** Revoke the token `mintToken` made, when the stored account can still sign in. Best effort. */
@@ -138,13 +153,22 @@ export async function revokeMintedToken(env: NodeJS.ProcessEnv = process.env): P
   const account = await readAccount(env);
   if (!account?.tokenId) return false;
   const access = await session(account).catch(() => null);
-  if (!access) return false;
-  const res = await fetch(`${account.origin}/api/v1/personal-access-tokens/${account.tokenId}`, {
-    method: "DELETE",
-    headers: { authorization: `Bearer ${access}` },
-    signal: AbortSignal.timeout(30_000),
-  }).catch(() => null);
-  return res?.ok === true;
+  return access ? revokeById(account.origin, access, account.tokenId) : false;
+}
+
+/**
+ * The renewal behind `storedLogin` for a token this command minted: sign in as
+ * the stored account, mint a new token, revoke the old one. Null when there is
+ * no stored account or the stack does not take it (the caller then asks for a new sign-in).
+ */
+export async function renewMintedToken(env: NodeJS.ProcessEnv = process.env): Promise<StoredLogin | null> {
+  const account = await readAccount(env);
+  if (!account) return null;
+  const access = await session(account).catch(() => null);
+  if (!access) return null;
+  const stored = await mintToken(account.origin, access, env);
+  if (account.tokenId) await revokeById(account.origin, access, account.tokenId);
+  return stored;
 }
 
 export async function localSignIn(

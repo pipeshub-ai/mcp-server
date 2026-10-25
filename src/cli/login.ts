@@ -280,7 +280,15 @@ export async function storedLogin(
   const stored = await readStored(path);
   if (stored === null || (origin !== null && stored.origin !== origin)) return null;
   if (stored.expiresAt - REFRESH_MARGIN_MS > Date.now()) return stored;
-  if (!stored.refreshToken) throw signInAgain(stored.origin);
+  if (!stored.refreshToken) {
+    // A token `pipeshub init` minted on this computer is renewed with the account it created.
+    if (stored.clientId === "personal-access-token") {
+      const { renewMintedToken } = await import("./standalone/signin.js");
+      const next = await renewMintedToken(env).catch(() => null);
+      if (next && next.origin === stored.origin) return next;
+    }
+    throw signInAgain(stored.origin);
+  }
 
   const r = await postForm(stored.tokenEndpoint, {
     grant_type: "refresh_token",
