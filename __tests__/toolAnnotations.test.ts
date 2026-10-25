@@ -18,7 +18,12 @@ const READ_ONLY = [
   "pipeshub_download_record",
   "pipeshub_directory",
   "pipeshub_agents",
+  "pipeshub_indexing_status",
+  "pipeshub_connect_source",
 ];
+
+/** Tools that add to the user's own collections: they write, but never delete or overwrite. */
+const WRITES = ["pipeshub_create_collection", "pipeshub_upload"];
 
 /** Tools that can act: chat runs the assistant, which may use the user's connected actions. */
 const ACTS = ["pipeshub_chat"];
@@ -37,7 +42,7 @@ async function listedTools() {
 describe("tool annotations as a host sees them", () => {
   test("every registered tool is classed here, so a new one cannot skip this check", async () => {
     const tools = await listedTools();
-    expect([...tools.keys()].sort()).toEqual([...READ_ONLY, ...ACTS].sort());
+    expect([...tools.keys()].sort()).toEqual([...READ_ONLY, ...WRITES, ...ACTS].sort());
   });
 
   test("tools that only read declare readOnlyHint: true", async () => {
@@ -47,6 +52,14 @@ describe("tool annotations as a host sees them", () => {
         .toEqual({ name, readOnlyHint: true });
       expect({ name, destructiveHint: tools.get(name)?.destructiveHint })
         .toEqual({ name, destructiveHint: false });
+    }
+  });
+
+  test("tools that add documents are not read-only, and not destructive", async () => {
+    const tools = await listedTools();
+    for (const name of WRITES) {
+      expect({ name, readOnlyHint: tools.get(name)?.readOnlyHint, destructiveHint: tools.get(name)?.destructiveHint })
+        .toEqual({ name, readOnlyHint: false, destructiveHint: false });
     }
   });
 

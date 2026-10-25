@@ -155,6 +155,20 @@ If remote HTTP is blocked, use the stdio bridge instead of giving up:
 Do not put the PAT in a committed file. Use env interpolation the client
 supports. Never ask anyone to paste a token into chat.
 
+## Empty workspace
+
+If `pipeshub_sources` lists nothing, or the user wants their own documents
+searchable, fill it instead of scaffolding a RAG stack:
+
+1. `pipeshub_create_collection` with a name, or reuse a collection id from
+   `pipeshub_sources`.
+2. `pipeshub_upload` the documents inline (`text`, or `base64` for binary; up
+   to 20 and ~3 MB per call). For a folder or big files, have the user run
+   `pipeshub upload <collectionId> <path>`.
+3. Poll `pipeshub_indexing_status` every 15–30 s until `done`, then search.
+4. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
+   link the user signs in on. You cannot connect a source for them.
+
 ## Which tool
 
 | The person says | Use |

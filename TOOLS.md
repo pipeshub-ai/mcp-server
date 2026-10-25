@@ -187,6 +187,53 @@ The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the rec
 
 ---
 
+## Filling a workspace
+
+These four tools take an empty workspace to a searchable one. The two that write need the `kb:write` and `kb:upload` scopes, which the default agent preset grants. Start the local server with `--scope read` to leave them out.
+
+### `pipeshub_create_collection`
+
+Creates an empty collection (a knowledge base the caller owns) to upload into. Names are not unique: to add to an existing collection, use its id from `pipeshub_sources` (`kind: "knowledgeBase"`).
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | 1–255 characters. |
+
+**Response:** `{ collectionId, name, url }`. `url` opens the collection in PipesHub.
+
+### `pipeshub_upload`
+
+Uploads documents into a collection. The remote server cannot read the agent's disk, so each document travels inline: `text` for text formats, `base64` for binary ones. Up to 20 documents and about 3 MB per call (the `/mcp` request body is capped at 5 MB). For larger files or a folder, use the CLI: `pipeshub upload <collectionId> <path>...`. Supported extensions: pdf, txt, md, mdx, html, htm, csv, tsv, json, xml, rtf, docx, doc, xlsx, xls, pptx, ppt, odt, epub, png, jpg, jpeg.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `collectionId` | string (uuid) | yes | From `pipeshub_create_collection` or `pipeshub_sources`. |
+| `documents` | array (1–20) | yes | Each `{ name, text }` or `{ name, base64 }`. The `name`'s extension sets the type. |
+
+**Response:** `{ uploaded: [{ recordId, name }], failed: [{ name, errors, recordId? }], summary }`, read from the server's upload stream. `summary: null` with a `note` means the stream ended early. A document with an unsupported extension, both or neither of `text`/`base64`, or a call over 3 MB is refused before anything is sent.
+
+### `pipeshub_indexing_status`
+
+Reports how far a collection's records are through indexing, so the agent knows when search will find them. Three filtered listings (pending, failed, all records) whose totals are exact at any collection size.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `collectionId` | string (uuid) | yes | The collection to check. |
+
+**Response:** `{ done, total, pendingCount, failedCount, pending, failed }`. `done` is true when no record is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`. `pending` and `failed` list up to 25 records each; `failed` covers records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
+
+### `pipeshub_connect_source`
+
+Returns the page where the user connects a source (Slack, Drive, Jira, …). Connecting needs the user's own sign-in in a browser, so the tool writes nothing; the agent hands over the link and later checks `pipeshub_sources`.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `connector` | string | no | Opens that connector directly, e.g. `Jira`. Matched case-insensitively. |
+
+**Response:** `{ url, adminUrl, instructions }`. `url` is the user's personal connectors page; `adminUrl` connects for the whole organization.
+
+---
+
 ## Quick Decision Guide
 
 | User says... | Use this tool |
@@ -204,4 +251,6 @@ The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the rec
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "Who is X?" / "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) — not `pipeshub_search` |
 | First call of a session, before chat or search | `pipeshub_sources` (cache the result) |
+| "Index these docs" / the workspace is empty | `pipeshub_create_collection` → `pipeshub_upload` → `pipeshub_indexing_status` until `done` → `pipeshub_search` |
+| "Connect our Jira / Slack / Drive" | `pipeshub_connect_source`, give the user the link |
 | "Create a Jira ticket" / talk to a configured agent | `pipeshub_agents` → `pipeshub_chat` with that `agentId`; if no agent fits an action, `pipeshub_chat` without one |

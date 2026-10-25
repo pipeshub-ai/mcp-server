@@ -13,6 +13,10 @@ import { tool$pipeshubDownloadRecord } from "../src/mcp-server/tools/pipeshubDow
 import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import { tool$pipeshubSources } from "../src/mcp-server/tools/pipeshubSources.js";
+import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubCreateCollection.js";
+import { tool$pipeshubUpload } from "../src/mcp-server/tools/pipeshubUpload.js";
+import { tool$pipeshubIndexingStatus } from "../src/mcp-server/tools/pipeshubIndexingStatus.js";
+import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConnectSource.js";
 import { GetAllUsersRequest$zodSchema } from "../src/models/getallusersop.js";
 import { GetAllUserGroupsRequest$zodSchema } from "../src/models/getallusergroupsop.js";
 import { GetUserTeamsRequest$zodSchema } from "../src/models/getuserteamsop.js";
@@ -34,6 +38,10 @@ const definitions: any[] = [
   tool$pipeshubGetRecordContent,
   tool$pipeshubDirectory,
   tool$pipeshubAgents,
+  tool$pipeshubCreateCollection,
+  tool$pipeshubUpload,
+  tool$pipeshubIndexingStatus,
+  tool$pipeshubConnectSource,
 ];
 
 /** The JSON schema a host sees for a tool's args, which carries each `.describe()`. */
@@ -361,7 +369,12 @@ describe("description budget", () => {
   // changed?", and checking every part of the question before answering.
   // The 19 Oct eval found summaries and change questions were where agents
   // with PipesHub fell short; the detail lives on the `timeline` argument.
-  const TOTAL_MAX = 12800;
+  // Raised 2026-10-24 by 1700, deliberately, for four new tools that let an
+  // agent fill an empty workspace (create a collection, upload, wait for
+  // indexing, link the user to connect a source): ~425 chars each, after
+  // trimming. A server started with `--scope read` does not mount the two
+  // that write.
+  const TOTAL_MAX = 14500;
   const INSTRUCTIONS_MAX = 8000;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
