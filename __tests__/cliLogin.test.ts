@@ -29,6 +29,8 @@ let completeOrigin = "";
 let beforeTokens: (() => Promise<void>) | null = null;
 let duringRevoke: (() => Promise<void>) | null = null;
 let pollOutage = 0;
+// Runs before a refused refresh: another terminal signing in elsewhere.
+let beforeRefreshFails: (() => Promise<void>) | null = null;
 let scope = "kb:read kb:write";
 let issued = 0;
 const seen: Array<{ path: string; form?: Record<string, string>; authorization?: string | null }> = [];
@@ -96,7 +98,10 @@ beforeAll(() => {
       }
       if (path.endsWith("/token") && form["grant_type"] === "refresh_token") {
         if (refreshDown) return Response.json({ error: "server_error" }, { status: 503 });
-        if (form["refresh_token"] !== `refresh-${issued}`) return Response.json({ error: "invalid_grant" }, { status: 400 });
+        if (form["refresh_token"] !== `refresh-${issued}`) {
+          await beforeRefreshFails?.();
+          return Response.json({ error: "invalid_grant" }, { status: 400 });
+        }
         await beforeTokens?.();
         return Response.json(mint());
       }
@@ -127,6 +132,7 @@ beforeEach(async () => {
   beforeTokens = null;
   duringRevoke = null;
   pollOutage = 0;
+  beforeRefreshFails = null;
   scope = "kb:read kb:write";
   seen.length = 0;
 });
@@ -220,6 +226,25 @@ describe("pipeshub login", () => {
     const warning = JSON.parse((await cli(["auth", "status"])).stdout).warning as string;
     expect(warning).toContain("run 'pipeshub login' again");
     expect(warning).not.toContain("personal access token");
+  });
+
+  test("a sign-in to another origin that lands during a refused refresh is not used here", async () => {
+    await cli(["login", "--url", origin]);
+    const before = JSON.parse(await readFile(credentials(), "utf8"));
+    await writeFile(credentials(), JSON.stringify({ ...before, refreshToken: "stale", expiresAt: 0 }), { mode: 0o600 });
+    const elsewhereToken = "e30.elsewhere.sig";
+    beforeRefreshFails = () => writeFile(credentials(), JSON.stringify({
+      ...before,
+      origin: "http://127.0.0.2:9",
+      tokenEndpoint: "http://127.0.0.2:9/api/v1/oauth2/token",
+      accessToken: elsewhereToken,
+      refreshToken: "refresh-elsewhere",
+      expiresAt: Date.now() + 3_600_000,
+    }), { mode: 0o600 });
+    seen.length = 0;
+    const r = await cli(["auth", "status"], { PIPESHUB_BASE_URL: origin });
+    expect(r.code).toBe(3);
+    expect(seen.some((x) => x.authorization === `Bearer ${elsewhereToken}`)).toBe(false);
   });
 
   test("a refresh the server refuses says to sign in again", async () => {
