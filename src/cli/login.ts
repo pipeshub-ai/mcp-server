@@ -343,10 +343,19 @@ export async function logout(
     const moved = await rename(path, taken).then(() => true, () => false);
     if (!moved) continue;
     const stored = await readStored(taken);
+    if (stored?.revocationEndpoint) {
+      try {
+        assertTransport(new URL(stored.revocationEndpoint).origin, insecureHttp);
+      } catch (e) {
+        // Put it back so `logout --insecure-http` can still revoke it.
+        await rename(taken, path).catch(() => undefined);
+        throw e;
+      }
+    }
     await rm(taken, { force: true });
     if (stored === null) continue;
     first ??= stored;
-    revokeRequested = (await revokeAll(stored, insecureHttp).catch(() => false)) || revokeRequested;
+    revokeRequested = (await revokeAll(stored, insecureHttp)) || revokeRequested;
   }
   return { origin: first?.origin ?? null, revokeRequested };
 }

@@ -366,6 +366,14 @@ describe("pipeshub login", () => {
     expect(JSON.parse(await readFile(credentials(), "utf8")).refreshToken).toBe("refresh-x");
   });
 
+  test("a cleartext sign-in written during logout is put back, not deleted unrevoked", async () => {
+    await cli(["login", "--url", origin]);
+    duringRevoke = () => writeFile(credentials(), JSON.stringify(cleartext), { mode: 0o600 });
+    const r = await cli(["logout"]);
+    expect(r.code).toBe(2);
+    expect(JSON.parse(await readFile(credentials(), "utf8")).refreshToken).toBe("refresh-x");
+  });
+
   test("login --wait to a public cleartext host is refused before the device code is sent", async () => {
     await mkdir(join(home, ".config", "pipeshub"), { recursive: true });
     await writeFile(join(home, ".config", "pipeshub", "pending-login.json"), JSON.stringify({
