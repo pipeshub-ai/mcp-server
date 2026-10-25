@@ -504,7 +504,7 @@ Instead of connecting to PipesHub's remote MCP endpoint, you can run the MCP ser
 
 - Node.js 18+ installed
 - A PipesHub instance URL
-- Authentication credentials: either a **Bearer token** (JWT) or **OAuth Client ID + Secret**
+- A [personal access token](https://docs.pipeshub.com/developer/personal-access-tokens) (`phpat_…`), minted in PipesHub under Developer Settings. It acts as you, so results follow your permissions.
 
 ### Placeholders
 
@@ -513,9 +513,7 @@ Replace these in all configurations below:
 | Placeholder | Description | Example |
 |---|---|---|
 | `PIPESHUB_INSTANCE_URL` | Your PipesHub instance URL | `https://app.pipeshub.com` |
-| `YOUR_BEARER_TOKEN` | JWT Bearer token for authentication | `eyJhbGci...` |
-| `YOUR_CLIENT_ID` | OAuth app client ID | `clid_abc123...` |
-| `YOUR_CLIENT_SECRET` | OAuth app client secret | `clsec_xyz789...` |
+| `YOUR_BEARER_TOKEN` | Your personal access token | `phpat_...` |
 
 <details>
 <summary><strong>Claude Desktop</strong></summary>
@@ -534,30 +532,6 @@ Configure in Claude Desktop settings (`claude_desktop_config.json`):
         "PIPESHUB_INSTANCE_URL",
         "--bearer-auth",
         "YOUR_BEARER_TOKEN"
-      ]
-    }
-  }
-}
-```
-
-With OAuth credentials:
-
-```json
-{
-  "mcpServers": {
-    "pipeshub": {
-      "command": "npx",
-      "args": [
-        "@pipeshub-ai/mcp",
-        "start",
-        "--server-url",
-        "PIPESHUB_INSTANCE_URL",
-        "--client-id",
-        "YOUR_CLIENT_ID",
-        "--client-secret",
-        "YOUR_CLIENT_SECRET",
-        "--token-url",
-        "/api/v1/oauth2/token"
       ]
     }
   }
@@ -589,30 +563,6 @@ Open Cursor Settings > Tools and Integrations > New MCP Server, or edit your pro
 }
 ```
 
-With OAuth credentials:
-
-```json
-{
-  "mcpServers": {
-    "pipeshub": {
-      "command": "npx",
-      "args": [
-        "@pipeshub-ai/mcp",
-        "start",
-        "--server-url",
-        "PIPESHUB_INSTANCE_URL",
-        "--client-id",
-        "YOUR_CLIENT_ID",
-        "--client-secret",
-        "YOUR_CLIENT_SECRET",
-        "--token-url",
-        "/api/v1/oauth2/token"
-      ]
-    }
-  }
-}
-```
-
 </details>
 
 <details>
@@ -622,16 +572,6 @@ With OAuth credentials:
 claude mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
   --server-url PIPESHUB_INSTANCE_URL \
   --bearer-auth YOUR_BEARER_TOKEN
-```
-
-With OAuth credentials:
-
-```bash
-claude mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
-  --server-url PIPESHUB_INSTANCE_URL \
-  --client-id YOUR_CLIENT_ID \
-  --client-secret YOUR_CLIENT_SECRET \
-  --token-url /api/v1/oauth2/token
 ```
 
 </details>
@@ -645,47 +585,12 @@ gemini mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
   --bearer-auth YOUR_BEARER_TOKEN
 ```
 
-With OAuth credentials:
-
-```bash
-gemini mcp add pipeshub -- npx -y @pipeshub-ai/mcp start \
-  --server-url PIPESHUB_INSTANCE_URL \
-  --client-id YOUR_CLIENT_ID \
-  --client-secret YOUR_CLIENT_SECRET \
-  --token-url /api/v1/oauth2/token
-```
-
 </details>
 
 <details>
 <summary><strong>Codex CLI (Local)</strong></summary>
 
-Run the MCP server as a local stdio process, authenticated with an OAuth app's Client ID and Secret (the `client_credentials` grant). Edit `~/.codex/config.toml` (or `.codex/config.toml` in your project root):
-
-```toml
-[mcp_servers.pipeshub]
-command = "npx"
-args = [
-  "-y",
-  "@pipeshub-ai/mcp",
-  "start",
-  "--server-url",
-  "PIPESHUB_INSTANCE_URL/api/v1",
-  "--client-id",
-  "YOUR_CLIENT_ID",
-  "--client-secret",
-  "YOUR_CLIENT_SECRET",
-  "--token-url",
-  "/api/v1/oauth2/token",
-]
-```
-
-Notes:
-
-- `--server-url` must include `/api/v1`.
-- `--token-url /api/v1/oauth2/token` is required.
-
-Or authenticate with a JWT bearer token instead:
+Run the MCP server as a local stdio process with your personal access token. Edit `~/.codex/config.toml` (or `.codex/config.toml` in your project root):
 
 ```toml
 [mcp_servers.pipeshub]
@@ -700,6 +605,8 @@ args = [
   "YOUR_BEARER_TOKEN",
 ]
 ```
+
+`--server-url` must include `/api/v1`.
 
 </details>
 
