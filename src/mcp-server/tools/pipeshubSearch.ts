@@ -332,11 +332,10 @@ call again with \`offset\` set to \`nextOffset\`.`,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
-    // Search changes nothing in the org's data. The server keeps the caller's
-    // own search history (a history entry and the hits it returned), as it
-    // does for a search in the web app. Hosts such as Claude Code run tools
-    // side by side only when they are read-only, so `false` here made an
-    // agent's batch of searches run one after another.
+    // Search changes nothing in the org's data, and the tool asks the server
+    // not to save it to the user's search history. Hosts such as Claude Code
+    // run tools side by side only when they are read-only, so `false` here
+    // made an agent's batch of searches run one after another.
     readOnlyHint: true,
   },
   args,
@@ -387,12 +386,16 @@ call again with \`offset\` set to \`nextOffset\`.`,
         // rewrite and expansion add about 4 s a search and little else. A
         // server older than the option ignores it and rewrites as before.
         rewriteQuery: false,
+        // An agent's searches are not the user's own: saving each one would
+        // fill their search history and store a citation per hit. A server
+        // older than the option ignores it and saves as before.
+        saveHistory: false,
         ...(args.timeline ? { timeline: args.timeline } : {}),
       }, { fetchOptions: { signal: ctx.signal } }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
 
       const parsed = await readJson<{
-        searchId: string;
+        searchId?: string;
         searchResponse: {
           searchResults: any[];
           records?: any[];
@@ -462,7 +465,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
     );
     const notes = [...search.notes, ...pagingNotes, ...(note ? [note] : [])];
     return jsonResult({
-      searchId: search.searchId,
+      ...(search.searchId ? { searchId: search.searchId } : {}),
       ...(search.timeline ? { timeline: search.timeline } : {}),
       totalRecords: search.entries.length,
       records: page.records,

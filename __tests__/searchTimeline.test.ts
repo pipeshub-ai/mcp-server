@@ -98,6 +98,7 @@ describe("pipeshub_search with timeline", () => {
       createdAfter: "2026-03-01",
       createdBefore: "2026-05-31",
       rewriteQuery: false,
+      saveHistory: false,
       timeline: "created",
     });
     expect(sent[1]).not.toHaveProperty("timeline");
