@@ -111,7 +111,7 @@ OPTIONS
   --url <origin>              login: the PipesHub to sign in to
   --no-wait                   login: print the code and link, then exit
   --wait                      login: finish a sign-in started with --no-wait; packs: follow progress
-  --file <path>               packs add: install from an archive at this path on the PipesHub server
+  --file <name>               packs add: install from an archive of this name in the server's packs import folder (packs/offline)
   --use                       packs add: after installing an embedding pack, switch search to it
   --builtin                   packs embedding: switch back to the built-in model
 
