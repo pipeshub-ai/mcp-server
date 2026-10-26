@@ -38,13 +38,26 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
      | **Gemini CLI** | `http://localhost:7777/oauth/callback` |
      | **LibreChat** | `http://localhost:3080/api/mcp/<server-identifier>/oauth/callback` |
 
-> **Important:** The scopes in [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) must match the scopes granted to your OAuth app — a mismatch will result in an authorization error.
+> **Important:** Grant your OAuth app every scope the discovery endpoint lists (see [Customizing Default Scopes](#customizing-default-scopes)). Sign-in grants only the requested scopes the app allows and drops the rest, so a scope missing from the app does not fail the login, but the tools that need it are refused.
 
 5. Save the app and copy the **Client ID** and **Client Secret**
 
 ### Customizing Default Scopes
 
-By default, PipesHub exposes some default scopes in its `/.well-known/oauth-protected-resource/mcp` discovery endpoint. You can customize which scopes are exposed by setting the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) environment variable on your PipesHub instance. This is useful for clients like Claude Code that automatically request all exposed scopes.
+The `/.well-known/oauth-protected-resource/mcp` discovery endpoint lists the scopes the MCP tools use, so clients like Claude Code, which request every listed scope, ask only for what the tools need:
+
+| Scope | Used by |
+| --- | --- |
+| `offline_access` | Refresh tokens, so the client stays signed in |
+| `semantic:write` | `pipeshub_search` |
+| `conversation:chat` | `pipeshub_chat` |
+| `agent:read`, `agent:execute` | `pipeshub_agents`, `pipeshub_sources`, `pipeshub_chat` with an agent |
+| `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_indexing_status` |
+| `kb:write`, `kb:upload` | `pipeshub_create_collection`, `pipeshub_upload` |
+| `user:read`, `team:read`, `usergroup:read` | `pipeshub_directory` |
+| `code:read` | The `pipeshub_code_*` tools |
+
+The list is limited to the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template) environment variable on your PipesHub instance, which is also the most any personal access token or OAuth token can hold. Remove a scope from `MCP_SCOPES` to stop clients requesting it. PipesHub servers older than this behavior list all of `MCP_SCOPES`.
 
 ## Placeholders
 
@@ -152,7 +165,7 @@ Claude Code supports remote HTTP MCP servers with static OAuth credentials via `
 
 PipesHub exposes discovery at `/.well-known/oauth-protected-resource/mcp`, so Claude Code auto-discovers the authorization and token endpoints.
 
-> **Important:** Claude Code does **not** support configuring specific scopes. It fetches `/.well-known/oauth-protected-resource/mcp`, reads the `scopes_supported` list, and requests **all** of them. Your OAuth app in PipesHub **must have access to all scopes** listed in the discovery endpoint, otherwise the authorization request will fail. To limit the exposed scopes, see [Customizing Default Scopes](#customizing-default-scopes).
+> **Important:** Claude Code does **not** support configuring specific scopes. It fetches `/.well-known/oauth-protected-resource/mcp`, reads the `scopes_supported` list, and requests **all** of them. PipesHub lists only the scopes the MCP tools use. Give your OAuth app all of them: sign-in grants only the ones the app allows, and tools that need a missing scope are refused. To see or limit the list, see [Customizing Default Scopes](#customizing-default-scopes).
 
 ### Add with CLI
 
@@ -490,7 +503,7 @@ To request PipesHub-specific scopes, add them to the scope field:
 openid email org:read kb:read kb:write semantic:read conversation:read conversation:write conversation:chat agent:read agent:execute
 ```
 
-> **Note:** The scopes you request must match the scopes granted to your OAuth app in PipesHub. See [Customizing Default Scopes](#customizing-default-scopes) for details.
+> **Note:** Sign-in grants only the requested scopes your OAuth app in PipesHub allows, so request the scopes the app was granted. See [Customizing Default Scopes](#customizing-default-scopes) for details.
 
 </details>
 
@@ -828,7 +841,7 @@ Then connect to `PIPESHUB_INSTANCE_URL/mcp` with a Bearer token to test the endp
 <details>
 <summary><strong>How do I update the scopes for my MCP integration?</strong></summary>
 
-1. **Update the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template#L57) environment variable** on your PipesHub instance to include the new scopes you want exposed via the discovery endpoint.
+1. **Update the [`MCP_SCOPES`](https://github.com/pipeshub-ai/pipeshub-ai/blob/main/backend/env.template) environment variable** on your PipesHub instance so it includes the scopes you want clients to get. Discovery lists only the ones the MCP tools use.
 2. **Update the OAuth app scopes** in PipesHub: go to **Settings > Developer Settings > OAuth Apps**, select your OAuth app, and add or remove scopes as needed.
 3. **Re-authenticate the client** — existing tokens carry the old scopes, so you need to re-authenticate to get a new token with the updated scopes. For example:
    - **Cursor**: Remove and re-add the MCP server, or clear the cached OAuth token and reconnect.
