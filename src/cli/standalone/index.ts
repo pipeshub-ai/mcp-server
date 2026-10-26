@@ -63,12 +63,18 @@ async function call(origin: string, token: string, method: string, path: string,
   return { status: res.status, body: parsed };
 }
 
-// The server's default ignore list (scan.py DEFAULT_IGNORES), directories only: counting them against its file limit refused vendored repos.
-const IGNORED_DIRS = new Set([
-  ".git", ".hg", ".svn", "node_modules", "venv", ".venv", "env", "__pycache__", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".idea", ".vscode",
-  "dist", "build", "target", "out", ".next", ".nuxt", ".gradle", "coverage", "vendor", ".terraform",
+// What the server leaves out of a pushed repository (scan.py PUSHED_REPO_IGNORES): tool caches and dependency folders at any depth, artifact
+// folders only at the top. A source folder that merely shares a build-output name (internal/build, lib/env) is code. Counting these files
+// against the server's limit would refuse a repository that vendors its dependencies.
+const IGNORED_ANYWHERE = new Set([
+  ".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".idea", ".vscode",
+  ".next", ".nuxt", ".gradle", ".terraform",
 ]);
-const inIgnoredDir = (path: string) => path.split("/").slice(0, -1).some((d) => IGNORED_DIRS.has(d));
+const IGNORED_AT_TOP = new Set(["dist", "build", "target", "out", "coverage", "vendor"]);
+const inIgnoredDir = (path: string) => {
+  const dirs = path.split("/").slice(0, -1);
+  return dirs.some((d) => IGNORED_ANYWHERE.has(d)) || (dirs.length > 0 && IGNORED_AT_TOP.has(dirs[0]!));
+};
 
 /** The files to send: `git ls-files` (tracked + untracked, .gitignore respected), minus binary, oversize, symlinked and server-ignored ones. */
 async function collect(root: string, limits: Limits, cache: Map<string, { m: number; s: number; sha: string }>): Promise<{ entries: Entry[]; skipped: number; ignored: number }> {

@@ -14,6 +14,8 @@ export interface FakeLocal {
   /** The password init generated for the first account. */
   password: string | null;
   revoked: string[];
+  /** When set, refresh tokens rotate: a refresh with any token but the last one issued is refused (invalid_grant), after this many ms. */
+  rotate: { delayMs: number; current: string } | null;
   log: string[];
   /** What `/mcp` lists, and every tools/call it received. */
   mcp: { tools: Record<string, unknown>[]; calls: { name: string; args: unknown; authorization: string | null }[]; status: number; hang: boolean; reply: ((tool: string) => string | null) | null };
@@ -29,6 +31,7 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
     mints: 0,
     password: null,
     revoked: [],
+    rotate: null,
     log: [],
     mcp: { tools: [], calls: [], status: 200, hang: false, reply: null },
     repo: { name: null, files: new Map(), commits: 0, deleted: [], status: null, error: null, maxManifestEntries: 20000, getDelayMs: 0, refuse: [] },
@@ -106,6 +109,13 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
       }
       if (p === "/api/v1/oauth2/token") {
         if (body["grant_type"] === "refresh_token") {
+          if (state.rotate) {
+            await new Promise((r) => setTimeout(r, state.rotate!.delayMs));
+            if (body["refresh_token"] !== state.rotate.current) return json({ error: "invalid_grant" }, 400);
+            state.rotate.current = "refresh-" + ++state.mints;
+            state.issuedToken = fresh();
+            return json({ access_token: state.issuedToken, refresh_token: state.rotate.current, expires_in: 3600 });
+          }
           state.issuedToken = fresh();
           return json({ access_token: state.issuedToken, refresh_token: "refresh-" + ++state.mints, expires_in: 3600 });
         }

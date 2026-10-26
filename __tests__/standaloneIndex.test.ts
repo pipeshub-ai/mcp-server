@@ -214,6 +214,18 @@ describe("pipeshub index on awkward repositories", () => {
     expect([...f2.repo.files.keys()].sort()).toEqual(["m0.py", "m1.py", "m2.py"]);
   });
 
+  test("source folders named like build output are indexed; dependency folders and top-level artifact folders are not", async () => {
+    for (const d of ["internal/build", "cmd/out", "lib/env", "pkg/dist", "node_modules/x", "vendor/m", "dist"]) {
+      await mkdir(join(dir, d), { recursive: true });
+      await writeFile(join(dir, d, "f.go"), `package f // ${d}\n`);
+    }
+    sh(dir, "add", "-A");
+    const r = await run(["index"]);
+    expect(r.code).toBe(0);
+    expect([...f2.repo.files.keys()].sort()).toEqual(["cmd/out/f.go", "internal/build/f.go", "lib/env/f.go", "pkg/dist/f.go"]);
+    expect(JSON.parse(r.stdout).ignored).toBe(3);
+  });
+
   test("the wait is in seconds, whatever the server's own speed", async () => {
     await writeFile(join(dir, "a.py"), "x = 1\n");
     sh(dir, "add", "-A");
