@@ -45,3 +45,22 @@ describe("devUp when compose cannot start the stack", () => {
     await rm(dir, { recursive: true, force: true });
   });
 });
+
+describe("the web browser pack on a stack started by `pipeshub dev up` (QA L10 R2-04)", () => {
+  test("the compose file applies the seccomp profile and `dev up` writes it next to the compose file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "l9i-sec-"));
+    await writeFile(join(dir, "docker"), `#!/bin/sh\ncase "$*" in *" up "*) exit 1 ;; esac\nexit 0\n`);
+    await chmod(join(dir, "docker"), 0o755);
+    const env = { HOME: join(dir, "home"), PATH: `${dir}:/usr/bin:/bin` };
+    await devUp({ port: 65112, project: "l9i-sec", waitSeconds: 1 }, env).catch(() => undefined);
+    const compose = await readFile(join(dir, "home", ".pipeshub", "standalone", "docker-compose.yml"), "utf8");
+    expect(compose).toContain("security_opt:\n      - seccomp=./seccomp-browser.json");
+    const profile = JSON.parse(await readFile(join(dir, "home", ".pipeshub", "standalone", "seccomp-browser.json"), "utf8"));
+    const allowed = (name: string) => profile.syscalls.filter((r: any) => r.names.includes(name) && r.action === "SCMP_ACT_ALLOW" && !r.includes?.caps);
+    expect(allowed("setns")).toEqual([]);
+    for (const name of ["clone", "unshare"]) {
+      expect(allowed(name).some((r: any) => r.args?.[0]?.value === 0x0e020000 && r.args[0].op === "SCMP_CMP_MASKED_EQ")).toBe(true);
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
+});

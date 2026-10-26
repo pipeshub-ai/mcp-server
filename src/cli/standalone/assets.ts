@@ -32,6 +32,9 @@ services:
       - pipeshub-data:/data/pipeshub
       - @{PIPESHUB_WORKSPACE:-./workspace}:/workspace:ro
     mem_limit: @{APP_MEMORY_LIMIT:-4g}
+    # The web browser pack runs Chromium with its own sandbox, which needs user namespaces (see seccomp.ts).
+    security_opt:
+      - seccomp=./seccomp-browser.json
     environment:
       NODE_ENV: production
       LOG_LEVEL: @{LOG_LEVEL:-info}
