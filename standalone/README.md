@@ -21,6 +21,8 @@ pipeshub init --yes --project         # no questions; also add the AGENTS.md / C
 pipeshub init --client cursor,codex   # only these agents
 pipeshub uninstall                    # remove everything init added
 pipeshub dev up | down | status       # the local stack on its own
+pipeshub packs list                   # optional packs: web browser, document converter, embedding models
+pipeshub packs add <id> --wait        # install one (admin); remove <id> to take it off; embedding [<model>|--builtin] to switch search
 ```
 
 Install the command once with `npm i -g @pipeshub-ai/standalone` to type `pipeshub` directly.
