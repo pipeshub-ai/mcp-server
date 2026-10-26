@@ -45,7 +45,11 @@ async function identity(root: string): Promise<string> {
   return id;
 }
 
-async function call(origin: string, token: string, method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+/** Where to send and with which token, asked for again on every request: an index can wait longer than an access token lives. */
+export type Auth = () => Promise<{ origin: string; token: string }>;
+
+async function call(auth: Auth, method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { origin, token } = await auth();
   const res = await fetch(`${origin}/api/v1/local-repos${path}`, {
     method,
     headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
@@ -106,12 +110,12 @@ async function collect(root: string, limits: Limits, cache: Map<string, { m: num
 
 export type HashCache = Map<string, { m: number; s: number; sha: string }>;
 
-async function pass(origin: string, token: string, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number, startSeconds = START_SECONDS) {
-  const reg = await call(origin, token, "PUT", `/${key}`, { name });
+async function pass(auth: Auth, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number, startSeconds = START_SECONDS) {
+  const reg = await call(auth, "PUT", `/${key}`, { name });
   const limits = reg.body["limits"] as Limits;
   const { entries, skipped, ignored } = await collect(root, limits, cache);
   if (entries.length > limits.maxManifestEntries) throw new CliError(`${entries.length} files is over this PipesHub's limit of ${limits.maxManifestEntries}.`, EXIT.USAGE);
-  const m = (await call(origin, token, "POST", `/${key}/manifest`, {
+  const m = (await call(auth, "POST", `/${key}/manifest`, {
     files: entries.map(({ path, sha256, size }) => ({ path, sha256, size })),
     complete: true,
   })).body;
@@ -123,7 +127,7 @@ async function pass(origin: string, token: string, root: string, key: string, na
   const refused: { path: string; reason: string }[] = [];
   const flush = async () => {
     if (batch.length) {
-      const put = await call(origin, token, "PUT", `/${key}/files`, { files: batch.map(({ path, sha256, content }) => ({ path, sha256, content })) });
+      const put = await call(auth, "PUT", `/${key}/files`, { files: batch.map(({ path, sha256, content }) => ({ path, sha256, content })) });
       refused.push(...((put.body["rejected"] as { path: string; reason: string }[] | undefined) ?? []));
     }
     batch = [];
@@ -135,10 +139,10 @@ async function pass(origin: string, token: string, root: string, key: string, na
     bytes += Buffer.byteLength(e.content);
   }
   await flush();
-  await call(origin, token, "POST", `/${key}/commit`);
+  await call(auth, "POST", `/${key}/commit`);
   say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large, linked or unreadable${ignored ? `; ${ignored} in ignored folders` : ""}).`);
   if (refused.length) say(`PipesHub refused ${refused.length} file(s): ${refused.slice(0, 10).map((r) => `${r.path} (${r.reason})`).join(", ")}${refused.length > 10 ? ", ..." : ""}`);
-  let status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
+  let status = (await call(auth, "GET", `/${key}`)).body as unknown as Status;
   const began = Date.now();
   const deadline = began + waitSeconds * 1000;
   for (;;) {
@@ -149,7 +153,7 @@ async function pass(origin: string, token: string, root: string, key: string, na
       throw new CliError(`PipesHub stored the files but has not started syncing them after ${startSeconds} s. Run the command again; if it repeats, look at: docker compose -p pipeshub-slim logs pipeshub-slim`, EXIT.ERROR);
     }
     await new Promise((r) => setTimeout(r, 1000));
-    status = (await call(origin, token, "GET", `/${key}`)).body as unknown as Status;
+    status = (await call(auth, "GET", `/${key}`)).body as unknown as Status;
   }
   return { sent: todo.length, files: entries.length, skipped, ignored, rejected: refused, state: status.state, indexing: status.indexing };
 }
@@ -188,7 +192,7 @@ export async function indexRepo(
   let cache = caches.get(root);
   if (!cache) caches.set(root, (cache = new Map()));
   const name = basename(root).replace(/[<>]/g, "_"); // the server refuses markup in a repository name
-  const r = await pass(auth.origin, auth.token, root, key, name, cache, say, waitSeconds);
+  const r = await pass(async () => auth, root, key, name, cache, say, waitSeconds);
   const codeTools = r.state === "ready" ? await waitForCodeTools(auth, CODE_TOOLS_SECONDS) : false;
   return { repo: name, root, repoKey: key, ...r, codeTools };
 }
@@ -214,12 +218,11 @@ export async function indexCommand(
     return { origin, token };
   };
   const first0 = await auth();
-  const origin = first0.origin;
   const key = await identity(root);
   const name = basename(root).replace(/[<>]/g, "_"); // the server refuses markup in a repository name
   const cache = new Map<string, { m: number; s: number; sha: string }>();
   const wait = Number(env["PIPESHUB_INDEX_WAIT_SECONDS"] ?? 600);
-  const first = await pass(origin, first0.token, root, key, name, cache, say, wait, Number(env["PIPESHUB_INDEX_START_SECONDS"] ?? START_SECONDS));
+  const first = await pass(auth, root, key, name, cache, say, wait, Number(env["PIPESHUB_INDEX_START_SECONDS"] ?? START_SECONDS));
   if (first.state !== "ready" && first.state !== "failed") {
     throw new CliError(`${name} is still ${first.state} after ${wait} s. The files are stored and PipesHub keeps going; run this again later to see it finish.`, EXIT.ERROR);
   }
@@ -240,8 +243,7 @@ export async function indexCommand(
     if (running) { again = true; return; }
     running = true;
     try {
-      const a = await auth();
-      const r = await pass(a.origin, a.token, root, key, name, cache, say, 0);
+      const r = await pass(auth, root, key, name, cache, say, 0);
       say(`${name}: sent ${r.sent}, ${r.state}.`);
     } catch (e) {
       say(`index failed: ${(e as Error).message}`);

@@ -238,6 +238,33 @@ describe("pipeshub index on awkward repositories", () => {
     expect(Date.now() - t).toBeLessThan(9000);
   }, 30_000);
 
+  test("a long wait for indexing renews the sign-in when the access token runs out in the middle (an hour-long index ended \"not signed in\")", async () => {
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    sh(dir, "add", "-A");
+    const file = join(h2, ".config", "pipeshub", "credentials.json");
+    await mkdir(join(h2, ".config", "pipeshub"), { recursive: true });
+    await writeFile(file, JSON.stringify({
+      origin: f2.origin, clientId: "c", tokenEndpoint: `${f2.origin}/api/v1/oauth2/token`,
+      accessToken: f2.issuedToken, refreshToken: "refresh-0", expiresAt: Date.now() + 3_600_000,
+    }), { mode: 0o600 });
+    f2.repo.status = "indexing";
+    const proc = Bun.spawn(["node", join(import.meta.dir, "..", "standalone", "bin", "pipeshub.js"), "index"], {
+      cwd: dir, env: { PATH: "/usr/bin:/bin", HOME: h2, PIPESHUB_BASE_URL: f2.origin, GIT_CEILING_DIRECTORIES: root, PIPESHUB_INDEX_WAIT_SECONDS: "60" }, stdout: "pipe", stderr: "pipe",
+    });
+    try {
+      await new Promise((r) => setTimeout(r, 2500)); // pushed, now polling
+      await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, "utf8")), expiresAt: Date.now() - 1000 })); // the hour is up
+      f2.issuedToken = "the-server-moved-on";                                                                                // and the old token no longer works
+      await new Promise((r) => setTimeout(r, 2500));
+      f2.repo.status = "ready";
+      const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+      expect(code, err).toBe(0);
+      expect(JSON.parse(out).state).toBe("ready");
+    } finally {
+      proc.kill();
+    }
+  }, 60_000);
+
   test("--watch signs in again when the access token has expired, instead of failing every later edit", async () => {
     await writeFile(join(dir, "a.py"), "x = 1\n");
     sh(dir, "add", "-A");
