@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { devUp, findLocal } from "../src/cli/standalone/stack.js";
@@ -21,6 +21,20 @@ describe("findLocal", () => {
     const env = await home();
     expect(await findLocal(env, Number(new URL(fake.origin).port))).toBeNull();
     await rm(env["HOME"]!, { recursive: true, force: true });
+  });
+
+  test("a stale state.json pointing at a listener that is not the stack's container is not adopted", async () => {
+    fake = startFakeLocal({ orgExists: true });
+    const env = await home();
+    const dir = await mkdtemp(join(tmpdir(), "l9i-nodocker-"));
+    await writeFile(join(dir, "docker"), "#!/bin/sh\nexit 1\n", { mode: 0o755 }); // compose knows no such project
+    const port = Number(new URL(fake.origin).port);
+    await mkdir(join(env["HOME"]!, ".pipeshub", "standalone"), { recursive: true });
+    await writeFile(join(env["HOME"]!, ".pipeshub", "standalone", "state.json"), JSON.stringify({ project: "gone", port, origin: fake.origin }));
+    expect(await findLocal({ ...env, PIPESHUB_DOCKER: join(dir, "docker") }, 1)).toBeNull();
+    await writeFile(join(dir, "docker"), `#!/bin/sh\ncase "$*" in *" port "*) echo "127.0.0.1:${port}" ;; esac\n`, { mode: 0o755 });
+    expect(await findLocal({ ...env, PIPESHUB_DOCKER: join(dir, "docker") }, 1)).toBe(fake.origin);
+    await rm(dir, { recursive: true, force: true });
   });
 
   test("one that has an organisation and offers the CLI sign-in is", async () => {

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
 
 // `pipeshub init` as a person runs it: a child process with a fake HOME (so no
@@ -20,10 +20,26 @@ const freshStack = () => { beforeEach(() => { fake = startFakeLocal(); }); after
 
 interface Run { code: number; stdout: string; stderr: string }
 
+/**
+ * The stack `dev up` started: its state.json, and a `docker` that says its container publishes the port. `init` creates the first
+ * account only on a PipesHub it can show is its own, never on whatever listens at --url.
+ */
+async function ownTheStack(home: string, origin: string): Promise<Record<string, string>> {
+  const port = new URL(origin).port;
+  await mkdir(join(home, ".pipeshub", "standalone"), { recursive: true });
+  await writeFile(join(home, ".pipeshub", "standalone", "state.json"), JSON.stringify({ project: "t", port: Number(port), origin }));
+  const docker = join(dirname(home), "docker-shim");
+  await writeFile(docker, `#!/bin/sh\ncase "$*" in *" port "*) echo "127.0.0.1:${port}" ;; esac\nexit 0\n`, { mode: 0o755 });
+  return { PIPESHUB_DOCKER: docker };
+}
+
 async function cli(home: string, cwd: string, args: string[], env: Record<string, string> = {}): Promise<Run> {
+  const url = args[args.indexOf("--url") + 1];
+  const owned = args.includes("--url") && !("NOT_OURS" in env) && url ? await ownTheStack(home, url) : {};
+  delete env["NOT_OURS"];
   const proc = Bun.spawn([process.execPath, ENTRY, ...args], {
     cwd,
-    env: { PATH: "/usr/bin:/bin", HOME: home, ...env },
+    env: { PATH: "/usr/bin:/bin", HOME: home, ...owned, ...env },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -43,7 +59,7 @@ async function tree(dir: string): Promise<string[]> {
   const out: string[] = [];
   for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
     const p = join(dir, e.name);
-    if (e.name === ".bun") continue; // the runtime's own cache, not ours
+    if (e.name === ".bun" || e.name === ".pipeshub") continue; // the runtime's cache and the (faked) stack's state, not what init wrote
     if (e.isDirectory()) out.push(...(await tree(p)));
     else out.push(p);
   }
@@ -148,7 +164,7 @@ describe("init options", () => {
 
   test("--dry-run prints every change and writes nothing at all", async () => {
     const w = await world("dry", [".cursor", ".codex"]);
-    const r = await cli(w.home, w.cwd, ["init", "--dry-run", "--project", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--dry-run", "--project", "--url", fake.origin], { NOT_OURS: "1" });
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("Dry run: nothing was changed.");
     expect(r.stdout).toContain(join(w.home, ".cursor/mcp.json"));
@@ -319,7 +335,7 @@ describe("uninstall gives back the person's files exactly", () => {
   async function dirs(root: string): Promise<string[]> {
     const out: string[] = [];
     for (const e of await readdir(root, { withFileTypes: true }).catch(() => [])) {
-      if (!e.isDirectory() || e.name === ".bun") continue;
+      if (!e.isDirectory() || e.name === ".bun" || e.name === ".pipeshub") continue;
       out.push(join(root, e.name), ...(await dirs(join(root, e.name))));
     }
     return out.sort();
@@ -434,5 +450,26 @@ describe("init indexes the repository it is run in", () => {
     const skill = await readFile(join(w.home, ".claude/skills/pipeshub/SKILL.md"), "utf8");
     expect(skill).toMatch(/index_workspace/);
     expect(skill).toMatch(/not (been )?indexed|no repository/i);
+  }, 30_000);
+});
+
+
+describe("the first account is created only on a stack init can show is its own", () => {
+  freshStack();
+
+  test("a listener at --url that is not the stack dev up started never receives the generated password", async () => {
+    const w = await world("not-ours", [".cursor"]);
+    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], { NOT_OURS: "1" });
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toContain("create the first account");
+    expect(fake.log).not.toContain("POST /api/v1/org");
+    expect(fake.password).toBeNull();
+  }, 30_000);
+
+  test("one that is (state.json, and docker shows the container publishing that port) gets the account", async () => {
+    const w = await world("ours", [".cursor"]);
+    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("created the first account");
   }, 30_000);
 });

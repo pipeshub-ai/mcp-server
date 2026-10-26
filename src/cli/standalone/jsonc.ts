@@ -146,17 +146,26 @@ function lineIndent(t: string, pos: number): string {
   return /^[ \t]*/.exec(t.slice(start, pos))![0];
 }
 
-function render(value: unknown, indent: string, unit: string): string {
-  return JSON.stringify(value, null, unit).split("\n").join("\n" + indent);
+const eolOf = (t: string) => (t.includes("\r\n") ? "\r\n" : "\n");
+
+function render(value: unknown, indent: string, unit: string, eol = "\n"): string {
+  return JSON.stringify(value, null, unit).split("\n").join(eol + indent);
 }
 
 /** Insert `"key": value` as the last member of the object. */
 function insertMember(t: string, obj: ObjectInfo, key: string, value: unknown, unit: string): string {
+  const eol = eolOf(t);
   const parentIndent = lineIndent(t, obj.open);
   const last = obj.members[obj.members.length - 1];
+  if (last && !t.slice(obj.open, obj.close).includes("\n")) {
+    // A one-line object stays one line, in its own spacing: `{"a":1}` gets `,"k":v`, `{ "a": 1 }` gets `, "k": v`.
+    const spaced = /\s/.test(t.slice(last.keyStart, last.valStart));
+    const inline = `${JSON.stringify(key)}${spaced ? ": " : ":"}${JSON.stringify(value)}`;
+    return t.slice(0, last.valEnd) + (spaced ? ", " : ",") + inline + t.slice(last.valEnd);
+  }
   const inner = last ? lineIndent(t, last.keyStart) : parentIndent + unit;
-  const member = `${JSON.stringify(key)}: ${render(value, inner, unit)}`;
-  if (!last) return t.slice(0, obj.open + 1) + `\n${inner}${member}\n${parentIndent}` + t.slice(obj.close);
+  const member = `${JSON.stringify(key)}: ${render(value, inner, unit, eol)}`;
+  if (!last) return t.slice(0, obj.open + 1) + `${eol}${inner}${member}${eol}${parentIndent}` + t.slice(obj.close);
   // Go past the last member's own comma and same-line comment, so they stay on its line.
   const blanks = (i: number) => { while (t[i] === " " || t[i] === "\t") i++; return i; };
   let pos = last.valEnd;
@@ -166,8 +175,9 @@ function insertMember(t: string, obj: ObjectInfo, key: string, value: unknown, u
   const k = blanks(pos);
   if (t[k] === "/" && t[k + 1] === "/") pos = t.indexOf("\n", k) < 0 ? t.length : t.indexOf("\n", k);
   else if (t[k] === "/" && t[k + 1] === "*" && !t.slice(k, t.indexOf("*/", k)).includes("\n")) pos = t.indexOf("*/", k) + 2;
+  if (t[pos - 1] === "\r") pos--; // a `//` comment ends before the \r of a CRLF line end
   const head = hadComma ? t.slice(0, pos) : t.slice(0, last.valEnd) + "," + t.slice(last.valEnd, pos);
-  return head + `\n${inner}${member}${hadComma ? "," : ""}` + t.slice(pos);
+  return head + `${eol}${inner}${member}${hadComma ? "," : ""}` + t.slice(pos);
 }
 
 /** Set the object member at `path` (creating the objects on the way), changing nothing else. */
@@ -194,8 +204,11 @@ export function setAt(text: string, path: string[], value: unknown): string {
   return t;
 }
 
-/** Remove the member at `path` and any parent object it leaves empty (never the top level). No-op when absent. */
-export function removeAt(text: string, path: string[]): string {
+/**
+ * Remove the member at `path`, changing nothing else. A parent object it leaves empty goes too (it was made for it), unless
+ * `keepParent`: the person had that object already, so it stays, as `{}`. No-op when absent.
+ */
+export function removeAt(text: string, path: string[], opts: { keepParent?: boolean } = {}): string {
   let t = text;
   for (let depth = path.length; depth > 0; depth--) {
     const chain: ObjectInfo[] = [];
@@ -212,23 +225,46 @@ export function removeAt(text: string, path: string[]): string {
     const idx = obj.members.findIndex((x) => x.key === path[depth - 1]);
     if (idx < 0) return t;
     const m = obj.members[idx]!;
-    const isLast = idx === obj.members.length - 1;
-    let start = t.lastIndexOf("\n", m.keyStart - 1) + 1;
-    if (t.slice(start, m.keyStart).trim() !== "") start = m.keyStart; // shares its line with something
-    let end = m.valEnd;
-    const after = skipWs(t, end);
-    if (t[after] === ",") end = after + 1;
-    // Take the rest of the line (and its newline) when only whitespace follows.
-    const eol = /^[ \t]*\r?\n/.exec(t.slice(end));
-    if (eol && start < m.keyStart) end += eol[0].length;
+    const prev = idx > 0 ? obj.members[idx - 1]! : null;
+    const next = obj.members[idx + 1] ?? null;
+    const isLast = next === null;
+    const afterVal = skipWs(t, m.valEnd);
+    const ownTrailingComma = isLast && t[afterVal] === ",";
+    const sharesLineWithPrev = prev !== null && !t.slice(prev.valEnd, m.keyStart).includes("\n");
+    let start: number;
+    let end: number;
+    let dropPrevComma = isLast && idx > 0 && !ownTrailingComma; // trailing-comma style keeps the comma it had
+    if (isLast && sharesLineWithPrev) {
+      // One-line object: take the separator in front of the member with it.
+      start = prev!.valEnd;
+      end = m.valEnd;
+      dropPrevComma = false;
+    } else if (!isLast && !t.slice(m.valEnd, next!.keyStart).includes("\n") && !t.slice(0, m.keyStart).endsWith("\n")) {
+      start = m.keyStart;
+      end = next!.keyStart;
+    } else {
+      start = t.lastIndexOf("\n", m.keyStart - 1) + 1;
+      if (t.slice(start, m.keyStart).trim() !== "") start = m.keyStart; // shares its line with something
+      end = m.valEnd;
+      const after = skipWs(t, end);
+      if (t[after] === ",") end = after + 1;
+      // Take the rest of the line (and its newline) when only whitespace follows.
+      const eol = /^[ \t]*\r?\n/.exec(t.slice(end));
+      if (eol && start < m.keyStart) end += eol[0].length;
+    }
     t = t.slice(0, start) + t.slice(end);
-    if (isLast && idx > 0) {
+    if (dropPrevComma) {
       // The previous member lost its follower: drop its comma so strict JSON stays valid.
-      const prev = obj.members[idx - 1]!;
-      const c = skipWs(t, prev.valEnd);
+      const c = skipWs(t, prev!.valEnd);
       if (t[c] === ",") t = t.slice(0, c) + t.slice(c + 1);
     }
     if (obj.members.length > 1) return t;
+    if (opts.keepParent && depth === path.length) {
+      // The object is empty now; leave it as `{}`, which is how a person writes an empty one.
+      const o2 = readObject(t, obj.open);
+      if (/^\s*$/.test(t.slice(o2.open + 1, o2.close))) t = t.slice(0, o2.open + 1) + t.slice(o2.close);
+      return t;
+    }
   }
   return t;
 }

@@ -211,7 +211,7 @@ const same = (a: unknown, b: unknown) => canon(a) === canon(b);
 /** An entry that looks like one of ours (older `mcp install`, another port): safe to update without --force. */
 const looksOurs = (v: unknown) => JSON.stringify(v).includes("@pipeshub-ai/");
 
-function editJson(t: Target, before: string | null, mode: "add" | "remove", force: boolean): Edit {
+function editJson(t: Target, before: string | null, mode: "add" | "remove", force: boolean, hint?: EditHint): Edit {
   const path = t.path!;
   let current: unknown;
   try {
@@ -223,7 +223,7 @@ function editJson(t: Target, before: string | null, mode: "add" | "remove", forc
   if (mode === "remove") {
     if (before === null || current === undefined) return { status: "absent", after: before };
     if (!looksOurs(current) && !force) return { status: "conflict", after: before, note: `"${path.join(".")}" is not a PipesHub entry; left as is` };
-    const after = removeAt(before, path);
+    const after = removeAt(before, path, { keepParent: hint?.parentExisted === true });
     return after.replace(/\s/g, "") === "{}" ? { status: "deleted", after: null } : { status: "removed", after };
   }
   if (current !== undefined && same(current, t.entry)) return { status: "unchanged", after: before };
@@ -341,9 +341,15 @@ function editFile(t: Target, before: string | null, mode: "add" | "remove", forc
   return { status: before === null ? "created" : "updated", after: t.text! };
 }
 
-export function edit(t: Target, before: string | null, mode: "add" | "remove", force = false): Edit {
+/** What init recorded about the file before it touched it. */
+export interface EditHint {
+  /** The object our entry sits in was already in the person's file, so removing the entry must leave it. */
+  parentExisted?: boolean;
+}
+
+export function edit(t: Target, before: string | null, mode: "add" | "remove", force = false, hint?: EditHint): Edit {
   switch (t.kind) {
-    case "json": return editJson(t, before, mode, force);
+    case "json": return editJson(t, before, mode, force, hint);
     case "toml": return editToml(t, before, mode, force);
     case "block": return editBlock(t, before, mode);
     case "file": return editFile(t, before, mode, force);

@@ -11,6 +11,9 @@ import { CliError, EXIT } from "../config.js";
 import { SECRET_NAMES, composeFile } from "./assets.js";
 
 export const DEFAULT_PORT = 3000;
+
+/** The docker executable: PIPESHUB_DOCKER for one outside the PATH, else `docker`. */
+export const dockerBin = (env: NodeJS.ProcessEnv): string => env["PIPESHUB_DOCKER"] || "docker";
 export const DEFAULT_PROJECT = "pipeshub-slim";
 
 export interface StackState {
@@ -41,7 +44,7 @@ async function writeAtomic(path: string, text: string, mode: number): Promise<vo
 
 /** Null when Docker and Compose work, else the sentence to show. */
 export function dockerProblem(env: NodeJS.ProcessEnv = process.env): string | null {
-  const run = (args: string[]) => spawnSync("docker", args, { env, encoding: "utf8", timeout: 30_000 });
+  const run = (args: string[]) => spawnSync(dockerBin(env), args, { env, encoding: "utf8", timeout: 30_000 });
   const compose = run(["compose", "version"]);
   if (compose.error && (compose.error as NodeJS.ErrnoException).code === "ENOENT") {
     return "Docker is not installed. Install Docker Desktop (https://docs.docker.com/get-docker/) or Docker Engine, then run this again.";
@@ -85,7 +88,7 @@ async function prepare(port: number, project: string, env: NodeJS.ProcessEnv): P
 function compose(args: string[], project: string, env: NodeJS.ProcessEnv): number {
   const dir = standaloneDir(env);
   const r = spawnSync(
-    "docker",
+    dockerBin(env),
     ["compose", "-p", project, "--env-file", join(dir, ".env"), "-f", join(dir, "docker-compose.yml"), ...args],
     // Progress goes to stderr so stdout stays JSON.
     { env, stdio: ["ignore", 2, 2] },
@@ -158,13 +161,29 @@ async function offersCliSignIn(origin: string): Promise<boolean> {
 }
 
 /**
- * A PipesHub already running on this computer: the one `dev up` started, else one on the default port that shows it is PipesHub.
- * A listener that only answers the health check is not enough: anything on loopback can, and a fresh-looking one would be sent
- * the password of the first account.
+ * True when `origin` is the stack `pipeshub dev up` started: state.json names it, and Docker says that compose project's app container
+ * publishes that port. Anything else on loopback (a stale port, another program) is only a listener, and gets nothing of ours.
+ */
+export async function ownsOrigin(origin: string, env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
+  const state = await readState(env);
+  if (!state || state.origin !== origin) return false;
+  const dir = standaloneDir(env);
+  const r = spawnSync(
+    dockerBin(env),
+    ["compose", "-p", state.project, "--env-file", join(dir, ".env"), "-f", join(dir, "docker-compose.yml"), "port", "pipeshub-slim", "3000"],
+    { env, encoding: "utf8", timeout: 15_000 },
+  );
+  return r.status === 0 && r.stdout.trim().endsWith(`:${state.port}`);
+}
+
+/**
+ * A PipesHub already running on this computer: the one `dev up` started (and Docker confirms), else one on the default port that shows it
+ * is PipesHub. A listener that only answers the health check is not enough: anything on loopback can, and a fresh-looking one would be
+ * sent the password of the first account.
  */
 export async function findLocal(env: NodeJS.ProcessEnv = process.env, port: number = DEFAULT_PORT): Promise<string | null> {
   const state = await readState(env);
-  if (state?.origin && (await healthy(state.origin, 1500))) return state.origin;
+  if (state?.origin && (await healthy(state.origin, 1500)) && (await ownsOrigin(state.origin, env))) return state.origin;
   const origin = `http://127.0.0.1:${port}`;
   return (await healthy(origin, 1500)) && (await offersCliSignIn(origin)) ? origin : null;
 }

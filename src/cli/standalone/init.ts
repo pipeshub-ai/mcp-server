@@ -13,10 +13,11 @@ import { CliError, EXIT, resolveOrigin } from "../config.js";
 import { configDir, logout, storedLogin } from "../login.js";
 import {
   CLIENT_IDS, LABEL, bridgeEntry, detect, edit, targets,
-  type ClientId, type Ctx, type Edit, type Target,
+  type ClientId, type Ctx, type Edit, type EditHint, type Target,
 } from "./clients.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, dockerProblem, findLocal, devDown, devUp, readState } from "./stack.js";
 import { forgetAccount, localSignIn } from "./signin.js";
+import { getAt } from "./jsonc.js";
 import { gitRoot, indexRepo } from "./index.js";
 
 export interface InitOptions {
@@ -153,7 +154,15 @@ async function apply(t: Target, mode: "add" | "remove", o: InitOptions, env: Nod
       return { client: t.client, file: t.file, what: t.what, status };
     }
   }
-  const r = edit(t, before, mode, o.force);
+  // The object our entry sits in: did the person's own file have it before init? Then uninstall leaves it (as `{}` if it is empty).
+  let hint: EditHint | undefined;
+  if (mode === "remove" && t.kind === "json" && rec?.original) {
+    const original = await readText(rec.original);
+    if (original !== null) {
+      try { hint = { parentExisted: getAt(original, t.path!.slice(0, -1)) !== undefined }; } catch { /* unreadable original: the default applies */ }
+    }
+  }
+  const r = edit(t, before, mode, o.force, hint);
   const out: FileReport = { client: t.client, file: t.file, what: t.what, status: r.status, ...(r.note ? { note: r.note } : {}) };
   if (o.dryRun && r.after !== before) out.added = addedLines(before, r.after);
   if (o.dryRun || r.after === before) return out;

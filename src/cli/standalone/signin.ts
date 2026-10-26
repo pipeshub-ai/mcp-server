@@ -15,6 +15,7 @@ import { randomBytes } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { CliError } from "../config.js";
+import { ownsOrigin } from "./stack.js";
 import { configDir, discover, startLogin, storedLogin, waitForLogin, writeSecretFile } from "../login.js";
 
 export interface LocalAccount {
@@ -61,6 +62,13 @@ async function session(a: LocalAccount): Promise<string | null> {
 async function createFirstAccount(origin: string, email: string, env: NodeJS.ProcessEnv): Promise<LocalAccount | null> {
   const exists = await api(origin, "/api/v1/org/exists");
   if (exists.status !== 200 || exists.body["exists"] === true) return null;
+  // A new password goes only to a PipesHub this command can show is its own; a listener at --url, or at a stale port, may be anything.
+  if (!(await ownsOrigin(origin, env))) {
+    throw new CliError(
+      `${origin} has no account yet, but it is not the stack 'pipeshub dev up' started, so no account is created on it for you. `
+        + `Open ${origin} in a browser to create the first account (or run 'pipeshub dev up'), then run this again.`,
+    );
+  }
   // Meets the password rules (upper, lower, digit, symbol); never printed.
   const account: LocalAccount = { origin, email, password: "Aa1!" + randomBytes(18).toString("base64url") };
   // Saved first: if the process dies after the stack made the account, the password is not lost.
