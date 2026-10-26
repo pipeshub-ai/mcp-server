@@ -64,9 +64,6 @@ services:
       PIPESHUB_FOLDER_ROOTS: /workspace
       EMBEDDING_BACKEND: fastembed
       DEFAULT_EMBEDDING_MODEL: @{DEFAULT_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
-      # Records parsed / indexed at once; empty = the supervisor's default (2 each), sized for a 4 GB container.
-      MAX_CONCURRENT_PARSING: @{MAX_CONCURRENT_PARSING:-}
-      MAX_CONCURRENT_INDEXING: @{MAX_CONCURRENT_INDEXING:-}
       OMP_NUM_THREADS: @{OMP_NUM_THREADS:-2}
       TELEMETRY_COLLECTION_FLAG: @{TELEMETRY_COLLECTION_FLAG:-}
     healthcheck:
@@ -125,16 +122,23 @@ export const BLOCK_BEGIN = "<!-- pipeshub:begin (managed by pipeshub init; remov
 export const BLOCK_END = "<!-- pipeshub:end -->";
 
 const DESCRIPTION =
-  "Search the PipesHub running on this computer: the team's indexed documents, tickets and chat, and (once this repository is indexed) its code. "
-  + "Use it before answering from memory when a question is about this project's history, decisions or who owns something.";
+  "Search the PipesHub running on this computer: the team's documents, tickets and chat, and this repository's code (callers, impact, definitions). "
+  + "Use it before answering from memory about this project's history, decisions, owners or code structure.";
 
-const GUIDANCE = `PipesHub is connected as the MCP server \`pipeshub\` and runs on this computer.
+const GUIDANCE = `PipesHub runs on this computer and is connected as the MCP server \`pipeshub\`.
 
-- For a question about what the team knows (decisions, tickets, docs, chat, who owns what), call \`pipeshub_search\`, then read the records that matter with \`pipeshub_get_record_content\`, and answer from what they say. Do not answer from memory.
-- Try other wording when the first search misses. For "all" or "how many", do not stop at the first matches.
-- If the \`pipeshub_code_*\` tools are listed, use them for questions about this repository's code (callers, callees, impact) before reading many files.
-- If \`index_workspace\` is listed and the folder you are working in is not indexed yet (the \`pipeshub_code_*\` tools are not listed, or \`pipeshub_code_repos\` has no repository for it), call \`index_workspace\` once, then ask again. It is incremental, so it is also the way to refresh after large changes.
-- If a tool says PipesHub is not reachable, tell the user to run \`pipeshub dev up\`.`;
+**What the team knows** (decisions, tickets, docs, chat, owners): call \`pipeshub_search\`, read the records that matter with \`pipeshub_get_record_content\`, and answer from them, not from memory. Try other wording when a search misses; for "all" or "how many", do not stop at the first hits.
+
+**This repository's code**:
+- Not indexed yet, or changed a lot since? Call \`index_workspace\` first (incremental, safe to repeat). The \`pipeshub_code_*\` tools appear once a repository is indexed.
+- Who calls X, what X calls, what breaks if it changes: \`pipeshub_code_neighbours\`, \`pipeshub_code_impact\`.
+- Where X is defined: \`pipeshub_code_search\`. A string or regex needs \`mode\` and \`path\`.
+- A map: \`pipeshub_code_symbols\` on a directory, \`pipeshub_code_entry_points\`, \`pipeshub_code_outline\` for one file. Then \`pipeshub_code_read\` one symbol or line range.
+- Read files yourself for what you are about to edit: the indexed copy can lag.
+
+Keep calls small: set \`limit\`, use \`depth\` 1 or 2, outline before read, a symbol or line range, not a whole file.
+Cite what you found as repo, file path and line range. If a result has a \`coverage\` note, say the answer may be incomplete.
+If a tool says PipesHub is not reachable, tell the user to run \`npx @pipeshub-ai/standalone dev up\`.`;
 
 /** The text between the markers of an AGENTS.md / CLAUDE.md / GEMINI.md / .rules block. */
 export const blockBody = (): string => `## PipesHub\n\n${GUIDANCE}`;
@@ -154,4 +158,32 @@ export function ruleFile(kind: "skill" | "cursor" | "windsurf" | "vscode" | "cli
     case "cline":
       return body.trimStart();
   }
+}
+
+/**
+ * Slash commands, for the clients that document them: Claude Code
+ * (https://code.claude.com/docs/en/slash-commands, ~/.claude/commands/*.md) and Gemini CLI
+ * (https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/custom-commands.md, ~/.gemini/commands/<ns>/*.toml).
+ * Both are one short prompt that names the tool; the skill carries the rest.
+ */
+const INDEX_PROMPT =
+  "Call the `index_workspace` tool of the `pipeshub` MCP server for the current working directory (pass it as `path`). "
+  + "Report the files sent, the state and whether the `pipeshub_code_*` tools are listed now. "
+  + "On an error, show it and suggest running `npx @pipeshub-ai/standalone index` in the repository.";
+const CODE_PROMPT =
+  "Answer this question about the code in the current repository with the `pipeshub_code_*` tools of the `pipeshub` MCP server: ";
+const CODE_TAIL =
+  ". Call `index_workspace` first if the repository is not indexed. Keep calls small and cite repo, file path and line range.";
+
+export type CommandName = "index" | "code";
+
+export function commandFile(client: "claude-code" | "gemini", name: CommandName): string {
+  const code = name === "code";
+  const description = code ? "Ask about this repository's code with PipesHub" : "Index this repository into PipesHub";
+  if (client === "claude-code") {
+    const head = `---\ndescription: ${description}\n${code ? "argument-hint: <question>\n" : ""}---\n\n<!-- ${OWNED} -->\n\n`;
+    return head + (code ? `${CODE_PROMPT}$ARGUMENTS${CODE_TAIL}\n` : `${INDEX_PROMPT}\n`);
+  }
+  const prompt = code ? `${CODE_PROMPT}{{args}}${CODE_TAIL}` : INDEX_PROMPT;
+  return `# ${OWNED}\ndescription = ${JSON.stringify(description)}\nprompt = ${JSON.stringify(prompt)}\n`;
 }

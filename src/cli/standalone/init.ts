@@ -353,6 +353,11 @@ async function uninstall(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: string
       await devDown(false, env).then(() => { report.stack = "stopped the local stack (data kept; remove it with: pipeshub dev down --volumes)"; },
         (e: unknown) => { report.warnings.push(`could not stop the local stack: ${(e as Error).message}`); });
     }
+    // Folders init made for its files (a commands folder that held several): gone once empty, deepest first.
+    const made = new Set(Object.values(manifest?.files ?? {}).flatMap((w) => w.madeDirs));
+    for (const d of [...made].sort((a, b) => b.length - a.length)) {
+      if ((await readdir(d).catch(() => ["x"])).length === 0) await rmdir(d).catch(() => undefined);
+    }
     await rm(manifestPath(env), { force: true });
   }
   if ((await readState(env)) && !manifest?.startedStack) report.next.push("The local stack was started with 'pipeshub dev up', so it is still running: pipeshub dev down");

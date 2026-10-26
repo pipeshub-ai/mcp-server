@@ -8,7 +8,7 @@
 
 import { delimiter, join } from "node:path";
 import { existsSync } from "node:fs";
-import { BLOCK_BEGIN, BLOCK_END, OWNED, blockBody, ruleFile } from "./assets.js";
+import { BLOCK_BEGIN, BLOCK_END, OWNED, blockBody, commandFile, ruleFile } from "./assets.js";
 import { JsoncError, getAt, removeAt, setAt } from "./jsonc.js";
 
 export const CLIENT_IDS = [
@@ -59,7 +59,7 @@ export interface Target {
   /** block/file: the text to write. */
   text?: string;
   /** What this file is, for the report. */
-  what: "mcp" | "skill" | "rules";
+  what: "mcp" | "skill" | "rules" | "command";
   /** Lives in the working directory's project (opt-in), not in the user's home. */
   project: boolean;
 }
@@ -156,6 +156,7 @@ export function targets(id: ClientId, c: Ctx, entry: McpEntry): Target[] {
       return [
         json(join(c.home, ".claude.json"), "mcpServers", { type: "stdio", ...std }),
         { client: id, file: join(c.home, ".claude", "skills", NAME, "SKILL.md"), kind: "file", text: ruleFile("skill"), what: "skill", project: false },
+        ...(["index", "code"] as const).map((n): Target => ({ client: id, file: join(c.home, ".claude", "commands", `pipeshub-${n}.md`), kind: "file", text: commandFile("claude-code", n), what: "command", project: false })),
         proj("CLAUDE.md", "block", blockBody()),
       ];
     case "codex":
@@ -189,6 +190,7 @@ export function targets(id: ClientId, c: Ctx, entry: McpEntry): Target[] {
       return [
         json(join(c.home, ".gemini", "settings.json"), "mcpServers", std),
         { client: id, file: join(c.home, ".gemini", "GEMINI.md"), kind: "block", text: blockBody(), what: "skill", project: false },
+        ...(["index", "code"] as const).map((n): Target => ({ client: id, file: join(c.home, ".gemini", "commands", "pipeshub", `${n}.toml`), kind: "file", text: commandFile("gemini", n), what: "command", project: false })),
       ];
     case "zed":
       return [json(zedSettings(c), "context_servers", { source: "custom", ...std }), proj(".rules", "block", blockBody())];
