@@ -64,6 +64,9 @@ services:
       PIPESHUB_FOLDER_ROOTS: /workspace
       EMBEDDING_BACKEND: fastembed
       DEFAULT_EMBEDDING_MODEL: @{DEFAULT_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      # Records parsed / indexed at once; empty = the supervisor's default (2 each), sized for a 4 GB container.
+      MAX_CONCURRENT_PARSING: @{MAX_CONCURRENT_PARSING:-}
+      MAX_CONCURRENT_INDEXING: @{MAX_CONCURRENT_INDEXING:-}
       OMP_NUM_THREADS: @{OMP_NUM_THREADS:-2}
       TELEMETRY_COLLECTION_FLAG: @{TELEMETRY_COLLECTION_FLAG:-}
     healthcheck:
