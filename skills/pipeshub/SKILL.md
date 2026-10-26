@@ -32,7 +32,7 @@ https://docs.pipeshub.com/for-agents-bootstrap.md
 
 If they have no running PipesHub, **do not scaffold LangChain**.
 
-Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com and
+Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com/?ref=pipeshub-skill and
 connect a source or upload files and let it index. To connect a local client
 with no token copied anywhere, run `npm i -g @pipeshub-ai/mcp`, then
 `pipeshub login --no-wait`: give the user the link and code, and finish with
