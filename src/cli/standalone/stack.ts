@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { CliError, EXIT } from "../config.js";
 import { SECRET_NAMES, composeFile } from "./assets.js";
+import { SECCOMP_PROFILE } from "./seccomp.js";
 
 export const DEFAULT_PORT = 3000;
 
@@ -76,6 +77,7 @@ async function prepare(port: number, project: string, env: NodeJS.ProcessEnv): P
   const dir = standaloneDir(env);
   await mkdir(join(dir, "workspace"), { recursive: true, mode: 0o700 });
   await writeAtomic(join(dir, "docker-compose.yml"), composeFile(), 0o600);
+  await writeAtomic(join(dir, "seccomp-browser.json"), SECCOMP_PROFILE, 0o600);
   const have = parseEnvFile(await readFile(join(dir, ".env"), "utf8").catch(() => ""));
   for (const name of SECRET_NAMES) have[name] ||= randomBytes(24).toString("hex");
   have["PIPESHUB_PORT"] = String(port);

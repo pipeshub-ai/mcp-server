@@ -33,6 +33,7 @@ import {
   type Outcome,
 } from "./commands.js";
 import { collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
+import { packsAdd, packsEmbedding, packsList, packsRemove } from "./packs.js";
 import { init, renderReport } from "./standalone/init.js";
 import { indexCommand } from "./standalone/index.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, devDown, devStatus, devUp } from "./standalone/stack.js";
@@ -78,6 +79,10 @@ COMMANDS
   uninstall                   undo init (same as init --uninstall)
   dev up|down|status          start, stop or inspect the local PipesHub (Docker Compose)
   index [path]                push a git repository into the code graph (--watch to follow it)
+  packs list                  optional packs (web browser, document converter, embedding models) and their state
+  packs add <id>              install a pack; --wait follows the download (the default in a terminal)
+  packs remove <id>           remove a pack (asks first in a terminal; --yes skips it)
+  packs embedding [<model>]   show the embedding model, or switch to <model> (--builtin: the built-in one)
 
 OPTIONS
   --json                      JSON output (default)
@@ -105,7 +110,10 @@ OPTIONS
   --watch                     index: keep the index current as files change
   --url <origin>              login: the PipesHub to sign in to
   --no-wait                   login: print the code and link, then exit
-  --wait                      login: finish a sign-in started with --no-wait
+  --wait                      login: finish a sign-in started with --no-wait; packs: follow progress
+  --file <name>               packs add: install from an archive of this name in the server's packs import folder (packs/offline)
+  --use                       packs add: after installing an embedding pack, switch search to it
+  --builtin                   packs embedding: switch back to the built-in model
 
 ENVIRONMENT
   PIPESHUB_TOKEN     preferred over a stored login; PIPESHUB_MCP_TOKEN also accepted
@@ -148,6 +156,9 @@ interface Flags {
   noIndex: boolean;
   volumes: boolean;
   watch: boolean;
+  file: string | null;
+  use: boolean;
+  builtin: boolean;
 }
 
 function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
@@ -177,6 +188,9 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     noIndex: false,
     volumes: false,
     watch: false,
+    file: null,
+    use: false,
+    builtin: false,
   };
   const positional: string[] = [];
 
@@ -200,6 +214,9 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--no-index": flags.noIndex = true; break;
       case "--volumes": flags.volumes = true; break;
       case "--watch": flags.watch = true; break;
+      case "--use": flags.use = true; break;
+      case "--builtin": flags.builtin = true; break;
+      case "--file": flags.file = needValue(a, argv[++i]); break;
       case "--port": flags.port = Number(needValue(a, argv[++i])); break;
       case "--insecure-http": flags.insecureHttp = true; break;
       case "--force": flags.force = true; break;
@@ -273,8 +290,18 @@ function emit(outcome: Outcome, json: boolean): Promise<void> {
 /** Every command word. An unknown one is a usage error before any credential or sandbox check, so a typo never looks like an auth problem. */
 export const COMMANDS = [
   "login", "logout", "auth", "init-qm", "sources", "search", "ask", "get", "collection", "upload", "status",
-  "mcp", "connect", "directory", "init", "uninstall", "dev", "index",
+  "mcp", "connect", "directory", "init", "uninstall", "dev", "index", "packs",
 ] as const;
+
+/** y/N on stderr, read from stdin. */
+async function confirm(question: string): Promise<boolean> {
+  const rl = (await import("node:readline/promises")).createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } finally {
+    rl.close();
+  }
+}
 
 const progress = (s: string) => writeFlushed(process.stderr, s + "\n");
 
@@ -488,6 +515,7 @@ async function run(argv: string[]): Promise<number> {
   };
 
   let outcome: Outcome;
+  let packsJson = false;
   switch (command) {
     case "auth":
       if (sub !== "status") {
@@ -562,11 +590,25 @@ async function run(argv: string[]): Promise<number> {
       }
       outcome = await directoryWhoami(ctx);
       break;
+    case "packs": {
+      // Text by default, like init; --json prints the API's answer.
+      packsJson = flags.formatChosen && flags.json;
+      const tty = process.stdout.isTTY === true;
+      const o = { say: (s: string) => void progress(s), confirm, wait: flags.wait ?? tty };
+      const id = positional[2] ?? "";
+      if (sub === "list" || sub === "ls") outcome = await packsList(ctx);
+      else if (sub === "add" || sub === "remove" || sub === "rm") {
+        if (id === "") throw new CliError(`usage: pipeshub packs ${sub} <id>`, EXIT.USAGE);
+        outcome = sub === "add" ? await packsAdd(ctx, id, flags.file, flags.use, o) : await packsRemove(ctx, id, flags.yes || !tty, o);
+      } else if (sub === "embedding") outcome = await packsEmbedding(ctx, positional[2] ?? null, flags.builtin, o);
+      else throw new CliError("usage: pipeshub packs list|add <id>|remove <id>|embedding [<model>|--builtin]", EXIT.USAGE);
+      break;
+    }
     default:
       throw new CliError(`unknown command: ${command}`, EXIT.USAGE);
   }
 
-  await emit(outcome, flags.json);
+  await emit(outcome, command === "packs" ? packsJson : flags.json);
   return outcome.exit;
 }
 

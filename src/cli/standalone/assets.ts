@@ -32,6 +32,9 @@ services:
       - pipeshub-data:/data/pipeshub
       - @{PIPESHUB_WORKSPACE:-./workspace}:/workspace:ro
     mem_limit: @{APP_MEMORY_LIMIT:-4g}
+    # The web browser pack runs Chromium with its own sandbox, which needs user namespaces (see seccomp.ts).
+    security_opt:
+      - seccomp=./seccomp-browser.json
     environment:
       NODE_ENV: production
       LOG_LEVEL: @{LOG_LEVEL:-info}
@@ -70,6 +73,11 @@ services:
       MAX_CONCURRENT_PARSING: @{MAX_CONCURRENT_PARSING:-}
       MAX_CONCURRENT_INDEXING: @{MAX_CONCURRENT_INDEXING:-}
       OMP_NUM_THREADS: @{OMP_NUM_THREADS:-2}
+      # Capability packs install into the data volume. A mirror (or an offline site's own manifest) replaces the download address.
+      PIPESHUB_PACKS_BASE_URL: @{PIPESHUB_PACKS_BASE_URL:-}
+      PIPESHUB_PACKS_MANIFEST: @{PIPESHUB_PACKS_MANIFEST:-}
+      # Hosts the web connector may reach although they resolve to a private address (comma separated).
+      WEB_CONNECTOR_ALLOWED_HOSTS: @{WEB_CONNECTOR_ALLOWED_HOSTS:-}
       # Models already on disk load without the network; HF_HUB_OFFLINE=1 forbids any download.
       HF_HUB_OFFLINE: @{HF_HUB_OFFLINE:-}
       # Client connections per pool; the sum for the worst case (73) is worked out in the server's slim-start.sh against max_connections 120.
