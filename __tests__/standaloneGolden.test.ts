@@ -166,7 +166,7 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
     t0 = Date.now();
     const r = await npx(["init", "--yes", "--port", PORT], repo);
     report["init_s"] = Math.round((Date.now() - t0) / 100) / 10;
-    expect(r.code).toBe(0);
+    if (r.code !== 0) throw new Error(`npx init exited ${r.code}\n--- stderr ---\n${r.stderr.slice(-3000)}\n--- stdout ---\n${r.stdout.slice(-1500)}`);  // a failure must say why
     expect(r.stdout).toContain("started the local stack");
     expect(r.stdout).toContain("created the first account");
     // the repository init was run in is indexed by the same command

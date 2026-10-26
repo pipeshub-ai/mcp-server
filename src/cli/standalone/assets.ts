@@ -63,11 +63,20 @@ services:
       PG_MIGRATE_PASSWORD: @{PG_MIGRATE_PASSWORD:?}
       PIPESHUB_FOLDER_ROOTS: /workspace
       EMBEDDING_BACKEND: fastembed
-      DEFAULT_EMBEDDING_MODEL: @{DEFAULT_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      DEFAULT_EMBEDDING_MODEL: @{DEFAULT_EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}
+      # Chunks per ONNX run: bge-base grows the process by 880 MiB at 16, 156 MiB at 4 and 25 MiB at 1 (D-80).
+      EMBEDDING_SERVER_BATCH_SIZE: @{EMBEDDING_SERVER_BATCH_SIZE:-4}
       # Records parsed / indexed at once; empty = the image's default (4 and 6), sized for a 4 GB container.
       MAX_CONCURRENT_PARSING: @{MAX_CONCURRENT_PARSING:-}
       MAX_CONCURRENT_INDEXING: @{MAX_CONCURRENT_INDEXING:-}
       OMP_NUM_THREADS: @{OMP_NUM_THREADS:-2}
+      # Models already on disk load without the network; HF_HUB_OFFLINE=1 forbids any download.
+      HF_HUB_OFFLINE: @{HF_HUB_OFFLINE:-}
+      # Client connections per pool; the sum for the worst case (73) is worked out in the server's slim-start.sh against max_connections 120.
+      PG_POOL_MAX: @{PG_POOL_MAX:-4}
+      PG_JOBS_POOL_MAX: @{PG_JOBS_POOL_MAX:-2}
+      # shadow logs an org-scoped access with no org bound; enforce refuses it.
+      ORG_CONTEXT_MODE: @{ORG_CONTEXT_MODE:-shadow}
       TELEMETRY_COLLECTION_FLAG: @{TELEMETRY_COLLECTION_FLAG:-}
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000/api/v1/health"]
