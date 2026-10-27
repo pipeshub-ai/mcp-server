@@ -2,6 +2,7 @@ import * as z from "zod";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
+import { ONE_TRY_HEADER, REQUEST_TIMEOUT_HEADER } from "../../hooks/transport-defaults.js";
 import { ToolDefinition } from "../tools.js";
 import {
   errorResult,
@@ -27,6 +28,13 @@ export async function renderedResult(response: Response) {
 /** What a read returns by default: about 10k tokens, inside common clients'
  * tool-output limits (Claude Code's is 25k tokens). */
 export const DEFAULT_MAX_CHARS = 40_000;
+
+/**
+ * How long an extract may take to start answering: the server reads the
+ * record, gives its reader model up to 60 s, and reads the record again if
+ * the model fails. Tried once: a repeat would run the model again.
+ */
+export const EXTRACT_TIMEOUT_MS = 150_000;
 
 const args = {
   mode: z.enum(["content", "thread", "navigate", "lookup"]).default("content")
@@ -58,6 +66,13 @@ const args = {
   startRecord: z.int().min(0).optional().describe(
     "Thread mode: carry on a long thread from this record, with the "
       + "`startBlock` given beside it in a previous read's `Next:` line.",
+  ),
+  extract: z.boolean().optional().describe(
+    "Content mode, with `query`: return only the passages that answer "
+      + "`query`, copied word for word by PipesHub's reader model, instead of "
+      + "the record's text: far shorter than a read. Use it to pull facts out "
+      + "of a record. Read without it to list or count everything in a "
+      + "record, or when the extract lacks what you need.",
   ),
   maxChars: z.int().min(2000).max(140000).default(DEFAULT_MAX_CHARS).describe(
     "Content and thread modes: most characters of text to return. The "
@@ -274,6 +289,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
       );
     }
     const thread = args.mode === "thread";
+    const extract = !thread && !!args.extract && !!args.query && args.startBlock === undefined;
     const [result] = await connectorGetRecordContent(client, {
       recordId: args.recordId,
       maxChars: args.maxChars,
@@ -283,8 +299,20 @@ it using the \`Web URL\` from its metadata header (when present).`,
           startRecord: args.startRecord,
           startBlock: args.startBlock,
         }
-        : { query: args.query, startBlock: args.startBlock }),
-    }, fetchOptions).$inspect();
+        : {
+          query: args.query,
+          startBlock: args.startBlock,
+          ...(extract ? { extract: true } : {}),
+        }),
+    }, extract
+      ? {
+        ...fetchOptions,
+        headers: {
+          [REQUEST_TIMEOUT_HEADER]: String(EXTRACT_TIMEOUT_MS),
+          [ONE_TRY_HEADER]: "1",
+        },
+      }
+      : fetchOptions).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
     // The SDK func uses errorCodes:[], so any non-2xx comes back as an
@@ -314,7 +342,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
 export type RecordRead = {
   content?: string;
   mode?: "record" | "thread";
-  order?: "in_order" | "relevance";
+  order?: "in_order" | "relevance" | "extract";
   totalBlocks?: number;
   shownBlocks?: Array<[number, number]>;
   complete?: boolean;
@@ -337,6 +365,18 @@ export type RecordRead = {
     nextStartBlock?: number | null;
   }>;
   unreadableRecordIds?: string[];
+  /** An extract's reader call; `error` alone when it failed and this is a plain read. */
+  extract?: {
+    model?: string;
+    nothingRelevant?: boolean;
+    truncated?: boolean;
+    unverifiedLines?: number;
+    sourceChars?: number;
+    sourceComplete?: boolean;
+    inputTokens?: number;
+    outputTokens?: number;
+    error?: string;
+  };
 };
 
 const lost = (block: number | null | undefined, record?: string) =>
@@ -372,6 +412,11 @@ function repliesLine(content: string, recordId: string): string[] {
   ];
 }
 
+function withoutExtract(read: RecordRead): RecordRead {
+  const { extract: _extract, ...plain } = read;
+  return plain;
+}
+
 const ranges = (shown: Array<[number, number]> | undefined) =>
   (shown ?? []).map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
 
@@ -387,6 +432,42 @@ export function renderRead(
   thread: boolean,
 ): string {
   const content = read.content ?? "";
+  if (read.order === "extract") {
+    const x = read.extract ?? {};
+    const from = x.sourceComplete
+      ? "the whole record"
+      : "the parts of the record most relevant to your query";
+    const reader = `Reader: ${x.model ?? "model"}, ${x.inputTokens ?? 0} tokens in, `
+      + `${x.outputTokens ?? 0} out.`;
+    const fullRead = "To read the record itself: "
+      + call({ mode: "content", recordId, startBlock: 0 });
+    if (x.nothingRelevant) {
+      // The reply is the reader's own words, not text from the record.
+      return `Read: PipesHub's reader model found nothing in ${from} that `
+        + "answers your query. That is the reader's judgement, not text from "
+        + `the record. ${reader}\n${fullRead}`;
+    }
+    const notes = [
+      ...(x.truncated ? ["The reader's reply was cut to fit, so later passages may be missing."] : []),
+      ...(x.unverifiedLines
+        ? [`${x.unverifiedLines} line(s) above are not in the record word for word: `
+          + "treat them as the reader's paraphrase and check them in the record itself."]
+        : []),
+    ];
+    return `${content}\n\n`
+      + `Read: passages copied out for your query by PipesHub's reader model `
+      + `from ${from}${x.sourceChars ? ` (${x.sourceChars} characters)` : ""}; `
+      + "the rest of the record is not shown. The reader may add a note in "
+      + "square brackets saying where a passage sits; such a note is not a "
+      + `quote. ${reader}\n`
+      + notes.map((n) => `${n}\n`).join("")
+      + fullRead;
+  }
+  if (read.extract?.error) {
+    return "PipesHub's reader model could not be reached, so this is a plain "
+      + "read of the record.\n\n"
+      + renderRead(withoutExtract(read), recordId, thread);
+  }
   if (thread && read.mode !== "thread") {
     // A server without thread reads ignores `mode` and returns the record.
     return "This PipesHub server cannot read a whole Slack thread (it needs "
