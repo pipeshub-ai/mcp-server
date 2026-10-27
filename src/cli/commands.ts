@@ -293,6 +293,7 @@ export async function search(
       recordName: rec["recordName"] ?? null,
       webUrl: rec["webUrl"] ?? null,
       ...(typeof rec["recordType"] === "string" ? { recordType: rec["recordType"] } : {}),
+      ...(typeof rec["createdAt"] === "string" ? { createdAt: rec["createdAt"] } : {}),
       ...(typeof rec["updatedAt"] === "string" ? { updatedAt: rec["updatedAt"] } : {}),
       ...(typeof rec["parent"] === "string" ? { parent: rec["parent"] } : {}),
       ...(typeof rec["status"] === "string" ? { status: rec["status"] } : {}),

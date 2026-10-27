@@ -167,8 +167,8 @@ describe("pipeshub_search", () => {
     expect(jsonOf(out).records[0]).toMatchObject({
       recordId: REC,
       recordType: "PULL_REQUEST",
-      createdAt: "2026-08-28T09:30:00.000Z",
-      updatedAt: "2026-09-26T17:05:00.000Z",
+      createdAt: "2026-08-28",
+      updatedAt: "2026-09-26",
     });
   });
 
