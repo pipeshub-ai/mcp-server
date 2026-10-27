@@ -536,7 +536,7 @@ describe("an extract of one record", () => {
     expect(text.startsWith("FY2025 Annual Report\n\n65 sponsors")).toBe(true);
     expect(text).toContain("passages copied out for your query by PipesHub's reader model from the whole record (68455 characters)");
     expect(text).toContain("the rest of the record is not shown");
-    expect(text).toContain("Text in [square brackets] is the reader's own note, not the record's.");
+    expect(text).toContain("The reader may add a note in square brackets saying where a passage sits; such a note is not a quote.");
     expect(text).toContain("Reader: small-model, 15926 tokens in, 262 out.");
     expect(text).toContain(
       `To read the record itself: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":0}`,

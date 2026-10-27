@@ -457,8 +457,9 @@ export function renderRead(
     return `${content}\n\n`
       + `Read: passages copied out for your query by PipesHub's reader model `
       + `from ${from}${x.sourceChars ? ` (${x.sourceChars} characters)` : ""}; `
-      + "the rest of the record is not shown. Text in [square brackets] is the "
-      + `reader's own note, not the record's. ${reader}\n`
+      + "the rest of the record is not shown. The reader may add a note in "
+      + "square brackets saying where a passage sits; such a note is not a "
+      + `quote. ${reader}\n`
       + notes.map((n) => `${n}\n`).join("")
       + fullRead;
   }
