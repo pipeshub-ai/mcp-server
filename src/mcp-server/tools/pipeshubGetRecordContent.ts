@@ -59,6 +59,13 @@ const args = {
     "Thread mode: carry on a long thread from this record, with the "
       + "`startBlock` given beside it in a previous read's `Next:` line.",
   ),
+  extract: z.boolean().optional().describe(
+    "Content mode, with `query`: return only the passages that answer "
+      + "`query`, copied word for word by PipesHub's reader model, instead of "
+      + "the record's text: far shorter than a read. Use it to pull facts out "
+      + "of a record. Read without it to list or count everything in a "
+      + "record, or when the extract lacks what you need.",
+  ),
   maxChars: z.int().min(2000).max(140000).default(DEFAULT_MAX_CHARS).describe(
     "Content and thread modes: most characters of text to return. The "
       + "default (40000, about 10k tokens) fits common tool-output limits; "
@@ -283,7 +290,13 @@ it using the \`Web URL\` from its metadata header (when present).`,
           startRecord: args.startRecord,
           startBlock: args.startBlock,
         }
-        : { query: args.query, startBlock: args.startBlock }),
+        : {
+          query: args.query,
+          startBlock: args.startBlock,
+          ...(args.extract && args.query && args.startBlock === undefined
+            ? { extract: true }
+            : {}),
+        }),
     }, fetchOptions).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
@@ -314,7 +327,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
 export type RecordRead = {
   content?: string;
   mode?: "record" | "thread";
-  order?: "in_order" | "relevance";
+  order?: "in_order" | "relevance" | "extract";
   totalBlocks?: number;
   shownBlocks?: Array<[number, number]>;
   complete?: boolean;
@@ -337,6 +350,16 @@ export type RecordRead = {
     nextStartBlock?: number | null;
   }>;
   unreadableRecordIds?: string[];
+  /** An extract's reader call; `error` alone when it failed and this is a plain read. */
+  extract?: {
+    model?: string;
+    nothingRelevant?: boolean;
+    sourceChars?: number;
+    sourceComplete?: boolean;
+    inputTokens?: number;
+    outputTokens?: number;
+    error?: string;
+  };
 };
 
 const lost = (block: number | null | undefined, record?: string) =>
@@ -372,6 +395,11 @@ function repliesLine(content: string, recordId: string): string[] {
   ];
 }
 
+function withoutExtract(read: RecordRead): RecordRead {
+  const { extract: _extract, ...plain } = read;
+  return plain;
+}
+
 const ranges = (shown: Array<[number, number]> | undefined) =>
   (shown ?? []).map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
 
@@ -387,6 +415,25 @@ export function renderRead(
   thread: boolean,
 ): string {
   const content = read.content ?? "";
+  if (read.order === "extract") {
+    const x = read.extract ?? {};
+    const from = x.sourceComplete
+      ? "the whole record"
+      : "the parts of the record most relevant to your query";
+    return `${content}\n\n`
+      + `Read: passages copied out for your query by PipesHub's reader model `
+      + `from ${from}${x.sourceChars ? ` (${x.sourceChars} characters)` : ""}; `
+      + "the rest of the record is not shown. "
+      + `Reader: ${x.model ?? "model"}, ${x.inputTokens ?? 0} tokens in, `
+      + `${x.outputTokens ?? 0} out.\n`
+      + "To read the record itself: "
+      + call({ mode: "content", recordId, startBlock: 0 });
+  }
+  if (read.extract?.error) {
+    return "PipesHub's reader model could not be reached, so this is a plain "
+      + "read of the record.\n\n"
+      + renderRead(withoutExtract(read), recordId, thread);
+  }
   if (thread && read.mode !== "thread") {
     // A server without thread reads ignores `mode` and returns the record.
     return "This PipesHub server cannot read a whole Slack thread (it needs "

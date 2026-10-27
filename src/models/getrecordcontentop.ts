@@ -7,6 +7,8 @@ export type GetRecordContentRequest = {
   startBlock?: number | undefined;
   startRecord?: number | undefined;
   maxChars?: number | undefined;
+  /** With `query`: only the passages that answer it, copied out by a model. */
+  extract?: boolean | undefined;
 };
 
 // Bounds match the server (`connectors.routes.ts` and the query service's
@@ -24,4 +26,5 @@ export const GetRecordContentRequest$zodSchema: z.ZodType<
   startBlock: z.int().min(0).optional(),
   startRecord: z.int().min(0).optional(),
   maxChars: z.int().min(2000).max(140000).optional(),
+  extract: z.boolean().optional(),
 });

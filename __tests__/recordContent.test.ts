@@ -498,3 +498,70 @@ describe("a Slack record whose messages have replies", () => {
     expect(text).not.toContain("Replies:");
   });
 });
+
+// A web-fetch tool has a small model read a page and pass on only what answers
+// the agent's prompt. `extract` asks PipesHub's reader model to do the same
+// for one record, so the agent's own model reads the passages, not the record.
+describe("an extract of one record", () => {
+  const params = (url: string) => new URL(url).searchParams;
+  const EXTRACT = {
+    content: "FY2025 Annual Report\n\n65 sponsors",
+    mode: "record", order: "extract", totalBlocks: 518, complete: false, nextStartBlock: null, chars: 33,
+    extract: {
+      model: "small-model", provider: "azureOpenAI", nothingRelevant: false,
+      sourceChars: 68_455, sourceComplete: true, inputTokens: 15_926, outputTokens: 262,
+    },
+  };
+
+  test("is asked for only with a question and no startBlock", async () => {
+    const { core, urls } = client({ content: "x" });
+
+    await run(core, { mode: "content", recordId: REC, query: "how many sponsors", extract: true });
+    await run(core, { mode: "content", recordId: REC, extract: true });
+    await run(core, { mode: "content", recordId: REC, query: "q", startBlock: 4, extract: true });
+    await run(core, { mode: "thread", recordId: REC, query: "q", extract: true });
+
+    expect(params(urls[0]!).get("extract")).toBe("true");
+    expect(params(urls[0]!).get("query")).toBe("how many sponsors");
+    for (const url of urls.slice(1)) expect(params(url).get("extract")).toBeNull();
+  });
+
+  test("returns the passages, says what they came from, and names the full read", async () => {
+    const { core } = client(EXTRACT);
+
+    const text = textOf(await run(core, {
+      mode: "content", recordId: REC, query: "how many sponsors", extract: true,
+    }));
+
+    expect(text.startsWith("FY2025 Annual Report\n\n65 sponsors")).toBe(true);
+    expect(text).toContain("passages copied out for your query by PipesHub's reader model from the whole record (68455 characters)");
+    expect(text).toContain("the rest of the record is not shown");
+    expect(text).toContain("Reader: small-model, 15926 tokens in, 262 out.");
+    expect(text).toContain(
+      `To read the record itself: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":0}`,
+    );
+  });
+
+  test("says when the reader saw only the most relevant parts of a long record", async () => {
+    const { core } = client({ ...EXTRACT, extract: { ...EXTRACT.extract, sourceComplete: false } });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q", extract: true }));
+
+    expect(text).toContain("from the parts of the record most relevant to your query");
+  });
+
+  test("a reader that could not be reached leaves a plain read that says so", async () => {
+    const { core } = client({
+      content: "<record>65 sponsors</record>",
+      mode: "record", order: "in_order", totalBlocks: 1, shownBlocks: [[0, 0]],
+      complete: true, nextStartBlock: null, chars: 28, maxChars: 40_000,
+      extract: { error: "TimeoutError" },
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q", extract: true }));
+
+    expect(text.startsWith("PipesHub's reader model could not be reached, so this is a plain read")).toBe(true);
+    expect(text).toContain("<record>65 sponsors</record>");
+    expect(text).toContain("Read: the whole record (1 block).");
+  });
+});
