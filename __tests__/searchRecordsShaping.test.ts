@@ -89,14 +89,39 @@ describe("one entry per record", () => {
     expect(entries[0]!.score).toBe(0.9);
   });
 
-  test("a long passage is cut and says so", () => {
+  test("a long passage is cut and says so with its cut mark alone", () => {
     const [entry] = groupSearchResults([hit("a", "x".repeat(1000), 0.5)], []);
 
-    expect(entry!.passages[0]).toEqual({
-      text: "x".repeat(280) + PASSAGE_CUT_MARK,
-      truncated: true,
-      contentChars: 1000,
-    });
+    expect(entry!.passages[0]).toEqual({ text: "x".repeat(280) + PASSAGE_CUT_MARK });
+  });
+
+  test("a score is rounded to two places", () => {
+    const [entry] = groupSearchResults([hit("a", "text", 0.34285715222358704)], []);
+
+    expect(entry!.score).toBe(0.34);
+  });
+
+  test("a record changed on the day it was created gives that day once", () => {
+    const [entry] = groupSearchResults([hit("a", "text", 0.5)], [{
+      _key: "a",
+      sourceCreatedAtTimestamp: Date.UTC(2026, 8, 1, 9),
+      sourceLastModifiedTimestamp: Date.UTC(2026, 8, 1, 17),
+    }]);
+
+    expect(entry!.createdAt).toBe("2026-09-01");
+    expect(Object.keys(entry!)).not.toContain("updatedAt");
+  });
+
+  test("passages per record can be fewer than the default", () => {
+    const [entry] = groupSearchResults(
+      [hit("a", "one", 0.9), hit("a", "two", 0.8), hit("a", "three", 0.7)],
+      [],
+      {},
+      1,
+    );
+
+    expect(entry!.passages.map((p) => p.text)).toEqual(["one"]);
+    expect(entry!.passagesFound).toBe(3);
   });
 
   test("the record's type, dates and parent come from the record document", () => {
@@ -117,8 +142,8 @@ describe("one entry per record", () => {
       recordType: "PULL_REQUEST",
       connector: "GITHUB",
       webUrl: "https://github.test/pull/7",
-      createdAt: "2026-09-01T00:00:00.000Z",
-      updatedAt: "2026-09-03T00:00:00.000Z",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-03",
       parent: "acme/api",
       score: 0.5,
       passagesFound: 1,
@@ -223,7 +248,6 @@ describe("where a long passage is cut", () => {
     const p = cutOf(text);
 
     expect(p.text).toBe((first + second).trimEnd() + PASSAGE_CUT_MARK);
-    expect(p).toMatchObject({ truncated: true, contentChars: text.length });
   });
 
   test("otherwise it runs on to the last space within reach, never stopping inside a word", () => {

@@ -13,6 +13,7 @@ import {
 } from "./_helpers.js";
 import {
   groupSearchResults,
+  OUTSIDE_DATES_MAX_RECORDS,
   pageNote,
   pageSearchRecords,
   recallSearch,
@@ -20,6 +21,8 @@ import {
   SEARCH_RESULT_MAX_CHARS,
   searchCacheKey,
   SearchRecordEntry,
+  TIMELINE_PASSAGES_PER_RECORD,
+  TIMELINE_RESULT_MAX_CHARS,
 } from "./_searchResults.js";
 
 /** Matches the SDK request default (`src/models/semanticsearchrequest.ts`). */
@@ -153,10 +156,18 @@ interface ServerOutsideDates {
   records?: any[];
 }
 
+/** A match outside the date bounds: enough to recognise it and read it. */
+export type OutsideDatesRecord = Pick<
+  SearchRecordEntry,
+  "recordId" | "recordName" | "recordType" | "webUrl" | "createdAt" | "status" | "passages"
+>;
+
 /** What the agent is told about the matches the date bounds left out. */
 export interface OutsideDates {
   note: string;
-  records: SearchRecordEntry[];
+  records: OutsideDatesRecord[];
+  /** Matches found outside the bounds, when more than were shown. */
+  recordsFound?: number;
 }
 
 const OUTSIDE_DATES_NOTE =
@@ -167,21 +178,32 @@ const OUTSIDE_DATES_NOTE =
   + "before answering.";
 
 /**
- * The records a dated search's server found outside the bounds, with the
- * best passage of each. A newer PipesHub server runs the same search once
- * without dates and sends its best matches outside them apart from the
- * results; an older one sends nothing and this is undefined.
+ * The best records a dated search's server found outside the bounds, each
+ * with its name, link, date, status and best passage. A newer PipesHub server
+ * runs the same search once without dates and sends its best matches outside
+ * them apart from the results; an older one sends nothing and this is
+ * undefined.
  */
 export function shapeOutsideDates(server: ServerOutsideDates | undefined): OutsideDates | undefined {
   const hits = Array.isArray(server?.searchResults) ? server.searchResults : [];
   const records = Array.isArray(server?.records) ? server.records : [];
   if (hits.length === 0 && records.length === 0) return undefined;
-  const entries = groupSearchResults(hits, records).map((entry) => ({
-    ...entry,
-    passages: entry.passages.slice(0, 1),
-  }));
+  const entries = groupSearchResults(hits, records, {}, 1);
   if (entries.length === 0) return undefined;
-  return { note: OUTSIDE_DATES_NOTE, records: entries };
+  const shown = entries.slice(0, OUTSIDE_DATES_MAX_RECORDS).map((e) => ({
+    recordId: e.recordId,
+    ...(e.recordName !== undefined ? { recordName: e.recordName } : {}),
+    ...(e.recordType !== undefined ? { recordType: e.recordType } : {}),
+    ...(e.webUrl !== undefined ? { webUrl: e.webUrl } : {}),
+    ...(e.createdAt !== undefined ? { createdAt: e.createdAt } : {}),
+    ...(e.status !== undefined ? { status: e.status } : {}),
+    passages: e.passages,
+  }));
+  return {
+    note: OUTSIDE_DATES_NOTE,
+    records: shown,
+    ...(entries.length > shown.length ? { recordsFound: entries.length } : {}),
+  };
 }
 
 /** The search API's `timeline` object, on a server that ran one. */
@@ -218,17 +240,29 @@ const QUIET_PERIOD_NOTE =
   + "or other wording.";
 
 /**
- * The records of a timeline search labelled with their period, oldest period
- * first, and the periods themselves. The server sends its hits in date order,
- * each with `timelinePeriod`, its index in `timeline.periods`; a record takes
- * the period of its first hit. A server without the option sends no
- * `timeline`, and the records stay as ranked, with a note that says so.
+ * The records of a timeline search labelled with their period, and the
+ * periods themselves. The server sends its hits in date order, each with
+ * `timelinePeriod`, its index in `timeline.periods`; a record takes the period
+ * of its first hit. A server without the option sends no `timeline`, and the
+ * records stay as ranked, with a note that says so.
+ *
+ * The records come back in tiers: every period's best record, oldest period
+ * first, then every period's second best, and so on. A page is a run of
+ * records, so in date order alone the first page held the oldest periods and
+ * left the latest for a later call; in tiers it holds the best of each.
+ * `dateOrder` gives each record's place in date order, to show a page in.
+ * Each record keeps `TIMELINE_PASSAGES_PER_RECORD` passages.
  */
 export function shapeTimeline(
   entries: SearchRecordEntry[],
   hits: any[],
   server: ServerTimeline | undefined,
-): { entries: SearchRecordEntry[]; timeline?: TimelineSummary; notes: string[] } {
+): {
+  entries: SearchRecordEntry[];
+  timeline?: TimelineSummary;
+  notes: string[];
+  dateOrder?: Record<string, number>;
+} {
   const periods = Array.isArray(server?.periods) ? server.periods : undefined;
   if (!server || !periods) return { entries, notes: [NO_TIMELINE_NOTE] };
 
@@ -250,8 +284,29 @@ export function shapeTimeline(
     .sort((a, b) => rank(a.entry) - rank(b.entry) || a.at - b.at)
     .map(({ entry }) => {
       const period = label(periodOf.get(entry.recordId));
-      return period ? { period, ...entry } : entry;
+      const passages = entry.passages.slice(0, TIMELINE_PASSAGES_PER_RECORD);
+      return period ? { period, ...entry, passages } : { ...entry, passages };
     });
+  const dateOrder: Record<string, number> = {};
+  ordered.forEach((entry, at) => { dateOrder[entry.recordId] = at; });
+  const byPeriod = new Map<number, SearchRecordEntry[]>();
+  for (const entry of ordered) {
+    const at = rank(entry);
+    if (!byPeriod.has(at)) byPeriod.set(at, []);
+    byPeriod.get(at)!.push(entry);
+  }
+  const tiers: SearchRecordEntry[] = [];
+  const groups = [...byPeriod.keys()].sort((a, b) => a - b).map((at) =>
+    byPeriod.get(at)!
+      .map((entry, i) => ({ entry, i }))
+      .sort((a, b) => (b.entry.score ?? 0) - (a.entry.score ?? 0) || a.i - b.i)
+      .map(({ entry }) => entry)
+  );
+  for (let tier = 0; tiers.length < ordered.length; tier++) {
+    for (const group of groups) {
+      if (tier < group.length) tiers.push(group[tier]!);
+    }
+  }
 
   const notes = (server.notes ?? []).filter((n) => typeof n === "string" && n);
   for (const p of periods) {
@@ -266,7 +321,8 @@ export function shapeTimeline(
   }
 
   return {
-    entries: ordered,
+    entries: tiers,
+    dateOrder,
     timeline: {
       dateField: typeof server.dateField === "string" ? server.dateField : "created",
       ...(typeof server.start === "string" ? { start: server.start } : {}),
@@ -323,9 +379,9 @@ Before answering, check each part of the question against what you read.
 Returns \`records\`, one per record, best first: \`recordId\`, name, type,
 \`webUrl\`, source dates, \`parent\`, a ticket's or PR's \`status\` with
 its date, linked records with theirs (\`links\`), \`passagesFound\` and up
-to 3 \`passages\`. With \`timeline\`, oldest first, each with its
-\`period\`. Results stay under 20,000 characters; if records were cut,
-call again with \`offset\` set to \`nextOffset\`.`,
+to 3 \`passages\`; a timeline, 1 passage and each period's best records
+first. Stays under 20,000 characters (timeline: 12,000); if cut, call
+again with \`offset\` set to \`nextOffset\`.`,
   scopes: ["read"],
   annotations: {
     title: "Semantic search",
@@ -430,6 +486,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
         sr.omittedPassages ?? {},
       );
       let timeline: TimelineSummary | undefined;
+      let dateOrder: Record<string, number> | undefined;
       // A newer server may run a timeline on its own for a wide date range;
       // "off" asked for a ranked search, so nothing is shaped or noted.
       const asked = args.timeline === "created" || args.timeline === "modified";
@@ -437,6 +494,7 @@ call again with \`offset\` set to \`nextOffset\`.`,
         const shaped = shapeTimeline(entries, hits, sr.timeline);
         entries = shaped.entries;
         timeline = shaped.timeline;
+        dateOrder = shaped.dateOrder;
         notes.push(...shaped.notes);
       }
       const outsideDates = shapeOutsideDates(sr.outsideDates);
@@ -446,22 +504,30 @@ call again with \`offset\` set to \`nextOffset\`.`,
         notes,
         ...(timeline ? { timeline } : {}),
         ...(outsideDates ? { outsideDates } : {}),
+        ...(dateOrder ? { dateOrder } : {}),
       };
       rememberSearch(key, search);
     }
 
     // On the first page only, inside the same size cap as the records.
     const outsideDates = offset === 0 ? search.outsideDates : undefined;
+    const maxChars = search.timeline ? TIMELINE_RESULT_MAX_CHARS : SEARCH_RESULT_MAX_CHARS;
     const page = pageSearchRecords(
       search.entries,
       offset,
-      SEARCH_RESULT_MAX_CHARS - (outsideDates ? JSON.stringify(outsideDates).length : 0),
+      maxChars - (outsideDates ? JSON.stringify(outsideDates).length : 0),
     );
+    // A timeline page is a tier or more of records, shown oldest first.
+    const order = search.dateOrder;
+    if (order) {
+      page.records.sort((a, b) => (order[a.recordId] ?? 0) - (order[b.recordId] ?? 0));
+    }
     const note = pageNote(
       offset,
       page.records.length,
       search.entries.length,
       page.nextOffset,
+      maxChars,
     );
     const notes = [...search.notes, ...pagingNotes, ...(note ? [note] : [])];
     return jsonResult({

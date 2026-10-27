@@ -3,7 +3,7 @@ import * as z from "zod";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { pipeshubInstructions } from "../src/mcp-server/instructions.js";
-import { forgetSearches } from "../src/mcp-server/tools/_searchResults.js";
+import { forgetSearches, TIMELINE_RESULT_MAX_CHARS } from "../src/mcp-server/tools/_searchResults.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 
 // A summary over months needs material from every part of the span. A plain
@@ -124,6 +124,39 @@ describe("pipeshub_search with timeline", () => {
         { label: "May 2026 (2026-05-01 to 2026-05-31)", records: 1 },
       ],
     });
+  });
+
+  test("a page holds every period's best records, shown oldest first, one passage each", async () => {
+    // March has far more matches than May. In date order alone the first
+    // page filled with March and May waited for a later call.
+    const march = Array.from({ length: 40 }, (_, i) => `m${i}`);
+    const response = structuredClone(TIMELINE_RESPONSE) as any;
+    response.searchResults = [
+      ...march.flatMap((id, i) => [
+        { content: `${id} `.repeat(90), score: 0.9 - i / 100, metadata: { recordId: id }, timelinePeriod: 0 },
+        { content: `more of ${id}`, score: 0.1, metadata: { recordId: id }, timelinePeriod: 0 },
+      ]),
+      { content: "early May", score: 0.3, metadata: { recordId: "y0" }, timelinePeriod: 2 },
+      { content: "late May", score: 0.8, metadata: { recordId: "y1" }, timelinePeriod: 2 },
+    ];
+    response.records = [
+      ...march.map((id, i) => record(id, `2026-03-${String(1 + (i % 28)).padStart(2, "0")}`)),
+      record("y0", "2026-05-02"),
+      record("y1", "2026-05-20"),
+    ];
+    const { core } = client(response);
+
+    const out = await run(core, { query: "rollout", timeline: "created", createdAfter: "2026-03-01" });
+
+    const ids = out.records.map((r: any) => r.recordId);
+    expect(ids).toContain("y0");
+    expect(ids).toContain("y1");
+    // March's best come first in its period; May's two follow in date order.
+    expect(ids[0]).toBe("m0");
+    expect(ids.slice(-2)).toEqual(["y0", "y1"]);
+    expect(out.records.every((r: any) => r.passages.length === 1)).toBe(true);
+    expect(JSON.stringify(out).length).toBeLessThanOrEqual(TIMELINE_RESULT_MAX_CHARS);
+    expect(out.nextOffset).toBe(out.records.length);
   });
 
   test("a quiet period is not taken as proof that nothing happened", async () => {

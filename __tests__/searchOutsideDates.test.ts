@@ -77,7 +77,34 @@ describe("pipeshub_search outsideDates", () => {
     expect(first.recordName).toBe("v0.2.0 — Week of 2025-12-29");
     expect(first.createdAt).toStartWith("2026-05-21");
     expect(first.passages).toEqual([{ text: "passage 0 of release" }]);
-    expect(first.passagesFound).toBe(3);
+    // Enough to recognise the record and read it; the rest is one read away.
+    expect(Object.keys(first)).not.toContain("passagesFound");
+    expect(out.outsideDates.recordsFound).toBeUndefined();
+  });
+
+  test("at most five are shown, with how many were found", async () => {
+    const outside = Array.from({ length: 8 }, (_, i) => ({
+      _key: `o${i}`,
+      recordName: `Retro ${i}`,
+      sourceCreatedAtTimestamp: Date.UTC(2026, 4, 21),
+    }));
+    const core = client({
+      searchId: "s3",
+      searchResponse: {
+        searchResults: hits([standup]),
+        records: [standup],
+        outsideDates: { searchResults: hits(outside), records: outside },
+      },
+    });
+
+    const out = JSON.parse(textOf(await tool$pipeshubSearch.tool(core, {
+      query: "what shipped that week",
+      ...WEEK,
+    } as never, ctx())));
+
+    expect(out.outsideDates.records.map((r: any) => r.recordId))
+      .toEqual(["o0", "o1", "o2", "o3", "o4"]);
+    expect(out.outsideDates.recordsFound).toBe(8);
   });
 
   test("they come with the first page only", async () => {
