@@ -35,6 +35,21 @@ export const TIMEOUT_ENV = "PIPESHUB_MCP_TIMEOUT_MS";
  */
 const SDK_RETRIES_HEADER = "x-pipeshub-sdk-retries";
 
+/**
+ * Set by a tool on a request that runs a model on the server, and removed
+ * before it is sent: wait up to this many milliseconds for the response to
+ * start, where that is longer than the configured timeout. A timeout of 0
+ * stays off.
+ */
+export const REQUEST_TIMEOUT_HEADER = "x-pipeshub-timeout-ms";
+
+/**
+ * Set by a tool on a GET that is not a cheap read (one that runs a model on
+ * the server), and removed before it is sent: one try only, since a repeat
+ * after a proxy's 504 would run the model again.
+ */
+export const ONE_TRY_HEADER = "x-pipeshub-one-try";
+
 /** Statuses that say "try again later" rather than "this request is wrong". */
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
@@ -191,13 +206,18 @@ async function send(
   settings: TransportSettings,
 ): Promise<Response> {
   const sdkRetries = req.headers.has(SDK_RETRIES_HEADER);
-  req.headers.delete(SDK_RETRIES_HEADER);
-  const tries = IDEMPOTENT_METHODS.has(req.method.toUpperCase()) && !sdkRetries
+  const oneTry = req.headers.has(ONE_TRY_HEADER);
+  const longer = Number(req.headers.get(REQUEST_TIMEOUT_HEADER) ?? "");
+  for (const h of [SDK_RETRIES_HEADER, ONE_TRY_HEADER, REQUEST_TIMEOUT_HEADER]) req.headers.delete(h);
+  const tries = IDEMPOTENT_METHODS.has(req.method.toUpperCase()) && !sdkRetries && !oneTry
     ? settings.maxAttempts
     : 1;
+  const timeoutMs = settings.timeoutMs > 0 && Number.isInteger(longer) && longer > settings.timeoutMs
+    ? longer
+    : settings.timeoutMs;
   for (let n = 1; ; n++) {
     const last = n >= tries;
-    const res = await attempt(inner, last ? req : req.clone(), settings.timeoutMs);
+    const res = await attempt(inner, last ? req : req.clone(), timeoutMs);
     if (last || !RETRYABLE_STATUSES.has(res.status)) {
       return withoutBearer(res, req);
     }

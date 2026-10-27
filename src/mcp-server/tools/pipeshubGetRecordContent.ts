@@ -2,6 +2,7 @@ import * as z from "zod";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
+import { ONE_TRY_HEADER, REQUEST_TIMEOUT_HEADER } from "../../hooks/transport-defaults.js";
 import { ToolDefinition } from "../tools.js";
 import {
   errorResult,
@@ -27,6 +28,13 @@ export async function renderedResult(response: Response) {
 /** What a read returns by default: about 10k tokens, inside common clients'
  * tool-output limits (Claude Code's is 25k tokens). */
 export const DEFAULT_MAX_CHARS = 40_000;
+
+/**
+ * How long an extract may take to start answering: the server reads the
+ * record, gives its reader model up to 60 s, and reads the record again if
+ * the model fails. Tried once: a repeat would run the model again.
+ */
+export const EXTRACT_TIMEOUT_MS = 150_000;
 
 const args = {
   mode: z.enum(["content", "thread", "navigate", "lookup"]).default("content")
@@ -281,6 +289,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
       );
     }
     const thread = args.mode === "thread";
+    const extract = !thread && !!args.extract && !!args.query && args.startBlock === undefined;
     const [result] = await connectorGetRecordContent(client, {
       recordId: args.recordId,
       maxChars: args.maxChars,
@@ -293,11 +302,17 @@ it using the \`Web URL\` from its metadata header (when present).`,
         : {
           query: args.query,
           startBlock: args.startBlock,
-          ...(args.extract && args.query && args.startBlock === undefined
-            ? { extract: true }
-            : {}),
+          ...(extract ? { extract: true } : {}),
         }),
-    }, fetchOptions).$inspect();
+    }, extract
+      ? {
+        ...fetchOptions,
+        headers: {
+          [REQUEST_TIMEOUT_HEADER]: String(EXTRACT_TIMEOUT_MS),
+          [ONE_TRY_HEADER]: "1",
+        },
+      }
+      : fetchOptions).$inspect();
     if (!result.ok) return errorResult(result.error.message);
 
     // The SDK func uses errorCodes:[], so any non-2xx comes back as an
@@ -354,6 +369,8 @@ export type RecordRead = {
   extract?: {
     model?: string;
     nothingRelevant?: boolean;
+    truncated?: boolean;
+    unverifiedLines?: number;
     sourceChars?: number;
     sourceComplete?: boolean;
     inputTokens?: number;
@@ -420,14 +437,29 @@ export function renderRead(
     const from = x.sourceComplete
       ? "the whole record"
       : "the parts of the record most relevant to your query";
+    const reader = `Reader: ${x.model ?? "model"}, ${x.inputTokens ?? 0} tokens in, `
+      + `${x.outputTokens ?? 0} out.`;
+    const fullRead = "To read the record itself: "
+      + call({ mode: "content", recordId, startBlock: 0 });
+    if (x.nothingRelevant) {
+      // The reply is the reader's own words, not text from the record.
+      return `Read: PipesHub's reader model found nothing in ${from} that `
+        + "answers your query. That is the reader's judgement, not text from "
+        + `the record. ${reader}\n${fullRead}`;
+    }
+    const notes = [
+      ...(x.truncated ? ["The reader's reply was cut to fit, so later passages may be missing."] : []),
+      ...(x.unverifiedLines
+        ? [`${x.unverifiedLines} line(s) above are not in the record word for word: `
+          + "treat them as the reader's paraphrase and check them in the record itself."]
+        : []),
+    ];
     return `${content}\n\n`
       + `Read: passages copied out for your query by PipesHub's reader model `
       + `from ${from}${x.sourceChars ? ` (${x.sourceChars} characters)` : ""}; `
-      + "the rest of the record is not shown. "
-      + `Reader: ${x.model ?? "model"}, ${x.inputTokens ?? 0} tokens in, `
-      + `${x.outputTokens ?? 0} out.\n`
-      + "To read the record itself: "
-      + call({ mode: "content", recordId, startBlock: 0 });
+      + `the rest of the record is not shown. ${reader}\n`
+      + notes.map((n) => `${n}\n`).join("")
+      + fullRead;
   }
   if (read.extract?.error) {
     return "PipesHub's reader model could not be reached, so this is a plain "

@@ -550,6 +550,75 @@ describe("an extract of one record", () => {
     expect(text).toContain("from the parts of the record most relevant to your query");
   });
 
+  test("a reader that found nothing says so, not as text from the record", async () => {
+    const { core } = client({
+      ...EXTRACT,
+      content: "NOTHING RELEVANT",
+      extract: { ...EXTRACT.extract, nothingRelevant: true },
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q", extract: true }));
+
+    expect(text).not.toContain("NOTHING RELEVANT");
+    expect(text).not.toContain("passages copied out");
+    expect(text).toContain("found nothing in the whole record that answers your query");
+    expect(text).toContain(`"startBlock":0`);
+  });
+
+  test("a cut reply and lines not in the record are flagged", async () => {
+    const { core } = client({
+      ...EXTRACT,
+      extract: { ...EXTRACT.extract, truncated: true, unverifiedLines: 2 },
+    });
+
+    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q", extract: true }));
+
+    expect(text).toContain("The reader's reply was cut to fit");
+    expect(text).toContain("2 line(s) above are not in the record word for word");
+  });
+
+  test("an extract waits longer than a read, and a 504 is not retried", async () => {
+    const saved = process.env["PIPESHUB_MCP_TIMEOUT_MS"];
+    process.env["PIPESHUB_MCP_TIMEOUT_MS"] = "100";
+    try {
+      const sent: string[] = [];
+      let reply: () => Response = () => Response.json({ content: "x" });
+      const core = new PipeshubCore({
+        serverURL: "http://pipeshub.test/api/v1",
+        security: { bearerAuth: "t" },
+        httpClient: new HTTPClient({
+          fetcher: async (input: RequestInfo | URL) => {
+            const req = input as Request;
+            sent.push(req.url);
+            expect(req.headers.get("x-pipeshub-timeout-ms")).toBeNull();
+            // Like fetch, give up when the transport's deadline aborts the request.
+            await new Promise((resolve, reject) => {
+              const timer = setTimeout(resolve, 300);
+              req.signal.addEventListener("abort", () => {
+                clearTimeout(timer);
+                reject(req.signal.reason);
+              }, { once: true });
+            });
+            return reply();
+          },
+        }),
+      });
+
+      const slowExtract = await run(core, { mode: "content", recordId: REC, query: "q", extract: true });
+      const slowRead = await run(core, { mode: "content", recordId: REC, query: "q" });
+      expect(textOf(slowExtract)).toBe("x");
+      expect((slowRead as { isError?: boolean }).isError).toBe(true);
+
+      sent.length = 0;
+      reply = () => new Response("gateway timeout", { status: 504 });
+      await run(core, { mode: "content", recordId: REC, query: "q", extract: true });
+      expect(sent).toHaveLength(1);
+    } finally {
+      if (saved === undefined) delete process.env["PIPESHUB_MCP_TIMEOUT_MS"];
+      else process.env["PIPESHUB_MCP_TIMEOUT_MS"] = saved;
+    }
+  });
+
   test("a reader that could not be reached leaves a plain read that says so", async () => {
     const { core } = client({
       content: "<record>65 sponsors</record>",
