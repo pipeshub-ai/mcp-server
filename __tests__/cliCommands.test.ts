@@ -184,6 +184,19 @@ describe("search", () => {
     });
   });
 
+  test("a record changed on its creation day keeps its one date", async () => {
+    mcp.reply("pipeshub_search", textReply({
+      records: [{
+        recordId: "r1", recordName: "Plan", webUrl: "https://x/r1", score: 0.9,
+        createdAt: "2026-09-01", passagesFound: 1, passages: [{ text: "first" }],
+      }],
+    }));
+
+    const out = await search(ctx(), "roadmap", 10, [], []);
+
+    expect((out.payload as any).records[0]).toMatchObject({ createdAt: "2026-09-01" });
+  });
+
   test("a record's status, links and link count are passed on", async () => {
     mcp.reply("pipeshub_search", textReply({
       records: [{

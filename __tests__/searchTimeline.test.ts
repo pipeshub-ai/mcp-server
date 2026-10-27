@@ -3,8 +3,12 @@ import * as z from "zod";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { pipeshubInstructions } from "../src/mcp-server/instructions.js";
-import { forgetSearches, TIMELINE_RESULT_MAX_CHARS } from "../src/mcp-server/tools/_searchResults.js";
-import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
+import {
+  forgetSearches,
+  groupSearchResults,
+  TIMELINE_RESULT_MAX_CHARS,
+} from "../src/mcp-server/tools/_searchResults.js";
+import { shapeTimeline, tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 
 // A summary over months needs material from every part of the span. A plain
 // search returns the best matches, which bunch around one moment, so the
@@ -157,6 +161,55 @@ describe("pipeshub_search with timeline", () => {
     expect(out.records.every((r: any) => r.passages.length === 1)).toBe(true);
     expect(JSON.stringify(out).length).toBeLessThanOrEqual(TIMELINE_RESULT_MAX_CHARS);
     expect(out.nextOffset).toBe(out.records.length);
+
+    // Following nextOffset reaches every record exactly once.
+    const seen: string[] = [...ids];
+    let next: number | undefined = out.nextOffset;
+    while (next !== undefined) {
+      const page = await run(core, { query: "rollout", timeline: "created", createdAfter: "2026-03-01", offset: next });
+      expect(JSON.stringify(page).length).toBeLessThanOrEqual(TIMELINE_RESULT_MAX_CHARS);
+      seen.push(...page.records.map((r: any) => r.recordId));
+      next = page.nextOffset;
+    }
+    expect(new Set(seen).size).toBe(seen.length);
+    expect([...seen].sort()).toEqual([...march, "y0", "y1"].sort());
+  });
+
+  test("a period's best record is ranked on the server's score, not the rounded one", async () => {
+    const response = structuredClone(TIMELINE_RESPONSE) as any;
+    // Both round to 0.33; the stronger one is the later of the two.
+    response.searchResults = [
+      { content: "older, weaker", score: 0.325, metadata: { recordId: "m1" }, timelinePeriod: 0 },
+      { content: "newer, stronger", score: 0.334, metadata: { recordId: "m2" }, timelinePeriod: 0 },
+      { content: "may", score: 0.9, metadata: { recordId: "y1" }, timelinePeriod: 2 },
+    ];
+    const { core } = client(response);
+
+    const out = await run(core, { query: "rollout", timeline: "created", createdAfter: "2026-03-01" });
+
+    // Tier 0 is m2 and y1; m1 comes in tier 1. Shown oldest first, all fit here.
+    expect(out.records.map((r: any) => r.recordId)).toEqual(["m1", "m2", "y1"]);
+    expect(out.records.map((r: any) => r.score)).toEqual([0.33, 0.33, 0.9]);
+    expect(shapeTimeline(
+      groupSearchResults(response.searchResults, response.records),
+      response.searchResults,
+      response.timeline,
+    ).entries.map((e) => e.recordId)).toEqual(["m2", "y1", "m1"]);
+  });
+
+  test("the periods and notes count against a timeline page's size", async () => {
+    const response = structuredClone(TIMELINE_RESPONSE) as any;
+    response.timeline.notes = ["n".repeat(3_000)];
+    response.searchResults = Array.from({ length: 60 }, (_, i) => ({
+      content: "x".repeat(300), score: 0.5, metadata: { recordId: `r${i}` }, timelinePeriod: 0,
+    }));
+    response.records = Array.from({ length: 60 }, (_, i) => record(`r${i}`, "2026-03-05"));
+    const { core } = client(response);
+
+    const out = await run(core, { query: "rollout", timeline: "created", createdAfter: "2026-03-01" });
+
+    expect(JSON.stringify(out).length).toBeLessThanOrEqual(TIMELINE_RESULT_MAX_CHARS);
+    expect(out.nextOffset).toBeGreaterThan(0);
   });
 
   test("a quiet period is not taken as proof that nothing happened", async () => {

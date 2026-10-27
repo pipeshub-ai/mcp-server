@@ -13,6 +13,7 @@ import {
 } from "./_helpers.js";
 import {
   groupSearchResults,
+  OUTSIDE_DATES_MAX_CHARS,
   OUTSIDE_DATES_MAX_RECORDS,
   pageNote,
   pageSearchRecords,
@@ -190,15 +191,25 @@ export function shapeOutsideDates(server: ServerOutsideDates | undefined): Outsi
   if (hits.length === 0 && records.length === 0) return undefined;
   const entries = groupSearchResults(hits, records, {}, 1);
   if (entries.length === 0) return undefined;
-  const shown = entries.slice(0, OUTSIDE_DATES_MAX_RECORDS).map((e) => ({
-    recordId: e.recordId,
-    ...(e.recordName !== undefined ? { recordName: e.recordName } : {}),
-    ...(e.recordType !== undefined ? { recordType: e.recordType } : {}),
-    ...(e.webUrl !== undefined ? { webUrl: e.webUrl } : {}),
-    ...(e.createdAt !== undefined ? { createdAt: e.createdAt } : {}),
-    ...(e.status !== undefined ? { status: e.status } : {}),
-    passages: e.passages,
-  }));
+  // Whole records only, up to the count and the size cap; the first is
+  // always kept, so the agent learns that such matches exist.
+  const shown: OutsideDatesRecord[] = [];
+  let used = OUTSIDE_DATES_NOTE.length + 100;
+  for (const e of entries.slice(0, OUTSIDE_DATES_MAX_RECORDS)) {
+    const record: OutsideDatesRecord = {
+      recordId: e.recordId,
+      ...(e.recordName !== undefined ? { recordName: e.recordName } : {}),
+      ...(e.recordType !== undefined ? { recordType: e.recordType } : {}),
+      ...(e.webUrl !== undefined ? { webUrl: e.webUrl } : {}),
+      ...(e.createdAt !== undefined ? { createdAt: e.createdAt } : {}),
+      ...(e.status !== undefined ? { status: e.status } : {}),
+      passages: e.passages,
+    };
+    const size = JSON.stringify(record).length + 1;
+    if (shown.length > 0 && used + size > OUTSIDE_DATES_MAX_CHARS) break;
+    shown.push(record);
+    used += size;
+  }
   return {
     note: OUTSIDE_DATES_NOTE,
     records: shown,
@@ -512,11 +523,15 @@ again with \`offset\` set to \`nextOffset\`.`,
     // On the first page only, inside the same size cap as the records.
     const outsideDates = offset === 0 ? search.outsideDates : undefined;
     const maxChars = search.timeline ? TIMELINE_RESULT_MAX_CHARS : SEARCH_RESULT_MAX_CHARS;
-    const page = pageSearchRecords(
-      search.entries,
-      offset,
-      maxChars - (outsideDates ? JSON.stringify(outsideDates).length : 0),
-    );
+    // The periods, the notes so far and the outside-date matches share the
+    // page with the records; the reserve in `pageSearchRecords` covers the
+    // rest of the envelope and the page note.
+    const besides = JSON.stringify({
+      timeline: search.timeline,
+      outsideDates,
+      notes: [...search.notes, ...pagingNotes],
+    }).length;
+    const page = pageSearchRecords(search.entries, offset, maxChars - besides);
     // A timeline page is a tier or more of records, shown oldest first.
     const order = search.dateOrder;
     if (order) {

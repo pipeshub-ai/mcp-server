@@ -95,10 +95,11 @@ describe("one entry per record", () => {
     expect(entry!.passages[0]).toEqual({ text: "x".repeat(280) + PASSAGE_CUT_MARK });
   });
 
-  test("a score is rounded to two places", () => {
-    const [entry] = groupSearchResults([hit("a", "text", 0.34285715222358704)], []);
+  test("a page shows a score to two places, and the entry keeps the server's", () => {
+    const entries = groupSearchResults([hit("a", "text", 0.34285715222358704)], []);
 
-    expect(entry!.score).toBe(0.34);
+    expect(entries[0]!.score).toBe(0.34285715222358704);
+    expect(pageSearchRecords(entries, 0).records[0]!.score).toBe(0.34);
   });
 
   test("a record changed on the day it was created gives that day once", () => {

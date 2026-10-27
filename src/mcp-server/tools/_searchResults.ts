@@ -50,6 +50,9 @@ export const TIMELINE_RESULT_MAX_CHARS = 12_000;
 /** Records shown of the matches outside a dated search's bounds. */
 export const OUTSIDE_DATES_MAX_RECORDS = 5;
 
+/** Most characters the matches outside a dated search's bounds may take on a page. */
+export const OUTSIDE_DATES_MAX_CHARS = 3_000;
+
 /** Room kept for the envelope and the note that says the list was cut. */
 const ENVELOPE_RESERVE_CHARS = 600;
 
@@ -304,7 +307,7 @@ export function groupSearchResults(
       ...(status ? { status } : {}),
       ...(links.length > 0 ? { links } : {}),
       ...(linksFound > links.length ? { linksFound } : {}),
-      ...(typeof best === "number" ? { score: Math.round(best * 100) / 100 } : {}),
+      ...(typeof best === "number" ? { score: best } : {}),
       passagesFound: found.length
         + (typeof omitted === "number" && omitted > 0 ? omitted : 0),
       passages,
@@ -320,9 +323,19 @@ export interface SearchPage {
 }
 
 /**
+ * A record as a page shows it: its score to two places. Entries keep the
+ * score the server sent, so records are ranked on it, not on the rounding.
+ */
+export function shownRecord(entry: SearchRecordEntry): SearchRecordEntry {
+  return typeof entry.score === "number"
+    ? { ...entry, score: Math.round(entry.score * 100) / 100 }
+    : entry;
+}
+
+/**
  * The records from `offset` that fit in `maxChars` of compact JSON, leaving
- * room for the envelope. At least one record is returned whenever one is
- * left, so a page always makes progress.
+ * room for the envelope, as `shownRecord` shows them. At least one record is
+ * returned whenever one is left, so a page always makes progress.
  */
 export function pageSearchRecords(
   entries: SearchRecordEntry[],
@@ -333,9 +346,10 @@ export function pageSearchRecords(
   const records: SearchRecordEntry[] = [];
   let used = 2;
   for (let i = offset; i < entries.length; i++) {
-    const size = JSON.stringify(entries[i]).length + 1;
+    const shown = shownRecord(entries[i]!);
+    const size = JSON.stringify(shown).length + 1;
     if (records.length > 0 && used + size > budget) break;
-    records.push(entries[i]!);
+    records.push(shown);
     used += size;
   }
   const end = offset + records.length;

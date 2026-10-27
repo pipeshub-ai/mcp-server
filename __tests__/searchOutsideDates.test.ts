@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
-import { forgetSearches } from "../src/mcp-server/tools/_searchResults.js";
+import { forgetSearches, OUTSIDE_DATES_MAX_CHARS } from "../src/mcp-server/tools/_searchResults.js";
 import {
   shapeOutsideDates,
   tool$pipeshubSearch,
@@ -105,6 +105,35 @@ describe("pipeshub_search outsideDates", () => {
     expect(out.outsideDates.records.map((r: any) => r.recordId))
       .toEqual(["o0", "o1", "o2", "o3", "o4"]);
     expect(out.outsideDates.recordsFound).toBe(8);
+  });
+
+  test("they stay inside their size cap by leaving out whole records", async () => {
+    const outside = Array.from({ length: 5 }, (_, i) => ({
+      _key: `o${i}`,
+      recordName: "R".repeat(900),
+      webUrl: `https://wiki.test/${"p".repeat(200)}/${i}`,
+      sourceCreatedAtTimestamp: Date.UTC(2026, 4, 21),
+    }));
+    const core = client({
+      searchId: "s4",
+      searchResponse: {
+        searchResults: hits([standup]),
+        records: [standup],
+        outsideDates: { searchResults: hits(outside), records: outside },
+      },
+    });
+
+    const out = JSON.parse(textOf(await tool$pipeshubSearch.tool(core, {
+      query: "what shipped that week",
+      ...WEEK,
+    } as never, ctx())));
+
+    expect(JSON.stringify(out.outsideDates).length).toBeLessThanOrEqual(OUTSIDE_DATES_MAX_CHARS);
+    expect(out.outsideDates.records.length).toBeGreaterThan(0);
+    expect(out.outsideDates.records.length).toBeLessThan(5);
+    // A link is never cut to make room.
+    expect(out.outsideDates.records.every((r: any) => r.webUrl.endsWith(r.recordId.replace("o", "/")))).toBe(true);
+    expect(out.outsideDates.recordsFound).toBe(5);
   });
 
   test("they come with the first page only", async () => {
