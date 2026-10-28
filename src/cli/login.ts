@@ -270,6 +270,8 @@ export async function storedLogin(
   const stored = await readStored(path);
   if (stored === null || (origin !== null && stored.origin !== origin)) return null;
   if (stored.expiresAt - REFRESH_MARGIN_MS > Date.now()) return stored;
+  // A trial token has no refresh token and is good until its expiry.
+  if (stored.sandbox && stored.expiresAt > Date.now()) return stored;
   if (!stored.refreshToken || !stored.tokenEndpoint || !stored.clientId) throw signInAgain(stored);
 
   const r = await postForm(stored.tokenEndpoint, {

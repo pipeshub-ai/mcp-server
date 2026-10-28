@@ -17,6 +17,7 @@ import {
   describeToken,
   resolveOrigin,
   resolveToken,
+  tokenSource,
 } from "./config.js";
 import { newRequestId } from "./client.js";
 import { initQm, renderInitReport } from "./init-qm.js";
@@ -258,6 +259,7 @@ async function run(argv: string[]): Promise<number> {
     return login(origin, flags, requestId);
   }
   if (command === "init") {
+    if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
     if (flags.url !== null) {
       origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
       if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
@@ -478,24 +480,37 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
     client = flags.client as McpClient;
   }
   const sandbox = await createSandbox(origin, { client, force: flags.force, insecureHttp: flags.insecureHttp });
-  const installed = client
-    ? await mcpInstall(client, origin, { force: flags.force, dryRun: false })
-    : undefined;
+  let installed: Awaited<ReturnType<typeof mcpInstall>> | undefined;
+  let installError: { message: string; recover: string } | undefined;
+  if (client) {
+    try {
+      installed = await mcpInstall(client, origin, { force: flags.force, dryRun: false });
+    } catch (e: unknown) {
+      if (!(e instanceof CliError)) throw e;
+      // Retrying init is refused (or mints a second workspace), so point at the install alone.
+      const force = e.code === EXIT.USAGE && e.message.includes("--force") ? " --force" : "";
+      installError = { message: e.message, recover: `pipeshub mcp install --client ${client}${force}` };
+    }
+  }
+  // The workspace exists, so not a usage error; exit 1 tells a script the install did not finish.
+  const exit = installError ? EXIT.ERROR : EXIT.OK;
   const next = "pipeshub collection create <name>, then pipeshub upload <collectionId> <path>...";
   await emit({
-    exit: EXIT.OK,
+    exit,
     payload: {
       requestId,
       ...sandbox,
       ...(installed ? { mcp: installed } : {}),
       next,
       // The environment wins over the stored sign-in, so the trial would go unused.
-      ...(envToken ? { note: "PIPESHUB_TOKEN is set and takes precedence; unset it to use this trial workspace." } : {}),
+      ...(envToken ? { note: `${tokenSource() ?? "PIPESHUB_TOKEN"} is set and takes precedence; unset it to use this trial workspace.` } : {}),
+      ...(installError ? { mcpError: installError.message, recover: installError.recover } : {}),
     },
     text: `Created a trial workspace on ${origin}, open until ${sandbox.expiresAt}. `
-      + `This CLI is signed in to it${installed ? ` and PipesHub is added to ${installed.client}` : ""}.\nNext: ${next}`,
+      + `This CLI is signed in to it${installed ? ` and PipesHub is added to ${installed.client}` : ""}.\nNext: ${next}`
+      + (installError ? `\nThe workspace exists, but adding PipesHub to ${client} failed: ${installError.message}\nTo finish, run: ${installError.recover}` : ""),
   }, flags.json);
-  return EXIT.OK;
+  return exit;
 }
 
 async function login(origin: string | null, flags: Flags, requestId: string): Promise<number> {

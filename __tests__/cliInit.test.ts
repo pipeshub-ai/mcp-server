@@ -175,6 +175,37 @@ describe("pipeshub init", () => {
     expect(JSON.parse(r.stdout).note).toContain("PIPESHUB_TOKEN");
   });
 
+  test("names the variable that actually shadows the trial", async () => {
+    const r = await cli(["init", "--url", origin], { PIPESHUB_MCP_TOKEN: "env-token" });
+    expect(JSON.parse(r.stdout).note).toContain("PIPESHUB_MCP_TOKEN is set");
+  });
+
+  test("rejects --dry-run before creating anything", async () => {
+    const r = await cli(["init", "--url", origin, "--dry-run"]);
+    expect(r.code).toBe(2);
+    expect(seen).toHaveLength(0);
+  });
+
+  test("a failed client install still reports the workspace and the install-only recovery", async () => {
+    await mkdir(join(home, ".cursor"), { recursive: true });
+    await writeFile(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { pipeshub: {} } }));
+    const r = await cli(["init", "--url", origin, "--client", "cursor"]);
+    expect(r.code).toBe(1);
+    const out = JSON.parse(r.stdout);
+    expect(out.workspaceId).toBe("ws-1");
+    expect(out.mcpError).toContain("already has");
+    expect(out.recover).toBe("pipeshub mcp install --client cursor --force");
+    expect(r.stdout).not.toContain("init --force");
+    expect(JSON.parse(await readFile(credentials(), "utf8")).accessToken).toBe(TOKEN);
+  });
+
+  test("a trial token is valid until its expiry even inside the refresh margin", async () => {
+    await storeLogin({ origin, accessToken: TOKEN, expiresAt: Date.now() + 30_000, sandbox: { workspaceId: "ws-1" } });
+    const r = await cli(["auth", "status"]);
+    expect(r.code).toBe(0);
+    expect(seen.at(-1)?.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
   test("rejects an unknown client before creating anything", async () => {
     const r = await cli(["init", "--url", origin, "--client", "notepad"]);
     expect(r.code).toBe(2);
