@@ -20,6 +20,7 @@ import {
 } from "./config.js";
 import { newRequestId } from "./client.js";
 import { initQm, renderInitReport } from "./init-qm.js";
+import { createSandbox } from "./init.js";
 import { MCP_CLIENTS, mcpInstall, type McpClient } from "./mcp-install.js";
 import {
   ask,
@@ -51,6 +52,8 @@ USAGE
   pipeshub <command> [options]
 
 COMMANDS
+  init [--client <name>]      no account yet: create a trial workspace (3 days)
+                              and sign this CLI in to it
   login [--url <origin>]      sign in from the browser (default PipesHub Cloud)
   logout                      sign out and forget the stored sign-in
   auth status                 show connection, user, org, scopes, expiry
@@ -82,10 +85,11 @@ OPTIONS
   --max-chars <n>             cap snippet/content length (default 2000)
   --insecure-http             allow cleartext to a host outside the private allowlist
   --force                     init-qm: overwrite files that already exist;
-                              mcp install: replace an existing pipeshub entry
-  --client <name>             mcp install: the client to configure
+                              mcp install: replace an existing pipeshub entry;
+                              init: replace the stored sign-in
+  --client <name>             mcp install, init: the client to configure
   --dry-run                   mcp install: show what would change, change nothing
-  --url <origin>              login: the PipesHub to sign in to
+  --url <origin>              login, init: the PipesHub to use
   --no-wait                   login: print the code and link, then exit
   --wait                      login: finish a sign-in started with --no-wait
 
@@ -252,6 +256,13 @@ async function run(argv: string[]): Promise<number> {
       if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
     }
     return login(origin, flags, requestId);
+  }
+  if (command === "init") {
+    if (flags.url !== null) {
+      origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
+      if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
+    }
+    return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null);
   }
   if (command === "logout") {
     const out = await logout(flags.insecureHttp);
@@ -456,6 +467,35 @@ async function run(argv: string[]): Promise<number> {
 
   await emit(outcome, flags.json);
   return outcome.exit;
+}
+
+async function init(origin: string, flags: Flags, requestId: string, envToken: boolean): Promise<number> {
+  let client: McpClient | undefined;
+  if (flags.client !== null) {
+    if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
+      throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
+    }
+    client = flags.client as McpClient;
+  }
+  const sandbox = await createSandbox(origin, { client, force: flags.force, insecureHttp: flags.insecureHttp });
+  const installed = client
+    ? await mcpInstall(client, origin, { force: flags.force, dryRun: false })
+    : undefined;
+  const next = "pipeshub collection create <name>, then pipeshub upload <collectionId> <path>...";
+  await emit({
+    exit: EXIT.OK,
+    payload: {
+      requestId,
+      ...sandbox,
+      ...(installed ? { mcp: installed } : {}),
+      next,
+      // The environment wins over the stored sign-in, so the trial would go unused.
+      ...(envToken ? { note: "PIPESHUB_TOKEN is set and takes precedence; unset it to use this trial workspace." } : {}),
+    },
+    text: `Created a trial workspace on ${origin}, open until ${sandbox.expiresAt}. `
+      + `This CLI is signed in to it${installed ? ` and PipesHub is added to ${installed.client}` : ""}.\nNext: ${next}`,
+  }, flags.json);
+  return EXIT.OK;
 }
 
 async function login(origin: string | null, flags: Flags, requestId: string): Promise<number> {
