@@ -66,13 +66,13 @@ export async function createSandbox(
     const wait = Number(res.headers.get("retry-after"));
     throw new CliError(
       `too many trial workspaces from this network${wait > 0 ? `; try again in ${Math.ceil(wait / 60)} min` : ""}, `
-        + "or run 'pipeshub login' to sign in to an account.",
+        + `or run 'pipeshub login --url ${origin}' to sign in to an account.`,
       EXIT.RATE_LIMITED,
     );
   }
   if (res.status === 503) {
     throw new CliError(
-      "trial workspaces are paused right now. Try again later, or run 'pipeshub login' to sign in to an account.",
+      `trial workspaces are paused right now. Try again later, or run 'pipeshub login --url ${origin}' to sign in to an account.`,
     );
   }
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;

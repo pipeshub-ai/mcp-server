@@ -162,11 +162,13 @@ describe("pipeshub init", () => {
     r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(5);
     expect(r.stderr).toContain("20 min");
+    expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
 
     reply = () => Response.json({}, { status: 503 });
     r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("paused");
+    expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
     await expect(stat(credentials())).rejects.toThrow();
   });
 
@@ -217,6 +219,27 @@ describe("pipeshub init", () => {
     const out = JSON.parse(r.stdout);
     expect(out.workspaceId).toBe("ws-1");
     expect(out.recover).toContain("pipeshub mcp install --client cursor");
+  });
+
+  test("rejects a surplus argument before creating anything", async () => {
+    expect((await cli(["init", "unexpected", "--url", origin])).code).toBe(2);
+    expect(seen).toHaveLength(0);
+  });
+
+  test("an explicit --url wins over an unparseable environment origin", async () => {
+    const env = { PIPESHUB_BASE_URL: "not a url" };
+    expect((await cli(["init", "--url", origin], env)).code).toBe(0);
+    const r = await cli(["mcp", "install", "--client", "cursor", "--url", origin, "--dry-run"], env);
+    expect(r.code).toBe(0);
+  });
+
+  test("standalone mcp install refuses --insecure-http on a public http origin", async () => {
+    const r = await cli(
+      ["mcp", "install", "--client", "cursor", "--url", "http://203.0.113.9:1", "--insecure-http", "--dry-run"],
+      { PIPESHUB_TOKEN: "env-token" },
+    );
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("needs HTTPS");
   });
 
   test("mcp install honours --url", async () => {

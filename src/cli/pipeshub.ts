@@ -250,22 +250,27 @@ async function run(argv: string[]): Promise<number> {
 
   const requestId = newRequestId();
   let token = resolveToken();
-  let origin = resolveOrigin();
-
-  if (command === "login" || (command === "auth" && sub === "login")) {
-    if (flags.url !== null) {
-      // A blank --url (an unset variable) must not fall through to Cloud.
-      origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
-      if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
-    }
-    return login(origin, flags, requestId);
-  }
-  const envOrigin = origin;
-  if ((command === "init" || (command === "mcp" && sub === "install")) && flags.url !== null) {
+  const isLogin = command === "login" || (command === "auth" && sub === "login");
+  const takesUrl = isLogin || command === "init" || (command === "mcp" && sub === "install");
+  let origin: string | null;
+  let envOrigin: string | null;
+  if (takesUrl && flags.url !== null) {
+    // An explicit --url wins even over an unparseable environment value.
     origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
+    // A blank --url (an unset variable) must not fall through to Cloud.
     if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
+    try {
+      envOrigin = resolveOrigin();
+    } catch {
+      envOrigin = null;
+    }
+  } else {
+    origin = envOrigin = resolveOrigin();
   }
+
+  if (isLogin) return login(origin, flags, requestId);
   if (command === "init") {
+    if (positional.length > 1) throw new CliError("usage: pipeshub init [--url <origin>] [--client <name>]", EXIT.USAGE);
     if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
     return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null, envOrigin);
   }
@@ -435,6 +440,7 @@ async function run(argv: string[]): Promise<number> {
       if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
         throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
       }
+      if (flags.insecureHttp) assertClientTransport(ctx.origin, "Serve the instance over HTTPS first.");
       const result = await mcpInstall(flags.client as McpClient, ctx.origin, { force: flags.force, dryRun: flags.dryRun });
       outcome = {
         exit: EXIT.OK,
@@ -474,6 +480,18 @@ async function run(argv: string[]): Promise<number> {
   return outcome.exit;
 }
 
+// The installed `start` has no --insecure-http, so a public http origin could never authenticate.
+function assertClientTransport(origin: string, advice: string): void {
+  try {
+    assertTransport(origin, false);
+  } catch (e: unknown) {
+    throw new CliError(
+      `--client installs a 'start' command that cannot use --insecure-http, so ${origin} needs HTTPS. ${advice}`,
+      e instanceof CliError ? e.code : EXIT.USAGE,
+    );
+  }
+}
+
 async function init(origin: string, flags: Flags, requestId: string, envToken: boolean, envOrigin: string | null): Promise<number> {
   let client: McpClient | undefined;
   if (flags.client !== null) {
@@ -482,18 +500,7 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
     }
     client = flags.client as McpClient;
   }
-  if (client && flags.insecureHttp) {
-    // The installed `start` has no --insecure-http, so a public http origin could never authenticate.
-    try {
-      assertTransport(origin, false);
-    } catch (e: unknown) {
-      throw new CliError(
-        `--client installs a 'start' command that cannot use --insecure-http, so ${origin} needs HTTPS. `
-          + "Drop --client to create the workspace for this CLI only.",
-        e instanceof CliError ? e.code : EXIT.USAGE,
-      );
-    }
-  }
+  if (client && flags.insecureHttp) assertClientTransport(origin, "Drop --client to create the workspace for this CLI only.");
   const sandbox = await createSandbox(origin, { client, force: flags.force, insecureHttp: flags.insecureHttp });
   let installed: Awaited<ReturnType<typeof mcpInstall>> | undefined;
   let installError: { message: string; recover: string } | undefined;
