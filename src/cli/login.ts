@@ -54,6 +54,9 @@ function configDir(env: NodeJS.ProcessEnv): string {
 export const credentialsPath = (env: NodeJS.ProcessEnv = process.env) => join(configDir(env), "credentials.json");
 const pendingPath = (env: NodeJS.ProcessEnv) => join(configDir(env), "pending-login.json");
 
+/** Drop a sign-in waiting for browser approval; its `login --wait` then revokes what it gets. */
+export const clearPending = (env: NodeJS.ProcessEnv = process.env) => rm(pendingPath(env), { force: true });
+
 /** The file's JSON when it has the fields we use; a hand-edited or truncated file reads as absent. */
 async function readJsonFile<T>(path: string, required: Record<string, "string" | "number">): Promise<T | null> {
   try {

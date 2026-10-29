@@ -13,7 +13,7 @@ const TOKEN = "phpat_trial-secret";
 let server: ReturnType<typeof Bun.serve>;
 let origin = "";
 let home = "";
-let reply: () => Response = () => new Response("", { status: 404 });
+let reply: () => Response | Promise<Response> = () => new Response("", { status: 404 });
 const seen: Array<{ path: string; body?: unknown; authorization?: string | null }> = [];
 
 const created = (hoursLeft = 72) =>
@@ -219,6 +219,33 @@ describe("pipeshub init", () => {
     const out = JSON.parse(r.stdout);
     expect(out.workspaceId).toBe("ws-1");
     expect(out.recover).toContain("pipeshub mcp install --client cursor");
+  });
+
+  test("a sign-in waiting for browser approval is not replaced without --force, and is cancelled with it", async () => {
+    const pendingFile = join(home, ".config", "pipeshub", "pending-login.json");
+    await mkdir(join(home, ".config", "pipeshub"), { recursive: true });
+    await writeFile(pendingFile, JSON.stringify({
+      origin, clientId: "c", tokenEndpoint: `${origin}/token`,
+      deviceCode: "dev", userCode: "ABCD-EFGH", verificationUri: `${origin}/device`,
+      verificationUriComplete: `${origin}/device`, intervalSeconds: 1, expiresAt: Date.now() + 60_000,
+    }), { mode: 0o600 });
+    const refused = await cli(["init", "--url", origin]);
+    expect(refused.code).toBe(2);
+    expect(refused.stderr).toContain("waiting for browser approval");
+    expect(seen).toHaveLength(0);
+    expect((await cli(["init", "--url", origin, "--force"])).code).toBe(0);
+    await expect(stat(pendingFile)).rejects.toThrow();
+  });
+
+  test("a sign-in that lands during the request is not replaced", async () => {
+    reply = async () => {
+      await storeLogin({ origin, accessToken: "real-sign-in", expiresAt: Date.now() + 3_600_000 });
+      return created();
+    };
+    const r = await cli(["init", "--url", origin]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("created but not stored");
+    expect(JSON.parse(await readFile(credentials(), "utf8")).accessToken).toBe("real-sign-in");
   });
 
   test("rejects a surplus argument before creating anything", async () => {

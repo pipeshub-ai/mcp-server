@@ -4,7 +4,7 @@
 
 import { describeFetchFailure } from "../lib/fetch-failure.js";
 import { CliError, EXIT, assertTransport } from "./config.js";
-import { credentialsPath, readStoredLogin, writeSecretFile, type StoredLogin } from "./login.js";
+import { clearPending, credentialsPath, readPending, readStoredLogin, writeSecretFile, type StoredLogin } from "./login.js";
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -23,6 +23,10 @@ const str = (v: unknown): string | undefined => (typeof v === "string" && v !== 
 async function keepReason(origin: string, env: NodeJS.ProcessEnv): Promise<string | null> {
   // With --url, so following it targets this origin, not the default one.
   const replace = `pipeshub init --url ${origin} --force`;
+  const pending = await readPending(env);
+  if (pending !== null && pending.expiresAt > Date.now()) {
+    return `A sign-in to ${pending.origin} is waiting for browser approval ('pipeshub login --wait'), which would replace a trial workspace. Finish it, or run '${replace}' to cancel it.`;
+  }
   const current = await readStoredLogin(env);
   if (current === null) return null;
   if (current.sandbox) {
@@ -83,6 +87,11 @@ export async function createSandbox(
     throw new CliError(`the trial workspace could not be created (HTTP ${res.status}).`);
   }
 
+  // Again, right before the write: a sign-in may have landed during the request.
+  const late = opts.force ? null : await keepReason(origin, env);
+  if (late !== null) throw new CliError(`the trial workspace was created but not stored. ${late}`, EXIT.USAGE);
+  // A pending `login --wait` would otherwise write its sign-in over the trial.
+  await clearPending(env);
   const stored: StoredLogin = { origin, accessToken: token, expiresAt, sandbox: { workspaceId } };
   await writeSecretFile(credentialsPath(env), stored);
   const limits = (body["limits"] ?? {}) as Sandbox["limits"];
