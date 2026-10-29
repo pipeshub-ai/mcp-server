@@ -440,7 +440,8 @@ async function run(argv: string[]): Promise<number> {
       if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
         throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
       }
-      if (flags.insecureHttp) assertClientTransport(ctx.origin, "Serve the instance over HTTPS first.");
+      // Every origin, not only with --insecure-http: a stored trial or PIPESHUB_TOKEN can carry a public http one.
+      assertClientTransport(ctx.origin, "Serve the instance over HTTPS first.");
       const result = await mcpInstall(flags.client as McpClient, ctx.origin, { force: flags.force, dryRun: flags.dryRun });
       outcome = {
         exit: EXIT.OK,
@@ -486,7 +487,7 @@ function assertClientTransport(origin: string, advice: string): void {
     assertTransport(origin, false);
   } catch (e: unknown) {
     throw new CliError(
-      `--client installs a 'start' command that cannot use --insecure-http, so ${origin} needs HTTPS. ${advice}`,
+      `the 'start' command a client runs cannot use --insecure-http, so ${origin} needs HTTPS. ${advice}`,
       e instanceof CliError ? e.code : EXIT.USAGE,
     );
   }
@@ -524,6 +525,9 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
   if (envToken) notes.push(`${tokenSource() ?? "PIPESHUB_TOKEN"} is set and takes precedence; unset it to use this trial workspace.`);
   if (envOrigin !== null && envOrigin !== origin) {
     notes.push(`${originSource()} names ${envOrigin}, not ${origin}; later commands use it. Unset it to use this trial workspace.`);
+  } else if (envOrigin === null && ["PIPESHUB_BASE_URL", "PIPESHUB_MCP_URL"].some((n) => (process.env[n] ?? "").trim() !== "")) {
+    // --url won over an unparseable value, but every later command reads it first and stops.
+    notes.push(`${originSource()} is not a valid URL, so later commands fail until you fix or unset it.`);
   }
   const next = "pipeshub collection create <name>, then pipeshub upload <collectionId> <path>...";
   await emit({

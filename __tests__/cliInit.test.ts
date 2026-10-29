@@ -228,18 +228,23 @@ describe("pipeshub init", () => {
 
   test("an explicit --url wins over an unparseable environment origin", async () => {
     const env = { PIPESHUB_BASE_URL: "not a url" };
-    expect((await cli(["init", "--url", origin], env)).code).toBe(0);
+    const created = await cli(["init", "--url", origin], env);
+    expect(created.code).toBe(0);
+    expect(JSON.parse(created.stdout).note).toContain("PIPESHUB_BASE_URL is not a valid URL");
     const r = await cli(["mcp", "install", "--client", "cursor", "--url", origin, "--dry-run"], env);
     expect(r.code).toBe(0);
   });
 
-  test("standalone mcp install refuses --insecure-http on a public http origin", async () => {
-    const r = await cli(
-      ["mcp", "install", "--client", "cursor", "--url", "http://203.0.113.9:1", "--insecure-http", "--dry-run"],
-      { PIPESHUB_TOKEN: "env-token" },
-    );
-    expect(r.code).toBe(2);
-    expect(r.stderr).toContain("needs HTTPS");
+  test("standalone mcp install refuses a public http origin, with or without --insecure-http", async () => {
+    for (const extra of [["--insecure-http"], []]) {
+      const r = await cli(
+        ["mcp", "install", "--client", "cursor", "--url", "http://203.0.113.9:1", ...extra],
+        { PIPESHUB_TOKEN: "env-token" },
+      );
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("needs HTTPS");
+    }
+    await expect(stat(join(home, ".cursor", "mcp.json"))).rejects.toThrow();
   });
 
   test("mcp install honours --url", async () => {
