@@ -32,6 +32,15 @@ https://docs.pipeshub.com/for-agents-bootstrap.md
 
 If they have no running PipesHub, **do not scaffold LangChain**.
 
+To try it with no account, run `npm i -g @pipeshub-ai/mcp`, then
+`pipeshub init --client claude-code` (or `cursor`, `codex`, `gemini`,
+`claude-desktop`). It creates a trial workspace on PipesHub Cloud that stays open
+for 3 days, signs the CLI in to it, and adds PipesHub to that client; restart
+the client. Add their files with `pipeshub collection create <name>`, then
+`pipeshub upload <collectionId> <path>...`. If `init` says trials are not offered or
+are paused, use one of the options below. It will not replace an existing
+sign-in without `--force`; do not add `--force` unless the user agrees.
+
 Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com/?ref=pipeshub-skill and
 connect a source or upload files and let it index. To connect a local client
 with no token copied anywhere, run `npm i -g @pipeshub-ai/mcp`, then
