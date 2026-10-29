@@ -194,9 +194,54 @@ describe("pipeshub init", () => {
     const out = JSON.parse(r.stdout);
     expect(out.workspaceId).toBe("ws-1");
     expect(out.mcpError).toContain("already has");
-    expect(out.recover).toBe("pipeshub mcp install --client cursor --force");
+    expect(out.recover).toBe(`pipeshub mcp install --client cursor --url ${origin} --force`);
     expect(r.stdout).not.toContain("init --force");
     expect(JSON.parse(await readFile(credentials(), "utf8")).accessToken).toBe(TOKEN);
+  });
+
+  test("recovery carries --url and --force for a client that runs its own add", async () => {
+    const bin = join(home, "bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(join(bin, "claude"), "#!/bin/sh\necho 'MCP server pipeshub already exists' >&2\nexit 1\n", { mode: 0o755 });
+    const r = await cli(["init", "--url", origin, "--client", "claude-code"], { PATH: `${bin}:${process.env["PATH"]}` });
+    expect(r.code).toBe(1);
+    expect(JSON.parse(r.stdout).recover).toBe(`pipeshub mcp install --client claude-code --url ${origin} --force`);
+  });
+
+  test("a non-CliError from the install still reports the workspace and a recovery", async () => {
+    // A directory where the config file should be makes the read fail with EISDIR.
+    await mkdir(join(home, ".cursor", "mcp.json"), { recursive: true });
+    const r = await cli(["init", "--url", origin, "--client", "cursor"]);
+    expect(r.code).toBe(1);
+    const out = JSON.parse(r.stdout);
+    expect(out.workspaceId).toBe("ws-1");
+    expect(out.recover).toContain("pipeshub mcp install --client cursor");
+  });
+
+  test("mcp install honours --url", async () => {
+    await cli(["init", "--url", origin]);
+    const r = await cli(["mcp", "install", "--client", "cursor", "--url", origin, "--dry-run"], { PIPESHUB_BASE_URL: "http://127.0.0.1:9" });
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).entry.args).toContain(origin);
+    expect((await cli(["mcp", "install", "--client", "cursor", "--url", " ", "--dry-run"])).code).toBe(2);
+  });
+
+  test("--insecure-http with --client on a public http origin is refused before creating anything", async () => {
+    const r = await cli(["init", "--url", "http://203.0.113.9:1", "--insecure-http", "--client", "cursor"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("needs HTTPS");
+    expect(seen).toHaveLength(0);
+  });
+
+  test("warns in JSON and text when the environment names another origin, beside the token note", async () => {
+    const env = { PIPESHUB_BASE_URL: "http://127.0.0.1:9", PIPESHUB_TOKEN: "env-token" };
+    const j = JSON.parse((await cli(["init", "--url", origin], env)).stdout);
+    expect(j.note).toContain("PIPESHUB_TOKEN is set");
+    expect(j.note).toContain("PIPESHUB_BASE_URL names http://127.0.0.1:9");
+    await cli(["init", "--url", origin, "--force"], env);
+    const t = await cli(["init", "--url", origin, "--force", "--text"], env);
+    expect(t.stdout).toContain("Note: PIPESHUB_TOKEN is set");
+    expect(t.stdout).toContain("Note: PIPESHUB_BASE_URL names");
   });
 
   test("a trial token is valid until its expiry even inside the refresh margin", async () => {

@@ -14,10 +14,12 @@
 import {
   CliError,
   EXIT,
+  assertTransport,
   describeToken,
   resolveOrigin,
   resolveToken,
   tokenSource,
+  originSource,
 } from "./config.js";
 import { newRequestId } from "./client.js";
 import { initQm, renderInitReport } from "./init-qm.js";
@@ -90,7 +92,7 @@ OPTIONS
                               init: replace the stored sign-in
   --client <name>             mcp install, init: the client to configure
   --dry-run                   mcp install: show what would change, change nothing
-  --url <origin>              login, init: the PipesHub to use
+  --url <origin>              login, init, mcp install: the PipesHub to use
   --no-wait                   login: print the code and link, then exit
   --wait                      login: finish a sign-in started with --no-wait
 
@@ -258,13 +260,14 @@ async function run(argv: string[]): Promise<number> {
     }
     return login(origin, flags, requestId);
   }
+  const envOrigin = origin;
+  if ((command === "init" || (command === "mcp" && sub === "install")) && flags.url !== null) {
+    origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
+    if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
+  }
   if (command === "init") {
     if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
-    if (flags.url !== null) {
-      origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
-      if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
-    }
-    return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null);
+    return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null, envOrigin);
   }
   if (command === "logout") {
     const out = await logout(flags.insecureHttp);
@@ -471,13 +474,25 @@ async function run(argv: string[]): Promise<number> {
   return outcome.exit;
 }
 
-async function init(origin: string, flags: Flags, requestId: string, envToken: boolean): Promise<number> {
+async function init(origin: string, flags: Flags, requestId: string, envToken: boolean, envOrigin: string | null): Promise<number> {
   let client: McpClient | undefined;
   if (flags.client !== null) {
     if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
       throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
     }
     client = flags.client as McpClient;
+  }
+  if (client && flags.insecureHttp) {
+    // The installed `start` has no --insecure-http, so a public http origin could never authenticate.
+    try {
+      assertTransport(origin, false);
+    } catch (e: unknown) {
+      throw new CliError(
+        `--client installs a 'start' command that cannot use --insecure-http, so ${origin} needs HTTPS. `
+          + "Drop --client to create the workspace for this CLI only.",
+        e instanceof CliError ? e.code : EXIT.USAGE,
+      );
+    }
   }
   const sandbox = await createSandbox(origin, { client, force: flags.force, insecureHttp: flags.insecureHttp });
   let installed: Awaited<ReturnType<typeof mcpInstall>> | undefined;
@@ -486,14 +501,23 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
     try {
       installed = await mcpInstall(client, origin, { force: flags.force, dryRun: false });
     } catch (e: unknown) {
-      if (!(e instanceof CliError)) throw e;
-      // Retrying init is refused (or mints a second workspace), so point at the install alone.
-      const force = e.code === EXIT.USAGE && e.message.includes("--force") ? " --force" : "";
-      installError = { message: e.message, recover: `pipeshub mcp install --client ${client}${force}` };
+      // The workspace and credential exist, so whatever failed, point at the install alone
+      // (retrying init is refused, or mints a second workspace). The clients that run their own
+      // `mcp add` report a duplicate as a plain failure; --force removes the old entry first.
+      const message = e instanceof Error ? e.message : String(e);
+      const force = ["claude-code", "codex", "gemini"].includes(client) || message.includes("--force") ? " --force" : "";
+      const url = flags.url !== null ? ` --url ${origin}` : "";
+      installError = { message, recover: `pipeshub mcp install --client ${client}${url}${force}` };
     }
   }
   // The workspace exists, so not a usage error; exit 1 tells a script the install did not finish.
   const exit = installError ? EXIT.ERROR : EXIT.OK;
+  // The environment wins over the stored sign-in and origin, so the trial would go unused.
+  const notes: string[] = [];
+  if (envToken) notes.push(`${tokenSource() ?? "PIPESHUB_TOKEN"} is set and takes precedence; unset it to use this trial workspace.`);
+  if (envOrigin !== null && envOrigin !== origin) {
+    notes.push(`${originSource()} names ${envOrigin}, not ${origin}; later commands use it. Unset it to use this trial workspace.`);
+  }
   const next = "pipeshub collection create <name>, then pipeshub upload <collectionId> <path>...";
   await emit({
     exit,
@@ -502,12 +526,12 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
       ...sandbox,
       ...(installed ? { mcp: installed } : {}),
       next,
-      // The environment wins over the stored sign-in, so the trial would go unused.
-      ...(envToken ? { note: `${tokenSource() ?? "PIPESHUB_TOKEN"} is set and takes precedence; unset it to use this trial workspace.` } : {}),
+      ...(notes.length ? { note: notes.join(" ") } : {}),
       ...(installError ? { mcpError: installError.message, recover: installError.recover } : {}),
     },
     text: `Created a trial workspace on ${origin}, open until ${sandbox.expiresAt}. `
       + `This CLI is signed in to it${installed ? ` and PipesHub is added to ${installed.client}` : ""}.\nNext: ${next}`
+      + notes.map((n) => `\nNote: ${n}`).join("")
       + (installError ? `\nThe workspace exists, but adding PipesHub to ${client} failed: ${installError.message}\nTo finish, run: ${installError.recover}` : ""),
   }, flags.json);
   return exit;
