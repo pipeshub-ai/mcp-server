@@ -253,7 +253,7 @@ describe("pipeshub login", () => {
     await writeFile(credentials(), JSON.stringify({ ...before, refreshToken: "stale", expiresAt: 0 }), { mode: 0o600 });
     const r = await cli(["auth", "status"]);
     expect(r.code).toBe(3);
-    expect(r.stderr).toContain("Run 'pipeshub login' again");
+    expect(r.stderr).toContain(`Run 'pipeshub login --url ${origin}' again`);
   });
 
   test("a server error during refresh is not reported as an expired sign-in", async () => {

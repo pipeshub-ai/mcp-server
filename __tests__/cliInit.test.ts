@@ -127,7 +127,7 @@ describe("pipeshub init", () => {
     await storeLogin({ origin, clientId: "pipeshub-agent", tokenEndpoint: `${origin}/t`, accessToken: "e30.x.y", expiresAt: Date.now() + 3_600_000 });
     const r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("pipeshub init --force");
+    expect(r.stderr).toContain(`pipeshub init --url ${origin} --force`);
     expect(seen).toHaveLength(0);
 
     expect((await cli(["init", "--url", origin, "--force"])).code).toBe(0);
@@ -148,7 +148,8 @@ describe("pipeshub init", () => {
     const r = await cli(["auth", "status"]);
     expect(r.code).toBe(3);
     expect(r.stderr).toContain("trial workspace");
-    expect(r.stderr).toContain("pipeshub init");
+    expect(r.stderr).toContain(`pipeshub init --url ${origin}`);
+    expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
   });
 
   test("answers each refusal with its own exit code and next step", async () => {

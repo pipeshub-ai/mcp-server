@@ -20,15 +20,17 @@ export interface Sandbox {
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 
 /** Why the stored sign-in must not be replaced without --force, or null. */
-async function keepReason(env: NodeJS.ProcessEnv): Promise<string | null> {
+async function keepReason(origin: string, env: NodeJS.ProcessEnv): Promise<string | null> {
+  // With --url, so following it targets this origin, not the default one.
+  const replace = `pipeshub init --url ${origin} --force`;
   const current = await readStoredLogin(env);
   if (current === null) return null;
   if (current.sandbox) {
     return current.expiresAt > Date.now()
-      ? `You already have a trial workspace on ${current.origin} until ${new Date(current.expiresAt).toISOString()}; use it, or run 'pipeshub init --force' to replace it.`
+      ? `You already have a trial workspace on ${current.origin} until ${new Date(current.expiresAt).toISOString()}; use it, or run '${replace}' to replace it.`
       : null;
   }
-  return `${credentialsPath(env)} holds your sign-in to ${current.origin}, which 'pipeshub init' would replace. Use that sign-in, or run 'pipeshub init --force' to replace it with a trial workspace.`;
+  return `${credentialsPath(env)} holds your sign-in to ${current.origin}, which 'pipeshub init' would replace. Use that sign-in, or run '${replace}' to replace it with a trial workspace.`;
 }
 
 export async function createSandbox(
@@ -37,7 +39,7 @@ export async function createSandbox(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Sandbox> {
   assertTransport(origin, opts.insecureHttp);
-  const keep = opts.force ? null : await keepReason(env);
+  const keep = opts.force ? null : await keepReason(origin, env);
   if (keep !== null) throw new CliError(keep, EXIT.USAGE);
 
   let res: Response;
