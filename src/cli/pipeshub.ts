@@ -268,7 +268,7 @@ async function run(argv: string[]): Promise<number> {
     origin = envOrigin = resolveOrigin();
   }
 
-  if (isLogin) return login(origin, flags, requestId);
+  if (isLogin) return login(origin, flags, requestId, envOrigin);
   if (command === "init") {
     if (positional.length > 1) throw new CliError("usage: pipeshub init [--url <origin>] [--client <name>]", EXIT.USAGE);
     if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
@@ -523,12 +523,8 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
   // The environment wins over the stored sign-in and origin, so the trial would go unused.
   const notes: string[] = [];
   if (envToken) notes.push(`${tokenSource() ?? "PIPESHUB_TOKEN"} is set and takes precedence; unset it to use this trial workspace.`);
-  if (envOrigin !== null && envOrigin !== origin) {
-    notes.push(`${originSource()} names ${envOrigin}, not ${origin}; later commands use it. Unset it to use this trial workspace.`);
-  } else if (envOrigin === null && ["PIPESHUB_BASE_URL", "PIPESHUB_MCP_URL"].some((n) => (process.env[n] ?? "").trim() !== "")) {
-    // --url won over an unparseable value, but every later command reads it first and stops.
-    notes.push(`${originSource()} is not a valid URL, so later commands fail until you fix or unset it.`);
-  }
+  const originNote = envOriginNote(origin, envOrigin, "this trial workspace");
+  if (originNote) notes.push(originNote);
   const next = "pipeshub collection create <name>, then pipeshub upload <collectionId> <path>...";
   await emit({
     exit,
@@ -548,7 +544,20 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
   return exit;
 }
 
-async function login(origin: string | null, flags: Flags, requestId: string): Promise<number> {
+/** Why later commands will not use `origin` although this one did, or null. */
+function envOriginNote(origin: string, envOrigin: string | null, what: string): string | null {
+  if (envOrigin !== null) {
+    return envOrigin === origin
+      ? null
+      : `${originSource()} names ${envOrigin}, not ${origin}; later commands use it. Unset it to use ${what}.`;
+  }
+  // --url won over an unparseable value, but every later command reads it first and stops.
+  return ["PIPESHUB_BASE_URL", "PIPESHUB_MCP_URL"].some((n) => (process.env[n] ?? "").trim() !== "")
+    ? `${originSource()} is not a valid URL, so later commands fail until you fix or unset it.`
+    : null;
+}
+
+async function login(origin: string | null, flags: Flags, requestId: string, envOrigin: string | null): Promise<number> {
   let pending: PendingLogin | null;
   if (flags.wait === true) {
     pending = await readPending();
@@ -587,6 +596,11 @@ async function login(origin: string | null, flags: Flags, requestId: string): Pr
   }
   const stored: StoredLogin = await waitForLogin(pending, flags.insecureHttp);
   const claims = describeToken(stored.accessToken);
+  // Some instances grant no refresh token; say so now, not in an hour.
+  const notes = [
+    stored.refreshToken ? null : `${stored.origin} issued no refresh token, so this sign-in ends at expiresAt. Run 'pipeshub login' again then.`,
+    envOriginNote(stored.origin, envOrigin, "this sign-in"),
+  ].filter((n): n is string => n !== null);
   await emit({
     exit: EXIT.OK,
     payload: {
@@ -599,12 +613,10 @@ async function login(origin: string | null, flags: Flags, requestId: string): Pr
       scopes: claims.scopes,
       expiresAt: new Date(stored.expiresAt).toISOString(),
       credentials: credentialsPath(),
-      // Some instances grant no refresh token; say so now, not in an hour.
-      ...(stored.refreshToken
-        ? {}
-        : { note: `${stored.origin} issued no refresh token, so this sign-in ends at expiresAt. Run 'pipeshub login' again then.` }),
+      ...(notes.length ? { note: notes.join(" ") } : {}),
     },
-    text: `Signed in to ${stored.origin}${claims.fullName ? ` as ${claims.fullName}` : ""}.`,
+    text: `Signed in to ${stored.origin}${claims.fullName ? ` as ${claims.fullName}` : ""}.`
+      + notes.map((n) => `\nNote: ${n}`).join(""),
   }, flags.json);
   return EXIT.OK;
 }
