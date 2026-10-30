@@ -41,7 +41,7 @@ Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, wh
 
 > The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, check it against the claim's quotes, else confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). A quote shows where to look, not that the claim is right. "Not found" means not in what it read, not that it does not exist.
 
-**Citation viewer.** In clients that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) (Claude, ChatGPT, VS Code, Goose and others), the result also appears as a PipesHub citations list: each citation with its number, record name and cited text. It has no answer, header or tabs; the client's model writes the answer. Opening a citation shows the cited record with the citation marked, plus the record's other citations: a PDF at the cited page with the passage highlighted, a spreadsheet (xlsx, xls, ods, csv) at the cited row and sheet, or a Word document (docx) with the cited passage highlighted. Other types show the cited text. The card gets pages, rows, sheets and highlight boxes from the result's `_meta`, which clients keep out of the model's context, so the text the model reads is unchanged. Other clients see only the text.
+Each citation also carries a `cite` code, to pass to `pipeshub_show_citations` after the answer.
 
 ---
 
@@ -74,7 +74,7 @@ A record with no source date is left out whenever a bound on that date is set. A
 
 **Outside your dates.** A newer PipesHub server also runs a search that has date bounds once without them, with the same filters and permissions, and returns its best matches written outside the bounds apart from the results: release notes, a retrospective or a weekly summary written after the period asked about. The tool passes them on as `outsideDates`, on the first page: a `note` and up to 5 `records`, each with its `recordId`, `recordName`, `recordType`, `webUrl`, `createdAt`, `status` and best passage, within 3,000 characters (`recordsFound` when more were found). `records` stays exactly what the bounds allow. A server older than this, or one whose `DATE_FILTER_SAFETY_NET` setting is `false`, sends none.
 
-**Response:** `records[]`, one entry per record, best match first: `recordId`, `recordName`, `recordType`, `connector`, `webUrl`, the source's `createdAt` / `updatedAt` (`YYYY-MM-DD`; `updatedAt` left out when it is the same day), `parent` (the channel, space, project or PR it sits in, by name), `status` (a ticket's or pull request's state with its merge, close, resolution or due date, assignee and priority, e.g. `Merged 2026-09-25 by alice`), `links` (up to 3 records it names or is named by, one line each with type, name, status and recordId; `linksFound` when more exist), `score` (to 2 decimal places), `passagesFound` (how many passages the search found in it) and up to 3 `passages`. Also `totalRecords`, `outsideDates` (see above) when a dated search found matches outside its dates, and `notes[]` when the tool moved a scoping id to the right list, could not check the ids, or cut the list.
+**Response:** `records[]`, one entry per record, best match first: `recordId`, `recordName`, `recordType`, `connector`, `webUrl`, the source's `createdAt` / `updatedAt` (`YYYY-MM-DD`; `updatedAt` left out when it is the same day), `parent` (the channel, space, project or PR it sits in, by name), `status` (a ticket's or pull request's state with its merge, close, resolution or due date, assignee and priority, e.g. `Merged 2026-09-25 by alice`), `links` (up to 3 records it names or is named by, one line each with type, name, status and recordId; `linksFound` when more exist), `score` (to 2 decimal places), `passagesFound` (how many passages the search found in it) and up to 3 `passages` (each with its `text`, `pageNum` when known, and a `cite` to pass to `pipeshub_show_citations`). Also `totalRecords`, `outsideDates` (see above) when a dated search found matches outside its dates, and `notes[]` when the tool moved a scoping id to the right list, could not check the ids, or cut the list.
 
 A result stays under 20,000 characters, and a timeline page under 12,000. When records were left out to fit, `nextOffset` is set and the last note says so; call again with the same arguments and `offset: nextOffset`. That page comes from the same results, held briefly for the same caller, not from a new search. If they are no longer held, the search runs again and a note says the ranking may differ.
 
@@ -192,9 +192,25 @@ The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the rec
 
 ---
 
+### `pipeshub_show_citations`
+
+Show the user the sources of an answer. The agent calls it once, last, after writing an answer from `pipeshub_search` or `pipeshub_chat` results, with the `cite` code of each passage the answer relied on, in the order the answer numbers them.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `citations` | `{ cite, quote? }[]` (1–30) | yes | `cite` copied from a search passage or a chat citation; `quote` (up to 500 characters), the passage text the answer relied on. |
+
+**Cite codes.** Every `pipeshub_search` passage and `pipeshub_chat` citation carries a `cite`: where the passage is, in one string, about 60 characters: `<recordId>.<page>.<block>.<sheet>.<x0>_<y0>_<x1>_<y1>`, any field after the record id possibly empty, the box in thousandths of the page. The code carries the location itself, so the server keeps nothing between calls. A code that does not parse is refused with the citation's number.
+
+**Response:** one line (`Showing 3 citations from 2 records.`). The tool reads each cited record's name, type and link once.
+
+**Citation viewer.** In clients that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) (Claude, ChatGPT, VS Code, Goose and others), the result appears below the answer as a PipesHub citations list: each citation with its number, record name and quote. Opening one shows the cited record with the citation marked, plus the record's other citations: a PDF at the cited page with the passage highlighted, a spreadsheet (xlsx, xls, ods, csv) at the cited row and sheet, or a Word document (docx) with the quoted passage highlighted. Other types show the quote. The list's data travels in the result's `_meta`, which clients keep out of the model's context. Other clients see only the one-line text.
+
+---
+
 ### `pipeshub_preview_record`
 
-**For the citation viewer only.** The card shown with a `pipeshub_chat` answer calls it to load a cited record's file. It is marked `ui.visibility: ["app"]`, so MCP Apps clients do not offer it to the model. It is mounted only when chat is.
+**For the citation viewer only.** The citations list calls it to load a cited record's file. It is marked `ui.visibility: ["app"]`, so MCP Apps clients do not offer it to the model.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|

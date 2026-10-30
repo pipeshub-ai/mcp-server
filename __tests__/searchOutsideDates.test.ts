@@ -76,7 +76,7 @@ describe("pipeshub_search outsideDates", () => {
     const first = out.outsideDates.records[0];
     expect(first.recordName).toBe("v0.2.0 — Week of 2025-12-29");
     expect(first.createdAt).toStartWith("2026-05-21");
-    expect(first.passages).toEqual([{ text: "passage 0 of release" }]);
+    expect(first.passages).toEqual([{ text: "passage 0 of release", cite: "release...." }]);
     // Enough to recognise the record and read it; the rest is one read away.
     expect(Object.keys(first)).not.toContain("passagesFound");
     expect(out.outsideDates.recordsFound).toBeUndefined();

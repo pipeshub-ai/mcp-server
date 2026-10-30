@@ -43,6 +43,9 @@ const CUTS: Readonly<Record<string, readonly Cut[]>> = {
   pipeshub_download_record: [
     ["Get `recordId` from a chat citation or a `pipeshub_search` hit.", "Get `recordId` from a `pipeshub_search` hit."],
   ],
+  pipeshub_show_citations: [
+    ["`pipeshub_search` or `pipeshub_chat` results", "`pipeshub_search` results"],
+  ],
 };
 
 const RECORD_ID_FROM_CHAT: Cut = [

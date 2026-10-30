@@ -40,6 +40,8 @@ knowledge. Retrieve and read it yourself:
 3. Before answering, list the parts of the question and confirm each is
    answered from what you read. For "all", "every" or "how many", do not
    stop at the first matches.
+4. After the answer, call \`pipeshub_show_citations\` once with the
+   \`cite\` of each passage it relied on, numbered as in the answer.
 
 A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
 instead, and "how many / all / every" with \`mode:"navigate"\` (below).

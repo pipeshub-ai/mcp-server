@@ -10,6 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { encodeCite } from "../cite.js";
 import { isoFromEpochMs, SNIPPET_MAX_CHARS } from "./_helpers.js";
 
 /** Passages shown per record. The rest are counted in `passagesFound`. */
@@ -60,6 +61,8 @@ export interface SearchPassage {
   /** Ends with `PASSAGE_CUT_MARK` when the passage was cut. */
   text: string;
   pageNum?: number;
+  /** For `pipeshub_show_citations`: where the passage is. */
+  cite?: string;
 }
 
 export interface SearchRecordEntry {
@@ -217,9 +220,11 @@ function toPassage(hit: any, text: string): SearchPassage {
     ? hit.metadata.pageNum
     : [hit?.metadata?.pageNum];
   const page = pages.find((p: unknown) => typeof p === "number");
+  const cite = encodeCite(hit?.metadata);
   return {
     text: cut ? text.slice(0, passageCut(text)).trimEnd() + PASSAGE_CUT_MARK : text,
     ...(page !== undefined ? { pageNum: page } : {}),
+    ...(cite ? { cite } : {}),
   };
 }
 

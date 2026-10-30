@@ -7,6 +7,7 @@ import * as z from "zod";
 import { Security } from "../../models/security.js";
 import { PipeshubCore } from "../../core.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { encodeCite } from "../cite.js";
 import { agentsListAgents } from "../../funcs/agentsListAgents.js";
 import { connectorGetConnectorStats } from "../../funcs/connectorGetConnectorStats.js";
 import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
@@ -393,6 +394,7 @@ interface ReadCitation extends EvidenceCitation {
   recordId: unknown;
   mimeType: unknown;
   pageNum: unknown;
+  cite: string | undefined;
 }
 
 /**
@@ -425,6 +427,7 @@ export function readCitations(citations: unknown): ReadCitation[] {
       mimeType: md.mimeType,
       webUrl: md.webUrl,
       pageNum: md.pageNum,
+      cite: encodeCite({ ...md, recordId: md.recordId ?? cd?.recordId ?? c?.recordId }),
     };
   });
 }
@@ -464,6 +467,7 @@ export function shapeCitations(read: ReadCitation[], claims: Claim[] = []) {
       mimeType: c.mimeType,
       webUrl: c.webUrl,
       pageNum: c.pageNum,
+      ...(c.cite ? { cite: c.cite } : {}),
     };
   });
 }

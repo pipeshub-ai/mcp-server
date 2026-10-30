@@ -53,8 +53,6 @@ const app = new App(
 );
 
 let citations: Citation[] = [];
-/** The link each [N] marker of PipesHub's answer carries: absolute, unlike an uploaded record's `webUrl`. */
-const answerLinks = new Map<number, string>();
 
 // ─── Citations card ──────────────────────────────────────────────────────────
 // Claude writes the answer from the tool's text; the card adds only what
@@ -159,7 +157,7 @@ async function openPreview(c: Citation) {
   $("card").classList.add("hidden");
   $("preview").classList.remove("hidden");
   $("p-title").textContent = c.recordName ?? "Source";
-  const link = /^https?:\/\//.test(c.webUrl ?? "") ? c.webUrl : answerLinks.get(c.number);
+  const link = /^https?:\/\//.test(c.webUrl ?? "") ? c.webUrl : undefined;
   $("p-open").classList.toggle("hidden", !link);
   $("p-open").onclick = () => link && app.openLink({ url: link });
   renderSide(sameRecord, c);
@@ -176,8 +174,13 @@ async function openPreview(c: Citation) {
     return;
   }
   try {
-    const { bytes } = await loadFile(c.recordId);
+    const { bytes, mimeType } = await loadFile(c.recordId);
     if (token !== previewToken) return;
+    // What the file is, when its type says so: PipesHub may store a Word
+    // upload as the PDF it converted it to.
+    const stored = kindOf({ number: c.number, text: "", mimeType });
+    if (stored !== "text") docKind = stored;
+    $("zoom").classList.toggle("hidden", docKind !== "pdf");
     if (docKind === "pdf") await renderPdf(bytes.slice(), sameRecord, token);
     else if (docKind === "sheet") renderWorkbook(bytes, c);
     else await renderDocx(bytes, token);
@@ -518,31 +521,16 @@ function applyHostContext(ctx: McpUiHostContext) {
 }
 
 app.ontoolresult = (result) => {
-  const text = (result.content?.find((c) => c.type === "text") as any)?.text;
-  let parsed: any = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    // An error result is plain text.
-  }
-  if (result.isError || typeof parsed?.answer !== "string") {
-    $("status").textContent = text || "PipesHub returned no answer.";
+  // `pipeshub_show_citations` puts the citations in `_meta`, which hosts keep
+  // out of the model's context; its text is a one-line summary.
+  const fromMeta = (result._meta as any)?.["pipeshub/citations"]?.citations;
+  if (result.isError || !Array.isArray(fromMeta)) {
+    const text = (result.content?.find((c) => c.type === "text") as any)?.text;
+    $("status").textContent = text || "PipesHub sent no citations to show.";
     $("status").classList.add("error");
     return;
   }
-  // `_meta` carries what the model does not need: bounding boxes, page and
-  // block numbers. A host that drops it still gets the citations from the text.
-  const fromMeta = (result._meta as any)?.["pipeshub/citations"]?.citations;
-  citations = Array.isArray(fromMeta) ? fromMeta : (parsed.citations ?? []).map(
-    (c: any): Citation => ({
-      ...c,
-      text: c.passage ?? "",
-      pageNum: Array.isArray(c.pageNum) ? c.pageNum : undefined,
-    }),
-  );
-  for (const [, n, url] of parsed.answer.matchAll(/\[(\d+)\]\(([^)\s]+)\)/g)) {
-    if (/^https?:\/\//.test(url)) answerLinks.set(Number(n), url);
-  }
+  citations = fromMeta;
   showCitations();
 };
 

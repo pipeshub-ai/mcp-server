@@ -20,6 +20,7 @@ const READ_ONLY = [
   "pipeshub_agents",
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
+  "pipeshub_show_citations",
   "pipeshub_preview_record",
 ];
 

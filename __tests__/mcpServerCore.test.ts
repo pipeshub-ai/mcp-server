@@ -29,6 +29,7 @@ const CURATED = [
   "pipeshub_connect_source",
   "pipeshub_chat",
   "pipeshub_agents",
+  "pipeshub_show_citations",
   "pipeshub_preview_record",
 ];
 

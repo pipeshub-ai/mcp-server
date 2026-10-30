@@ -26,6 +26,8 @@ const WITHOUT_CHAT = [
   "pipeshub_upload",
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
+  "pipeshub_show_citations",
+  "pipeshub_preview_record",
 ];
 
 async function connect(server: McpServer): Promise<Client> {
