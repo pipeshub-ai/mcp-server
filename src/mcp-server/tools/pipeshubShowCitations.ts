@@ -64,10 +64,10 @@ async function recordInfo(
 export const tool$pipeshubShowCitations: ToolDefinition<typeof args> = {
   name: "pipeshub_show_citations",
   description:
-    `Show the user your answer's sources. Call it once, last, after answering
-from \`pipeshub_search\` or \`pipeshub_chat\` results, with the \`cite\` and
-\`quote\` of each passage the answer relied on, in its [1], [2], … order.
-Clients that can, show each with a document preview.`,
+    `Show the user your answer's sources. It shows only the sources, never
+your answer: write the full answer in your reply first, then call this once,
+last, with the \`cite\` and \`quote\` of each passage the answer relied on,
+in its [1], [2], … order. Clients that can, show each with a document preview.`,
   scopes: ["read"],
   _meta: citationViewerToolMeta,
   annotations: {
@@ -109,7 +109,9 @@ Clients that can, show each with a document preview.`,
     return {
       content: [{
         type: "text",
-        text: `Showing ${plural(citations.length, "citation")} from ${plural(ids.length, "record")}.`,
+        text: `Shown to the user: ${plural(citations.length, "citation")} from `
+          + `${plural(ids.length, "record")}. They see the sources here, not your `
+          + "answer: if you have not written the answer yet, write it now.",
       }],
       _meta: { [CITATION_VIEWER_DATA_KEY]: { citations } },
     };

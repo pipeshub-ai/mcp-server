@@ -373,23 +373,32 @@ function rowMatch(ws: XLSX.WorkSheet, row: number, quote: string): number {
   return score;
 }
 
+/** Rows checked against a quote; a sheet past it falls back to the block's row. */
+const MATCH_MAX_ROWS = 5000;
+
 /**
  * The cited row. PipesHub's block numbers are not numbered the same way
- * everywhere (one instance gives the Excel row, another the row before it),
- * so the row and its neighbours are checked against the quote, and a
- * neighbour wins only by matching more of it.
+ * everywhere (the Excel row on one instance, a row or two before it on
+ * another), so every row is checked against the quote and the one that
+ * matches most of it wins, the nearest to the block's row on a tie. With no
+ * quote, or nothing in it matching, the block's row stands.
  */
 function citedRow(c: Citation): number | undefined {
   const base = blockRow(c);
   const quote = c.text.toLowerCase();
   if (base === undefined || !workbook || workbookRecord !== c.recordId || !quote) return base;
   const ws = workbook.Sheets[sheetFor(c)];
-  if (!ws) return base;
+  const ref = ws?.["!ref"];
+  if (!ws || !ref) return base;
+  const range = XLSX.utils.decode_range(ref);
   let best = base;
-  let bestScore = rowMatch(ws, base, quote);
-  for (const row of [base - 1, base + 1]) {
+  let bestScore = 0;
+  const last = Math.min(range.e.r + 1, range.s.r + MATCH_MAX_ROWS);
+  for (let row = range.s.r + 1; row <= last; row++) {
     const score = rowMatch(ws, row, quote);
-    if (score > bestScore) [best, bestScore] = [row, score];
+    if (score > bestScore || (score === bestScore && score > 0 && Math.abs(row - base) < Math.abs(best - base))) {
+      [best, bestScore] = [row, score];
+    }
   }
   return best;
 }
