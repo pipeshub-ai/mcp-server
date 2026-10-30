@@ -14,12 +14,16 @@
 import {
   CliError,
   EXIT,
+  assertTransport,
   describeToken,
   resolveOrigin,
   resolveToken,
+  tokenSource,
+  originSource,
 } from "./config.js";
 import { newRequestId } from "./client.js";
 import { initQm, renderInitReport } from "./init-qm.js";
+import { createSandbox } from "./init.js";
 import { MCP_CLIENTS, mcpInstall, type McpClient } from "./mcp-install.js";
 import {
   ask,
@@ -51,6 +55,8 @@ USAGE
   pipeshub <command> [options]
 
 COMMANDS
+  init [--client <name>]      no account yet: create a trial workspace (3 days)
+                              and sign this CLI in to it
   login [--url <origin>]      sign in from the browser (default PipesHub Cloud)
   logout                      sign out and forget the stored sign-in
   auth status                 show connection, user, org, scopes, expiry
@@ -82,10 +88,11 @@ OPTIONS
   --max-chars <n>             cap snippet/content length (default 2000)
   --insecure-http             allow cleartext to a host outside the private allowlist
   --force                     init-qm: overwrite files that already exist;
-                              mcp install: replace an existing pipeshub entry
-  --client <name>             mcp install: the client to configure
+                              mcp install: replace an existing pipeshub entry;
+                              init: replace the stored sign-in
+  --client <name>             mcp install, init: the client to configure
   --dry-run                   mcp install: show what would change, change nothing
-  --url <origin>              login: the PipesHub to sign in to
+  --url <origin>              login, init, mcp install: the PipesHub to use
   --no-wait                   login: print the code and link, then exit
   --wait                      login: finish a sign-in started with --no-wait
 
@@ -243,15 +250,29 @@ async function run(argv: string[]): Promise<number> {
 
   const requestId = newRequestId();
   let token = resolveToken();
-  let origin = resolveOrigin();
-
-  if (command === "login" || (command === "auth" && sub === "login")) {
-    if (flags.url !== null) {
-      // A blank --url (an unset variable) must not fall through to Cloud.
-      origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
-      if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
+  const isLogin = command === "login" || (command === "auth" && sub === "login");
+  const takesUrl = isLogin || command === "init" || (command === "mcp" && sub === "install");
+  let origin: string | null;
+  let envOrigin: string | null;
+  if (takesUrl && flags.url !== null) {
+    // An explicit --url wins even over an unparseable environment value.
+    origin = resolveOrigin({ PIPESHUB_BASE_URL: flags.url });
+    // A blank --url (an unset variable) must not fall through to Cloud.
+    if (origin === null) throw new CliError("--url needs an origin, e.g. https://pipeshub.example.com", EXIT.USAGE);
+    try {
+      envOrigin = resolveOrigin();
+    } catch {
+      envOrigin = null;
     }
-    return login(origin, flags, requestId);
+  } else {
+    origin = envOrigin = resolveOrigin();
+  }
+
+  if (isLogin) return login(origin, flags, requestId, envOrigin);
+  if (command === "init") {
+    if (positional.length > 1) throw new CliError("usage: pipeshub init [--url <origin>] [--client <name>]", EXIT.USAGE);
+    if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
+    return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null, envOrigin);
   }
   if (command === "logout") {
     const out = await logout(flags.insecureHttp);
@@ -419,6 +440,8 @@ async function run(argv: string[]): Promise<number> {
       if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
         throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
       }
+      // Every origin, not only with --insecure-http: a stored trial or PIPESHUB_TOKEN can carry a public http one.
+      assertClientTransport(ctx.origin, "Serve the instance over HTTPS first.");
       const result = await mcpInstall(flags.client as McpClient, ctx.origin, { force: flags.force, dryRun: flags.dryRun });
       outcome = {
         exit: EXIT.OK,
@@ -458,7 +481,83 @@ async function run(argv: string[]): Promise<number> {
   return outcome.exit;
 }
 
-async function login(origin: string | null, flags: Flags, requestId: string): Promise<number> {
+// The installed `start` has no --insecure-http, so a public http origin could never authenticate.
+function assertClientTransport(origin: string, advice: string): void {
+  try {
+    assertTransport(origin, false);
+  } catch (e: unknown) {
+    throw new CliError(
+      `the 'start' command a client runs cannot use --insecure-http, so ${origin} needs HTTPS. ${advice}`,
+      e instanceof CliError ? e.code : EXIT.USAGE,
+    );
+  }
+}
+
+async function init(origin: string, flags: Flags, requestId: string, envToken: boolean, envOrigin: string | null): Promise<number> {
+  let client: McpClient | undefined;
+  if (flags.client !== null) {
+    if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
+      throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
+    }
+    client = flags.client as McpClient;
+  }
+  if (client && flags.insecureHttp) assertClientTransport(origin, "Drop --client to create the workspace for this CLI only.");
+  const sandbox = await createSandbox(origin, { client, force: flags.force, insecureHttp: flags.insecureHttp });
+  let installed: Awaited<ReturnType<typeof mcpInstall>> | undefined;
+  let installError: { message: string; recover: string } | undefined;
+  if (client) {
+    try {
+      installed = await mcpInstall(client, origin, { force: flags.force, dryRun: false });
+    } catch (e: unknown) {
+      // The workspace and credential exist, so whatever failed, point at the install alone
+      // (retrying init is refused, or mints a second workspace). The clients that run their own
+      // `mcp add` report a duplicate as a plain failure; --force removes the old entry first.
+      const message = e instanceof Error ? e.message : String(e);
+      const force = ["claude-code", "codex", "gemini"].includes(client) || message.includes("--force") ? " --force" : "";
+      const url = flags.url !== null ? ` --url ${origin}` : "";
+      installError = { message, recover: `pipeshub mcp install --client ${client}${url}${force}` };
+    }
+  }
+  // The workspace exists, so not a usage error; exit 1 tells a script the install did not finish.
+  const exit = installError ? EXIT.ERROR : EXIT.OK;
+  // The environment wins over the stored sign-in and origin, so the trial would go unused.
+  const notes: string[] = [];
+  if (envToken) notes.push(`${tokenSource() ?? "PIPESHUB_TOKEN"} is set and takes precedence; unset it to use this trial workspace.`);
+  const originNote = envOriginNote(origin, envOrigin, "this trial workspace");
+  if (originNote) notes.push(originNote);
+  const next = "pipeshub collection create <name>, then pipeshub upload <collectionId> <path>...";
+  await emit({
+    exit,
+    payload: {
+      requestId,
+      ...sandbox,
+      ...(installed ? { mcp: installed } : {}),
+      next,
+      ...(notes.length ? { note: notes.join(" ") } : {}),
+      ...(installError ? { mcpError: installError.message, recover: installError.recover } : {}),
+    },
+    text: `Created a trial workspace on ${origin}, open until ${sandbox.expiresAt}. `
+      + `This CLI is signed in to it${installed ? ` and PipesHub is added to ${installed.client}` : ""}.\nNext: ${next}`
+      + notes.map((n) => `\nNote: ${n}`).join("")
+      + (installError ? `\nThe workspace exists, but adding PipesHub to ${client} failed: ${installError.message}\nTo finish, run: ${installError.recover}` : ""),
+  }, flags.json);
+  return exit;
+}
+
+/** Why later commands will not use `origin` although this one did, or null. */
+function envOriginNote(origin: string, envOrigin: string | null, what: string): string | null {
+  if (envOrigin !== null) {
+    return envOrigin === origin
+      ? null
+      : `${originSource()} names ${envOrigin}, not ${origin}; later commands use it. Unset it to use ${what}.`;
+  }
+  // --url won over an unparseable value, but every later command reads it first and stops.
+  return ["PIPESHUB_BASE_URL", "PIPESHUB_MCP_URL"].some((n) => (process.env[n] ?? "").trim() !== "")
+    ? `${originSource()} is not a valid URL, so later commands fail until you fix or unset it.`
+    : null;
+}
+
+async function login(origin: string | null, flags: Flags, requestId: string, envOrigin: string | null): Promise<number> {
   let pending: PendingLogin | null;
   if (flags.wait === true) {
     pending = await readPending();
@@ -497,6 +596,11 @@ async function login(origin: string | null, flags: Flags, requestId: string): Pr
   }
   const stored: StoredLogin = await waitForLogin(pending, flags.insecureHttp);
   const claims = describeToken(stored.accessToken);
+  // Some instances grant no refresh token; say so now, not in an hour.
+  const notes = [
+    stored.refreshToken ? null : `${stored.origin} issued no refresh token, so this sign-in ends at expiresAt. Run 'pipeshub login' again then.`,
+    envOriginNote(stored.origin, envOrigin, "this sign-in"),
+  ].filter((n): n is string => n !== null);
   await emit({
     exit: EXIT.OK,
     payload: {
@@ -509,12 +613,10 @@ async function login(origin: string | null, flags: Flags, requestId: string): Pr
       scopes: claims.scopes,
       expiresAt: new Date(stored.expiresAt).toISOString(),
       credentials: credentialsPath(),
-      // Some instances grant no refresh token; say so now, not in an hour.
-      ...(stored.refreshToken
-        ? {}
-        : { note: `${stored.origin} issued no refresh token, so this sign-in ends at expiresAt. Run 'pipeshub login' again then.` }),
+      ...(notes.length ? { note: notes.join(" ") } : {}),
     },
-    text: `Signed in to ${stored.origin}${claims.fullName ? ` as ${claims.fullName}` : ""}.`,
+    text: `Signed in to ${stored.origin}${claims.fullName ? ` as ${claims.fullName}` : ""}.`
+      + notes.map((n) => `\nNote: ${n}`).join(""),
   }, flags.json);
   return EXIT.OK;
 }

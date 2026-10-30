@@ -220,6 +220,16 @@ describe("pipeshub login", () => {
     expect(JSON.parse(r.stdout).note).toContain("issued no refresh token");
   });
 
+  test("login --url says when an environment origin names another host", async () => {
+    const r = await cli(["login", "--url", origin], { PIPESHUB_BASE_URL: "http://127.0.0.1:9" });
+    expect(JSON.parse(r.stdout).note).toContain("PIPESHUB_BASE_URL names http://127.0.0.1:9");
+  });
+
+  test("login --url says when the environment origin is not a valid URL", async () => {
+    const r = await cli(["login", "--url", origin], { PIPESHUB_BASE_URL: "not a url" });
+    expect(JSON.parse(r.stdout).note).toContain("PIPESHUB_BASE_URL is not a valid URL");
+  });
+
   test("a sign-in short of scopes points at the instance, not at minting a token", async () => {
     scope = "kb:read";
     await cli(["login", "--url", origin]);
@@ -253,7 +263,7 @@ describe("pipeshub login", () => {
     await writeFile(credentials(), JSON.stringify({ ...before, refreshToken: "stale", expiresAt: 0 }), { mode: 0o600 });
     const r = await cli(["auth", "status"]);
     expect(r.code).toBe(3);
-    expect(r.stderr).toContain("Run 'pipeshub login' again");
+    expect(r.stderr).toContain(`Run 'pipeshub login --url ${origin}' again`);
   });
 
   test("a server error during refresh is not reported as an expired sign-in", async () => {

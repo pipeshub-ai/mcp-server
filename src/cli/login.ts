@@ -26,11 +26,14 @@ interface Endpoints {
   revocationEndpoint?: string;
 }
 
-export interface StoredLogin extends Endpoints {
+export interface StoredLogin extends Partial<Endpoints> {
+  origin: string;
   accessToken: string;
   refreshToken?: string;
   /** Epoch ms. */
   expiresAt: number;
+  /** Set by `pipeshub init`: a trial workspace's token, which is never refreshed. */
+  sandbox?: { workspaceId: string };
 }
 
 export interface PendingLogin extends Endpoints {
@@ -51,6 +54,9 @@ function configDir(env: NodeJS.ProcessEnv): string {
 export const credentialsPath = (env: NodeJS.ProcessEnv = process.env) => join(configDir(env), "credentials.json");
 const pendingPath = (env: NodeJS.ProcessEnv) => join(configDir(env), "pending-login.json");
 
+/** Drop a sign-in waiting for browser approval; its `login --wait` then revokes what it gets. */
+export const clearPending = (env: NodeJS.ProcessEnv = process.env) => rm(pendingPath(env), { force: true });
+
 /** The file's JSON when it has the fields we use; a hand-edited or truncated file reads as absent. */
 async function readJsonFile<T>(path: string, required: Record<string, "string" | "number">): Promise<T | null> {
   try {
@@ -68,10 +74,13 @@ async function readJsonFile<T>(path: string, required: Record<string, "string" |
 
 const ENDPOINT_FIELDS = { origin: "string", clientId: "string", tokenEndpoint: "string" } as const;
 const readStored = (path: string) =>
-  readJsonFile<StoredLogin>(path, { ...ENDPOINT_FIELDS, accessToken: "string", expiresAt: "number" });
+  readJsonFile<StoredLogin>(path, { origin: "string", accessToken: "string", expiresAt: "number" });
+
+/** The stored sign-in as it is on disk, without refreshing it. */
+export const readStoredLogin = (env: NodeJS.ProcessEnv = process.env) => readStored(credentialsPath(env));
 
 /** Write via rename so a reader never sees half a file, with 0600 from the first byte. */
-async function writeSecretFile(path: string, value: unknown): Promise<void> {
+export async function writeSecretFile(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
@@ -264,7 +273,9 @@ export async function storedLogin(
   const stored = await readStored(path);
   if (stored === null || (origin !== null && stored.origin !== origin)) return null;
   if (stored.expiresAt - REFRESH_MARGIN_MS > Date.now()) return stored;
-  if (!stored.refreshToken) throw signInAgain(stored.origin);
+  // A trial token has no refresh token and is good until its expiry.
+  if (stored.sandbox && stored.expiresAt > Date.now()) return stored;
+  if (!stored.refreshToken || !stored.tokenEndpoint || !stored.clientId) throw signInAgain(stored);
 
   const r = await postForm(stored.tokenEndpoint, {
     grant_type: "refresh_token",
@@ -272,14 +283,20 @@ export async function storedLogin(
     client_id: stored.clientId,
   }, insecureHttp);
   if (r.status === 200) {
-    const next = toStored(stored, r.body, stored.refreshToken);
+    const endpoints: Endpoints = {
+      origin: stored.origin,
+      clientId: stored.clientId,
+      tokenEndpoint: stored.tokenEndpoint,
+      ...(stored.revocationEndpoint ? { revocationEndpoint: stored.revocationEndpoint } : {}),
+    };
+    const next = toStored(endpoints, r.body, stored.refreshToken);
     // Write only over the file this refresh started from. A logout, or another
     // process's refresh or sign-in, since then wins; our new tokens are revoked.
     const current = await readStored(path);
     if (current?.refreshToken !== stored.refreshToken) {
       await revokeAll(next, insecureHttp);
       if (current?.origin === stored.origin && current.expiresAt > Date.now()) return current;
-      throw signInAgain(stored.origin);
+      throw signInAgain(stored);
     }
     await writeSecretFile(path, next);
     return next;
@@ -297,7 +314,7 @@ export async function storedLogin(
       r.status === 429 ? EXIT.RATE_LIMITED : EXIT.ERROR,
     );
   }
-  throw signInAgain(stored.origin);
+  throw signInAgain(stored);
 }
 
 /** Ask to revoke the refresh and access token; true when the server answered 200 to either. */
@@ -308,16 +325,18 @@ async function revokeAll(login: StoredLogin, insecureHttp: boolean): Promise<boo
   let answered = false;
   for (const [token, hint] of [[login.refreshToken, "refresh_token"], [login.accessToken, "access_token"]] as const) {
     if (!token) continue;
-    const r = await postForm(login.revocationEndpoint, { token, token_type_hint: hint, client_id: login.clientId }, insecureHttp)
+    const r = await postForm(login.revocationEndpoint, { token, token_type_hint: hint, client_id: login.clientId ?? "" }, insecureHttp)
       .catch(() => null);
     answered ||= r?.status === 200;
   }
   return answered;
 }
 
-function signInAgain(origin: string): CliError {
+function signInAgain(stored: StoredLogin): CliError {
   return new CliError(
-    `your sign-in to ${origin} has expired. Run 'pipeshub login' again.`,
+    stored.sandbox
+      ? `your trial workspace on ${stored.origin} has closed. Run 'pipeshub init --url ${stored.origin}' for a new one, or 'pipeshub login --url ${stored.origin}' to sign in.`
+      : `your sign-in to ${stored.origin} has expired. Run 'pipeshub login --url ${stored.origin}' again.`,
     EXIT.UNAUTHENTICATED,
   );
 }
