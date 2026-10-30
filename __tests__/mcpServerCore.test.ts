@@ -80,6 +80,19 @@ const text = (res: unknown): string =>
     .map((c) => c.text ?? "")
     .join("\n");
 
+describe("createMCPServer server info", () => {
+  test("initialize names PipesHub and carries the logo as PNG and SVG data URIs", async () => {
+    const { client } = await connect();
+    const info = client.getServerVersion();
+    expect(info?.title).toBe("PipesHub");
+    expect(info?.icons?.map((i) => i.mimeType)).toEqual(["image/png", "image/svg+xml"]);
+    for (const icon of info?.icons ?? []) {
+      expect(icon.src.startsWith(`data:${icon.mimeType};base64,`)).toBe(true);
+      expect(Array.isArray(icon.sizes)).toBe(true);
+    }
+  });
+});
+
 describe("createMCPServer tool registration", () => {
   test("registers the curated tools in their discovery order", async () => {
     const { client } = await connect();

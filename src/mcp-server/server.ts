@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { withoutChatMentions } from "./chat-mentions.js";
 import { chatEnabledFromEnv } from "./chat-setting.js";
+import { PIPESHUB_ICONS } from "./icons.js";
 import { pipeshubInstructions } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
 import { bindNewRequestId } from "../hooks/request-context.js";
@@ -63,7 +64,10 @@ export function createMCPServer(deps: {
   const server = new McpServer(
     {
       name: "pipeshub-mcp",
+      title: "PipesHub",
       version: "0.0.4",
+      websiteUrl: "https://www.pipeshub.com",
+      icons: PIPESHUB_ICONS,
     },
     {
       instructions: pipeshubInstructions({ chat }),
