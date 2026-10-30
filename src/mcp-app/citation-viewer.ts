@@ -8,6 +8,9 @@ import {
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
 import * as pdfjs from "pdfjs-dist";
+import * as XLSX from "xlsx";
+import * as docx from "docx-preview";
+import DOMPurify from "dompurify";
 // The view's sandbox may not allow a worker, so pdf.js runs on the main
 // thread: it uses the worker module found on `globalThis.pdfjsWorker`.
 import * as pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs";
@@ -26,6 +29,9 @@ type Citation = {
   pageNum?: number[];
   blockNum?: number[];
   boundingBox?: Point[];
+  sheetName?: string;
+  /** 1-based. */
+  sheetNum?: number;
   text: string;
 };
 
@@ -117,6 +123,22 @@ function loadFile(recordId: string) {
 }
 
 let displayMode: string = "inline";
+/** How the open record is shown: drawn pages, a spreadsheet, or the cited text. */
+let docKind: "pdf" | "sheet" | "docx" | "text" = "text";
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const SHEET_EXTENSIONS = new Set(["xlsx", "xlsm", "xls", "xlsb", "ods", "csv", "tsv"]);
+const isCsv = (c: Citation) =>
+  c.extension === "csv" || c.mimeType === "text/csv" || c.mimeType === "application/csv";
+
+function kindOf(c: Citation): typeof docKind {
+  if (c.mimeType === "application/pdf" || c.extension === "pdf") return "pdf";
+  if (c.extension === "docx" || c.mimeType === DOCX_MIME) return "docx";
+  const mime = c.mimeType ?? "";
+  if (SHEET_EXTENSIONS.has(c.extension ?? "") || isCsv(c)
+    || mime.includes("spreadsheet") || mime.includes("ms-excel")) return "sheet";
+  return "text";
+}
 let previewToken = 0;
 let pageEls: HTMLElement[] = [];
 
@@ -147,16 +169,18 @@ async function openPreview(c: Citation) {
   const pages = $("pages");
   pages.replaceChildren(el("div", "status", "Loading document…"));
   pageEls = [];
-  const isPdf = c.mimeType === "application/pdf" || c.extension === "pdf";
-  $("zoom").classList.toggle("hidden", !isPdf);
-  if (!c.recordId || !isPdf) {
+  docKind = kindOf(c);
+  $("zoom").classList.toggle("hidden", docKind !== "pdf");
+  if (!c.recordId || docKind === "text") {
     showText(c);
     return;
   }
   try {
     const { bytes } = await loadFile(c.recordId);
     if (token !== previewToken) return;
-    await renderPdf(bytes.slice(), sameRecord, token);
+    if (docKind === "pdf") await renderPdf(bytes.slice(), sameRecord, token);
+    else if (docKind === "sheet") renderWorkbook(bytes, c);
+    else await renderDocx(bytes, token);
     if (token === previewToken) focusCitation(c);
   } catch (err) {
     if (token !== previewToken) return;
@@ -194,8 +218,10 @@ function renderSide(list: Citation[], active: Citation) {
     };
     const tags = el("div", "tags");
     if (c.pageNum?.length) tags.append(el("span", "tag", `Page ${c.pageNum.join(", ")}`));
+    if (c.sheetName) tags.append(el("span", "tag", c.sheetName));
     if (c.blockNum?.length) {
-      tags.append(el("span", "tag", `Paragraph ${c.blockNum.join(", ")}`));
+      const unit = kindOf(c) === "sheet" ? "Row" : "Paragraph";
+      tags.append(el("span", "tag", `${unit} ${c.blockNum.join(", ")}`));
     }
     card.append(el("div", "label", `Citation ${c.number}`), quote, more, tags);
     card.onclick = () => {
@@ -294,6 +320,160 @@ async function drawPage(pdf: pdfjs.PDFDocumentProxy, box: HTMLElement) {
   await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
 }
 
+// ─── Spreadsheets ────────────────────────────────────────────────────────────
+// As PipesHub's own preview does: the cited row is the citation's block
+// number, 1-based like Excel rows, except CSV's, which are 0-based.
+
+let workbook: XLSX.WorkBook | null = null;
+let sheetShown = "";
+/** Rows drawn per sheet; a cited row past it is still opened, alone. */
+const SHEET_MAX_ROWS = 2000;
+const SHEET_MAX_COLS = 60;
+
+function renderWorkbook(bytes: Uint8Array, c: Citation) {
+  workbook = XLSX.read(bytes, { type: "array", cellDates: true, cellFormula: false, cellHTML: false, cellStyles: false });
+  sheetShown = "";
+  showSheet(sheetFor(c));
+}
+
+function citedRow(c: Citation): number | undefined {
+  const block = c.blockNum?.[0];
+  return block === undefined ? undefined : block + (isCsv(c) ? 1 : 0);
+}
+
+/** The citation's sheet: the one it names or numbers, else the first holding its row. */
+function sheetFor(c: Citation): string {
+  const names = workbook!.SheetNames;
+  if (c.sheetName && names.includes(c.sheetName)) return c.sheetName;
+  if (c.sheetNum && names[c.sheetNum - 1]) return names[c.sheetNum - 1]!;
+  const row = citedRow(c);
+  const holds = (name: string) => {
+    const ref = workbook!.Sheets[name]?.["!ref"];
+    return ref !== undefined && row !== undefined && row <= XLSX.utils.decode_range(ref).e.r + 1;
+  };
+  return (holds(sheetShown) ? sheetShown : names.find(holds)) ?? names[0]!;
+}
+
+function showSheet(name: string) {
+  if (name === sheetShown) return;
+  sheetShown = name;
+  const ws = workbook!.Sheets[name]!;
+  const range = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]) : null;
+  const tabs = el("div", "sheet-tabs");
+  if (workbook!.SheetNames.length > 1) {
+    tabs.append(...workbook!.SheetNames.map((n) => {
+      const t = el("button", "sheet-tab" + (n === name ? " active" : ""), n);
+      t.onclick = () => showSheet(n);
+      return t;
+    }));
+  }
+  const table = el("table", "sheet");
+  if (range) {
+    const lastCol = Math.min(range.e.c, range.s.c + SHEET_MAX_COLS - 1);
+    const head = el("tr");
+    head.append(el("th", "rn"));
+    for (let col = range.s.c; col <= lastCol; col++) head.append(el("th", undefined, XLSX.utils.encode_col(col)));
+    table.append(head);
+    const lastRow = Math.min(range.e.r, range.s.r + SHEET_MAX_ROWS - 1);
+    for (let r = range.s.r; r <= lastRow; r++) {
+      const tr = el("tr");
+      tr.dataset["row"] = String(r + 1);
+      tr.append(el("td", "rn", String(r + 1)));
+      for (let col = range.s.c; col <= lastCol; col++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c: col })];
+        tr.append(el("td", undefined, cell ? XLSX.utils.format_cell(cell) : ""));
+      }
+      table.append(tr);
+    }
+  }
+  const wrap = el("div", "sheet-wrap");
+  wrap.append(table);
+  $("pages").replaceChildren(tabs, wrap);
+}
+
+function focusRow(c: Citation) {
+  if (!workbook) return;
+  showSheet(sheetFor(c));
+  for (const x of document.querySelectorAll(".hl-row")) x.classList.remove("hl-row", "flash");
+  const row = citedRow(c);
+  const tr = row === undefined ? null : document.querySelector<HTMLElement>(`tr[data-row="${row}"]`);
+  if (!tr) return;
+  tr.classList.add("hl-row", "flash");
+  tr.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+// ─── Word documents ──────────────────────────────────────────────────────────
+// As PipesHub's own preview does: docx-preview draws the document, and the
+// cited passage is found by its text, since a .docx has no page coordinates.
+
+// Same options as PipesHub's preview. renderAltChunks stays off: it puts the
+// document's embedded HTML in an unsandboxed frame.
+const DOCX_OPTIONS = {
+  className: "docx", inWrapper: true, ignoreWidth: true, ignoreHeight: false,
+  breakPages: true, ignoreLastRenderedPageBreak: true, useBase64URL: true,
+  renderChanges: false, renderComments: false, renderAltChunks: false,
+};
+const SYMBOL_CHAR = /^[0-9a-fA-F]{1,6}$/;
+
+/**
+ * docx-preview writes a `<w:sym w:char>` value into innerHTML unescaped, so a
+ * crafted document could run script, which here could call PipesHub tools.
+ * Any symbol that is not a hex code point is replaced first (as PipesHub does).
+ */
+function neutralizeSymbols(value: unknown, seen = new WeakSet<object>()): void {
+  if (!value || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  const node = value as Record<string, unknown>;
+  if (node["type"] === "symbol" && !(typeof node["char"] === "string" && SYMBOL_CHAR.test(node["char"]))) {
+    node["char"] = "FFFD";
+  }
+  for (const [key, child] of Object.entries(node)) {
+    if (key !== "parent") neutralizeSymbols(child, seen);
+  }
+}
+
+async function renderDocx(bytes: Uint8Array, token: number) {
+  const parsed = await docx.parseAsync(bytes, DOCX_OPTIONS);
+  neutralizeSymbols((parsed as any).parts);
+  const holder = el("div");
+  holder.append(...await docx.renderDocument(parsed, DOCX_OPTIONS));
+  if (token !== previewToken) return;
+  const page = el("div", "docx-page");
+  // Sanitized like PipesHub's preview: the document is untrusted markup.
+  page.innerHTML = DOMPurify.sanitize(holder.innerHTML, {
+    USE_PROFILES: { html: true, svg: true, mathMl: true },
+    ADD_TAGS: ["style"],
+    FORCE_BODY: true,
+    FORBID_TAGS: ["script", "link", "base", "meta", "form", "input", "button", "textarea", "iframe", "object", "embed"],
+  });
+  $("pages").replaceChildren(page);
+}
+
+const words = (s: string) => new Set(s.toLowerCase().split(/\W+/).filter((w) => w.length > 2));
+
+/** The block holding the cited text, else the most similar one (PipesHub's 0.55 word overlap). */
+function focusPassage(c: Citation) {
+  for (const x of document.querySelectorAll(".hl-block")) x.classList.remove("hl-block", "flash");
+  const want = c.text.replace(/\s+/g, " ").trim().toLowerCase();
+  if (want.length < 3) return;
+  const blocks = [...document.querySelectorAll<HTMLElement>(".docx-page :is(p, li, td, th, h1, h2, h3, h4, h5, h6)")];
+  const textOf = (b: HTMLElement) => (b.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  let hit = blocks.find((b) => textOf(b).includes(want));
+  if (!hit) {
+    const target = words(want);
+    let best = 0.55;
+    for (const b of blocks) {
+      const have = words(textOf(b));
+      const shared = [...target].filter((w) => have.has(w)).length;
+      const score = shared / (target.size + have.size - shared || 1);
+      if (score > best) [best, hit] = [score, b];
+    }
+  }
+  if (!hit) return;
+  hit.classList.add("hl-block", "flash");
+  hit.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
 /** The cited region: the bounding box's extent, in page percentages. */
 function highlight(c: Citation) {
   const xs = c.boundingBox!.map((p) => p.x);
@@ -309,6 +489,8 @@ function highlight(c: Citation) {
 }
 
 function focusCitation(c: Citation) {
+  if (docKind === "sheet") return focusRow(c);
+  if (docKind === "docx") return focusPassage(c);
   const page = pageEls[(c.pageNum?.[0] ?? 1) - 1];
   if (!page) return;
   // Only the open citation is marked: citations of one table share its box.

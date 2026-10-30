@@ -84,6 +84,8 @@ export function citationViewerData(conv: any) {
         pageNum: numbers(md.pageNum),
         blockNum: numbers(md.blockNum),
         boundingBox: boundingBox(md.bounding_box ?? md.boundingBox),
+        sheetName: typeof md.sheetName === "string" ? md.sheetName : undefined,
+        sheetNum: typeof md.sheetNum === "number" ? md.sheetNum : undefined,
         text: c.text.slice(0, VIEWER_TEXT_MAX_CHARS),
       };
     }),

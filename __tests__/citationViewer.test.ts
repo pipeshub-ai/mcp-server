@@ -136,6 +136,23 @@ describe("citationViewerData", () => {
     expect(c?.boundingBox).toBeUndefined();
   });
 
+  test("a spreadsheet citation keeps its sheet, so a row number found on several sheets opens on the right one", () => {
+    const conv = {
+      messages: [{
+        messageType: "bot_response",
+        content: "x [1](u)",
+        citations: [{
+          citationData: {
+            content: "Kestrel Logistics has Ravi Anand as its contact.",
+            chunkIndex: 1,
+            metadata: { recordId: "r2", extension: "xlsx", blockNum: [43], pageNum: [null], sheetName: "Vendors", sheetNum: 2 },
+          },
+        }],
+      }],
+    };
+    expect(citationViewerData(conv).citations[0]).toMatchObject({ blockNum: [43], sheetName: "Vendors", sheetNum: 2, pageNum: undefined });
+  });
+
   test("no answer yet means no citations", () => {
     expect(citationViewerData({ messages: [] })).toEqual({ citations: [] });
   });
