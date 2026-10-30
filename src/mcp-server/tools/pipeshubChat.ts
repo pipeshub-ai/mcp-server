@@ -10,6 +10,7 @@
 // which is kept separate so the fold stays a pure function over frames.
 
 import * as z from "zod";
+import { SHOW_CITATIONS_HINT } from "../cite.js";
 import { conversationsStreamConversation } from "../../funcs/conversationsStreamConversation.js";
 import { conversationsStreamMessage } from "../../funcs/conversationsStreamMessage.js";
 import { agentsStreamConversation } from "../../funcs/agentsStreamConversation.js";
@@ -255,6 +256,7 @@ To download a cited document, call \`pipeshub_download_record\`.`,
         ...trimConversation(state.conversation),
         recordsUsed: state.recordsUsed,
         ...(notes.length > 0 ? { notes } : {}),
+        next: SHOW_CITATIONS_HINT,
       });
     }
 

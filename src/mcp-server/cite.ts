@@ -72,3 +72,14 @@ export function decodeCite(cite: string): CiteLocation | undefined {
   if (unrenderable) loc.previewRenderable = false;
   return loc;
 }
+
+/**
+ * Said where the model is when it answers: at the end of each result it can
+ * cite from. The server instructions say it too, but an agent several calls
+ * in acts on what the last result told it.
+ */
+export const SHOW_CITATIONS_HINT = "After you answer, call `pipeshub_show_citations` "
+  + "once with the `cite` of each passage you relied on, numbered as in your answer.";
+
+/** A cite for a whole record, when what the answer relied on was a read of it. */
+export const recordCite = (recordId: string) => `${recordId}....`;

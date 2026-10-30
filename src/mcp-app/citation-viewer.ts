@@ -186,7 +186,11 @@ async function openPreview(c: Citation) {
     if (stored !== "text") docKind = stored;
     $("zoom").classList.toggle("hidden", docKind !== "pdf");
     if (docKind === "pdf") await renderPdf(bytes.slice(), sameRecord, token);
-    else if (docKind === "sheet") renderWorkbook(bytes, c);
+    else if (docKind === "sheet") {
+      renderWorkbook(bytes, c);
+      // Row tags are worth showing once the rows can be checked against the quotes.
+      renderSide(sameRecord, c);
+    }
     else await renderDocx(bytes, token);
     if (token === previewToken) focusCitation(c);
   } catch (err) {
@@ -229,8 +233,9 @@ function renderSide(list: Citation[], active: Citation) {
     if (c.pageNum?.length) tags.append(el("span", "tag", `Page ${c.pageNum.join(", ")}`));
     if (c.sheetName) tags.append(el("span", "tag", c.sheetName));
     if (c.blockNum?.length) {
-      const unit = kindOf(c) === "sheet" ? "Row" : "Paragraph";
-      tags.append(el("span", "tag", `${unit} ${c.blockNum.join(", ")}`));
+      tags.append(el("span", "tag", kindOf(c) === "sheet"
+        ? `Row ${citedRow(c)}`
+        : `Paragraph ${c.blockNum.join(", ")}`));
     }
     card.append(el("div", "label", `Citation ${c.number}`), quote, more, tags);
     card.onclick = () => {
@@ -334,20 +339,59 @@ async function drawPage(pdf: pdfjs.PDFDocumentProxy, box: HTMLElement) {
 // number, 1-based like Excel rows, except CSV's, which are 0-based.
 
 let workbook: XLSX.WorkBook | null = null;
+/** The record `workbook` was read from. */
+let workbookRecord: string | undefined;
 let sheetShown = "";
 /** Rows drawn per sheet; a cited row past it is still opened, alone. */
 const SHEET_MAX_ROWS = 2000;
 const SHEET_MAX_COLS = 60;
 
 function renderWorkbook(bytes: Uint8Array, c: Citation) {
+  workbookRecord = c.recordId;
   workbook = XLSX.read(bytes, { type: "array", cellDates: true, cellFormula: false, cellHTML: false, cellStyles: false });
   sheetShown = "";
   showSheet(sheetFor(c));
 }
 
-function citedRow(c: Citation): number | undefined {
+/** The row the citation's block number names, by PipesHub's own preview rule. */
+function blockRow(c: Citation): number | undefined {
   const block = c.blockNum?.[0];
   return block === undefined ? undefined : block + (isCsv(c) ? 1 : 0);
+}
+
+/** How much of a row's text the quote contains: longer cells (an email, a name) weigh more. */
+function rowMatch(ws: XLSX.WorkSheet, row: number, quote: string): number {
+  const ref = ws["!ref"];
+  if (!ref || row < 1) return -1;
+  const range = XLSX.utils.decode_range(ref);
+  let score = 0;
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: row - 1, c: col })];
+    const v = cell ? XLSX.utils.format_cell(cell).trim().toLowerCase() : "";
+    if (v.length >= 2 && quote.includes(v)) score += v.length;
+  }
+  return score;
+}
+
+/**
+ * The cited row. PipesHub's block numbers are not numbered the same way
+ * everywhere (one instance gives the Excel row, another the row before it),
+ * so the row and its neighbours are checked against the quote, and a
+ * neighbour wins only by matching more of it.
+ */
+function citedRow(c: Citation): number | undefined {
+  const base = blockRow(c);
+  const quote = c.text.toLowerCase();
+  if (base === undefined || !workbook || workbookRecord !== c.recordId || !quote) return base;
+  const ws = workbook.Sheets[sheetFor(c)];
+  if (!ws) return base;
+  let best = base;
+  let bestScore = rowMatch(ws, base, quote);
+  for (const row of [base - 1, base + 1]) {
+    const score = rowMatch(ws, row, quote);
+    if (score > bestScore) [best, bestScore] = [row, score];
+  }
+  return best;
 }
 
 /** The citation's sheet: the one it names or numbers, else the first holding its row. */
@@ -355,7 +399,7 @@ function sheetFor(c: Citation): string {
   const names = workbook!.SheetNames;
   if (c.sheetName && names.includes(c.sheetName)) return c.sheetName;
   if (c.sheetNum && names[c.sheetNum - 1]) return names[c.sheetNum - 1]!;
-  const row = citedRow(c);
+  const row = blockRow(c);
   const holds = (name: string) => {
     const ref = workbook!.Sheets[name]?.["!ref"];
     return ref !== undefined && row !== undefined && row <= XLSX.utils.decode_range(ref).e.r + 1;

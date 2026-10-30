@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
+import { SHOW_CITATIONS_HINT } from "../src/mcp-server/cite.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import {
   forgetSearches,
@@ -437,6 +438,7 @@ describe("pipeshub_search", () => {
       searchId: "s",
       totalRecords: 1,
       records: [{ recordId: "a", recordName: "a", score: 0.5, passagesFound: 1, passages: [{ text: "short", cite: "a...." }] }],
+      next: SHOW_CITATIONS_HINT,
     });
   });
 });
