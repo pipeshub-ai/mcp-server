@@ -225,6 +225,19 @@ describe("serve", () => {
     expect(res.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
   });
 
+  test("GET and DELETE /mcp get 405 with Allow: POST", async () => {
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`]);
+    for (const method of ["GET", "DELETE"]) {
+      const res = await fetch(`http://127.0.0.1:${s.port}/mcp`, {
+        method,
+        headers: { accept: "text/event-stream" },
+      });
+      expect(res.status).toBe(405);
+      expect(res.headers.get("allow")).toBe("POST");
+      expect((await res.json()).error.message).toBe("Method not allowed.");
+    }
+  });
+
   test("--env values are set before the server starts", async () => {
     const key = "MCPCOV_INIT_SERVE_ENV";
     try {

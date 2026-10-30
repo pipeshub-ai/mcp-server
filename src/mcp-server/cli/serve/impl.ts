@@ -84,6 +84,16 @@ async function startStreamableHTTP(cliFlags: ServeCommandFlags) {
     await transport.handleRequest(req, res, req.body);
   });
 
+  // Stateless: no SSE stream to GET and no session to DELETE. The MCP spec
+  // asks for 405 here, which clients read as "POST only".
+  app.all("/mcp", (_req, res) => {
+    res.status(405).set("Allow", "POST").json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Method not allowed." },
+      id: null,
+    });
+  });
+
   app.get("/", landingPageExpress);
 
   const httpServer = app.listen(cliFlags.port, "0.0.0.0", () => {
