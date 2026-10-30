@@ -37,6 +37,7 @@ const CURATED = [
   "pipeshub_connect_source",
   "pipeshub_chat",
   "pipeshub_agents",
+  "pipeshub_preview_record",
 ];
 
 interface ApiCall {
@@ -490,8 +491,9 @@ describe("start (stdio)", () => {
 
   // The README's way to leave chat out: an `env` entry in the MCP client's
   // server config, or `--env` on the command line.
-  test("PIPESHUB_MCP_CHAT=off leaves chat and agents out, and so do the instructions", async () => {
-    const withoutChat = CURATED.filter((t) => t !== "pipeshub_chat" && t !== "pipeshub_agents");
+  test("PIPESHUB_MCP_CHAT=off leaves chat, agents and the citation viewer's tool out, and so do the instructions", async () => {
+    const chatOnly = ["pipeshub_chat", "pipeshub_agents", "pipeshub_preview_record"];
+    const withoutChat = CURATED.filter((t) => !chatOnly.includes(t));
     for (const [args, env] of [
       [["--server-url", `${apiOrigin}/api/v1`], { PIPESHUB_MCP_CHAT: "off" }],
       [["--server-url", `${apiOrigin}/api/v1`, "--env", "PIPESHUB_MCP_CHAT=off"], {}],

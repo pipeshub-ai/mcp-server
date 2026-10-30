@@ -327,11 +327,17 @@ export async function decodeBearer(
  * The full Conversation blob is ~kilobytes; the LLM almost always only wants
  * the latest answer + grounding. Pull just that.
  */
-export function trimConversation(conv: any) {
+/** The assistant's latest message in a conversation, or undefined. */
+export function lastBotMessage(conv: any): any {
   const messages: any[] = Array.isArray(conv?.messages) ? conv.messages : [];
-  const lastBot = [...messages].reverse().find(
+  return [...messages].reverse().find(
     (m) => m?.messageType === "bot_response",
   );
+}
+
+export function trimConversation(conv: any) {
+  const messages: any[] = Array.isArray(conv?.messages) ? conv.messages : [];
+  const lastBot = lastBotMessage(conv);
   const answer: string | null = typeof lastBot?.content === "string"
     ? lastBot.content
     : null;

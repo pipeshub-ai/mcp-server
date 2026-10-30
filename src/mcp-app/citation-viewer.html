@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PipesHub citations</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: var(--color-background-primary, #ffffff);
+    --bg-2: var(--color-background-secondary, #f4f4f5);
+    --fg: var(--color-text-primary, #18181b);
+    --muted: var(--color-text-secondary, #71717a);
+    --border: var(--color-border-primary, #e4e4e7);
+    --accent: #15803d;
+    --accent-bg: rgba(22, 163, 74, 0.12);
+    --mark: rgba(34, 197, 94, 0.28);
+    --font: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+  }
+  [data-theme="dark"] {
+    --bg: var(--color-background-primary, #18181b);
+    --bg-2: var(--color-background-secondary, #232326);
+    --fg: var(--color-text-primary, #f4f4f5);
+    --muted: var(--color-text-secondary, #a1a1aa);
+    --border: var(--color-border-primary, #2e2e33);
+    --accent: #4ade80;
+    --accent-bg: rgba(74, 222, 128, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 var(--font); }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* Answer card */
+  #answer { padding: 14px 16px 16px; }
+  .brand { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .brand b { color: var(--fg); font-weight: 600; }
+  .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 0; color: var(--muted); }
+  .tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+  .count { font-size: 11px; color: var(--accent); background: var(--accent-bg); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+  .md p { margin: 0 0 10px; }
+  .md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+  .md h3, .md h4 { margin: 12px 0 6px; font-size: 15px; }
+  .md code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; vertical-align: baseline;
+    border: 1px solid var(--border); background: var(--bg-2); border-radius: 6px; padding: 0 6px; margin: 0 2px;
+    font-size: 12px; color: var(--accent); line-height: 20px; }
+  .chip:hover { border-color: var(--accent); }
+  .chip .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .num { display: inline-grid; place-items: center; min-width: 16px; height: 16px; border-radius: 8px; border: 1px solid currentColor; font-size: 10px; line-height: 1; }
+  .doc-icon { width: 11px; height: 13px; border-radius: 2px; background: currentColor; opacity: .8; flex: none;
+    clip-path: polygon(0 0, 70% 0, 100% 25%, 100% 100%, 0 100%); }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%;
+    border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+  .row:hover { border-color: var(--accent); }
+  .row .title { font-weight: 600; }
+  .row .sub { color: var(--muted); font-size: 12px; }
+  .status { color: var(--muted); padding: 18px 16px; }
+  .error { color: #dc2626; }
+
+  /* Record preview */
+  #preview { display: flex; flex-direction: column; height: 100vh; }
+  #preview.inline { height: 640px; }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .bar .title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-btn { border: 1px solid var(--border); background: var(--bg-2); border-radius: 6px; padding: 3px 10px; font-size: 12px; }
+  .icon-btn:hover { border-color: var(--accent); }
+  .split { flex: 1; display: flex; min-height: 0; }
+  #pages { flex: 1; overflow: auto; background: var(--bg-2); padding: 16px; }
+  .page { position: relative; margin: 0 auto 16px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  .page canvas { display: block; width: 100%; height: 100%; }
+  .hl { position: absolute; background: var(--mark); border-left: 3px solid #16a34a; border-right: 3px solid #16a34a; pointer-events: none; }
+  .hl.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { 0% { box-shadow: 0 0 0 6px rgba(34,197,94,.55); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+  .text-doc { max-width: 760px; margin: 0 auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; white-space: pre-wrap; }
+  .text-doc mark { background: var(--mark); color: inherit; }
+  #side { width: 300px; flex: none; border-left: 1px solid var(--border); overflow: auto; padding: 12px; }
+  #side h4 { margin: 0 0 10px; font-size: 13px; }
+  .cite { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; cursor: pointer; }
+  .cite.active, .cite:hover { border-color: var(--accent); }
+  .cite .label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .cite .quote { border-left: 3px solid var(--accent); padding-left: 10px; font-size: 13px;
+    display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+  .cite.open .quote { -webkit-line-clamp: unset; }
+  .more { background: none; border: 0; padding: 4px 0 0 13px; color: var(--accent); font-size: 12px; }
+  .tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-size: 11px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+  @media (max-width: 640px) { #side { display: none; } }
+</style>
+</head>
+<body>
+  <div id="answer">
+    <div class="brand"><b>PipesHub</b><span id="question"></span></div>
+    <div id="status" class="status">Asking PipesHub…</div>
+    <div id="body" class="hidden">
+      <div class="tabs">
+        <button class="tab active" data-tab="text">Answer</button>
+        <button class="tab" data-tab="sources">Sources<span class="count" id="n-sources"></span></button>
+        <button class="tab" data-tab="citations">Citations<span class="count" id="n-citations"></span></button>
+      </div>
+      <div id="tab-text" class="md"></div>
+      <div id="tab-sources" class="list hidden"></div>
+      <div id="tab-citations" class="list hidden"></div>
+    </div>
+  </div>
+  <div id="preview" class="hidden">
+    <div class="bar">
+      <span class="doc-icon" style="color: var(--accent)"></span>
+      <span class="title" id="p-title"></span>
+      <button class="icon-btn" id="p-open">Open ↗</button>
+      <button class="icon-btn" id="p-close">✕ Close</button>
+    </div>
+    <div class="split">
+      <div id="pages"></div>
+      <div id="side"><h4>Citations</h4><div id="p-cites"></div></div>
+    </div>
+  </div>
+  <script type="module">/*VIEW_SCRIPT*/</script>
+</body>
+</html>

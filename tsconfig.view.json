@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "incremental": false
+  },
+  "include": ["src/mcp-app/**/*.ts"],
+  "exclude": ["node_modules"]
+}

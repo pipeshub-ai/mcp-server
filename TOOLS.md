@@ -41,6 +41,8 @@ Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, wh
 
 > The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, check it against the claim's quotes, else confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). A quote shows where to look, not that the claim is right. "Not found" means not in what it read, not that it does not exist.
 
+**Citation viewer.** In clients that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) (Claude, ChatGPT, VS Code, Goose and others), the answer also appears as a PipesHub card: the answer with its `[N]` citations as chips, and Sources and Citations tabs. Opening a citation shows the cited PDF at the cited page with the cited passage highlighted, plus the record's other citations. A cited record that is not a PDF shows its cited text instead. The card gets page numbers and highlight boxes from the result's `_meta`, which clients keep out of the model's context, so the text the model reads is unchanged. Other clients see only the text.
+
 ---
 
 ### `pipeshub_search`
@@ -187,6 +189,19 @@ Each agent is returned as `{ agentId, name, description, systemPrompt, startMess
 **Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, call `pipeshub_chat` without an `agentId`: plain chat can use the user's connected tools.
 
 The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the records with `pipeshub_get_record_content`.
+
+---
+
+### `pipeshub_preview_record`
+
+**For the citation viewer only.** The card shown with a `pipeshub_chat` answer calls it to load a cited record's file. It is marked `ui.visibility: ["app"]`, so MCP Apps clients do not offer it to the model. It is mounted only when chat is.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `recordId` | string | yes | Record to preview. |
+| `offset` | number | no | Byte offset of the slice. Default 0. |
+
+**Response (`structuredContent`):** `{ mimeType, totalBytes, offset, bytes, nextOffset? }`. `bytes` is base64, at most 512 KB of the file per call. `nextOffset` is present while more of the file remains.
 
 ---
 

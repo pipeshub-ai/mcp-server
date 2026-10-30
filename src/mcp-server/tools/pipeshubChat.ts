@@ -14,6 +14,11 @@ import { conversationsStreamConversation } from "../../funcs/conversationsStream
 import { conversationsStreamMessage } from "../../funcs/conversationsStreamMessage.js";
 import { agentsStreamConversation } from "../../funcs/agentsStreamConversation.js";
 import { agentsStreamMessage } from "../../funcs/agentsStreamMessage.js";
+import {
+  CITATION_VIEWER_DATA_KEY,
+  citationViewerData,
+  citationViewerToolMeta,
+} from "../citation-viewer.js";
 import { ToolDefinition } from "../tools.js";
 import {
   applyAGUIFrame,
@@ -115,6 +120,7 @@ claim's quotes, else confirm it in the cited record (\`recordId\` →
 right. "Not found" means not in what it read, not that it does not exist.
 To download a cited document, call \`pipeshub_download_record\`.`,
   scopes: ["read"],
+  _meta: citationViewerToolMeta,
   annotations: {
     title: "Chat with PipesHub",
     // The assistant agent may run the user's connected actions (create a
@@ -251,11 +257,16 @@ To download a cited document, call \`pipeshub_download_record\`.`,
     if (state.error) return errorResult(withScopeAdvice(state.error));
 
     if (state.conversation) {
-      return jsonResult({
-        ...trimConversation(state.conversation),
-        recordsUsed: state.recordsUsed,
-        ...(notes.length > 0 ? { notes } : {}),
-      });
+      return {
+        ...jsonResult({
+          ...trimConversation(state.conversation),
+          recordsUsed: state.recordsUsed,
+          ...(notes.length > 0 ? { notes } : {}),
+        }),
+        _meta: {
+          [CITATION_VIEWER_DATA_KEY]: citationViewerData(state.conversation),
+        },
+      };
     }
 
     // Stream ended without a terminal frame — unusual, but salvage what we

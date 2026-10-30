@@ -22,6 +22,8 @@ import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
 import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
+import { tool$pipeshubPreviewRecord } from "./tools/pipeshubPreviewRecord.js";
+import { registerCitationViewer } from "./citation-viewer.js";
 import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.js";
 import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "./tools/pipeshubIndexingStatus.js";
@@ -137,6 +139,10 @@ export function createMCPServer(deps: {
   if (chat) {
     tool(tool$pipeshubChat);            // 10. optional: PipesHub's assistant
     tool(tool$pipeshubAgents);          // 11. discover org agents (for chat)
+    // The view MCP Apps hosts show with a chat answer, and the app-only tool
+    // it loads a cited record's file with.
+    tool(tool$pipeshubPreviewRecord);
+    registerCitationViewer(server);
   }
 
   // Curated prompt: user-invokable tool-routing guidance.

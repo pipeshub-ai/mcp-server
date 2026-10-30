@@ -20,6 +20,7 @@ const READ_ONLY = [
   "pipeshub_agents",
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
+  "pipeshub_preview_record",
 ];
 
 /** Tools that add to the user's own collections: they write, but never delete or overwrite. */
