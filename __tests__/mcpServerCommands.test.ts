@@ -234,7 +234,11 @@ describe("serve", () => {
       });
       expect(res.status).toBe(405);
       expect(res.headers.get("allow")).toBe("POST");
-      expect((await res.json()).error.message).toBe("Method not allowed.");
+      expect(await res.json()).toEqual({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Method not allowed." },
+        id: null,
+      });
     }
   });
 
