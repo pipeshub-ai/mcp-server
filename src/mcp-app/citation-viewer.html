@@ -31,20 +31,11 @@
   button { font: inherit; color: inherit; cursor: pointer; }
   .hidden { display: none !important; }
 
-  /* Sources card */
-  #card { padding: 12px 14px; }
-  .brand { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-  .brand b { color: var(--fg); font-weight: 600; }
-  .src { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 0; border-top: 1px solid var(--border); }
-  .src:first-child { border-top: 0; }
-  .src-name { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; background: none; border: 0; padding: 0; color: var(--accent); }
-  .src-name .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .src-name:hover .title { text-decoration: underline; }
-  .sub { color: var(--muted); font-size: 11px; }
-  .nums { display: flex; flex-wrap: wrap; gap: 4px; }
-  .num { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--bg-2); color: var(--accent); font-size: 11px; line-height: 1; }
-  .num:hover { border-color: var(--accent); }
+  /* Citations card */
+  #card { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: block; width: 100%; text-align: left; border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 8px 12px; }
+  .row:hover { border-color: var(--accent); }
+  .sub { color: var(--muted); font-size: 12px; }
   .doc-icon { width: 11px; height: 13px; border-radius: 2px; background: currentColor; opacity: .8; flex: none;
     clip-path: polygon(0 0, 70% 0, 100% 25%, 100% 100%, 0 100%); }
   .status { color: var(--muted); }
@@ -83,8 +74,8 @@
 </head>
 <body>
   <div id="card">
-    <div class="brand"><b>PipesHub sources</b><span id="status" class="status">Asking PipesHub…</span></div>
-    <div id="sources"></div>
+    <div id="status" class="status">Asking PipesHub…</div>
+    <div id="citations" style="display: contents"></div>
   </div>
   <div id="preview" class="hidden">
     <div class="bar">

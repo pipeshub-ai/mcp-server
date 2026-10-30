@@ -50,45 +50,20 @@ let citations: Citation[] = [];
 /** The link each [N] marker of PipesHub's answer carries: absolute, unlike an uploaded record's `webUrl`. */
 const answerLinks = new Map<number, string>();
 
-// ─── Sources card ────────────────────────────────────────────────────────────
+// ─── Citations card ──────────────────────────────────────────────────────────
 // Claude writes the answer from the tool's text; the card adds only what
-// text cannot: each cited record, and its citations to open in place.
+// text cannot: each citation, to open in its record.
 
-/** Cited records, in the order the answer first cites them. */
-function sources() {
-  const byId = new Map<string, Citation[]>();
-  for (const c of citations) {
-    const key = c.recordId ?? c.webUrl ?? String(c.number);
-    byId.set(key, [...(byId.get(key) ?? []), c]);
-  }
-  return [...byId.values()];
-}
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-function showSources() {
-  const recs = sources();
-  $("status").textContent = citations.length === 0
-    ? "PipesHub cited no sources for this answer."
-    : `${plural(citations.length, "citation")} from ${plural(recs.length, "source")}`;
-  $("sources").replaceChildren(...recs.map((cs) => {
-    const first = cs[0]!;
-    const row = el("div", "src");
-    const name = el("button", "src-name");
-    name.dataset["cite"] = String(first.number);
-    name.append(
-      el("span", "doc-icon"),
-      el("span", "title", first.recordName ?? "Untitled"),
-      el("span", "sub", first.extension?.toUpperCase() ?? ""),
+function showCitations() {
+  $("status").textContent = "PipesHub cited no sources for this answer.";
+  $("status").classList.toggle("hidden", citations.length > 0);
+  $("citations").replaceChildren(...citations.map((c) => {
+    const row = el("button", "row");
+    row.dataset["cite"] = String(c.number);
+    row.append(
+      el("div", "sub", `${c.number} · ${c.recordName ?? "Untitled"}`),
+      el("div", undefined, c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text),
     );
-    const nums = el("div", "nums");
-    nums.append(...cs.map((c) => {
-      const n = el("button", "num", String(c.number));
-      n.dataset["cite"] = String(c.number);
-      n.title = c.text.length > 200 ? `${c.text.slice(0, 200)}…` : c.text;
-      return n;
-    }));
-    row.append(name, nums);
     return row;
   }));
 }
@@ -341,7 +316,7 @@ app.ontoolresult = (result) => {
   for (const [, n, url] of parsed.answer.matchAll(/\[(\d+)\]\(([^)\s]+)\)/g)) {
     if (/^https?:\/\//.test(url)) answerLinks.set(Number(n), url);
   }
-  showSources();
+  showCitations();
 };
 
 app.ontoolcancelled = () => {
