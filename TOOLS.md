@@ -41,7 +41,7 @@ Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, wh
 
 > The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, check it against the claim's quotes, else confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). A quote shows where to look, not that the claim is right. "Not found" means not in what it read, not that it does not exist.
 
-Each citation also carries a `cite` code, to pass to `pipeshub_show_citations` after the answer.
+Each citation also carries a `cite` code, to pass to `pipeshub_show_citations` before writing the answer.
 
 ---
 
@@ -204,7 +204,7 @@ Show the user the sources of an answer. The agent calls it once, last, after wri
 
 **Response:** one line (`Showing 3 citations from 2 records.`). The tool reads each cited record's name, type and link once.
 
-**Citation viewer.** In clients that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) (Claude, ChatGPT, VS Code, Goose and others), the result appears below the answer as a PipesHub citations list: each citation with its number, record name and quote. Opening one shows the cited record with the citation marked, plus the record's other citations: a PDF at the cited page with the passage highlighted, a spreadsheet (xlsx, xls, ods, csv) at the cited row and sheet, or a Word document (docx) with the quoted passage highlighted. Other types show the quote, and so does any record PipesHub marks as not previewable (`previewRenderable: false`: pages and messages that live in an external app rather than files) or whose file cannot be loaded; Open still links to the source. The list's data travels in the result's `_meta`, which clients keep out of the model's context. Other clients see only the one-line text.
+**Citation viewer.** In clients that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) (Claude, ChatGPT, VS Code, Goose and others), the result appears as a PipesHub citations list right before the agent's answer (the agent calls it after its research and then writes the answer, because hosts such as Claude fold text written before a tool call into the collapsed steps): each citation with its number, record name and quote. Opening one shows the cited record with the citation marked, plus the record's other citations: a PDF at the cited page with the passage highlighted, a spreadsheet (xlsx, xls, ods, csv) at the cited row and sheet, or a Word document (docx) with the quoted passage highlighted. Other types show the quote, and so does any record PipesHub marks as not previewable (`previewRenderable: false`: pages and messages that live in an external app rather than files) or whose file cannot be loaded; Open still links to the source. The list's data travels in the result's `_meta`, which clients keep out of the model's context. Other clients see only the one-line text.
 
 ---
 

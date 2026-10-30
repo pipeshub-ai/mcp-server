@@ -76,10 +76,12 @@ export function decodeCite(cite: string): CiteLocation | undefined {
 /**
  * Said where the model is when it answers: at the end of each result it can
  * cite from. The server instructions say it too, but an agent several calls
- * in acts on what the last result told it.
+ * in acts on what the last result told it. The card comes before the answer
+ * because hosts such as Claude fold text written before a tool call into
+ * the collapsed steps: only text after the last call shows as the reply.
  */
-export const SHOW_CITATIONS_HINT = "After you answer, call `pipeshub_show_citations` "
-  + "once with the `cite` of each passage you relied on, numbered as in your answer.";
+export const SHOW_CITATIONS_HINT = "Before you write your answer, call `pipeshub_show_citations` "
+  + "once with the `cite` of each passage it will rely on; then write the full answer, citing them as [1], [2], ….";
 
 /** A cite for a whole record, when what the answer relied on was a read of it. */
 export const recordCite = (recordId: string) => `${recordId}....`;

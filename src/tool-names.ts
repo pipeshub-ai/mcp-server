@@ -46,7 +46,7 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_show_citations",
-    "description": "Show the user your answer's sources. It shows only the sources, never\nyour answer: write the full answer in your reply first, then call this once,\nlast, with the `cite` and `quote` of each passage the answer relied on,\nin its [1], [2], … order. Clients that can, show each with a document preview."
+    "description": "Show the user your answer's sources, with document previews. Call it\nonce, after searching and reading and before the answer, with the `cite`\nand `quote` of each passage the answer will rely on, as [1], [2], ….\nIt shows no answer: write the full answer after it."
   },
   {
     "name": "pipeshub_preview_record",

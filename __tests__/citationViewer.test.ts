@@ -174,8 +174,8 @@ describe("pipeshub_show_citations", () => {
     expect(reads).toEqual([`/api/v1/connectors/record/${RID}/content`]);
     expect(out.content).toEqual([{
       type: "text",
-      text: "Shown to the user: 2 citations from 1 record. They see the sources here, not your "
-        + "answer: if you have not written the answer yet, write it now.",
+      text: "Shown to the user: 2 citations from 1 record, without your answer. "
+        + "Now write the full answer, citing these as [1]…[2].",
     }]);
     const data = (out._meta as any)["pipeshub/citations"].citations;
     expect(data[0]).toMatchObject({
