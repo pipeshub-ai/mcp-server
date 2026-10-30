@@ -6,10 +6,12 @@
 // viewer opens. The code carries the location itself, so the server keeps
 // nothing between calls: PipesHub's `/mcp` is stateless.
 //
-//   <recordId>.<page>.<block>.<sheet>.<x0>_<y0>_<x1>_<y1>
+//   <recordId>.<page>.<block>.<sheet>.<x0>_<y0>_<x1>_<y1>[.n]
 //
 // Every field after the record id may be empty; the box, when present, is
-// in thousandths of the page (0-999). For example:
+// in thousandths of the page (0-999). A trailing `.n` marks a record
+// PipesHub says it cannot preview (`previewRenderable: false`), so the
+// viewer shows the quote and the source link instead. For example:
 //   7ada7d80-62c4-425c-a125-d65a1ea3101a.1.2..144_171_906_321
 
 export interface CiteLocation {
@@ -20,10 +22,12 @@ export interface CiteLocation {
   sheetNum?: number;
   /** Corners in 0-1 page coordinates. */
   boundingBox?: Array<{ x: number; y: number }>;
+  /** Only ever false: PipesHub cannot preview the record. */
+  previewRenderable?: false;
 }
 
 const RECORD_ID = /^[A-Za-z0-9-]{1,64}$/;
-const CITE = /^([A-Za-z0-9-]{1,64})\.(\d{0,6})\.(\d{0,7})\.(\d{0,4})\.(?:(\d{1,3})_(\d{1,3})_(\d{1,3})_(\d{1,3}))?$/;
+const CITE = /^([A-Za-z0-9-]{1,64})\.(\d{0,6})\.(\d{0,7})\.(\d{0,4})\.(?:(\d{1,3})_(\d{1,3})_(\d{1,3})_(\d{1,3}))?(\.n)?$/;
 
 const first = (v: unknown): number | undefined => {
   const n = Array.isArray(v) ? v[0] : v;
@@ -47,14 +51,15 @@ export function encodeCite(md: any): string | undefined {
     : "";
   const field = (n: number | undefined) => (n === undefined ? "" : String(n));
   return [recordId, field(first(md.pageNum)), field(first(md.blockNum)), field(first(md.sheetNum)), box]
-    .join(".");
+    .join(".") + (md?.previewRenderable === false ? ".n" : "");
 }
 
 /** The location a cite code names, or undefined when it is not one. */
 export function decodeCite(cite: string): CiteLocation | undefined {
   const m = CITE.exec(cite.trim());
   if (!m) return undefined;
-  const [, recordId, page, block, sheet, ...box] = m;
+  const [, recordId, page, block, sheet, x0s, y0s, x1s, y1s, unrenderable] = m;
+  const box = [x0s, y0s, x1s, y1s];
   const loc: CiteLocation = { recordId: recordId! };
   if (page) loc.pageNum = [Number(page)];
   if (block) loc.blockNum = [Number(block)];
@@ -64,5 +69,6 @@ export function decodeCite(cite: string): CiteLocation | undefined {
     if (x1 < x0 || y1 < y0) return undefined;
     loc.boundingBox = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
   }
+  if (unrenderable) loc.previewRenderable = false;
   return loc;
 }

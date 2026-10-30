@@ -32,6 +32,8 @@ type Citation = {
   sheetName?: string;
   /** 1-based. */
   sheetNum?: number;
+  /** False when PipesHub cannot preview the record: show the quote and source link. */
+  previewRenderable?: boolean;
   text: string;
 };
 
@@ -169,7 +171,9 @@ async function openPreview(c: Citation) {
   pageEls = [];
   docKind = kindOf(c);
   $("zoom").classList.toggle("hidden", docKind !== "pdf");
-  if (!c.recordId || docKind === "text") {
+  // Like PipesHub's own preview: a record it cannot render (a page or
+  // message in an external app, not a file) opens as its quote, with Open.
+  if (!c.recordId || docKind === "text" || c.previewRenderable === false) {
     showText(c);
     return;
   }
@@ -187,14 +191,16 @@ async function openPreview(c: Citation) {
     if (token === previewToken) focusCitation(c);
   } catch (err) {
     if (token !== previewToken) return;
-    pages.replaceChildren(
-      el("div", "status error", `Could not show the document: ${(err as Error).message}`),
-    );
+    // The source may not hand the file over (an external app's page, a
+    // native Google doc): show what was cited rather than an error.
+    showText(c);
+    $("pages").prepend(el("div", "status", `No preview for this file (${(err as Error).message}). The cited text:`));
   }
 }
 
 /** A record pdf.js cannot show: its cited text, marked. */
 function showText(c: Citation) {
+  $("zoom").classList.add("hidden");
   const doc = el("div", "text-doc");
   doc.append(el("mark", undefined, c.text));
   $("pages").replaceChildren(doc);

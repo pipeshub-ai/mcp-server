@@ -105,6 +105,12 @@ describe("cite codes", () => {
     expect(decodeCite(encodeCite({ recordId: "6ae460ea0b29ff7670d82c0b", blockNum: [43], sheetNum: 2 })!))
       .toEqual({ recordId: "6ae460ea0b29ff7670d82c0b", blockNum: [43], sheetNum: 2 });
     expect(decodeCite(encodeCite({ recordId: RID })!)).toEqual({ recordId: RID });
+    // A record PipesHub cannot preview keeps saying so after the round trip.
+    const unrenderable = encodeCite({ recordId: RID, blockNum: [4], previewRenderable: false })!;
+    expect(unrenderable.endsWith(".n")).toBe(true);
+    expect(decodeCite(unrenderable)).toEqual({ recordId: RID, blockNum: [4], previewRenderable: false });
+    expect(decodeCite(`${RID}.....n`)).toEqual({ recordId: RID, previewRenderable: false });
+    expect(decodeCite(`${RID}.....x`)).toBeUndefined();
   });
 
   test("no record id, no cite", () => {
