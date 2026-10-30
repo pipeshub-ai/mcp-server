@@ -71,7 +71,7 @@ It shows no answer: write the full answer after it.`,
   scopes: ["read"],
   _meta: citationViewerToolMeta,
   annotations: {
-    title: "Show the answer's PipesHub sources",
+    title: "Citations",
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false,

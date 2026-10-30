@@ -60,16 +60,47 @@ let citations: Citation[] = [];
 // Claude writes the answer from the tool's text; the card adds only what
 // text cannot: each citation, to open in its record.
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** A small colored file-type badge, as PipesHub's file icons tell types apart. */
+function fileBadge(c: Citation) {
+  const kind = c.kind === "web" ? "web" : kindOf(c);
+  const ext = (c.extension ?? "").toUpperCase();
+  const [cls, label] = kind === "pdf" ? ["pdf", "PDF"]
+    : kind === "sheet" ? ["sheet", ext === "CSV" ? "CSV" : "XLS"]
+    : kind === "docx" ? ["doc", "DOC"]
+    : kind === "web" ? ["web", "WEB"]
+    : ["text", (ext || "TXT").slice(0, 4)];
+  return el("span", `file ${cls}`, label);
+}
+
+/** Where the citation is: a page, a row, or a paragraph. */
+function locationOf(c: Citation): string | undefined {
+  if (c.pageNum?.length) return `Page ${c.pageNum[0]}`;
+  if (c.blockNum?.length && kindOf(c) !== "sheet") return `¶ ${c.blockNum[0]}`;
+  // A sheet's row is known once its rows are checked against the quote.
+  if (c.blockNum?.length && workbook && workbookRecord === c.recordId) return `Row ${citedRow(c)}`;
+  return undefined;
+}
+
 function showCitations() {
+  const records = new Set(citations.map((c) => c.recordId ?? c.webUrl ?? c.number)).size;
+  $("c-count").textContent = citations.length
+    ? `${plural(citations.length, "source")} · ${plural(records, "document")}`
+    : "";
   $("status").textContent = "PipesHub cited no sources for this answer.";
   $("status").classList.toggle("hidden", citations.length > 0);
   $("citations").replaceChildren(...citations.map((c) => {
     const row = el("button", "row");
     row.dataset["cite"] = String(c.number);
-    row.append(
-      el("div", "sub", `${c.number} · ${c.recordName ?? "Untitled"}`),
-      el("div", undefined, c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text),
-    );
+    row.title = `Open ${c.recordName ?? "the source"}`;
+    const top = el("div", "top");
+    top.append(fileBadge(c), el("span", "name", c.recordName ?? "Untitled"));
+    const where = locationOf(c);
+    if (where) top.append(el("span", "chip", where));
+    const body = el("div", "body");
+    body.append(top, el("div", "quote", c.text));
+    row.append(el("span", "num", String(c.number)), body, el("span", "go", "›"));
     return row;
   }));
 }
@@ -159,6 +190,8 @@ async function openPreview(c: Citation) {
   $("card").classList.add("hidden");
   $("preview").classList.remove("hidden");
   $("p-title").textContent = c.recordName ?? "Source";
+  $("p-file").replaceChildren(fileBadge(c));
+  $("p-count").textContent = String(sameRecord.length);
   const link = /^https?:\/\//.test(c.webUrl ?? "") ? c.webUrl : undefined;
   $("p-open").classList.toggle("hidden", !link);
   $("p-open").onclick = () => link && app.openLink({ url: link });
@@ -212,6 +245,7 @@ function showText(c: Citation) {
 
 function closePreview() {
   previewToken++;
+  focused = null;
   $("preview").classList.add("hidden");
   $("card").classList.remove("hidden");
   $("pages").replaceChildren();
@@ -223,21 +257,19 @@ function renderSide(list: Citation[], active: Citation) {
   $("p-cites").replaceChildren(...list.map((c) => {
     const card = el("div", "cite" + (c === active ? " active" : ""));
     card.dataset["n"] = String(c.number);
+    const label = el("div", "label");
+    const chips = el("span", "chips");
+    if (c.sheetName) chips.append(el("span", "chip", c.sheetName));
+    const where = locationOf(c);
+    if (where) chips.append(el("span", "chip", where));
+    label.append(el("span", "num", String(c.number)), chips);
     const quote = el("div", "quote", c.text);
     const more = el("button", "more" + (c.text.length > 200 ? "" : " hidden"), "Show more");
     more.onclick = (e) => {
       e.stopPropagation();
       more.textContent = card.classList.toggle("open") ? "Show less" : "Show more";
     };
-    const tags = el("div", "tags");
-    if (c.pageNum?.length) tags.append(el("span", "tag", `Page ${c.pageNum.join(", ")}`));
-    if (c.sheetName) tags.append(el("span", "tag", c.sheetName));
-    if (c.blockNum?.length) {
-      tags.append(el("span", "tag", kindOf(c) === "sheet"
-        ? `Row ${citedRow(c)}`
-        : `Paragraph ${c.blockNum.join(", ")}`));
-    }
-    card.append(el("div", "label", `Citation ${c.number}`), quote, more, tags);
+    card.append(label, quote, more);
     card.onclick = () => {
       for (const x of document.querySelectorAll(".cite")) x.classList.toggle("active", x === card);
       focusCitation(c);
@@ -318,7 +350,13 @@ $("z-fit").onclick = () => setZoom(1);
 let relayout: ReturnType<typeof setTimeout> | undefined;
 window.addEventListener("resize", () => {
   clearTimeout(relayout);
-  relayout = setTimeout(layoutPages, 150);
+  relayout = setTimeout(() => {
+    layoutPages();
+    // The host grows the view into fullscreen after the pages are laid out,
+    // and the relayout keeps the scroll fraction, not the place: go back to
+    // the open citation.
+    if (focused && docKind === "pdf") focusCitation(focused, "instant");
+  }, 150);
 });
 
 async function drawPage(pdf: pdfjs.PDFDocumentProxy, box: HTMLElement) {
@@ -550,7 +588,11 @@ function highlight(c: Citation) {
   return hl;
 }
 
-function focusCitation(c: Citation) {
+/** The citation the preview last went to. */
+let focused: Citation | null = null;
+
+function focusCitation(c: Citation, behavior: ScrollBehavior = "smooth") {
+  focused = c;
   if (docKind === "sheet") return focusRow(c);
   if (docKind === "docx") return focusPassage(c);
   const page = pageEls[(c.pageNum?.[0] ?? 1) - 1];
@@ -563,7 +605,7 @@ function focusCitation(c: Citation) {
   const pages = $("pages");
   const top = page.offsetTop - pages.offsetTop
     + (hl ? hl.offsetTop - pages.clientHeight / 3 : 0);
-  pages.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  pages.scrollTo({ top: Math.max(0, top), behavior });
   if (hl) {
     hl.classList.remove("flash");
     void hl.offsetWidth;
