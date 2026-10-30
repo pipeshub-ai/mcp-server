@@ -47,62 +47,14 @@ const app = new App(
 );
 
 let citations: Citation[] = [];
-/** The link each [N] marker of the answer carries: absolute, unlike an uploaded record's `webUrl`. */
+/** The link each [N] marker of PipesHub's answer carries: absolute, unlike an uploaded record's `webUrl`. */
 const answerLinks = new Map<number, string>();
 
-// ─── Answer card ─────────────────────────────────────────────────────────────
+// ─── Sources card ────────────────────────────────────────────────────────────
+// Claude writes the answer from the tool's text; the card adds only what
+// text cannot: each cited record, and its citations to open in place.
 
-const escapeHtml = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
-/** Inline markdown of one escaped line, citation markers → chips. */
-function inline(s: string): string {
-  return s
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
-    .replace(/\[(\d+)\]\([^)\s]*\)/g, (_m, n) => chip(Number(n)));
-}
-
-function chip(n: number): string {
-  const c = citations.find((x) => x.number === n);
-  const name = escapeHtml(c?.recordName ?? `Source ${n}`);
-  return `<button class="chip" data-cite="${n}" title="${name}">`
-    + `<span class="doc-icon"></span><span class="name">${name}</span>`
-    + `<span class="num">${n}</span></button>`;
-}
-
-/** The answer's markdown: paragraphs, lists, headings, bold, code. */
-function renderMarkdown(md: string): string {
-  const out: string[] = [];
-  let list: "ul" | "ol" | null = null;
-  const close = () => {
-    if (list) out.push(`</${list}>`);
-    list = null;
-  };
-  for (const raw of escapeHtml(md).split("\n")) {
-    const line = raw.trim();
-    const bullet = /^[-*•]\s+(.*)/.exec(line);
-    const ordered = /^\d+[.)]\s+(.*)/.exec(line);
-    const heading = /^#{1,6}\s+(.*)/.exec(line);
-    if (bullet || ordered) {
-      const kind = bullet ? "ul" : "ol";
-      if (list !== kind) {
-        close();
-        out.push(`<${kind}>`);
-        list = kind;
-      }
-      out.push(`<li>${inline((bullet ?? ordered)![1]!)}</li>`);
-    } else {
-      close();
-      if (heading) out.push(`<h4>${inline(heading[1]!)}</h4>`);
-      else if (line) out.push(`<p>${inline(line)}</p>`);
-    }
-  }
-  close();
-  return out.join("");
-}
-
-/** Records in the order the answer first cites them. */
+/** Cited records, in the order the answer first cites them. */
 function sources() {
   const byId = new Map<string, Citation[]>();
   for (const c of citations) {
@@ -112,56 +64,37 @@ function sources() {
   return [...byId.values()];
 }
 
-function showAnswer(answer: string) {
-  $("status").classList.add("hidden");
-  $("body").classList.remove("hidden");
-  $("tab-text").innerHTML = renderMarkdown(answer);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+function showSources() {
   const recs = sources();
-  $("n-sources").textContent = String(recs.length);
-  $("n-citations").textContent = String(citations.length);
-
-  const srcList = $("tab-sources");
-  srcList.replaceChildren(...recs.map((cs) => {
+  $("status").textContent = citations.length === 0
+    ? "PipesHub cited no sources for this answer."
+    : `${plural(citations.length, "citation")} from ${plural(recs.length, "source")}`;
+  $("sources").replaceChildren(...recs.map((cs) => {
     const first = cs[0]!;
-    const row = el("button", "row");
-    row.dataset["cite"] = String(first.number);
-    const info = el("div");
-    info.append(
-      el("div", "title", first.recordName ?? "Untitled"),
-      el("div", "sub", `${cs.length} citation${cs.length > 1 ? "s" : ""}`
-        + (first.extension ? ` · ${first.extension.toUpperCase()}` : "")),
+    const row = el("div", "src");
+    const name = el("button", "src-name");
+    name.dataset["cite"] = String(first.number);
+    name.append(
+      el("span", "doc-icon"),
+      el("span", "title", first.recordName ?? "Untitled"),
+      el("span", "sub", first.extension?.toUpperCase() ?? ""),
     );
-    row.append(el("span", "doc-icon"), info);
-    return row;
-  }));
-
-  $("tab-citations").replaceChildren(...citations.map((c) => {
-    const row = el("button", "row");
-    row.dataset["cite"] = String(c.number);
-    const info = el("div");
-    info.append(
-      el("div", "sub", `${c.number} · ${c.recordName ?? ""}`),
-      el("div", undefined, c.text.length > 220 ? `${c.text.slice(0, 220)}…` : c.text),
-    );
-    row.append(info);
+    const nums = el("div", "nums");
+    nums.append(...cs.map((c) => {
+      const n = el("button", "num", String(c.number));
+      n.dataset["cite"] = String(c.number);
+      n.title = c.text.length > 200 ? `${c.text.slice(0, 200)}…` : c.text;
+      return n;
+    }));
+    row.append(name, nums);
     return row;
   }));
 }
 
 document.addEventListener("click", (e) => {
-  const target = e.target as HTMLElement;
-  const tab = target.closest<HTMLElement>(".tab");
-  if (tab) {
-    for (const t of document.querySelectorAll(".tab")) {
-      t.classList.toggle("active", t === tab);
-    }
-    for (const name of ["text", "sources", "citations"]) {
-      $(`tab-${name}`).classList.toggle("hidden", name !== tab.dataset["tab"]);
-    }
-    return;
-  }
-  const cite = target.closest<HTMLElement>("[data-cite]");
+  const cite = (e.target as HTMLElement).closest<HTMLElement>("[data-cite]");
   if (cite && !cite.closest("#preview")) {
     const c = citations.find((x) => x.number === Number(cite.dataset["cite"]));
     if (c) void openPreview(c);
@@ -226,7 +159,7 @@ async function openPreview(c: Citation) {
   const sameRecord = citations.filter((x) =>
     x.recordId ? x.recordId === c.recordId : x === c
   );
-  $("answer").classList.add("hidden");
+  $("card").classList.add("hidden");
   $("preview").classList.remove("hidden");
   $("p-title").textContent = c.recordName ?? "Source";
   const link = /^https?:\/\//.test(c.webUrl ?? "") ? c.webUrl : answerLinks.get(c.number);
@@ -267,7 +200,7 @@ function showText(c: Citation) {
 function closePreview() {
   previewToken++;
   $("preview").classList.add("hidden");
-  $("answer").classList.remove("hidden");
+  $("card").classList.remove("hidden");
   $("pages").replaceChildren();
   void setDisplayMode("inline");
 }
@@ -382,11 +315,6 @@ function applyHostContext(ctx: McpUiHostContext) {
   if (ctx.displayMode) displayMode = ctx.displayMode;
 }
 
-app.ontoolinput = ({ arguments: args }) => {
-  const q = (args as any)?.query;
-  if (typeof q === "string") $("question").textContent = `· ${q}`;
-};
-
 app.ontoolresult = (result) => {
   const text = (result.content?.find((c) => c.type === "text") as any)?.text;
   let parsed: any = null;
@@ -413,7 +341,7 @@ app.ontoolresult = (result) => {
   for (const [, n, url] of parsed.answer.matchAll(/\[(\d+)\]\(([^)\s]+)\)/g)) {
     if (/^https?:\/\//.test(url)) answerLinks.set(Number(n), url);
   }
-  showAnswer(parsed.answer);
+  showSources();
 };
 
 app.ontoolcancelled = () => {

@@ -31,33 +31,24 @@
   button { font: inherit; color: inherit; cursor: pointer; }
   .hidden { display: none !important; }
 
-  /* Answer card */
-  #answer { padding: 14px 16px 16px; }
-  .brand { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  /* Sources card */
+  #card { padding: 12px 14px; }
+  .brand { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .brand b { color: var(--fg); font-weight: 600; }
-  .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
-  .tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 0; color: var(--muted); }
-  .tab.active { color: var(--fg); border-bottom-color: var(--accent); }
-  .count { font-size: 11px; color: var(--accent); background: var(--accent-bg); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
-  .md p { margin: 0 0 10px; }
-  .md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
-  .md h3, .md h4 { margin: 12px 0 6px; font-size: 15px; }
-  .md code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; }
-  .chip { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; vertical-align: baseline;
-    border: 1px solid var(--border); background: var(--bg-2); border-radius: 6px; padding: 0 6px; margin: 0 2px;
-    font-size: 12px; color: var(--accent); line-height: 20px; }
-  .chip:hover { border-color: var(--accent); }
-  .chip .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .num { display: inline-grid; place-items: center; min-width: 16px; height: 16px; border-radius: 8px; border: 1px solid currentColor; font-size: 10px; line-height: 1; }
+  .src { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+  .src:first-child { border-top: 0; }
+  .src-name { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; background: none; border: 0; padding: 0; color: var(--accent); }
+  .src-name .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src-name:hover .title { text-decoration: underline; }
+  .sub { color: var(--muted); font-size: 11px; }
+  .nums { display: flex; flex-wrap: wrap; gap: 4px; }
+  .num { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-2); color: var(--accent); font-size: 11px; line-height: 1; }
+  .num:hover { border-color: var(--accent); }
   .doc-icon { width: 11px; height: 13px; border-radius: 2px; background: currentColor; opacity: .8; flex: none;
     clip-path: polygon(0 0, 70% 0, 100% 25%, 100% 100%, 0 100%); }
-  .list { display: flex; flex-direction: column; gap: 8px; }
-  .row { display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%;
-    border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 10px 12px; }
-  .row:hover { border-color: var(--accent); }
-  .row .title { font-weight: 600; }
-  .row .sub { color: var(--muted); font-size: 12px; }
-  .status { color: var(--muted); padding: 18px 16px; }
+  .status { color: var(--muted); }
+  #pages > .status { padding: 16px; }
   .error { color: #dc2626; }
 
   /* Record preview */
@@ -91,19 +82,9 @@
 </style>
 </head>
 <body>
-  <div id="answer">
-    <div class="brand"><b>PipesHub</b><span id="question"></span></div>
-    <div id="status" class="status">Asking PipesHub…</div>
-    <div id="body" class="hidden">
-      <div class="tabs">
-        <button class="tab active" data-tab="text">Answer</button>
-        <button class="tab" data-tab="sources">Sources<span class="count" id="n-sources"></span></button>
-        <button class="tab" data-tab="citations">Citations<span class="count" id="n-citations"></span></button>
-      </div>
-      <div id="tab-text" class="md"></div>
-      <div id="tab-sources" class="list hidden"></div>
-      <div id="tab-citations" class="list hidden"></div>
-    </div>
+  <div id="card">
+    <div class="brand"><b>PipesHub sources</b><span id="status" class="status">Asking PipesHub…</span></div>
+    <div id="sources"></div>
   </div>
   <div id="preview" class="hidden">
     <div class="bar">
