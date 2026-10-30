@@ -33,3 +33,6 @@ src/mcp-server/tools.ts
 
 # Hand-maintained: the write scope for the knowledge-base write tools.
 src/mcp-server/scopes.ts
+
+# Hand-maintained: the logo sent as serverInfo.icons.
+src/mcp-server/icons.ts
