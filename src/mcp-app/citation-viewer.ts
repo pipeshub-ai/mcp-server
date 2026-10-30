@@ -148,6 +148,7 @@ async function openPreview(c: Citation) {
   pages.replaceChildren(el("div", "status", "Loading document…"));
   pageEls = [];
   const isPdf = c.mimeType === "application/pdf" || c.extension === "pdf";
+  $("zoom").classList.toggle("hidden", !isPdf);
   if (!c.recordId || !isPdf) {
     showText(c);
     return;
@@ -205,41 +206,85 @@ function renderSide(list: Citation[], active: Citation) {
   }));
 }
 
+// The open PDF: its page shapes, and what draws a page as it scrolls in.
+let aspects: number[] = [];
+let drawPages: IntersectionObserver | null = null;
+/** 1 fits the page to the pane's width. */
+let zoom = 1;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+
 async function renderPdf(bytes: Uint8Array, list: Citation[], token: number) {
   const pdf = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise;
   if (token !== previewToken) return;
   const pages = $("pages");
-  const width = Math.min(pages.clientWidth - 32, 1000);
-  pages.replaceChildren();
-
-  // Placeholders sized from each page; canvases are drawn as they scroll in.
-  const draw = new IntersectionObserver((entries) => {
+  drawPages?.disconnect();
+  drawPages = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
-      draw.unobserve(entry.target);
+      drawPages?.unobserve(entry.target);
       void drawPage(pdf, entry.target as HTMLElement);
     }
   }, { root: pages, rootMargin: "800px 0px" });
 
+  const boxes: HTMLElement[] = [];
+  const shapes: number[] = [];
   for (let n = 1; n <= pdf.numPages; n++) {
-    const page = await pdf.getPage(n);
+    const vp = (await pdf.getPage(n)).getViewport({ scale: 1 });
     if (token !== previewToken) return;
-    const vp = page.getViewport({ scale: 1 });
     const box = el("div", "page");
     box.dataset["page"] = String(n);
-    box.style.width = `${width}px`;
-    box.style.height = `${(width * vp.height) / vp.width}px`;
     for (const c of list) {
       if (c.pageNum?.[0] === n && c.boundingBox) box.append(highlight(c));
     }
-    pages.append(box);
-    pageEls.push(box);
-    draw.observe(box);
+    boxes.push(box);
+    shapes.push(vp.height / vp.width);
   }
+  pages.replaceChildren(...boxes);
+  pageEls = boxes;
+  aspects = shapes;
+  zoom = 1;
+  layoutPages();
 }
+
+/**
+ * Sizes every page to the pane's width times `zoom`, keeping the reader's
+ * place, and redraws pages as they come into view. Runs again when the host
+ * resizes the view: it may still be growing into fullscreen on first layout.
+ */
+function layoutPages() {
+  const pages = $("pages");
+  if (pageEls.length === 0 || pages.clientWidth === 0) return;
+  const place = pages.scrollTop / Math.max(1, pages.scrollHeight);
+  const width = Math.round(Math.min(pages.clientWidth - 32, 1000) * zoom);
+  pageEls.forEach((box, i) => {
+    box.style.width = `${width}px`;
+    box.style.height = `${width * aspects[i]!}px`;
+    box.querySelector("canvas")?.remove();
+    drawPages?.observe(box);
+  });
+  pages.scrollTop = place * pages.scrollHeight;
+  $("z-level").textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function setZoom(next: number) {
+  zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(next * 4) / 4));
+  layoutPages();
+}
+$("z-in").onclick = () => setZoom(zoom + 0.25);
+$("z-out").onclick = () => setZoom(zoom - 0.25);
+$("z-fit").onclick = () => setZoom(1);
+
+let relayout: ReturnType<typeof setTimeout> | undefined;
+window.addEventListener("resize", () => {
+  clearTimeout(relayout);
+  relayout = setTimeout(layoutPages, 150);
+});
 
 async function drawPage(pdf: pdfjs.PDFDocumentProxy, box: HTMLElement) {
   const page = await pdf.getPage(Number(box.dataset["page"]));
+  // A layout during the await may have queued this page again.
+  if (box.querySelector("canvas")) return;
   const ratio = window.devicePixelRatio || 1;
   const vp = page.getViewport({ scale: (box.clientWidth * ratio) / page.getViewport({ scale: 1 }).width });
   const canvas = el("canvas");
