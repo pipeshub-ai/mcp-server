@@ -30,12 +30,16 @@ export const FILE_CACHE_TTL_MS = 2 * 60_000;
 /** Bytes all cached files may hold together; the oldest go first. */
 export const FILE_CACHE_MAX_BYTES = 200 * 1024 * 1024;
 
-/** Who is asking and for what: the credential's hash, the server, the record. */
+/**
+ * Who is asking and for what: the bearer token's digest, the server, the
+ * record. A caller without a bearer token (OAuth client credentials, which
+ * this server does not recommend) is not cached: its secret stays out of keys.
+ */
 async function cacheKey(client: PipeshubCore, recordId: string): Promise<string | undefined> {
   const security: any = await extractSecurity(client._options.security as any);
-  const credential = security?.bearerAuth || (security?.oauth2 ? JSON.stringify(security.oauth2) : "");
-  if (!credential) return undefined;
-  const who = createHash("sha256").update(String(credential)).digest("hex");
+  const token = typeof security?.bearerAuth === "string" ? security.bearerAuth : "";
+  if (!token) return undefined;
+  const who = createHash("sha256").update(token).digest("hex");
   return `${who}|${client._baseURL ?? ""}|${recordId}`;
 }
 
