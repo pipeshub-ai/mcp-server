@@ -13,6 +13,7 @@ import { trimCitations } from "../src/mcp-server/tools/_helpers.js";
 import { groupSearchResults } from "../src/mcp-server/tools/_searchResults.js";
 import {
   clearPreviewCache,
+  FILE_CACHE_MAX_BYTES,
   PREVIEW_CHUNK_BYTES,
   tool$pipeshubPreviewRecord,
 } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
@@ -321,6 +322,22 @@ describe("pipeshub_preview_record", () => {
       slices++;
     }
     expect({ slices, downloads: downloads.n }).toEqual({ slices: 4, downloads: 1 });
+  });
+
+  test("a file larger than the cache can hold is refused before its body is read", async () => {
+    // A body that never ends: reading it would hang the test.
+    const body = new ReadableStream({ pull: () => new Promise<void>(() => {}) });
+    const fetcher = async () => new Response(body, {
+      headers: { "content-type": "application/pdf", "content-length": String(FILE_CACHE_MAX_BYTES + 1) },
+    });
+    const core = new PipeshubCore({
+      serverURL: "http://pipeshub.test/api/v1",
+      security: { bearerAuth: "t" },
+      httpClient: new HTTPClient({ fetcher }),
+    });
+    const out = await tool$pipeshubPreviewRecord.tool(core, { recordId: "r1", offset: 0 }, ctx());
+    expect(out.isError).toBe(true);
+    expect((out.content[0] as { text: string }).text).toContain("too large to preview");
   });
 
   test("one user's cached file never answers another user", async () => {

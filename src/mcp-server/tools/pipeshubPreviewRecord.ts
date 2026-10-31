@@ -61,8 +61,17 @@ async function download(client: PipeshubCore, recordId: string, signal: AbortSig
   if (!result.ok) throw new Error(result.error.message);
   const response = result.value;
   if (!response.ok) throw new Error(`Could not load the record (HTTP ${response.status}).`);
+  // A file the cache cannot hold would be evicted at once and downloaded
+  // again for every slice, so it is refused; the viewer shows the quote.
+  const tooLarge = new Error("The file is too large to preview here. Open it in PipesHub.");
+  if (Number(response.headers.get("content-length")) > FILE_CACHE_MAX_BYTES) {
+    await response.body?.cancel();
+    throw tooLarge;
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > FILE_CACHE_MAX_BYTES) throw tooLarge;
   return {
-    bytes: new Uint8Array(await response.arrayBuffer()),
+    bytes,
     mimeType: (response.headers.get("content-type") ?? "").split(";")[0] ?? "",
   };
 }

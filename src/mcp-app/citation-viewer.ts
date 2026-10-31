@@ -669,8 +669,10 @@ const QUOTE_SEARCH_MAX_PAGES = 200;
 
 /**
  * Gives citations that came without a box (a Word record PipesHub converted
- * to PDF) one: the page whose text holds most of the quote, and the extent
- * of the lines on it that the quote contains.
+ * to PDF) one: the cited page if the quote is found there, else the page
+ * whose text holds most of the quote, and the extent of the lines on it that
+ * the quote contains. The cited page comes first so text repeated on an
+ * earlier page, such as a header, does not move the citation.
  */
 async function locateQuotes(list: Citation[], token: number) {
   const pending = list.filter((c) => !c.boundingBox && c.text.trim().length >= 8);
@@ -685,17 +687,21 @@ async function locateQuotes(list: Citation[], token: number) {
   }
   for (const c of pending) {
     const quote = c.text.toLowerCase().replace(/\s+/g, " ");
-    let best: { page: number; score: number; hits: any[] } | null = null;
-    texts.forEach(({ items }, i) => {
+    let best: { page: number; score: number; hits: any[] } | undefined;
+    let onCitedPage: typeof best;
+    for (const [i, { items }] of texts.entries()) {
       const hits = items.filter((it) => {
         const t = String(it.str ?? "").toLowerCase().replace(/\s+/g, " ").trim();
         return t.length >= 8 && quote.includes(t);
       });
       const score = hits.reduce((n, it) => n + String(it.str).length, 0);
-      if (score > (best?.score ?? 0)) best = { page: i + 1, score, hits };
-    });
-    if (!best) continue;
-    const { page, hits } = best as { page: number; hits: any[] };
+      const found = { page: i + 1, score, hits };
+      if (score > 0 && found.page === c.pageNum?.[0]) onCitedPage = found;
+      if (score > (best?.score ?? 0)) best = found;
+    }
+    const chosen = onCitedPage ?? best;
+    if (!chosen) continue;
+    const { page, hits } = chosen;
     const vp = texts[page - 1]!.vp;
     const rects = hits.map((it) => vp.convertToViewportRectangle([
       it.transform[4], it.transform[5], it.transform[4] + it.width, it.transform[5] + it.height,
