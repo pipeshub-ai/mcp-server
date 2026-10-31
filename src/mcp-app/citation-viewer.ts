@@ -121,41 +121,19 @@ const files = new Map<string, Promise<{ bytes: Uint8Array; mimeType: string }>>(
 /** Told after each slice of a file arrives; the loader shows it. */
 let onLoadProgress: ((recordId: string, received: number, total: number) => void) | undefined;
 
-/** The animated PipesHub mark, its nine tiles lighting in turn. */
-const LOGO_TILES = [
-  "M57.3 11.7v11.8H69V11.7z", "M71.1 31.7l8.9 9-8.9 8.9-8.9-8.9z", "M57.3 58.7v11.8H69V58.7z",
-  "M40.5 62.1l8.9 8.9-8.9 8.9-8.9-8.9z", "M11.6 58.7v11.8h11.8V58.7z", "M17.8 40.7l-8.9-8.9L0 40.7l8.9 8.9z",
-  "M11.6 11.7v11.8h11.8V11.7z", "M40.5 0l8.9 8.9-8.9 9-8.9-9z", "M40 31.8l8.9 8.9-8.9 8.9-8.9-8.9z",
-];
-
-const size = (n: number) =>
-  n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
-
-/** What the preview shows while a file downloads: the mark, the name, and how far it is. */
+/** What the preview shows while a file downloads: a progress bar and "Loading...". */
 function showLoader(c: Citation) {
-  const svgNs = "http://www.w3.org/2000/svg";
-  const logo = document.createElementNS(svgNs, "svg");
-  logo.setAttribute("viewBox", "0 0 80 80");
-  logo.setAttribute("class", "loader-logo");
-  LOGO_TILES.forEach((d, i) => {
-    const tile = document.createElementNS(svgNs, "path");
-    tile.setAttribute("d", d);
-    tile.style.animationDelay = `${i * 110}ms`;
-    logo.append(tile);
-  });
   const bar = el("div", "loader-bar");
   const fill = el("div", "loader-fill");
   bar.append(fill);
-  const note = el("div", "loader-note", "Starting download…");
   const box = el("div", "loader");
   box.setAttribute("role", "status");
-  box.append(logo, el("div", "loader-name", `Opening ${c.recordName ?? "the document"}`), bar, note);
+  box.append(bar, el("div", "loader-note", "Loading..."));
   $("pages").replaceChildren(box);
   onLoadProgress = (recordId, received, total) => {
     if (recordId !== c.recordId || !box.isConnected || total <= 0) return;
     bar.classList.add("known");
     fill.style.width = `${Math.min(100, (received / total) * 100)}%`;
-    note.textContent = `${size(received)} of ${size(total)}`;
   };
 }
 
