@@ -37,9 +37,9 @@ const CURATED = [
   "pipeshub_connect_source",
   "pipeshub_chat",
   "pipeshub_agents",
-  "pipeshub_show_citations",
-  "pipeshub_preview_record",
 ];
+// A client that shows MCP Apps views also gets `pipeshub_show_citations`
+// and `pipeshub_preview_record` (citationViewer.test.ts).
 
 interface ApiCall {
   path: string;

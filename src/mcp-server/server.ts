@@ -1,8 +1,14 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  CallToolResult,
+  InitializeRequest,
+  InitializeRequestSchema,
+  InitializeResult,
+} from "@modelcontextprotocol/sdk/types.js";
 
 import { withoutChatMentions } from "./chat-mentions.js";
 import { chatEnabledFromEnv } from "./chat-setting.js";
-import { pipeshubInstructions } from "./instructions.js";
+import { pipeshubInstructions, SHOW_CITATIONS_STEP } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
 import { bindNewRequestId } from "../hooks/request-context.js";
 import { SDKOptions } from "../lib/config.js";
@@ -14,7 +20,7 @@ import {
   createRegisterResourceTemplate,
 } from "./resources.js";
 import { MCPScope } from "./scopes.js";
-import { createRegisterTool, registerDynamicTools } from "./tools.js";
+import { createRegisterTool, registerDynamicTools, ToolDefinition } from "./tools.js";
 import { tool$pipeshubChat } from "./tools/pipeshubChat.js";
 import { tool$pipeshubSearch } from "./tools/pipeshubSearch.js";
 import { tool$pipeshubDownloadRecord } from "./tools/pipeshubDownloadRecord.js";
@@ -24,7 +30,14 @@ import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
 import { tool$pipeshubPreviewRecord } from "./tools/pipeshubPreviewRecord.js";
 import { tool$pipeshubShowCitations } from "./tools/pipeshubShowCitations.js";
-import { registerCitationViewer } from "./citation-viewer.js";
+import {
+  callerKey,
+  clientShowsApps,
+  recallApps,
+  registerCitationViewer,
+  rememberApps,
+} from "./citation-viewer.js";
+import { withoutCitations } from "./cite.js";
 import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.js";
 import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "./tools/pipeshubIndexingStatus.js";
@@ -55,6 +68,11 @@ export function createMCPServer(deps: {
    * `PIPESHUB_MCP_CHAT` environment variable, which defaults to on.
    */
   chat?: boolean | undefined;
+  /**
+   * Whether the client shows MCP Apps views, such as the citations card.
+   * Unset: the client's `initialize` says; until it has, yes.
+   */
+  apps?: boolean | undefined;
   /**
    * Overrides DEFAULT_MAX_TOOL_INPUT_ELEMENTS. A number of at least 1, or
    * `Infinity` for no cap. A call over the cap is answered with a tool error
@@ -126,9 +144,36 @@ export function createMCPServer(deps: {
   // Without chat, a description that names pipeshub_chat is mounted with the
   // mention cut, so no tool points the agent at one it cannot see.
   const mount: typeof tool = chat ? tool : (def) => tool(withoutChatMentions(def));
+
+  // Whether the client shows MCP Apps views. One that does not gets no
+  // citation tools, no cite codes and no step asking for the card, so it
+  // makes no extra call. The host may say; else the client's `initialize`
+  // does, kept per caller for a stateless server's later requests.
+  let apps = deps.apps;
+  let caller: string | undefined;
+  // Looked up when a request needs it: a client may have no credential yet.
+  const lookUpCaller = () => {
+    try {
+      return callerKey(resolveClient());
+    } catch {
+      return undefined;
+    }
+  };
+  const showsApps = () => apps ?? recallApps(caller ??= lookUpCaller()) ?? true;
+  const cited = <T extends ToolDefinition<any>>(def: T): T => {
+    const run = def.tool as (...a: unknown[]) => Promise<CallToolResult>;
+    return {
+      ...def,
+      tool: async (...a: unknown[]) => {
+        const result = await run(...a);
+        return showsApps() ? result : withoutCitations(result);
+      },
+    };
+  };
+
   mount(tool$pipeshubSources);          // 1. discover sources + models
-  mount(tool$pipeshubSearch);           // 2. find records for a question
-  mount(tool$pipeshubGetRecordContent); // 3. read / navigate / look up records
+  mount(cited(tool$pipeshubSearch));    // 2. find records for a question
+  mount(cited(tool$pipeshubGetRecordContent)); // 3. read / navigate / look up records
   mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
   // Filling the workspace: a server started with `--scope read` leaves out
@@ -138,18 +183,42 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubIndexingStatus);   // 8. wait until they are searchable
   mount(tool$pipeshubConnectSource);    // 9. link for the human to connect a tool
   if (chat) {
-    tool(tool$pipeshubChat);            // 10. optional: PipesHub's assistant
+    tool(cited(tool$pipeshubChat));     // 10. optional: PipesHub's assistant
     tool(tool$pipeshubAgents);          // 11. discover org agents (for chat)
   }
-  // The answer's sources, shown after it: the model passes the cite codes of
-  // the passages it relied on. MCP Apps hosts show them in the citation
+  // The answer's sources, shown before it: the model passes the cite codes
+  // of the passages it relies on. MCP Apps hosts show them in the citation
   // viewer, which loads a cited file through the app-only preview tool.
   mount(tool$pipeshubShowCitations);
   tool(tool$pipeshubPreviewRecord);
   registerCitationViewer(server);
+  // Listed, and callable, only for a client that shows views. A getter, so
+  // it follows the client's answer without a list-changed notification.
+  const registered = (server as unknown as {
+    _registeredTools: Record<string, RegisteredTool | undefined>;
+  })._registeredTools;
+  for (const name of [tool$pipeshubShowCitations.name, tool$pipeshubPreviewRecord.name]) {
+    if (registered[name]) Object.defineProperty(registered[name], "enabled", { get: showsApps });
+  }
+
+  const initialize = (server.server as unknown as {
+    _oninitialize(request: InitializeRequest): Promise<InitializeResult>;
+  })._oninitialize.bind(server.server);
+  server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+    const result = await initialize(request);
+    if (deps.apps === undefined) {
+      apps = clientShowsApps(request.params.capabilities);
+      rememberApps(caller ??= lookUpCaller(), apps);
+    }
+    // Cut from the text sent, which a host may have added to.
+    if (!showsApps() && result.instructions) {
+      result.instructions = result.instructions.replace(SHOW_CITATIONS_STEP, "");
+    }
+    return result;
+  });
 
   // Curated prompt: user-invokable tool-routing guidance.
-  prompt(createPipeshubAssistantPrompt({ chat }));
+  prompt(createPipeshubAssistantPrompt({ chat, showsApps }));
 
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);

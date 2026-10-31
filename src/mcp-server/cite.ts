@@ -1,3 +1,5 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
 // Cite codes: where a passage is, in one short string a model can copy.
 //
 // Search passages and chat citations carry one each. The model passes the
@@ -86,3 +88,27 @@ export const SHOW_CITATIONS_HINT = "Before you write your answer, call `pipeshub
 
 /** A cite for a whole record, when what the answer relied on was a read of it. */
 export const recordCite = (recordId: string) => `${recordId}....`;
+
+/**
+ * A result without what only the citations card uses, for a client that
+ * shows no MCP Apps views: the `cite` codes, the hint to show them, and a
+ * record read's closing `Cite:` line.
+ */
+export function withoutCitations(result: CallToolResult): CallToolResult {
+  return {
+    ...result,
+    content: result.content.map((c) => c.type === "text" ? { ...c, text: textWithoutCitations(c.text) } : c),
+  };
+}
+
+function textWithoutCitations(text: string): string {
+  const citeLine = text.lastIndexOf("\nCite: ");
+  if (citeLine >= 0 && text.endsWith(SHOW_CITATIONS_HINT)) return text.slice(0, citeLine);
+  if (!text.startsWith("{")) return text;
+  try {
+    return JSON.stringify(JSON.parse(text), (key, value) =>
+      key === "cite" || (key === "next" && value === SHOW_CITATIONS_HINT) ? undefined : value);
+  } catch {
+    return text;
+  }
+}

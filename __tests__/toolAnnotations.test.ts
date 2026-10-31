@@ -34,7 +34,10 @@ async function listedTools() {
   const { server } = createMCPServer({ logger: createConsoleLogger("error") });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
-  const client = new Client({ name: "test", version: "0" });
+  // A client that shows MCP Apps views, so the citation tools are listed too.
+  const client = new Client({ name: "test", version: "0" }, {
+    capabilities: { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
+  });
   await client.connect(clientSide);
   const { tools } = await client.listTools();
   await client.close();

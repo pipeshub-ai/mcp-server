@@ -72,7 +72,10 @@ async function connect(
   });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
-  const client = new Client({ name: "test", version: "0" });
+  // A client that shows MCP Apps views, so it is offered every curated tool.
+  const client = new Client({ name: "test", version: "0" }, {
+    capabilities: { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
+  });
   await client.connect(clientSide);
   return { client, backend: be };
 }

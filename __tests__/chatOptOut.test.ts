@@ -6,7 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { PipeshubCore } from "../src/core.js";
 import { CHAT_ENV, chatEnabledFromEnv } from "../src/mcp-server/chat-setting.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
-import { pipeshubInstructions, PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
+import { pipeshubInstructions, PIPESHUB_INSTRUCTIONS, SHOW_CITATIONS_STEP } from "../src/mcp-server/instructions.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
 import { withoutChatMentions } from "../src/mcp-server/chat-mentions.js";
 
@@ -83,7 +83,8 @@ describe("a server without chat", () => {
   test("its instructions and prompt never name a tool it does not mount", async () => {
     const client = await connect(createMCPServer({ logger, getSDK: sdk, chat: false }).server);
     const instructions = client.getInstructions() ?? "";
-    expect(instructions).toBe(pipeshubInstructions({ chat: false }));
+    // A client that shows no MCP Apps views is not asked for the citations card.
+    expect(instructions).toBe(pipeshubInstructions({ chat: false }).replace(SHOW_CITATIONS_STEP, ""));
     const mounted = new Set((await client.listTools()).tools.map((t) => t.name));
     for (const named of instructions.match(/pipeshub_[a-z_]+/g) ?? []) {
       expect(`${named}: ${mounted.has(named)}`).toBe(`${named}: true`);

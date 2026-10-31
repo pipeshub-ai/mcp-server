@@ -13,6 +13,14 @@ export interface InstructionOptions {
  * that names \`pipeshub_chat\` or \`pipeshub_agents\` is left out, so the
  * text never points at a tool the host cannot see.
  */
+/**
+ * The step that asks for the citations card. A client that shows no MCP Apps
+ * views is sent the instructions without it (server.ts).
+ */
+export const SHOW_CITATIONS_STEP = `4. Before writing the answer, call \`pipeshub_show_citations\` once with
+   the \`cite\` and \`quote\` of each passage it will rely on; then answer.
+`;
+
 export function pipeshubInstructions({ chat }: InstructionOptions): string {
   const contentTools = chat
     ? "\`pipeshub_search\` / \`pipeshub_chat\`"
@@ -40,9 +48,7 @@ knowledge. Retrieve and read it yourself:
 3. Before answering, list the parts of the question and confirm each is
    answered from what you read. For "all", "every" or "how many", do not
    stop at the first matches.
-4. Before writing the answer, call \`pipeshub_show_citations\` once with
-   the \`cite\` and \`quote\` of each passage it will rely on; then answer.
-
+${SHOW_CITATIONS_STEP}
 A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
 instead, and "how many / all / every" with \`mode:"navigate"\` (below).
 

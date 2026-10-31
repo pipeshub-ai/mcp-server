@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
-import { decodeCite, encodeCite } from "../src/mcp-server/cite.js";
-import { CITATION_VIEWER_URI } from "../src/mcp-server/citation-viewer.js";
+import { decodeCite, encodeCite, SHOW_CITATIONS_HINT, withoutCitations } from "../src/mcp-server/cite.js";
+import { CITATION_VIEWER_URI, clearAppsMemory } from "../src/mcp-server/citation-viewer.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
+import { SHOW_CITATIONS_STEP } from "../src/mcp-server/instructions.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
 import { trimCitations } from "../src/mcp-server/tools/_helpers.js";
 import { groupSearchResults } from "../src/mcp-server/tools/_searchResults.js";
@@ -30,14 +32,18 @@ const BOX = [
   { x: 0.1437, y: 0.3208, _id: "d" },
 ];
 
-async function connect(chat = true) {
+const SHOWS_APPS = {
+  extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } },
+};
+
+async function connect(chat = true, capabilities: ClientCapabilities = SHOWS_APPS) {
   const { server } = createMCPServer({
     logger: createConsoleLogger("error"),
     chat,
   });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
-  const client = new Client({ name: "test", version: "0" });
+  const client = new Client({ name: "test", version: "0" }, { capabilities });
   await client.connect(clientSide);
   return client;
 }
@@ -81,6 +87,83 @@ describe("citation viewer registration", () => {
       .not.toContain("pipeshub_chat");
     const { contents } = await client.readResource({ uri: CITATION_VIEWER_URI });
     expect(contents).toHaveLength(1);
+  });
+});
+
+describe("a client without MCP Apps views", () => {
+  beforeEach(() => clearAppsMemory());
+  const CITATION_TOOLS = ["pipeshub_show_citations", "pipeshub_preview_record"];
+  const serverFor = (bearerAuth: string) =>
+    createMCPServer({
+      logger: createConsoleLogger("error"),
+      security: { bearerAuth },
+      serverURL: "http://pipeshub.test/api/v1",
+    }).server;
+
+  async function initialized(bearerAuth: string, capabilities: ClientCapabilities) {
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await serverFor(bearerAuth).connect(serverSide);
+    const client = new Client({ name: "test", version: "0" }, { capabilities });
+    await client.connect(clientSide);
+    return client;
+  }
+
+  /** tools/list on a fresh server with no initialize, as a stateless server sees it. */
+  async function listedStateless(bearerAuth: string): Promise<string[]> {
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await serverFor(bearerAuth).connect(serverSide);
+    const reply = new Promise<string[]>((resolve) => {
+      clientSide.onmessage = (m) =>
+        resolve(((m as { result: { tools: Array<{ name: string }> } }).result.tools).map((t) => t.name));
+    });
+    await clientSide.start();
+    await clientSide.send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
+    return reply;
+  }
+
+  test("gets no citation tools and no step asking for the card, so it makes no extra call", async () => {
+    const client = await initialized("tok-a", {});
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    expect(names).toContain("pipeshub_search");
+    for (const name of CITATION_TOOLS) expect(names).not.toContain(name);
+    expect(client.getInstructions()).not.toContain("pipeshub_show_citations");
+    const call = await client.callTool({
+      name: "pipeshub_show_citations",
+      arguments: { citations: [{ cite: `${RID}....` }] },
+    });
+    expect(call.isError).toBe(true);
+  });
+
+  test("a client that shows views keeps them, and the step", async () => {
+    const client = await initialized("tok-a", SHOWS_APPS);
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    for (const name of CITATION_TOOLS) expect(names).toContain(name);
+    expect(client.getInstructions()).toContain(SHOW_CITATIONS_STEP);
+  });
+
+  test("a stateless server's later request knows what the caller's initialize said", async () => {
+    await initialized("tok-a", {});
+    await initialized("tok-b", SHOWS_APPS);
+    const a = await listedStateless("tok-a");
+    expect(a).toContain("pipeshub_search");
+    for (const name of CITATION_TOOLS) expect(a).not.toContain(name);
+    for (const name of CITATION_TOOLS) expect(await listedStateless("tok-b")).toContain(name);
+    // A caller never seen at initialize keeps the card.
+    for (const name of CITATION_TOOLS) expect(await listedStateless("tok-c")).toContain(name);
+  });
+
+  test("its results carry no cite codes, no hint and no Cite line", () => {
+    const search = JSON.stringify({
+      records: [{ recordId: RID, passages: [{ text: "x", cite: `${RID}.1.2..` }] }],
+      next: SHOW_CITATIONS_HINT,
+    });
+    const read = `Record ID: ${RID}\n\nbody\nCite: ${RID}.... (this record; a search passage's own cite marks the passage). `
+      + SHOW_CITATIONS_HINT;
+    const out = withoutCitations({
+      content: [{ type: "text", text: search }, { type: "text", text: read }],
+    }).content.map((c) => (c as { text: string }).text);
+    expect(JSON.parse(out[0]!)).toEqual({ records: [{ recordId: RID, passages: [{ text: "x" }] }] });
+    expect(out[1]).toBe(`Record ID: ${RID}\n\nbody`);
   });
 });
 
