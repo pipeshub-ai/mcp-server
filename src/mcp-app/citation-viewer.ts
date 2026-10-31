@@ -101,8 +101,6 @@ function showCitations() {
     const body = el("div", "body");
     body.append(top, el("div", "quote", c.text));
     row.append(el("span", "num", String(c.number)), body, el("span", "go", "›"));
-    // A pointer on a row is a likely click: start its file now if it waits in the queue.
-    if (previewable(c)) row.onpointerenter = () => void loadFile(c.recordId!).catch(() => {});
     return row;
   }));
 }
@@ -120,6 +118,47 @@ document.addEventListener("click", (e) => {
 const files = new Map<string, Promise<{ bytes: Uint8Array; mimeType: string }>>();
 
 /** The record's file, in slices from the app-only preview tool. */
+/** Told after each slice of a file arrives; the loader shows it. */
+let onLoadProgress: ((recordId: string, received: number, total: number) => void) | undefined;
+
+/** The animated PipesHub mark, its nine tiles lighting in turn. */
+const LOGO_TILES = [
+  "M57.3 11.7v11.8H69V11.7z", "M71.1 31.7l8.9 9-8.9 8.9-8.9-8.9z", "M57.3 58.7v11.8H69V58.7z",
+  "M40.5 62.1l8.9 8.9-8.9 8.9-8.9-8.9z", "M11.6 58.7v11.8h11.8V58.7z", "M17.8 40.7l-8.9-8.9L0 40.7l8.9 8.9z",
+  "M11.6 11.7v11.8h11.8V11.7z", "M40.5 0l8.9 8.9-8.9 9-8.9-9z", "M40 31.8l8.9 8.9-8.9 8.9-8.9-8.9z",
+];
+
+const size = (n: number) =>
+  n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
+
+/** What the preview shows while a file downloads: the mark, the name, and how far it is. */
+function showLoader(c: Citation) {
+  const svgNs = "http://www.w3.org/2000/svg";
+  const logo = document.createElementNS(svgNs, "svg");
+  logo.setAttribute("viewBox", "0 0 80 80");
+  logo.setAttribute("class", "loader-logo");
+  LOGO_TILES.forEach((d, i) => {
+    const tile = document.createElementNS(svgNs, "path");
+    tile.setAttribute("d", d);
+    tile.style.animationDelay = `${i * 110}ms`;
+    logo.append(tile);
+  });
+  const bar = el("div", "loader-bar");
+  const fill = el("div", "loader-fill");
+  bar.append(fill);
+  const note = el("div", "loader-note", "Starting download…");
+  const box = el("div", "loader");
+  box.setAttribute("role", "status");
+  box.append(logo, el("div", "loader-name", `Opening ${c.recordName ?? "the document"}`), bar, note);
+  $("pages").replaceChildren(box);
+  onLoadProgress = (recordId, received, total) => {
+    if (recordId !== c.recordId || !box.isConnected || total <= 0) return;
+    bar.classList.add("known");
+    fill.style.width = `${Math.min(100, (received / total) * 100)}%`;
+    note.textContent = `${size(received)} of ${size(total)}`;
+  };
+}
+
 function loadFile(recordId: string) {
   let file = files.get(recordId);
   if (!file) {
@@ -140,6 +179,7 @@ function loadFile(recordId: string) {
         parts.push(Uint8Array.from(atob(sc.bytes), (ch) => ch.charCodeAt(0)));
         mimeType = sc.mimeType;
         offset = sc.nextOffset;
+        onLoadProgress?.(recordId, offset ?? sc.totalBytes, sc.totalBytes);
       }
       const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
       let at = 0;
@@ -153,30 +193,6 @@ function loadFile(recordId: string) {
     file.catch(() => files.delete(recordId));
   }
   return file;
-}
-
-/** Documents fetched ahead of a click: a few, so an unopened card costs little. */
-const PREFETCH_MAX_RECORDS = 5;
-
-/** Whether a citation opens as a rendered file, so its file is worth fetching. */
-const previewable = (c: Citation) =>
-  c.recordId !== undefined && c.previewRenderable !== false && kindOf(c) !== "text";
-
-/**
- * Fetches the cited files while the list is read, one at a time in citation
- * order, so a click opens a file already here. A file that fails is dropped
- * from the cache, and the click tries again.
- */
-async function prefetchFiles() {
-  const ids = [...new Set(citations.filter(previewable).map((c) => c.recordId!))]
-    .slice(0, PREFETCH_MAX_RECORDS);
-  for (const id of ids) {
-    try {
-      await loadFile(id);
-    } catch {
-      // Opening the citation shows the error, or the quote.
-    }
-  }
 }
 
 let displayMode: string = "inline";
@@ -222,22 +238,22 @@ async function openPreview(c: Citation) {
   $("p-open").classList.toggle("hidden", !link);
   $("p-open").onclick = () => link && app.openLink({ url: link });
   renderSide(sameRecord, c);
-  await setDisplayMode("fullscreen");
-  $("preview").classList.toggle("inline", displayMode !== "fullscreen");
-
-  const pages = $("pages");
-  pages.replaceChildren(el("div", "status", "Loading document…"));
   pageEls = [];
   docKind = kindOf(c);
   $("zoom").classList.toggle("hidden", docKind !== "pdf");
   // Like PipesHub's own preview: a record it cannot render (a page or
   // message in an external app, not a file) opens as its quote, with Open.
-  if (!c.recordId || docKind === "text" || c.previewRenderable === false) {
-    showText(c);
-    return;
-  }
+  // Anything else downloads now, on the click, and never before it.
+  const file = !c.recordId || docKind === "text" || c.previewRenderable === false
+    ? null
+    : loadFile(c.recordId);
+  if (file) showLoader(c);
+  else showText(c);
+  await setDisplayMode("fullscreen");
+  $("preview").classList.toggle("inline", displayMode !== "fullscreen");
+  if (!file || token !== previewToken) return;
   try {
-    const { bytes, mimeType } = await loadFile(c.recordId);
+    const { bytes, mimeType } = await file;
     if (token !== previewToken) return;
     // What the file is, when its type says so: PipesHub may store a Word
     // upload as the PDF it converted it to.
@@ -659,7 +675,6 @@ app.ontoolresult = (result) => {
   }
   citations = fromMeta;
   showCitations();
-  void prefetchFiles();
 };
 
 app.ontoolcancelled = () => {

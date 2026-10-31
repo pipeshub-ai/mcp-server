@@ -72,6 +72,19 @@
   #pages > .status { padding: 4px 4px 14px; }
   .error { color: #e5484d; }
 
+  /* Download loader: the PipesHub mark's tiles light in turn, then a progress bar. */
+  .loader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 60%; padding: 48px 16px; text-align: center; }
+  .loader-logo { width: 56px; height: 56px; filter: drop-shadow(0 6px 16px rgba(61, 217, 160, 0.25)); }
+  .loader-logo path { fill: #70CDA7; transform-box: fill-box; transform-origin: center; animation: tile 1s ease-in-out infinite; }
+  @keyframes tile { 0%, 100% { opacity: .25; transform: scale(.82); } 45% { opacity: 1; transform: scale(1); } }
+  .loader-name { font-weight: 700; font-size: 14px; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loader-bar { width: 220px; height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; position: relative; }
+  .loader-fill { height: 100%; width: 0; border-radius: 2px; background: var(--accent); transition: width .25s ease; }
+  .loader-bar:not(.known) .loader-fill { width: 35%; animation: sweep 1.2s ease-in-out infinite; }
+  @keyframes sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
+  .loader-note { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { .loader-logo path, .loader-bar .loader-fill { animation: none; opacity: 1; transform: none; } }
+
   /* Citations card */
   #card { padding: 14px; }
   .card-head { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; }
