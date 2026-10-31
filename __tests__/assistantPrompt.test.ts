@@ -5,7 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { PipeshubCore } from "../src/core.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
-import { PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
+import { PIPESHUB_INSTRUCTIONS, SHOW_CITATIONS_STEP } from "../src/mcp-server/instructions.js";
 import { createRegisterPrompt, formatResult } from "../src/mcp-server/prompts.js";
 import type { MCPScope } from "../src/mcp-server/scopes.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
@@ -24,6 +24,9 @@ async function connect(server: McpServer): Promise<Client> {
   await client.connect(clientSide);
   return client;
 }
+
+// The test client shows no MCP Apps views, so it is not asked for the citations card.
+const INSTRUCTIONS = PIPESHUB_INSTRUCTIONS.replace(SHOW_CITATIONS_STEP, "");
 
 const textOf = (r: Awaited<ReturnType<Client["getPrompt"]>>) => {
   const c = r.messages[0]?.content;
@@ -47,10 +50,10 @@ describe("pipeshub-assistant", () => {
     const r = await client.getPrompt({ name: "pipeshub-assistant", arguments: {} });
     expect(r.messages).toHaveLength(1);
     expect(r.messages[0]?.role).toBe("user");
-    expect(textOf(r)).toBe(PIPESHUB_INSTRUCTIONS);
+    expect(textOf(r)).toBe(INSTRUCTIONS);
     // The same text is sent as the server's instructions at initialize, so the
     // two cannot drift apart.
-    expect(client.getInstructions()).toBe(PIPESHUB_INSTRUCTIONS);
+    expect(client.getInstructions()).toBe(INSTRUCTIONS);
   });
 
   test("with a query it applies the guidance to that request", async () => {
@@ -60,7 +63,7 @@ describe("pipeshub-assistant", () => {
       arguments: { query: "find the Q3 board deck" },
     });
     const text = textOf(r);
-    expect(text.startsWith(PIPESHUB_INSTRUCTIONS)).toBe(true);
+    expect(text.startsWith(INSTRUCTIONS)).toBe(true);
     expect(text.endsWith("\n\nfind the Q3 board deck")).toBe(true);
     expect(text).toContain("`pipeshub_agents`");
   });

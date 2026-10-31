@@ -101,6 +101,14 @@
     {
       "name": "pipeshub_agents",
       "description": "List the PipesHub **agents** configured for this org, each with its\ncapabilities.\n\nAgents are specialized assistants (custom system prompt, tools, knowledge\nscope). To converse with one, take its `agentId` and pass it to\n`pipeshub_chat`'s `agentId` argument.\n\nEach agent is returned as:\n`{ agentId, name, description, systemPrompt, startMessage, tags, webSearch,\nisActive, toolsets, knowledge }`.\n- `toolsets` — what the agent can DO: each `{ name, tools }` where `name`\n  is the connector (e.g. `jira`, `gmail`) and `tools` are the runnable\n  tool ids (e.g. `jira.create_issue`, `gmail.send_email`).\n- `knowledge` — what the agent can READ: each `{ name, type }` (e.g.\n  `Confluence-2` / `Confluence`).\n\n**Route on `toolsets`/`knowledge`, not the name** — names and descriptions\nare often generic or misleading. Match the request to the agent whose tools can\nactually perform it (e.g. \"create a Jira ticket\" → the agent whose toolset is\n`jira` and whose tools include `jira.create_issue`). If NO agent has a tool\nfor the requested action, don't force an unrelated agent: call `pipeshub_chat`\nwithout an `agentId`, which can use the user's connected tools.\n\nThe list **may be empty** (no agents configured). For plain Q&A when no\nspecific agent is needed, use `pipeshub_search` and read the records. Use `agentId` everywhere an agent is referenced."
+    },
+    {
+      "name": "pipeshub_show_citations",
+      "description": "Show the user your answer's sources, with document previews. Call it\nonce, after searching and reading and before the answer, with the `cite`\nand `quote` of each passage the answer will rely on, as [1], [2], ….\nIt shows no answer: write the full answer after it."
+    },
+    {
+      "name": "pipeshub_preview_record",
+      "description": "Used by PipesHub's citation viewer only. Do not call it."
     }
   ]
 }

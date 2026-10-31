@@ -1,0 +1,114 @@
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
+// Cite codes: where a passage is, in one short string a model can copy.
+//
+// Search passages and chat citations carry one each. The model passes the
+// codes of the passages its answer relied on to `pipeshub_show_citations`,
+// which turns them back into the record, page, block and box the citation
+// viewer opens. The code carries the location itself, so the server keeps
+// nothing between calls: PipesHub's `/mcp` is stateless.
+//
+//   <recordId>.<page>.<block>.<sheet>.<x0>_<y0>_<x1>_<y1>[.n]
+//
+// Every field after the record id may be empty; the box, when present, is
+// in thousandths of the page (0-999). A trailing `.n` marks a record
+// PipesHub says it cannot preview (`previewRenderable: false`), so the
+// viewer shows the quote and the source link instead. For example:
+//   7ada7d80-62c4-425c-a125-d65a1ea3101a.1.2..144_171_906_321
+
+export interface CiteLocation {
+  recordId: string;
+  pageNum?: number[];
+  blockNum?: number[];
+  /** 1-based. */
+  sheetNum?: number;
+  /** Corners in 0-1 page coordinates. */
+  boundingBox?: Array<{ x: number; y: number }>;
+  /** Only ever false: PipesHub cannot preview the record. */
+  previewRenderable?: false;
+}
+
+const RECORD_ID = /^[A-Za-z0-9-]{1,64}$/;
+const CITE = /^([A-Za-z0-9-]{1,64})\.(\d{0,6})\.(\d{0,7})\.(\d{0,4})\.(?:(\d{1,3})_(\d{1,3})_(\d{1,3})_(\d{1,3}))?(\.n)?$/;
+
+const first = (v: unknown): number | undefined => {
+  const n = Array.isArray(v) ? v[0] : v;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : undefined;
+};
+const milli = (v: number) => Math.min(999, Math.max(0, Math.round(v * 1000)));
+
+/** The cite code of a passage, from its search or citation metadata. */
+export function encodeCite(md: any): string | undefined {
+  const recordId = md?.recordId;
+  if (typeof recordId !== "string" || !RECORD_ID.test(recordId)) return undefined;
+  const points: Array<{ x: number; y: number }> = Array.isArray(md?.bounding_box ?? md?.boundingBox)
+    ? (md.bounding_box ?? md.boundingBox).filter((p: any) =>
+      typeof p?.x === "number" && typeof p?.y === "number"
+    )
+    : [];
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const box = points.length > 0
+    ? [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map(milli).join("_")
+    : "";
+  const field = (n: number | undefined) => (n === undefined ? "" : String(n));
+  return [recordId, field(first(md.pageNum)), field(first(md.blockNum)), field(first(md.sheetNum)), box]
+    .join(".") + (md?.previewRenderable === false ? ".n" : "");
+}
+
+/** The location a cite code names, or undefined when it is not one. */
+export function decodeCite(cite: string): CiteLocation | undefined {
+  const m = CITE.exec(cite.trim());
+  if (!m) return undefined;
+  const [, recordId, page, block, sheet, x0s, y0s, x1s, y1s, unrenderable] = m;
+  const box = [x0s, y0s, x1s, y1s];
+  const loc: CiteLocation = { recordId: recordId! };
+  if (page) loc.pageNum = [Number(page)];
+  if (block) loc.blockNum = [Number(block)];
+  if (sheet) loc.sheetNum = Number(sheet);
+  if (box[0] !== undefined) {
+    const [x0, y0, x1, y1] = box.map((v) => Number(v) / 1000) as [number, number, number, number];
+    if (x1 < x0 || y1 < y0) return undefined;
+    loc.boundingBox = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  }
+  if (unrenderable) loc.previewRenderable = false;
+  return loc;
+}
+
+/**
+ * Said where the model is when it answers: at the end of each result it can
+ * cite from. The server instructions say it too, but an agent several calls
+ * in acts on what the last result told it. The card comes before the answer
+ * because hosts such as Claude fold text written before a tool call into
+ * the collapsed steps: only text after the last call shows as the reply.
+ */
+export const SHOW_CITATIONS_HINT = "Before you write your answer, call `pipeshub_show_citations` "
+  + "once with the `cite` and `quote` (its text, up to 500 characters) of each passage it will rely on; "
+  + "a passage without a `cite` stays out. Then write the full answer, citing them as [1], [2], ….";
+
+/** A cite for a whole record, when what the answer relied on was a read of it. */
+export const recordCite = (recordId: string) => `${recordId}....`;
+
+/**
+ * A result without what only the citations card uses, for a client that
+ * shows no MCP Apps views: the `cite` codes, the hint to show them, and a
+ * record read's closing `Cite:` line.
+ */
+export function withoutCitations(result: CallToolResult): CallToolResult {
+  return {
+    ...result,
+    content: result.content.map((c) => c.type === "text" ? { ...c, text: textWithoutCitations(c.text) } : c),
+  };
+}
+
+function textWithoutCitations(text: string): string {
+  const citeLine = text.lastIndexOf("\nCite: ");
+  if (citeLine >= 0 && text.endsWith(SHOW_CITATIONS_HINT)) return text.slice(0, citeLine);
+  if (!text.startsWith("{")) return text;
+  try {
+    return JSON.stringify(JSON.parse(text), (key, value) =>
+      key === "cite" || (key === "next" && value === SHOW_CITATIONS_HINT) ? undefined : value);
+  } catch {
+    return text;
+  }
+}

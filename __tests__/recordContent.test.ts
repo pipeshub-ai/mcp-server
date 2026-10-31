@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import * as z from "zod";
+import { SHOW_CITATIONS_HINT } from "../src/mcp-server/cite.js";
 import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 
 // This tool has three modes behind one entry point: read a document, walk the
@@ -10,6 +11,9 @@ import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubG
 // silently sends the request to the wrong endpoint.
 
 const REC = "rec-1";
+// Every read of a record with text ends with its cite and the reminder to
+// show citations, so an answer that rests on the whole record can cite it.
+const CITE_FOOTER = `\nCite: ${REC}.... (this record; a search passage's own cite marks the passage). ${SHOW_CITATIONS_HINT}`;
 
 function client(body: unknown, status = 200) {
   const urls: string[] = [];
@@ -46,7 +50,7 @@ describe("content mode", () => {
 
     const out = await run(core, { mode: "content", recordId: REC });
 
-    expect(out.content).toEqual([{ type: "text", text: "line one\nline two" }]);
+    expect(out.content).toEqual([{ type: "text", text: "line one\nline two" + CITE_FOOTER }]);
   });
 
   test("a document with no content is empty text rather than a crash", async () => {
@@ -225,7 +229,7 @@ describe("reading part of a long record", () => {
 
     const text = textOf(await run(core, { mode: "content", recordId: REC }));
 
-    expect(text).toBe("all of it\n\nRead: the whole record (5 blocks).");
+    expect(text).toBe("all of it\n\nRead: the whole record (5 blocks)." + CITE_FOOTER);
   });
 });
 
@@ -296,6 +300,18 @@ describe("a block too large for any budget", () => {
 
     expect(text).toContain("Read: to the end of the thread (records 1–5 of 5; blocks before 4 of record 1 were in earlier reads).");
     expect(text).not.toContain("earlier ones were in earlier reads");
+  });
+
+  test("a thread read carries no one record's cite: its messages are several records", async () => {
+    const { core } = client({
+      content: "last reply", mode: "thread", threadRecordCount: 2, startRecord: 1,
+      startBlock: 0, complete: true, nextStartRecord: null, givenUpBlocks: [],
+      records: [{ recordId: "t-1", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC, startRecord: 1 }));
+
+    expect(text).not.toContain("Cite:");
   });
 
   test("a thread's last page does not call it the whole thread", async () => {
@@ -437,7 +453,7 @@ describe("a Slack record whose messages have replies", () => {
       "- **A**: who owns this?\n\nReply Count: 21\n\n"
         + "Read: the whole record (1 block).\n"
         + "Replies: A message here has 21 thread replies, kept as separate "
-        + `records. Read the whole thread: ${threadCall}`,
+        + `records. Read the whole thread: ${threadCall}` + CITE_FOOTER,
     );
   });
 
@@ -607,7 +623,7 @@ describe("an extract of one record", () => {
 
       const slowExtract = await run(core, { mode: "content", recordId: REC, query: "q", extract: true });
       const slowRead = await run(core, { mode: "content", recordId: REC, query: "q" });
-      expect(textOf(slowExtract)).toBe("x");
+      expect(textOf(slowExtract)).toBe("x" + CITE_FOOTER);
       expect((slowRead as { isError?: boolean }).isError).toBe(true);
 
       sent.length = 0;
