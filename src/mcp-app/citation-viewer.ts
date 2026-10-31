@@ -101,6 +101,8 @@ function showCitations() {
     const body = el("div", "body");
     body.append(top, el("div", "quote", c.text));
     row.append(el("span", "num", String(c.number)), body, el("span", "go", "›"));
+    // A pointer on a row is a likely click: start its file now if it waits in the queue.
+    if (previewable(c)) row.onpointerenter = () => void loadFile(c.recordId!).catch(() => {});
     return row;
   }));
 }
@@ -151,6 +153,30 @@ function loadFile(recordId: string) {
     file.catch(() => files.delete(recordId));
   }
   return file;
+}
+
+/** Documents fetched ahead of a click: a few, so an unopened card costs little. */
+const PREFETCH_MAX_RECORDS = 5;
+
+/** Whether a citation opens as a rendered file, so its file is worth fetching. */
+const previewable = (c: Citation) =>
+  c.recordId !== undefined && c.previewRenderable !== false && kindOf(c) !== "text";
+
+/**
+ * Fetches the cited files while the list is read, one at a time in citation
+ * order, so a click opens a file already here. A file that fails is dropped
+ * from the cache, and the click tries again.
+ */
+async function prefetchFiles() {
+  const ids = [...new Set(citations.filter(previewable).map((c) => c.recordId!))]
+    .slice(0, PREFETCH_MAX_RECORDS);
+  for (const id of ids) {
+    try {
+      await loadFile(id);
+    } catch {
+      // Opening the citation shows the error, or the quote.
+    }
+  }
 }
 
 let displayMode: string = "inline";
@@ -633,6 +659,7 @@ app.ontoolresult = (result) => {
   }
   citations = fromMeta;
   showCitations();
+  void prefetchFiles();
 };
 
 app.ontoolcancelled = () => {
