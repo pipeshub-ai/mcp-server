@@ -6,7 +6,6 @@
 // without MCP Apps ignore all of this and see the usual text.
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { citationViewerHtml } from "./citation-viewer-html.generated.js";
 
 export const CITATION_VIEWER_URI = "ui://pipeshub/citations.html";
 const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
@@ -36,7 +35,10 @@ export function registerCitationViewer(server: McpServer): void {
       contents: [{
         uri: uri.href,
         mimeType: MCP_APP_MIME_TYPE,
-        text: citationViewerHtml,
+        // Loaded when a host asks for the page, not when the server starts:
+        // \`npm run build\` generates it, and a server or test that never
+        // serves the page runs without that build.
+        text: (await import("./citation-viewer-html.generated.js")).citationViewerHtml,
         // No `csp`: the view loads nothing from the network. Record bytes
         // come through `pipeshub_preview_record` over the host's connection.
         _meta: { ui: { prefersBorder: true } },

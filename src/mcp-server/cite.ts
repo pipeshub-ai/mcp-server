@@ -81,7 +81,8 @@ export function decodeCite(cite: string): CiteLocation | undefined {
  * the collapsed steps: only text after the last call shows as the reply.
  */
 export const SHOW_CITATIONS_HINT = "Before you write your answer, call `pipeshub_show_citations` "
-  + "once with the `cite` of each passage it will rely on; then write the full answer, citing them as [1], [2], ….";
+  + "once with the `cite` and `quote` (its text, up to 500 characters) of each passage it will rely on; "
+  + "a passage without a `cite` stays out. Then write the full answer, citing them as [1], [2], ….";
 
 /** A cite for a whole record, when what the answer relied on was a read of it. */
 export const recordCite = (recordId: string) => `${recordId}....`;

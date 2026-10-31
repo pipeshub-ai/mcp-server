@@ -302,6 +302,18 @@ describe("a block too large for any budget", () => {
     expect(text).not.toContain("earlier ones were in earlier reads");
   });
 
+  test("a thread read carries no one record's cite: its messages are several records", async () => {
+    const { core } = client({
+      content: "last reply", mode: "thread", threadRecordCount: 2, startRecord: 1,
+      startBlock: 0, complete: true, nextStartRecord: null, givenUpBlocks: [],
+      records: [{ recordId: "t-1", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC, startRecord: 1 }));
+
+    expect(text).not.toContain("Cite:");
+  });
+
   test("a thread's last page does not call it the whole thread", async () => {
     const { core } = client({
       content: "last reply", mode: "thread", threadRecordCount: 2, startRecord: 1,

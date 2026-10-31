@@ -190,6 +190,18 @@ function kindOf(c: Citation): typeof docKind {
     || mime.includes("spreadsheet") || mime.includes("ms-excel")) return "sheet";
   return "text";
 }
+
+/** What a file is by its first bytes and, for a zip, the parts it lists. */
+function sniffKind(bytes: Uint8Array): typeof docKind {
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return "pdf"; // %PDF
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+    // The zip's directory, with its part names, is at the end.
+    const tail = new TextDecoder("latin1").decode(bytes.subarray(Math.max(0, bytes.length - 65536)));
+    if (tail.includes("word/")) return "docx";
+    if (tail.includes("xl/")) return "sheet";
+  }
+  return "text";
+}
 let previewToken = 0;
 let pageEls: HTMLElement[] = [];
 
@@ -215,6 +227,12 @@ async function openPreview(c: Citation) {
   const link = /^https?:\/\//.test(c.webUrl ?? "") ? c.webUrl : undefined;
   $("p-open").classList.toggle("hidden", !link);
   $("p-open").onclick = () => link && app.openLink({ url: link });
+  // A spreadsheet from another record must not answer this one's row clicks.
+  if (workbookRecord !== c.recordId) {
+    workbook = null;
+    workbookRecord = undefined;
+    rowMemo.clear();
+  }
   renderSide(sameRecord, c);
   pageEls = [];
   docKind = kindOf(c);
@@ -222,7 +240,9 @@ async function openPreview(c: Citation) {
   // Like PipesHub's own preview: a record it cannot render (a page or
   // message in an external app, not a file) opens as its quote, with Open.
   // Anything else downloads now, on the click, and never before it.
-  const file = !c.recordId || docKind === "text" || c.previewRenderable === false
+  // A record whose metadata names no type is tried too: the file may say.
+  const unknownType = !c.mimeType && !c.extension && c.kind !== "web";
+  const file = !c.recordId || c.previewRenderable === false || (docKind === "text" && !unknownType)
     ? null
     : loadFile(c.recordId);
   if (file) showLoader(c);
@@ -235,10 +255,20 @@ async function openPreview(c: Citation) {
     if (token !== previewToken) return;
     // What the file is, when its type says so: PipesHub may store a Word
     // upload as the PDF it converted it to.
+    // A generic type (application/octet-stream) leaves the bytes to say.
     const stored = kindOf({ number: c.number, text: "", mimeType });
-    if (stored !== "text") docKind = stored;
+    const sniffed = stored === "text" ? sniffKind(bytes) : stored;
+    if (sniffed !== "text") docKind = sniffed;
+    if (docKind === "text") {
+      showText(c);
+      return;
+    }
     $("zoom").classList.toggle("hidden", docKind !== "pdf");
-    if (docKind === "pdf") await renderPdf(bytes.slice(), sameRecord, token);
+    if (docKind === "pdf") {
+      await renderPdf(bytes.slice(), sameRecord, token);
+      // A Word record converted to PDF has no boxes: find its quotes instead.
+      await locateQuotes(sameRecord, token);
+    }
     else if (docKind === "sheet") {
       renderWorkbook(bytes, c);
       // Row tags are worth showing once the rows can be checked against the quotes.
@@ -257,6 +287,9 @@ async function openPreview(c: Citation) {
 
 /** A record pdf.js cannot show: its cited text, marked. */
 function showText(c: Citation) {
+  // The preview is the quote now, whatever the file is: other citations of
+  // the record show theirs the same way.
+  docKind = "text";
   $("zoom").classList.add("hidden");
   const doc = el("div", "text-doc");
   doc.append(el("mark", undefined, c.text));
@@ -300,6 +333,8 @@ function renderSide(list: Citation[], active: Citation) {
 
 // The open PDF: its page shapes, and what draws a page as it scrolls in.
 let aspects: number[] = [];
+/** The open PDF, for finding a quote's place in its text. */
+let pdfDoc: pdfjs.PDFDocumentProxy | null = null;
 let drawPages: IntersectionObserver | null = null;
 /** 1 fits the page to the pane's width. */
 let zoom = 1;
@@ -309,6 +344,7 @@ const ZOOM_MAX = 3;
 async function renderPdf(bytes: Uint8Array, list: Citation[], token: number) {
   const pdf = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise;
   if (token !== previewToken) return;
+  pdfDoc = pdf;
   const pages = $("pages");
   drawPages?.disconnect();
   drawPages = new IntersectionObserver((entries) => {
@@ -423,16 +459,18 @@ function rowMatch(ws: XLSX.WorkSheet, row: number, quote: string): number {
   if (!ref || row < 1) return -1;
   const range = XLSX.utils.decode_range(ref);
   let score = 0;
-  for (let col = range.s.c; col <= range.e.c; col++) {
+  const lastCol = Math.min(range.e.c, range.s.c + SHEET_MAX_COLS - 1);
+  for (let col = range.s.c; col <= lastCol; col++) {
     const cell = ws[XLSX.utils.encode_cell({ r: row - 1, c: col })];
-    const v = cell ? XLSX.utils.format_cell(cell).trim().toLowerCase() : "";
+    // The cell's own text: formatting every cell would cost more than matching.
+    const v = cell ? String(cell.w ?? cell.v ?? "").trim().toLowerCase() : "";
     if (v.length >= 2 && quote.includes(v)) score += v.length;
   }
   return score;
 }
 
 /** Rows checked against a quote; a sheet past it falls back to the block's row. */
-const MATCH_MAX_ROWS = 5000;
+const MATCH_MAX_ROWS = 2000;
 
 /**
  * The cited row. PipesHub's block numbers are not numbered the same way
@@ -441,7 +479,17 @@ const MATCH_MAX_ROWS = 5000;
  * matches most of it wins, the nearest to the block's row on a tie. With no
  * quote, or nothing in it matching, the block's row stands.
  */
+/** Rows already matched, per citation: the side panel asks again on every render. */
+const rowMemo = new Map<Citation, number | undefined>();
+
 function citedRow(c: Citation): number | undefined {
+  if (rowMemo.has(c)) return rowMemo.get(c);
+  const row = matchRow(c);
+  if (workbook && workbookRecord === c.recordId) rowMemo.set(c, row);
+  return row;
+}
+
+function matchRow(c: Citation): number | undefined {
   const base = blockRow(c);
   const quote = c.text.toLowerCase();
   if (base === undefined || !workbook || workbookRecord !== c.recordId || !quote) return base;
@@ -451,8 +499,12 @@ function citedRow(c: Citation): number | undefined {
   const range = XLSX.utils.decode_range(ref);
   let best = base;
   let bestScore = 0;
+  // The drawn rows, and the block's own neighbourhood when it lies past them.
   const last = Math.min(range.e.r + 1, range.s.r + MATCH_MAX_ROWS);
-  for (let row = range.s.r + 1; row <= last; row++) {
+  const rows = new Set<number>();
+  for (let row = range.s.r + 1; row <= last; row++) rows.add(row);
+  for (let row = base - 2; row <= base + 2; row++) if (row >= range.s.r + 1 && row <= range.e.r + 1) rows.add(row);
+  for (const row of rows) {
     const score = rowMatch(ws, row, quote);
     if (score > bestScore || (score === bestScore && score > 0 && Math.abs(row - base) < Math.abs(best - base))) {
       [best, bestScore] = [row, score];
@@ -469,9 +521,23 @@ function sheetFor(c: Citation): string {
   const row = blockRow(c);
   const holds = (name: string) => {
     const ref = workbook!.Sheets[name]?.["!ref"];
-    return ref !== undefined && row !== undefined && row <= XLSX.utils.decode_range(ref).e.r + 1;
+    if (ref === undefined || row === undefined) return false;
+    const range = XLSX.utils.decode_range(ref);
+    return row >= range.s.r + 1 && row <= range.e.r + 1;
   };
   return (holds(sheetShown) ? sheetShown : names.find(holds)) ?? names[0]!;
+}
+
+/** One sheet row as a table row, numbered as in Excel. */
+function sheetRow(ws: XLSX.WorkSheet, r: number, firstCol: number, lastCol: number) {
+  const tr = el("tr");
+  tr.dataset["row"] = String(r + 1);
+  tr.append(el("td", "rn", String(r + 1)));
+  for (let col = firstCol; col <= lastCol; col++) {
+    const cell = ws[XLSX.utils.encode_cell({ r, c: col })];
+    tr.append(el("td", undefined, cell ? XLSX.utils.format_cell(cell) : ""));
+  }
+  return tr;
 }
 
 function showSheet(name: string) {
@@ -495,16 +561,7 @@ function showSheet(name: string) {
     for (let col = range.s.c; col <= lastCol; col++) head.append(el("th", undefined, XLSX.utils.encode_col(col)));
     table.append(head);
     const lastRow = Math.min(range.e.r, range.s.r + SHEET_MAX_ROWS - 1);
-    for (let r = range.s.r; r <= lastRow; r++) {
-      const tr = el("tr");
-      tr.dataset["row"] = String(r + 1);
-      tr.append(el("td", "rn", String(r + 1)));
-      for (let col = range.s.c; col <= lastCol; col++) {
-        const cell = ws[XLSX.utils.encode_cell({ r, c: col })];
-        tr.append(el("td", undefined, cell ? XLSX.utils.format_cell(cell) : ""));
-      }
-      table.append(tr);
-    }
+    for (let r = range.s.r; r <= lastRow; r++) table.append(sheetRow(ws, r, range.s.c, lastCol));
   }
   const wrap = el("div", "sheet-wrap");
   wrap.append(table);
@@ -516,7 +573,20 @@ function focusRow(c: Citation) {
   showSheet(sheetFor(c));
   for (const x of document.querySelectorAll(".hl-row")) x.classList.remove("hl-row", "flash");
   const row = citedRow(c);
-  const tr = row === undefined ? null : document.querySelector<HTMLElement>(`tr[data-row="${row}"]`);
+  let tr = row === undefined ? null : document.querySelector<HTMLElement>(`tr[data-row="${row}"]`);
+  const ws = workbook.Sheets[sheetShown];
+  const range = ws?.["!ref"] ? XLSX.utils.decode_range(ws["!ref"]) : null;
+  // A cited row past the rows drawn opens alone, after a gap row.
+  if (!tr && row !== undefined && ws && range && row - 1 >= range.s.r && row - 1 <= range.e.r) {
+    const table = document.querySelector("table.sheet")!;
+    const lastCol = Math.min(range.e.c, range.s.c + SHEET_MAX_COLS - 1);
+    const gap = el("tr", "gap");
+    const cell = el("td", undefined, "…");
+    cell.colSpan = lastCol - range.s.c + 2;
+    gap.append(cell);
+    tr = sheetRow(ws, row - 1, range.s.c, lastCol);
+    table.append(gap, tr);
+  }
   if (!tr) return;
   tr.classList.add("hl-row", "flash");
   tr.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -594,6 +664,51 @@ function focusPassage(c: Citation) {
   hit.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
+/** Pages searched for a quote: enough for a long report, bounded for a book. */
+const QUOTE_SEARCH_MAX_PAGES = 200;
+
+/**
+ * Gives citations that came without a box (a Word record PipesHub converted
+ * to PDF) one: the page whose text holds most of the quote, and the extent
+ * of the lines on it that the quote contains.
+ */
+async function locateQuotes(list: Citation[], token: number) {
+  const pending = list.filter((c) => !c.boundingBox && c.text.trim().length >= 8);
+  if (!pdfDoc || pending.length === 0) return;
+  const pages = Math.min(pdfDoc.numPages, QUOTE_SEARCH_MAX_PAGES);
+  const texts: Array<{ items: any[]; vp: pdfjs.PageViewport }> = [];
+  for (let n = 1; n <= pages; n++) {
+    const page = await pdfDoc.getPage(n);
+    const content = await page.getTextContent();
+    if (token !== previewToken) return;
+    texts.push({ items: content.items, vp: page.getViewport({ scale: 1 }) });
+  }
+  for (const c of pending) {
+    const quote = c.text.toLowerCase().replace(/\s+/g, " ");
+    let best: { page: number; score: number; hits: any[] } | null = null;
+    texts.forEach(({ items }, i) => {
+      const hits = items.filter((it) => {
+        const t = String(it.str ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+        return t.length >= 8 && quote.includes(t);
+      });
+      const score = hits.reduce((n, it) => n + String(it.str).length, 0);
+      if (score > (best?.score ?? 0)) best = { page: i + 1, score, hits };
+    });
+    if (!best) continue;
+    const { page, hits } = best as { page: number; hits: any[] };
+    const vp = texts[page - 1]!.vp;
+    const rects = hits.map((it) => vp.convertToViewportRectangle([
+      it.transform[4], it.transform[5], it.transform[4] + it.width, it.transform[5] + it.height,
+    ]));
+    const xs = rects.flatMap((r) => [r[0], r[2]]).map((x) => x / vp.width);
+    const ys = rects.flatMap((r) => [r[1], r[3]]).map((y) => y / vp.height);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    c.pageNum = [page];
+    c.boundingBox = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+    pageEls[page - 1]?.append(highlight(c));
+  }
+}
+
 /** The cited region: the bounding box's extent, in page percentages. */
 function highlight(c: Citation) {
   const xs = c.boundingBox!.map((p) => p.x);
@@ -613,6 +728,7 @@ let focused: Citation | null = null;
 
 function focusCitation(c: Citation, behavior: ScrollBehavior = "smooth") {
   focused = c;
+  if (docKind === "text") return showText(c);
   if (docKind === "sheet") return focusRow(c);
   if (docKind === "docx") return focusPassage(c);
   const page = pageEls[(c.pageNum?.[0] ?? 1) - 1];
@@ -641,10 +757,30 @@ function applyHostContext(ctx: McpUiHostContext) {
   if (ctx.displayMode) displayMode = ctx.displayMode;
 }
 
-app.ontoolresult = (result) => {
+/** What the model passed, to ask again when a host drops the result's `_meta`. */
+let toolInput: Record<string, unknown> | undefined;
+
+app.ontoolinput = ({ arguments: args }) => {
+  toolInput = args;
+};
+
+/** The citations a result carries, or undefined. */
+const citationsOf = (result: { _meta?: unknown }) =>
+  (result._meta as any)?.["pipeshub/citations"]?.citations;
+
+app.ontoolresult = async (result) => {
   // `pipeshub_show_citations` puts the citations in `_meta`, which hosts keep
   // out of the model's context; its text is a one-line summary.
-  const fromMeta = (result._meta as any)?.["pipeshub/citations"]?.citations;
+  let fromMeta = citationsOf(result);
+  // ChatGPT web may replace a result's `_meta`; a call the view makes keeps
+  // it, so ask the server again with the model's own arguments.
+  if (!result.isError && !Array.isArray(fromMeta) && Array.isArray(toolInput?.["citations"])) {
+    try {
+      fromMeta = citationsOf(await app.callServerTool({ name: "pipeshub_show_citations", arguments: toolInput! }));
+    } catch {
+      // Shown below as no citations.
+    }
+  }
   if (result.isError || !Array.isArray(fromMeta)) {
     const text = (result.content?.find((c) => c.type === "text") as any)?.text;
     $("status").textContent = text || "PipesHub sent no citations to show.";

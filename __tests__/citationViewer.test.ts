@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { PipeshubCore } from "../src/core.js";
@@ -10,6 +10,7 @@ import { createMCPServer } from "../src/mcp-server/server.js";
 import { trimCitations } from "../src/mcp-server/tools/_helpers.js";
 import { groupSearchResults } from "../src/mcp-server/tools/_searchResults.js";
 import {
+  clearPreviewCache,
   PREVIEW_CHUNK_BYTES,
   tool$pipeshubPreviewRecord,
 } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
@@ -174,8 +175,11 @@ describe("pipeshub_show_citations", () => {
     expect(reads).toEqual([`/api/v1/connectors/record/${RID}/content`]);
     expect(out.content).toEqual([{
       type: "text",
+      // Clients without the viewer see only this, so it names each source.
       text: "Shown to the user: 2 citations from 1 record, without your answer. "
-        + "Now write the full answer, citing these as [1]…[2].",
+        + "Now write the full answer, citing these as [1]…[2]:\n"
+        + "[1] Contoso-Pentest-Report.pdf, page 1 (https://pipeshub.test/record/R)\n"
+        + "[2] Contoso-Pentest-Report.pdf, page 4 (https://pipeshub.test/record/R)",
     }]);
     const data = (out._meta as any)["pipeshub/citations"].citations;
     expect(data[0]).toMatchObject({
@@ -207,16 +211,43 @@ describe("pipeshub_show_citations", () => {
 
 describe("pipeshub_preview_record", () => {
   const ctx = () => ({ signal: new AbortController().signal }) as never;
+  beforeEach(() => clearPreviewCache());
 
-  function client(file: Uint8Array, status = 200) {
-    const fetcher = async () =>
-      new Response(file, { status, headers: { "content-type": "application/pdf" } });
+  /** A backend serving `file`, counting downloads; `token` is the caller's credential. */
+  function client(file: Uint8Array, status = 200, token = "t", downloads = { n: 0 }) {
+    const fetcher = async () => {
+      downloads.n++;
+      return new Response(file, { status, headers: { "content-type": "application/pdf" } });
+    };
     return new PipeshubCore({
       serverURL: "http://pipeshub.test/api/v1",
-      security: { bearerAuth: "t" },
+      security: { bearerAuth: token },
       httpClient: new HTTPClient({ fetcher }),
     });
   }
+
+  test("all the slices of one file come from one download", async () => {
+    const file = new Uint8Array(PREVIEW_CHUNK_BYTES * 3 + 1);
+    const downloads = { n: 0 };
+    const core = client(file, 200, "t", downloads);
+    let offset: number | undefined = 0;
+    let slices = 0;
+    while (offset !== undefined) {
+      const out = await tool$pipeshubPreviewRecord.tool(core, { recordId: "r1", offset }, ctx());
+      offset = (out.structuredContent as any).nextOffset;
+      slices++;
+    }
+    expect({ slices, downloads: downloads.n }).toEqual({ slices: 4, downloads: 1 });
+  });
+
+  test("one user's cached file never answers another user", async () => {
+    const mine = { n: 0 };
+    const theirs = { n: 0 };
+    await tool$pipeshubPreviewRecord.tool(client(new Uint8Array([1]), 200, "alice", mine), { recordId: "r1", offset: 0 }, ctx());
+    const out = await tool$pipeshubPreviewRecord.tool(client(new Uint8Array([2, 2]), 200, "bob", theirs), { recordId: "r1", offset: 0 }, ctx());
+    expect((out.structuredContent as any).totalBytes).toBe(2);
+    expect({ mine: mine.n, theirs: theirs.n }).toEqual({ mine: 1, theirs: 1 });
+  });
 
   test("returns a large file in slices that join back into the file", async () => {
     const file = Uint8Array.from({ length: PREVIEW_CHUNK_BYTES + 10 }, (_, i) => i % 251);

@@ -332,11 +332,15 @@ it using the \`Web URL\` from its metadata header (when present).`,
     return {
       content: [{
         type: "text",
-        text: withRecordCite(
-          renderRead(parsed.value, args.recordId, thread),
-          parsed.value?.content,
-          args.recordId,
-        ),
+        // A thread read joins several records' messages, so no one record's
+        // cite stands for it; their search passages carry their own.
+        text: thread
+          ? renderRead(parsed.value, args.recordId, thread)
+          : withRecordCite(
+            renderRead(parsed.value, args.recordId, thread),
+            parsed.value?.content,
+            args.recordId,
+          ),
       }],
     };
   },

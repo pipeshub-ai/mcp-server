@@ -61,6 +61,14 @@ async function recordInfo(
   };
 }
 
+/** One citation as a line of text: the record, where in it, and its link. */
+function sourceLine(c: CiteLocation & RecordInfo & { recordName: string }): string {
+  const where = c.pageNum?.length
+    ? `, page ${c.pageNum[0]}`
+    : c.blockNum?.length ? `, block ${c.blockNum[0]}` : "";
+  return `${c.recordName}${where}${c.webUrl ? ` (${c.webUrl})` : ""}`;
+}
+
 export const tool$pipeshubShowCitations: ToolDefinition<typeof args> = {
   name: "pipeshub_show_citations",
   description:
@@ -109,9 +117,11 @@ It shows no answer: write the full answer after it.`,
     return {
       content: [{
         type: "text",
+        // Clients without the viewer get only this text: name each source.
         text: `Shown to the user: ${plural(citations.length, "citation")} from `
           + `${plural(ids.length, "record")}, without your answer. Now write the full `
-          + `answer, citing these as [1]…[${citations.length}].`,
+          + `answer, citing these as [1]…[${citations.length}]:\n`
+          + citations.map((c) => `[${c.number}] ${sourceLine(c)}`).join("\n"),
       }],
       _meta: { [CITATION_VIEWER_DATA_KEY]: { citations } },
     };

@@ -41,7 +41,7 @@ knowledge. Retrieve and read it yourself:
    answered from what you read. For "all", "every" or "how many", do not
    stop at the first matches.
 4. Before writing the answer, call \`pipeshub_show_citations\` once with
-   the \`cite\` of each passage it will rely on; then write the full answer.
+   the \`cite\` and \`quote\` of each passage it will rely on; then answer.
 
 A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
 instead, and "how many / all / every" with \`mode:"navigate"\` (below).
