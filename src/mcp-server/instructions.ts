@@ -72,11 +72,12 @@ follow the closing \`Next:\` line to read on.
 
 Most wrong claims go past what was read. Before answering:
 
-- Something missing: first search its exact name, number or version and
-  open matching hits; then say "not found in what I searched". Say a record
+- Something missing: search its exact name, number or version and open
+  matching hits, then say "not found in what I searched". Say a record
   does not mention it only when its \`Read:\` line says the whole record or
-  thread was shown; an extract, unread replies or a \`Lost:\` block are not.
-  Navigate shows which records exist, not what they say.
+  thread was shown and the result reports no gap: no \`Lost:\` block, unread
+  replies, records not loaded or threads not read. An extract is not a whole
+  read. Navigate shows which records exist, not what they say.
 - A read ending in \`Next:\` is unfinished: read on. Never finish a passage
   cut off with "…".
 - Current state: prefer the later decision, result or announcement by the

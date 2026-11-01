@@ -300,6 +300,12 @@ describe("descriptions say what the tools actually return", () => {
     expect(text).toContain("## Say only what you read");
     expect(text).toContain("\"not found in what I searched\"");
     expect(text).toContain("its `Read:` line says the whole record or thread was shown");
+    // A thread read can say "the whole thread" and still report records it
+    // could not load, or a channel note that more threads were not read.
+    expect(text).toContain(
+      "and the result reports no gap: no `Lost:` block, unread replies, records not loaded or threads not read",
+    );
+    expect(text).toContain("An extract is not a whole read");
     expect(text).toContain("Navigate shows which records exist, not what they say");
     expect(text).toContain("A read ending in `Next:` is unfinished");
     expect(text).toContain("Never finish a passage cut off");
