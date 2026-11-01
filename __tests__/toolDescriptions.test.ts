@@ -17,6 +17,8 @@ import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubC
 import { tool$pipeshubUpload } from "../src/mcp-server/tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "../src/mcp-server/tools/pipeshubIndexingStatus.js";
 import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConnectSource.js";
+import { tool$pipeshubPreviewRecord } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
+import { tool$pipeshubShowCitations } from "../src/mcp-server/tools/pipeshubShowCitations.js";
 import { GetAllUsersRequest$zodSchema } from "../src/models/getallusersop.js";
 import { GetAllUserGroupsRequest$zodSchema } from "../src/models/getallusergroupsop.js";
 import { GetUserTeamsRequest$zodSchema } from "../src/models/getuserteamsop.js";
@@ -42,6 +44,8 @@ const definitions: any[] = [
   tool$pipeshubUpload,
   tool$pipeshubIndexingStatus,
   tool$pipeshubConnectSource,
+  tool$pipeshubPreviewRecord,
+  tool$pipeshubShowCitations,
 ];
 
 /** The JSON schema a host sees for a tool's args, which carries each `.describe()`. */
@@ -374,7 +378,13 @@ describe("description budget", () => {
   // indexing, link the user to connect a source): ~425 chars each, after
   // trimming. A server started with `--scope read` does not mount the two
   // that write.
-  const TOTAL_MAX = 14500;
+  // Raised 2026-10-30 by 100 for `pipeshub_preview_record`, the citation
+  // viewer's app-only tool: MCP Apps hosts hide it from the model, others
+  // see one sentence telling the model not to call it.
+  // Raised 2026-10-30 by 250 for `pipeshub_show_citations`, which the agent
+  // calls after its answer so the user sees the passages it relied on: when
+  // to call it, what to pass, and in what order, in about 260 characters.
+  const TOTAL_MAX = 14850;
   const INSTRUCTIONS_MAX = 8000;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
