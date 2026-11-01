@@ -13,11 +13,25 @@ export interface Sandbox {
   origin: string;
   mcpUrl: string;
   expiresAt: string;
+  /** For the person: opening it makes them the workspace's admin and ends this token. */
+  claimUrl?: string;
   limits: { documents: number; uploadBytes: number; aiBudgetUsd: number };
   credentials: string;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+
+/** The server's claim link when it is a web URL; anything else is dropped, not shown to a person. */
+function webUrl(v: unknown): string | undefined {
+  const s = str(v);
+  if (!s) return undefined;
+  try {
+    const u = new URL(s);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** Why the stored sign-in must not be replaced without --force, or null. */
 async function keepReason(origin: string, env: NodeJS.ProcessEnv): Promise<string | null> {
@@ -92,7 +106,8 @@ export async function createSandbox(
   if (late !== null) throw new CliError(`the trial workspace was created but not stored. ${late}`, EXIT.USAGE);
   // A pending `login --wait` would otherwise write its sign-in over the trial.
   await clearPending(env);
-  const stored: StoredLogin = { origin, accessToken: token, expiresAt, sandbox: { workspaceId } };
+  const claimUrl = webUrl(body["claimUrl"]);
+  const stored: StoredLogin = { origin, accessToken: token, expiresAt, sandbox: { workspaceId, ...(claimUrl ? { claimUrl } : {}) } };
   await writeSecretFile(credentialsPath(env), stored);
   const limits = (body["limits"] ?? {}) as Sandbox["limits"];
   return {
@@ -100,6 +115,7 @@ export async function createSandbox(
     origin,
     mcpUrl: `${origin}/mcp`,
     expiresAt: new Date(expiresAt).toISOString(),
+    ...(claimUrl ? { claimUrl } : {}),
     limits,
     credentials: credentialsPath(env),
   };

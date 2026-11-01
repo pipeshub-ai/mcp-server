@@ -329,12 +329,14 @@ async function run(argv: string[]): Promise<number> {
 
   // The environment wins; a stored login is used only for its own origin.
   let source: string | undefined;
+  let claimUrl: string | undefined;
   if (token === null) {
     const stored = await storedLogin(origin, flags.insecureHttp);
     if (stored) {
       token = stored.accessToken;
       origin ??= stored.origin;
       source = "pipeshub login";
+      claimUrl = stored.sandbox?.claimUrl;
     }
   }
 
@@ -382,6 +384,13 @@ async function run(argv: string[]): Promise<number> {
         );
       }
       outcome = await authStatus(ctx);
+      if (claimUrl) {
+        outcome.payload["claimUrl"] = claimUrl;
+        // A claim ends the agent's token before its expiry.
+        if (outcome.exit === EXIT.UNAUTHENTICATED) {
+          outcome.payload["hint"] = `If the person opened the claim link, this trial workspace is theirs now: run 'pipeshub login --url ${origin}' to sign in as them.`;
+        }
+      }
       break;
     case "sources":
       outcome = await sources(ctx);
@@ -533,11 +542,15 @@ async function init(origin: string, flags: Flags, requestId: string, envToken: b
       ...sandbox,
       ...(installed ? { mcp: installed } : {}),
       next,
+      ...(sandbox.claimUrl
+        ? { claim: `Give the person claimUrl to keep this workspace past expiresAt. Opening it makes them its admin and ends this CLI's token; then run 'pipeshub login --url ${origin}'.` }
+        : {}),
       ...(notes.length ? { note: notes.join(" ") } : {}),
       ...(installError ? { mcpError: installError.message, recover: installError.recover } : {}),
     },
     text: `Created a trial workspace on ${origin}, open until ${sandbox.expiresAt}. `
       + `This CLI is signed in to it${installed ? ` and PipesHub is added to ${installed.client}` : ""}.\nNext: ${next}`
+      + (sandbox.claimUrl ? `\nTo keep it, give the person this link; opening it makes them its admin, and you then run 'pipeshub login --url ${origin}': ${sandbox.claimUrl}` : "")
       + notes.map((n) => `\nNote: ${n}`).join("")
       + (installError ? `\nThe workspace exists, but adding PipesHub to ${client} failed: ${installError.message}\nTo finish, run: ${installError.recover}` : ""),
   }, flags.json);
