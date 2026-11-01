@@ -375,7 +375,13 @@ describe("description budget", () => {
   // trimming. A server started with `--scope read` does not mount the two
   // that write.
   const TOTAL_MAX = 14500;
-  const INSTRUCTIONS_MAX = 8000;
+  // Raised 2026-11-01 by 900, deliberately, for "Say only what you read". In
+  // an evaluation on public Apache data, most real wrong claims in answers
+  // that used PipesHub came from the agent going past what it had read:
+  // saying a record did not mention something it had not read to the end,
+  // finishing a passage cut off mid-sentence, taking an older page over a
+  // later decision, or repeating a detail from a model-written summary.
+  const INSTRUCTIONS_MAX = 8900;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
     expect({ name, chars: desc.length <= PER_TOOL_MAX })

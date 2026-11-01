@@ -68,6 +68,22 @@ a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
 back in parts: pass \`query\` to get the passages that matter first, or
 follow the closing \`Next:\` line to read on.
 
+## Say only what you read
+
+Most wrong claims go past what was read. Before answering:
+
+- Something missing: say "not found in what I searched", not that it does
+  not exist, unless you navigated the whole group or read the whole record.
+  First search its exact name, number or version, and open matching hits.
+- A read ending in \`Next:\` is not the whole record: read on before saying
+  it does not mention something. Never finish a passage cut off with "…".
+- Current state: the latest dated record wins over an older page; follow
+  the links it names. Take a vote's or release's outcome from its result or
+  announcement, not from remarks along the way.
+- Every number, date, name or cause in the answer must be in a record you
+  cite. Header \`Summary\` and \`Topics\` lines, and some search passages, are
+  written by PipesHub's model: confirm details in the record's own text.
+
 ${chat ? CHAT_SECTION : ""}## Other tools
 
 - \`pipeshub_download_record\` — when the user wants the file as stored
