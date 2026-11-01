@@ -21,13 +21,16 @@ export interface Sandbox {
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 
-/** The server's claim link when it is a web URL; anything else is dropped, not shown to a person. */
-function webUrl(v: unknown): string | undefined {
+/**
+ * The server's claim link, kept only on the instance's own origin: the link carries a
+ * secret, and that origin already passed the transport check. Anything else is dropped.
+ */
+function claimLink(v: unknown, origin: string): string | undefined {
   const s = str(v);
   if (!s) return undefined;
   try {
     const u = new URL(s);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : undefined;
+    return u.origin === origin ? u.href : undefined;
   } catch {
     return undefined;
   }
@@ -106,7 +109,7 @@ export async function createSandbox(
   if (late !== null) throw new CliError(`the trial workspace was created but not stored. ${late}`, EXIT.USAGE);
   // A pending `login --wait` would otherwise write its sign-in over the trial.
   await clearPending(env);
-  const claimUrl = webUrl(body["claimUrl"]);
+  const claimUrl = claimLink(body["claimUrl"], origin);
   const stored: StoredLogin = { origin, accessToken: token, expiresAt, sandbox: { workspaceId, ...(claimUrl ? { claimUrl } : {}) } };
   await writeSecretFile(credentialsPath(env), stored);
   const limits = (body["limits"] ?? {}) as Sandbox["limits"];

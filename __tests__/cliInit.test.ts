@@ -318,7 +318,9 @@ describe("pipeshub init", () => {
     expect(r.code).toBe(0);
     const j = JSON.parse(r.stdout);
     expect(j.claimUrl).toBe(claimUrl);
-    expect(j.claim).toContain(`pipeshub login --url ${origin}`);
+    // An agent can't relay a link from a command that blocks, so the hint is the --no-wait/--wait pair.
+    expect(j.claim).toContain(`pipeshub login --url ${origin} --no-wait`);
+    expect(j.claim).toContain("pipeshub login --wait");
     expect(JSON.parse(await readFile(credentials(), "utf8")).sandbox).toEqual({ workspaceId: "ws-1", claimUrl });
 
     const status = JSON.parse((await cli(["auth", "status"])).stdout);
@@ -329,19 +331,23 @@ describe("pipeshub init", () => {
     mcpRevoked = true;
     const after = await cli(["auth", "status"]);
     expect(after.code).toBe(3);
-    expect(JSON.parse(after.stdout).hint).toContain(`pipeshub login --url ${origin}`);
+    expect(JSON.parse(after.stdout).hint).toContain(`pipeshub login --url ${origin} --no-wait`);
   });
 
-  test("text output carries the claim link; a non-web claim link is dropped", async () => {
+  test("text output carries the claim link; a link off the instance's origin is dropped", async () => {
     reply = () => created(72, { claimUrl: `${origin}/claim#token=abc` });
     const t = await cli(["init", "--url", origin, "--text"]);
     expect(t.stdout).toContain(`${origin}/claim#token=abc`);
 
-    reply = () => created(72, { claimUrl: "javascript:alert(1)" });
-    const r = await cli(["init", "--url", origin, "--force"]);
-    expect(r.code).toBe(0);
-    expect(JSON.parse(r.stdout).claimUrl).toBeUndefined();
-    expect(JSON.parse(await readFile(credentials(), "utf8")).sandbox).toEqual({ workspaceId: "ws-1" });
+    // The link carries a secret: never keep one that points anywhere but the instance.
+    for (const claimUrl of ["javascript:alert(1)", "https://evil.example/claim#token=abc", "http://203.0.113.9/claim#token=abc"]) {
+      reply = () => created(72, { claimUrl });
+      const r = await cli(["init", "--url", origin, "--force"]);
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.stdout).claimUrl).toBeUndefined();
+      expect(r.stdout + r.stderr).not.toContain("token=abc");
+      expect(JSON.parse(await readFile(credentials(), "utf8")).sandbox).toEqual({ workspaceId: "ws-1" });
+    }
   });
 
   test("rejects an unknown client before creating anything", async () => {

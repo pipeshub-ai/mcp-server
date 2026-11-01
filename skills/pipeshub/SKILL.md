@@ -42,8 +42,9 @@ are paused, use one of the options below. It will not replace an existing
 sign-in without `--force`; do not add `--force` unless the user agrees.
 If `init` returns a `claimUrl`, give it to the user: opening it makes them the
 workspace's admin so it stays past `expiresAt`. It also ends this CLI's trial
-token, so after they open it run `pipeshub login` (`pipeshub auth status` shows
-the link again).
+token, so after they open it run `pipeshub login --url <origin> --no-wait`, give
+them the link and code, and finish with `pipeshub login --wait` (`pipeshub auth
+status` shows the claim link again).
 
 Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com/?ref=pipeshub-skill and
 connect a source or upload files and let it index. To connect a local client
