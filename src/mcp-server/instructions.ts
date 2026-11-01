@@ -72,17 +72,21 @@ follow the closing \`Next:\` line to read on.
 
 Most wrong claims go past what was read. Before answering:
 
-- Something missing: say "not found in what I searched", not that it does
-  not exist, unless you navigated the whole group or read the whole record.
-  First search its exact name, number or version, and open matching hits.
-- A read ending in \`Next:\` is not the whole record: read on before saying
-  it does not mention something. Never finish a passage cut off with "…".
-- Current state: the latest dated record wins over an older page; follow
-  the links it names. Take a vote's or release's outcome from its result or
-  announcement, not from remarks along the way.
-- Every number, date, name or cause in the answer must be in a record you
-  cite. Header \`Summary\` and \`Topics\` lines, and some search passages, are
-  written by PipesHub's model: confirm details in the record's own text.
+- Something missing: first search its exact name, number or version and
+  open matching hits; then say "not found in what I searched". Say a record
+  does not mention it only when its \`Read:\` line says the whole record or
+  thread was shown; an extract, unread replies or a \`Lost:\` block are not.
+  Navigate shows which records exist, not what they say.
+- A read ending in \`Next:\` is unfinished: read on. Never finish a passage
+  cut off with "…".
+- Current state: prefer the later decision, result or announcement by the
+  date its own text gives, not by when a record was last changed; follow
+  the links it names. For "what changed?", report the earlier state too.
+  Take a vote's outcome from its result, not remarks along the way.
+- Every number, date, name or cause in the answer must come from a record
+  or tool result you cite. Header \`Summary\` and \`Topics\` lines, and some
+  search passages, are written by PipesHub's model: confirm details in the
+  record's own text.
 
 ${chat ? CHAT_SECTION : ""}## Other tools
 
