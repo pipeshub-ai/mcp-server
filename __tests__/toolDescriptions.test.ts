@@ -4,7 +4,7 @@ import { join } from "node:path";
 import * as z from "zod";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
-import { PIPESHUB_INSTRUCTIONS } from "../src/mcp-server/instructions.js";
+import { PIPESHUB_INSTRUCTIONS, pipeshubInstructions } from "../src/mcp-server/instructions.js";
 import { CHAT_ENV } from "../src/mcp-server/chat-setting.js";
 import { tool$pipeshubAgents } from "../src/mcp-server/tools/pipeshubAgents.js";
 import { tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
@@ -296,6 +296,29 @@ describe("descriptions say what the tools actually return", () => {
     expect(text).toContain("without `apps`, across every source");
   });
 
+  // Most real wrong claims in an evaluation on public Apache data came from
+  // the agent going past what it had read (2026-11-01). Each rule here
+  // answers one way that happened.
+  test("the instructions say to state only what was read", () => {
+    const text = PIPESHUB_INSTRUCTIONS.replace(/\s+/g, " ");
+    expect(text).toContain("## Say only what you read");
+    expect(text).toContain("\"not found in what I searched\"");
+    expect(text).toContain("its `Read:` line says the whole record or thread was shown");
+    // A thread read can say "the whole thread" and still report records it
+    // could not load, or a channel note that more threads were not read.
+    expect(text).toContain(
+      "and the result reports no gap: no `Lost:` block, unread replies, records not loaded or threads not read",
+    );
+    expect(text).toContain("An extract is not a whole read");
+    expect(text).toContain("Navigate shows which records exist, not what they say");
+    expect(text).toContain("A read ending in `Next:` is unfinished");
+    expect(text).toContain("Never finish a passage cut off");
+    expect(text).toContain("by the date its own text gives, not by when a record was last changed");
+    expect(text).toContain("Take a vote's outcome from its result");
+    expect(text).toContain("are written by PipesHub's model");
+    expect(pipeshubInstructions({ chat: false })).toContain("## Say only what you read");
+  });
+
   // Search and read is the default; chat is optional. Decided 2026-10-17 from
   // the v3 eval: with Opus as the agent, search-and-read alone and all tools
   // both found 88% of facts, but adding chat raised wrong claims per answer
@@ -385,7 +408,17 @@ describe("description budget", () => {
   // calls after its answer so the user sees the passages it relied on: when
   // to call it, what to pass, and in what order, in about 260 characters.
   const TOTAL_MAX = 14850;
-  const INSTRUCTIONS_MAX = 8000;
+  // Raised 2026-11-01 by 900, deliberately, for "Say only what you read"
+  // (about 1,070 characters, of which the old ceiling had room for 249). In
+  // an evaluation on public Apache data, most real wrong claims in answers
+  // that used PipesHub came from the agent going past what it had read:
+  // saying a record did not mention something it had not read to the end,
+  // finishing a passage cut off mid-sentence, taking an older page over a
+  // later decision, or repeating a detail from a model-written summary.
+  // Raised 2026-11-02 by 150 when merged with the `pipeshub_show_citations`
+  // step (about 140 characters), which took the headroom the raise above
+  // counted on. Clients without MCP Apps get the instructions without it.
+  const INSTRUCTIONS_MAX = 9050;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
     expect({ name, chars: desc.length <= PER_TOOL_MAX })

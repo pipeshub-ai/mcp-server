@@ -76,6 +76,27 @@ a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
 back in parts: pass \`query\` to get the passages that matter first, or
 follow the closing \`Next:\` line to read on.
 
+## Say only what you read
+
+Most wrong claims go past what was read. Before answering:
+
+- Something missing: search its exact name, number or version and open
+  matching hits, then say "not found in what I searched". Say a record
+  does not mention it only when its \`Read:\` line says the whole record or
+  thread was shown and the result reports no gap: no \`Lost:\` block, unread
+  replies, records not loaded or threads not read. An extract is not a whole
+  read. Navigate shows which records exist, not what they say.
+- A read ending in \`Next:\` is unfinished: read on. Never finish a passage
+  cut off with "…".
+- Current state: prefer the later decision, result or announcement by the
+  date its own text gives, not by when a record was last changed; follow
+  the links it names. For "what changed?", report the earlier state too.
+  Take a vote's outcome from its result, not remarks along the way.
+- Every number, date, name or cause in the answer must come from a record
+  or tool result you cite. Header \`Summary\` and \`Topics\` lines, and some
+  search passages, are written by PipesHub's model: confirm details in the
+  record's own text.
+
 ${chat ? CHAT_SECTION : ""}## Other tools
 
 - \`pipeshub_download_record\` — when the user wants the file as stored
