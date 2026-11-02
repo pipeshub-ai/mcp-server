@@ -45,6 +45,16 @@ class Shim(unittest.TestCase):
         self.assertEqual(r.returncode, 7)
         self.assertEqual(r.stdout.strip(), "args:init --dry-run a b")
 
+    def test_launcher_env_names_this_install(self):
+        with mock.patch.object(sys, "prefix", "/c/uv/archive-v0/abc"):
+            self.assertEqual(pipeshub.launcher_env(), {"PIPESHUB_LAUNCHER": "uvx"})
+        script = str(self.dir / "bin" / "pipeshub")
+        with mock.patch.object(sys, "prefix", "/venv"), mock.patch.object(sys, "argv", [script]):
+            with mock.patch("shutil.which", return_value=script):
+                self.assertEqual(pipeshub.launcher_env(), {"PIPESHUB_LAUNCHER": "pip", "PIPESHUB_LAUNCHER_COMMAND": "pipeshub"})
+            with mock.patch("shutil.which", side_effect=lambda n: None if n == "pipeshub" else script):
+                self.assertEqual(pipeshub.launcher_env()["PIPESHUB_LAUNCHER_COMMAND"], os.path.realpath(script))
+
 
 if __name__ == "__main__":
     unittest.main()
