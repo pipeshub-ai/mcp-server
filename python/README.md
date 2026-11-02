@@ -12,7 +12,7 @@ This package is the same program as `npx @pipeshub-ai/standalone`, compiled to o
 
 Needs Docker. Wheels exist for Linux (glibc and musl, x86_64 and arm64), macOS (arm64, x86_64) and Windows (x86_64).
 
-The MCP entry that `init` writes for each agent starts the bridge with `npx`, so the agents themselves need Node.js 20+ to talk to PipesHub. `init` itself does not.
+No Node anywhere: the entry `init` writes for each agent runs `uvx --from pipeshub>=0.1.0 pipeshub start` (when you ran `uvx pipeshub init`) or `pipeshub start` / the full path to the `pipeshub` script (pip, pipx, `uv tool`). `start` is the same MCP bridge as `npx @pipeshub-ai/mcp start`.
 
 ## Build (maintainers)
 
