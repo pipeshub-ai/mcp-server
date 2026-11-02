@@ -643,7 +643,7 @@ const words = (s: string) => new Set(s.toLowerCase().split(/\W+/).filter((w) => 
 
 /** The block holding the cited text, else the most similar one (PipesHub's 0.55 word overlap). */
 function focusPassage(c: Citation) {
-  for (const x of document.querySelectorAll(".hl-block")) x.classList.remove("hl-block", "flash");
+  for (const x of document.querySelectorAll(".hl-block")) x.classList.remove("hl-block", "hl-hang", "flash");
   const want = c.text.replace(/\s+/g, " ").trim().toLowerCase();
   if (want.length < 3) return;
   const blocks = [...document.querySelectorAll<HTMLElement>(".docx-page :is(p, li, td, th, h1, h2, h3, h4, h5, h6)")];
@@ -660,6 +660,15 @@ function focusPassage(c: Citation) {
     }
   }
   if (!hit) return;
+  // A list item's hanging indent pulls its first line left of its box, so the
+  // mark would start right of the text; widen the box left by the same amount.
+  const style = getComputedStyle(hit);
+  const hang = parseFloat(style.textIndent);
+  if (hang < 0) {
+    hit.style.setProperty("--hl-ml", `${parseFloat(style.marginLeft) + hang}px`);
+    hit.style.setProperty("--hl-pad", `${parseFloat(style.paddingLeft) - hang}px`);
+    hit.classList.add("hl-hang");
+  }
   hit.classList.add("hl-block", "flash");
   hit.scrollIntoView({ block: "center", behavior: "smooth" });
 }
