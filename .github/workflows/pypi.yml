@@ -1,0 +1,86 @@
+name: PyPI launcher
+
+# `uvx pipeshub init`: the CLI compiled per platform, shipped in wheels (python/).
+# Publishing runs only on a tag named pypi-v<version> and uses PyPI trusted
+# publishing (OIDC): no token is stored in this repository.
+
+on:
+  push:
+    tags: ["pypi-v*"]
+  pull_request:
+    paths: ["python/**", "src/cli/**", "standalone/package.json", ".github/workflows/pypi.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bun install
+      # bun cross-compiles every target from one Linux runner.
+      - run: python3 python/build_wheels.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: python/dist/*.whl
+          if-no-files-found: error
+
+  # Install the wheel pip picks for each runner and run it with a fake home.
+  # shortcut: the musl wheels are built but not run here; add an alpine
+  # container job if musl users report problems.
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-14, macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: dist
+      - run: python3 -m unittest discover -s python/tests -v
+      - run: |
+          python3 -m venv venv
+          if [ -d venv/Scripts ]; then BIN=venv/Scripts; else BIN=venv/bin; fi
+          $BIN/pip install --no-index --find-links dist pipeshub
+          $BIN/pipeshub --version
+          $BIN/pipeshub --help
+          FAKE="$RUNNER_TEMP/home"
+          mkdir -p "$FAKE/.claude" "$FAKE/.cursor"
+          HOME="$FAKE" USERPROFILE="$FAKE" $BIN/pipeshub init --dry-run | tee out.txt
+          grep -q "Dry run: nothing was changed" out.txt
+          test -z "$(ls -A "$FAKE/.claude" "$FAKE/.cursor")"
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/pypi-v')
+    needs: smoke
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: dist
+      - name: Tag matches the wheel version
+        run: |
+          v="${GITHUB_REF_NAME#pypi-v}"
+          ls dist | grep -q "^pipeshub-$v-" || { echo "tag $GITHUB_REF_NAME does not match the wheels:"; ls dist; exit 1; }
+      - uses: pypa/gh-action-pypi-publish@release/v1
