@@ -4,6 +4,8 @@ import tseslint from "typescript-eslint";
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
+  // Built from src/mcp-app/ by `npm run build`.
+  { ignores: ["src/mcp-server/citation-viewer-html.generated.ts"] },
   { files: ["**/*.{js,mjs,ts}"] },
   { languageOptions: { globals: globals.browser } },
   pluginJs.configs.recommended,

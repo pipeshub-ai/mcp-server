@@ -1,5 +1,6 @@
 
 import * as z from "zod";
+import { SHOW_CITATIONS_HINT } from "../cite.js";
 import { semanticSearchSearchWithDates } from "../../funcs/semanticSearchSearchWithDates.js";
 import { SemanticSearchDateBounds } from "../../models/semanticsearchwithdatesrequest.js";
 import { ToolDefinition } from "../tools.js";
@@ -553,6 +554,7 @@ again with \`offset\` set to \`nextOffset\`.`,
       ...(page.nextOffset !== undefined ? { nextOffset: page.nextOffset } : {}),
       ...(outsideDates ? { outsideDates } : {}),
       ...(notes.length > 0 ? { notes } : {}),
+      ...(page.records.length > 0 ? { next: SHOW_CITATIONS_HINT } : {}),
     });
   },
 };

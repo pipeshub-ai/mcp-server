@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
+import { SHOW_CITATIONS_HINT } from "../src/mcp-server/cite.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import {
   forgetSearches,
@@ -92,7 +93,7 @@ describe("one entry per record", () => {
   test("a long passage is cut and says so with its cut mark alone", () => {
     const [entry] = groupSearchResults([hit("a", "x".repeat(1000), 0.5)], []);
 
-    expect(entry!.passages[0]).toEqual({ text: "x".repeat(280) + PASSAGE_CUT_MARK });
+    expect(entry!.passages[0]).toEqual({ text: "x".repeat(280) + PASSAGE_CUT_MARK, cite: "a...." });
   });
 
   test("a page shows a score to two places, and the entry keeps the server's", () => {
@@ -148,7 +149,7 @@ describe("one entry per record", () => {
       parent: "acme/api",
       score: 0.5,
       passagesFound: 1,
-      passages: [{ text: "LGTM" }],
+      passages: [{ text: "LGTM", cite: "pr...." }],
     });
   });
 
@@ -271,7 +272,7 @@ describe("where a long passage is cut", () => {
   test("a passage only a little over the limit is shown whole", () => {
     const text = sentence(SNIPPET_MAX_CHARS + PASSAGE_REACH_CHARS);
 
-    expect(cutOf(text)).toEqual({ text });
+    expect(cutOf(text)).toEqual({ text, cite: "a...." });
   });
 
   test("it never shows less than the first 280 characters", () => {
@@ -436,7 +437,8 @@ describe("pipeshub_search", () => {
     expect(out).toEqual({
       searchId: "s",
       totalRecords: 1,
-      records: [{ recordId: "a", recordName: "a", score: 0.5, passagesFound: 1, passages: [{ text: "short" }] }],
+      records: [{ recordId: "a", recordName: "a", score: 0.5, passagesFound: 1, passages: [{ text: "short", cite: "a...." }] }],
+      next: SHOW_CITATIONS_HINT,
     });
   });
 });

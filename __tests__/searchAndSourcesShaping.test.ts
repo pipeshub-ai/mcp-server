@@ -135,11 +135,11 @@ describe("pipeshub_search", () => {
     expect(body.records).toEqual([
       {
         recordId: REC, recordName: "A", connector: "KB", webUrl: "u1", score: 0.9,
-        passagesFound: 1, passages: [{ text: "first" }],
+        passagesFound: 1, passages: [{ text: "first", cite: `${REC}....` }],
       },
       {
         recordId: "rec-2", recordName: "B", score: 0.4,
-        passagesFound: 1, passages: [{ text: "second" }],
+        passagesFound: 1, passages: [{ text: "second", cite: "rec-2...." }],
       },
     ]);
   });

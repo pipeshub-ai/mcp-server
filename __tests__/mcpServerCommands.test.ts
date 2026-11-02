@@ -38,6 +38,8 @@ const CURATED = [
   "pipeshub_chat",
   "pipeshub_agents",
 ];
+// A client that shows MCP Apps views also gets `pipeshub_show_citations`
+// and `pipeshub_preview_record` (citationViewer.test.ts).
 
 interface ApiCall {
   path: string;
@@ -491,7 +493,8 @@ describe("start (stdio)", () => {
   // The README's way to leave chat out: an `env` entry in the MCP client's
   // server config, or `--env` on the command line.
   test("PIPESHUB_MCP_CHAT=off leaves chat and agents out, and so do the instructions", async () => {
-    const withoutChat = CURATED.filter((t) => t !== "pipeshub_chat" && t !== "pipeshub_agents");
+    const chatOnly = ["pipeshub_chat", "pipeshub_agents"];
+    const withoutChat = CURATED.filter((t) => !chatOnly.includes(t));
     for (const [args, env] of [
       [["--server-url", `${apiOrigin}/api/v1`], { PIPESHUB_MCP_CHAT: "off" }],
       [["--server-url", `${apiOrigin}/api/v1`, "--env", "PIPESHUB_MCP_CHAT=off"], {}],

@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { recordCite, SHOW_CITATIONS_HINT } from "../cite.js";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
@@ -331,11 +332,31 @@ it using the \`Web URL\` from its metadata header (when present).`,
     return {
       content: [{
         type: "text",
-        text: renderRead(parsed.value, args.recordId, thread),
+        // A thread read joins several records' messages, so no one record's
+        // cite stands for it; their search passages carry their own.
+        text: thread
+          ? renderRead(parsed.value, args.recordId, thread)
+          : withRecordCite(
+            renderRead(parsed.value, args.recordId, thread),
+            parsed.value?.content,
+            args.recordId,
+          ),
       }],
     };
   },
 };
+
+/**
+ * A read's text with the record's cite and the reminder to show citations,
+ * so an answer that rests on a whole record can still point at it. A record
+ * with nothing to read (not found, not indexed yet) has nothing to cite.
+ */
+export function withRecordCite(text: string, content: unknown, recordId: string): string {
+  const body = typeof content === "string" ? content : "";
+  if (!body.trim() || /(^|\n)(No record found|Not indexed:)/.test(body)) return text;
+  return `${text}\nCite: ${recordCite(recordId)} (this record; a search passage's own cite marks the passage). `
+    + SHOW_CITATIONS_HINT;
+}
 
 /** The fields a budgeted read adds beside `content`. A server that predates
  * budgeted reads sends `content` alone. */

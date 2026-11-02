@@ -33,7 +33,8 @@ export interface StoredLogin extends Partial<Endpoints> {
   /** Epoch ms. */
   expiresAt: number;
   /** Set by `pipeshub init`: a trial workspace's token, which is never refreshed. */
-  sandbox?: { workspaceId: string };
+  /** `claimUrl` is the link a person opens to keep the workspace as its admin. */
+  sandbox?: { workspaceId: string; claimUrl?: string };
 }
 
 export interface PendingLogin extends Endpoints {

@@ -15,10 +15,12 @@ let origin = "";
 let home = "";
 let reply: () => Response | Promise<Response> = () => new Response("", { status: 404 });
 const seen: Array<{ path: string; body?: unknown; authorization?: string | null }> = [];
+let mcpRevoked = false;
 
-const created = (hoursLeft = 72) =>
+const created = (hoursLeft = 72, extra: Record<string, unknown> = {}) =>
   Response.json(
     {
+      ...extra,
       workspaceId: "ws-1",
       baseUrl: origin,
       mcpUrl: `${origin}/mcp`,
@@ -41,6 +43,7 @@ beforeAll(() => {
       }
       if (path === "/mcp") {
         seen.push({ path, authorization: req.headers.get("authorization") });
+        if (mcpRevoked) return new Response("unauthorized", { status: 401 });
         const body = (await req.json()) as { id: number };
         const result = { jsonrpc: "2.0", id: body.id, result: { tools: [{ name: "pipeshub_search" }] } };
         return new Response(`event: message\ndata: ${JSON.stringify(result)}\n\n`, {
@@ -59,6 +62,7 @@ beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), "pipeshub-init-"));
   reply = () => created();
   seen.length = 0;
+  mcpRevoked = false;
 });
 
 async function cli(args: string[], env: Record<string, string> = {}) {
@@ -305,6 +309,45 @@ describe("pipeshub init", () => {
     const r = await cli(["auth", "status"]);
     expect(r.code).toBe(0);
     expect(seen.at(-1)?.authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  test("hands over the claim link: printed, kept 0600, shown again by auth status", async () => {
+    const claimUrl = `${origin}/claim#token=claim-secret`;
+    reply = () => created(72, { claimUrl });
+    const r = await cli(["init", "--url", origin]);
+    expect(r.code).toBe(0);
+    const j = JSON.parse(r.stdout);
+    expect(j.claimUrl).toBe(claimUrl);
+    // An agent can't relay a link from a command that blocks, so the hint is the --no-wait/--wait pair.
+    expect(j.claim).toContain(`pipeshub login --url ${origin} --no-wait`);
+    expect(j.claim).toContain("pipeshub login --wait");
+    expect(JSON.parse(await readFile(credentials(), "utf8")).sandbox).toEqual({ workspaceId: "ws-1", claimUrl });
+
+    const status = JSON.parse((await cli(["auth", "status"])).stdout);
+    expect(status.claimUrl).toBe(claimUrl);
+    expect(status.hint).toBeUndefined();
+
+    // Once the person claims it, the agent's token is revoked before its expiry.
+    mcpRevoked = true;
+    const after = await cli(["auth", "status"]);
+    expect(after.code).toBe(3);
+    expect(JSON.parse(after.stdout).hint).toContain(`pipeshub login --url ${origin} --no-wait`);
+  });
+
+  test("text output carries the claim link; a link off the instance's origin is dropped", async () => {
+    reply = () => created(72, { claimUrl: `${origin}/claim#token=abc` });
+    const t = await cli(["init", "--url", origin, "--text"]);
+    expect(t.stdout).toContain(`${origin}/claim#token=abc`);
+
+    // The link carries a secret: never keep one that points anywhere but the instance.
+    for (const claimUrl of ["javascript:alert(1)", `blob:${origin}/claim-id`, "https://evil.example/claim#token=abc", "http://203.0.113.9/claim#token=abc"]) {
+      reply = () => created(72, { claimUrl });
+      const r = await cli(["init", "--url", origin, "--force"]);
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.stdout).claimUrl).toBeUndefined();
+      expect(r.stdout + r.stderr).not.toContain("token=abc");
+      expect(JSON.parse(await readFile(credentials(), "utf8")).sandbox).toEqual({ workspaceId: "ws-1" });
+    }
   });
 
   test("rejects an unknown client before creating anything", async () => {
