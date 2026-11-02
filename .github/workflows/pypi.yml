@@ -60,6 +60,8 @@ jobs:
           if [ -d venv/Scripts ]; then BIN=venv/Scripts; else BIN=venv/bin; fi
           $BIN/pip install --no-index --find-links dist pipeshub
           $BIN/pipeshub --version
+          # bun writes an ad-hoc signature into the macOS binaries (checked: LC_CODE_SIGNATURE is present); fail here if it is not valid.
+          if [ "$RUNNER_OS" = macOS ]; then codesign --verify --verbose venv/lib/python3.12/site-packages/pipeshub/bin/pipeshub; fi
           $BIN/pipeshub --help
           FAKE="$RUNNER_TEMP/home"
           mkdir -p "$FAKE/.claude" "$FAKE/.cursor"
