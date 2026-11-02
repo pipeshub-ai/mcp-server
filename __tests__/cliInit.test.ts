@@ -340,7 +340,7 @@ describe("pipeshub init", () => {
     expect(t.stdout).toContain(`${origin}/claim#token=abc`);
 
     // The link carries a secret: never keep one that points anywhere but the instance.
-    for (const claimUrl of ["javascript:alert(1)", "https://evil.example/claim#token=abc", "http://203.0.113.9/claim#token=abc"]) {
+    for (const claimUrl of ["javascript:alert(1)", `blob:${origin}/claim-id`, "https://evil.example/claim#token=abc", "http://203.0.113.9/claim#token=abc"]) {
       reply = () => created(72, { claimUrl });
       const r = await cli(["init", "--url", origin, "--force"]);
       expect(r.code).toBe(0);

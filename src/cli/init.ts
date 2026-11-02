@@ -30,7 +30,8 @@ function claimLink(v: unknown, origin: string): string | undefined {
   if (!s) return undefined;
   try {
     const u = new URL(s);
-    return u.origin === origin ? u.href : undefined;
+    // A blob: URL reports its inner origin, so check the scheme too.
+    return (u.protocol === "https:" || u.protocol === "http:") && u.origin === origin ? u.href : undefined;
   } catch {
     return undefined;
   }
