@@ -204,3 +204,17 @@ export function connectorToggleSync(
     json: true,
   }, options);
 }
+
+/** `GET /connectors/{connectorId}` → `{ connector: { status, … } }`; `status` is the sync state. */
+export function connectorGetInstance(
+  client$: PipeshubCore,
+  connectorId: string,
+  options?: RequestOptions,
+): Promise<SendResult> {
+  return send(client$, {
+    operationID: "getConnectorInstance",
+    oAuth2Scopes: ["connector:read"],
+    method: "GET",
+    path: pathToFunc("/connectors/{connectorId}")({ connectorId }),
+  }, options);
+}

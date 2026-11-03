@@ -254,7 +254,7 @@ Reports how far a collection's or a web source's records are through indexing, s
 |---|---|---|---|
 | `collectionId` | string (uuid) | yes | The collection to check, or the `connectorId` from `pipeshub_add_web_source`. |
 
-**Response:** `{ done, total, pendingCount, failedCount, pending, failed }`. `done` is true when at least one record is stored and none is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`. With nothing stored yet, `done` is false and a `note` says so, because a crawl stores its first page some time after it starts. `pending` and `failed` list up to 25 records each; `failed` covers records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
+**Response:** `{ done, total, pendingCount, failedCount, pending, failed }`. `done` is true when at least one record is stored, none is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`, and the source is not still syncing. A crawl stores pages in batches while it runs; meanwhile the response carries `syncing: true`. With nothing stored yet, `done` is false and a `note` says so, because a crawl stores its first page some time after it starts. `pending` and `failed` list up to 25 records each; `failed` covers records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
 
 ### `pipeshub_connect_source`
 

@@ -7,7 +7,7 @@ import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod";
 import { PipeshubCore } from "../../core.js";
 import { connectorGetConnectorStats } from "../../funcs/connectorGetConnectorStats.js";
-import { knowledgeHubCollectionRecords } from "../../funcs/knowledgeBaseWrite.js";
+import { connectorGetInstance, knowledgeHubCollectionRecords } from "../../funcs/knowledgeBaseWrite.js";
 import { ToolDefinition } from "../tools.js";
 import { errorResult, httpErrorResult, jsonResult, readJson } from "./_helpers.js";
 
@@ -75,6 +75,23 @@ async function sourceStats(
   return { ok: true, stats: { total: stats.total, byStatus: stats.indexingStatus ?? {} } };
 }
 
+/** A connector in these states may store more records (a crawl writes pages in batches). */
+const RUNNING = new Set(["QUEUED", "SYNCING", "FULL_SYNCING"]);
+
+/**
+ * Whether the source is still syncing. Any failure (a collection, or a token
+ * without connector:read) answers false, leaving the record counts in charge.
+ */
+async function stillSyncing(client: PipeshubCore, id: string, signal: AbortSignal): Promise<boolean> {
+  const r = await connectorGetInstance(client, id, { fetchOptions: { signal } });
+  if (!r.ok || !r.value.ok) {
+    if (r.ok) await r.value.body?.cancel();
+    return false;
+  }
+  const body = await readJson<{ connector?: { status?: string | null } }>(r.value, "Indexing status");
+  return body.ok && RUNNING.has(body.value.connector?.status ?? "");
+}
+
 const sum = (byStatus: Record<string, number>, statuses: readonly string[]) =>
   statuses.reduce((n, s) => n + (byStatus[s] ?? 0), 0);
 
@@ -97,10 +114,11 @@ AUTO_INDEX_OFF and SKIPPED count in \`total\` only.`,
   },
   args,
   tool: async (client, args, ctx) => {
-    const [stats, pending, failed] = await Promise.all([
+    const [stats, pending, failed, syncing] = await Promise.all([
       sourceStats(client, args.collectionId, ctx.signal),
       listRecords(client, args.collectionId, MAX_LISTED, ctx.signal, PENDING),
       listRecords(client, args.collectionId, MAX_LISTED, ctx.signal, FAILED),
+      stillSyncing(client, args.collectionId, ctx.signal),
     ]);
     if (!stats.ok) return stats.result;
     if (!pending.ok) return pending.result;
@@ -108,8 +126,10 @@ AUTO_INDEX_OFF and SKIPPED count in \`total\` only.`,
     const { total, byStatus } = stats.stats;
     const pendingCount = sum(byStatus, PENDING);
     return jsonResult({
-      // Nothing stored is not done: a crawl stores its first page some time after it starts.
-      done: total > 0 && pendingCount === 0,
+      // Nothing stored is not done: a crawl stores its first page some time after it
+      // starts, and while it runs it may store more after these are indexed.
+      done: total > 0 && pendingCount === 0 && !syncing,
+      ...(syncing ? { syncing: true } : {}),
       total,
       pendingCount,
       failedCount: sum(byStatus, FAILED),

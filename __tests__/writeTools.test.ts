@@ -182,8 +182,14 @@ describe("pipeshub_indexing_status", () => {
    * the server does, leaving out `internal` ones (a crawl's folder placeholders,
    * which stay NOT_STARTED); the listing filters by status and includes them.
    */
-  function collection(counts: Record<string, number>, reasons: Record<string, string> = {}, internal = 0) {
+  function collection(
+    counts: Record<string, number>,
+    reasons: Record<string, string> = {},
+    internal = 0,
+    connector: Response | (() => Response) = () => Response.json({ success: true, connector: { status: "IDLE" } }),
+  ) {
     return client((_req, seen) => {
+      if (seen.path === `/api/v1/connectors/${KB}`) return typeof connector === "function" ? connector() : connector;
       if (seen.path === `/api/v1/connectors/${KB}/stats`) {
         const total = Object.values(counts).reduce((a, b) => a + b, 0);
         return Response.json({ success: true, data: { stats: { total, indexingStatus: counts } } });
@@ -204,6 +210,7 @@ describe("pipeshub_indexing_status", () => {
     const { core, calls } = collection({ COMPLETED: 3, QUEUED: 1, FAILED: 1 }, { FAILED: "corrupt file" });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
     expect(calls.map((c) => c.path).sort()).toEqual([
+      `/api/v1/connectors/${KB}`,
       `/api/v1/connectors/${KB}/stats`,
       `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
       `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
@@ -240,6 +247,22 @@ describe("pipeshub_indexing_status", () => {
     const { core } = collection({ COMPLETED: 5 }, {}, 2);
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
     expect(out).toMatchObject({ done: true, total: 5, pendingCount: 0, pending: [] });
+  });
+
+  // A crawl stores pages in batches: those stored can all be indexed before the next batch.
+  test("a source that is still syncing is not done, even with nothing pending", async () => {
+    const { core } = collection({ COMPLETED: 10 }, {}, 0, () =>
+      Response.json({ success: true, connector: { status: "SYNCING" } }));
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: false, syncing: true, total: 10, pendingCount: 0 });
+  });
+
+  test("a refused sync-state check (a collection, or no connector:read) leaves the counts in charge", async () => {
+    const { core } = collection({ COMPLETED: 3 }, {}, 0, () =>
+      Response.json({ error: { message: "Insufficient scope. Required: connector:read" } }, { status: 403 }));
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: true, total: 3 });
+    expect(out.syncing).toBeUndefined();
   });
 
   test("nothing stored yet is not done, so a crawl that just started is polled again", async () => {
