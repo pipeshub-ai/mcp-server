@@ -18,6 +18,8 @@ export type AddMessageRequest = {
   timezone?: string | undefined;
   currentTime?: string | undefined;
   keywordSearchBudget?: "short" | "full" | undefined;
+  /** Connected actions the assistant may use; `[]` for none, omitted for all. */
+  tools?: Array<string> | undefined;
 };
 
 export const AddMessageRequest$zodSchema: z.ZodType<AddMessageRequest> = z
@@ -31,4 +33,5 @@ export const AddMessageRequest$zodSchema: z.ZodType<AddMessageRequest> = z
     modelName: z.string().optional(),
     query: z.string(),
     timezone: z.string().optional(),
+    tools: z.array(z.string()).optional(),
   }).describe("Request body for adding a message to an existing conversation");

@@ -9,7 +9,11 @@
 // TEXT_MESSAGE_CONTENT, RUN_FINISHED, RUN_ERROR — are folded by `./_agui.js`,
 // which is kept separate so the fold stays a pure function over frames.
 
+import type { ShapeOutput } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
+import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod";
+import { PipeshubCore } from "../../core.js";
 import { SHOW_CITATIONS_HINT } from "../cite.js";
 import { conversationsStreamConversation } from "../../funcs/conversationsStreamConversation.js";
 import { conversationsStreamMessage } from "../../funcs/conversationsStreamMessage.js";
@@ -72,10 +76,46 @@ const args = {
   ),
 };
 
-export const tool$pipeshubChat: ToolDefinition<typeof args> = {
-  name: "pipeshub_chat",
-  description:
-    `Optional. Ask PipesHub's own assistant. Its answer is a synthesis of a
+/** The parts of the description that say chat can act, and what replaces them when it cannot. */
+const ACTION_TEXT = [
+  [
+    `, or to take an action the user asked for through their
+connected tools, with no \`agentId\` when no agent fits.`,
+    ".",
+  ],
+  [
+    `**It can also act.** Actions are on unless an admin turns them off: the
+assistant may use the user's connected tools (e.g. create a Jira ticket,
+send an email) with their credentials. Never ask it to write unless the
+user asked for that.`,
+    `**It cannot act here:** this server runs it, and any agent, without the
+user's connected tools, so it only answers.`,
+  ],
+] as const;
+
+/**
+ * `pipeshub_chat`. With `actions: false` it sends an empty tool list on every
+ * turn, which the assistant and agents read as "no connected tools", and its
+ * description no longer says it can act.
+ */
+export function createChatTool({ actions }: { actions: boolean }): ToolDefinition<typeof args> {
+  if (actions) return chatTool;
+  let description = CHAT_DESCRIPTION;
+  for (const [from, to] of ACTION_TEXT) {
+    if (!description.includes(from)) throw new Error("pipeshub_chat: action text to cut not found");
+    description = description.replace(from, to);
+  }
+  return {
+    ...chatTool,
+    description,
+    annotations: { ...chatTool.annotations, destructiveHint: false },
+    // Omitted, the backend gives the assistant every action the user has
+    // connected; `[]` gives it none (Node ai-chat-payload.ts assignToolsToPayload).
+    tool: (client, a, ctx) => runChat(client, a, ctx, { tools: [] }),
+  };
+}
+
+const CHAT_DESCRIPTION = `Optional. Ask PipesHub's own assistant. Its answer is a synthesis of a
 few retrieved passages — never a whole document, never a complete list.
 
 **If you can call tools, answer the question yourself:** \`pipeshub_search\`,
@@ -114,7 +154,11 @@ ID, status, date, owner, or that something merged or shipped, check the
 claim's quotes, else confirm it in the cited record (\`recordId\` →
 \`mode:"content"\`). A quote shows where to look, not that the claim is
 right. "Not found" means not in what it read, not that it does not exist.
-To download a cited document, call \`pipeshub_download_record\`.`,
+To download a cited document, call \`pipeshub_download_record\`.`;
+
+const chatTool: ToolDefinition<typeof args> = {
+  name: "pipeshub_chat",
+  description: CHAT_DESCRIPTION,
   scopes: ["read"],
   annotations: {
     title: "Chat with PipesHub",
@@ -126,161 +170,176 @@ To download a cited document, call \`pipeshub_download_record\`.`,
     readOnlyHint: false,
   },
   args,
-  tool: async (client, args, ctx) => {
-    const fetchOptions = { signal: ctx.signal };
-    // Plain chat runs in agent mode. With no `agentCapabilities` in the body,
-    // the backend turns on both internal search and web search, and with no
-    // `tools` it gives the assistant every action the user has connected.
-    // Actions default on (ENABLE_ACTIONS); an admin can turn them off in Labs.
-    const plainChatMode = "agent" as const;
-    // Each search inside the assistant waits at most 5 s for its keyword
-    // (grep) matches once its vector results are in, and keeps what it found
-    // by then, instead of up to 35 s. A calling agent can search again
-    // itself, so a faster answer is worth more to it than the slowest
-    // matches. The backend ignores it under HIGH_ACCURACY_MODE.
-    const keywordSearchBudget = "short" as const;
-    let response: Response;
+  tool: (client, a, ctx) => runChat(client, a, ctx, {}),
+};
 
-    // Filters apply only when a conversation starts. Each id is sent in the
-    // list the backend reads it from (collection ids in `kb`, connector ids in
-    // `apps`). Both keys go out: on agent chat a missing key falls back to the
-    // agent's own sources. An explicit empty `{ apps: [], kb: [] }` passes
-    // through unchanged.
-    let filters = args.filters;
-    let notes: string[] = [];
-    if (!args.conversationId && filters) {
-      const resolved = await resolveSourceScope(
-        client,
-        filters.apps,
-        filters.kb,
-        { signal: ctx.signal },
-      );
-      notes = resolved.notes;
-      if (resolved.scope.apps.length > 0 || resolved.scope.kb.length > 0) {
-        filters = { apps: resolved.scope.apps, kb: resolved.scope.kb };
-      }
+export const tool$pipeshubChat = createChatTool({ actions: true });
+
+type ChatArgs = ShapeOutput<typeof args>;
+
+async function runChat(
+  client: PipeshubCore,
+  args: ChatArgs,
+  ctx: RequestHandlerExtra<ServerRequest, ServerNotification>,
+  tools: { tools?: string[] },
+): Promise<CallToolResult> {
+  const fetchOptions = { signal: ctx.signal };
+  // Plain chat runs in agent mode. With no `agentCapabilities` in the body,
+  // the backend turns on both internal search and web search, and with no
+  // `tools` it gives the assistant every action the user has connected.
+  // Actions default on (ENABLE_ACTIONS); an admin can turn them off in Labs.
+  const plainChatMode = "agent" as const;
+  // Each search inside the assistant waits at most 5 s for its keyword
+  // (grep) matches once its vector results are in, and keeps what it found
+  // by then, instead of up to 35 s. A calling agent can search again
+  // itself, so a faster answer is worth more to it than the slowest
+  // matches. The backend ignores it under HIGH_ACCURACY_MODE.
+  const keywordSearchBudget = "short" as const;
+  let response: Response;
+
+  // Filters apply only when a conversation starts. Each id is sent in the
+  // list the backend reads it from (collection ids in `kb`, connector ids in
+  // `apps`). Both keys go out: on agent chat a missing key falls back to the
+  // agent's own sources. An explicit empty `{ apps: [], kb: [] }` passes
+  // through unchanged.
+  let filters = args.filters;
+  let notes: string[] = [];
+  if (!args.conversationId && filters) {
+    const resolved = await resolveSourceScope(
+      client,
+      filters.apps,
+      filters.kb,
+      { signal: ctx.signal },
+    );
+    notes = resolved.notes;
+    if (resolved.scope.apps.length > 0 || resolved.scope.kb.length > 0) {
+      filters = { apps: resolved.scope.apps, kb: resolved.scope.kb };
     }
+  }
 
-    if (args.agentId) {
-      // `quick` is the only value the agent stream schemas accept, and it is
-      // required.
-      const agentChatMode = "quick" as const;
-      if (args.conversationId) {
-        // Continue an existing agent conversation.
-        const [result] = await agentsStreamMessage(client, {
-          agentKey: args.agentId,
-          conversationId: args.conversationId,
-          body: {
-            query: args.query,
-            modelKey: args.modelKey,
-            modelName: args.modelName,
-            modelFriendlyName: args.modelFriendlyName,
-            chatMode: agentChatMode,
-            keywordSearchBudget,
-          },
-        }, { fetchOptions }).$inspect();
-        if (!result.ok) return errorResult(result.error.message);
-        response = result.value;
-      } else {
-        // Start a new agent conversation.
-        const [result] = await agentsStreamConversation(client, {
-          agentKey: args.agentId,
-          body: {
-            query: args.query,
-            filters,
-            modelKey: args.modelKey,
-            modelName: args.modelName,
-            modelFriendlyName: args.modelFriendlyName,
-            chatMode: agentChatMode,
-            keywordSearchBudget,
-          },
-        }, { fetchOptions }).$inspect();
-        if (!result.ok) return errorResult(result.error.message);
-        response = result.value;
-      }
-    } else if (args.conversationId) {
-      // Continue an existing (non-agent) conversation.
-      const [result] = await conversationsStreamMessage(client, {
+  if (args.agentId) {
+    // `quick` is the only value the agent stream schemas accept, and it is
+    // required.
+    const agentChatMode = "quick" as const;
+    if (args.conversationId) {
+      // Continue an existing agent conversation.
+      const [result] = await agentsStreamMessage(client, {
+        agentKey: args.agentId,
         conversationId: args.conversationId,
         body: {
           query: args.query,
           modelKey: args.modelKey,
           modelName: args.modelName,
           modelFriendlyName: args.modelFriendlyName,
-          chatMode: plainChatMode,
+          chatMode: agentChatMode,
           keywordSearchBudget,
+          ...tools,
         },
       }, { fetchOptions }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
       response = result.value;
     } else {
-      // Start a new (non-agent) conversation.
-      const [result] = await conversationsStreamConversation(client, {
+      // Start a new agent conversation.
+      const [result] = await agentsStreamConversation(client, {
+        agentKey: args.agentId,
+        body: {
+          query: args.query,
+          filters,
+          modelKey: args.modelKey,
+          modelName: args.modelName,
+          modelFriendlyName: args.modelFriendlyName,
+          chatMode: agentChatMode,
+          keywordSearchBudget,
+          ...tools,
+        },
+      }, { fetchOptions }).$inspect();
+      if (!result.ok) return errorResult(result.error.message);
+      response = result.value;
+    }
+  } else if (args.conversationId) {
+    // Continue an existing (non-agent) conversation.
+    const [result] = await conversationsStreamMessage(client, {
+      conversationId: args.conversationId,
+      body: {
         query: args.query,
-        filters,
         modelKey: args.modelKey,
         modelName: args.modelName,
         modelFriendlyName: args.modelFriendlyName,
         chatMode: plainChatMode,
         keywordSearchBudget,
-      }, { fetchOptions }).$inspect();
-      if (!result.ok) return errorResult(result.error.message);
-      response = result.value;
+        ...tools,
+      },
+    }, { fetchOptions }).$inspect();
+    if (!result.ok) return errorResult(result.error.message);
+    response = result.value;
+  } else {
+    // Start a new (non-agent) conversation.
+    const [result] = await conversationsStreamConversation(client, {
+      query: args.query,
+      filters,
+      modelKey: args.modelKey,
+      modelName: args.modelName,
+      modelFriendlyName: args.modelFriendlyName,
+      chatMode: plainChatMode,
+      keywordSearchBudget,
+      ...tools,
+    }, { fetchOptions }).$inspect();
+    if (!result.ok) return errorResult(result.error.message);
+    response = result.value;
+  }
+
+  // The streaming funcs accept any HTTP status as a "successful request",
+  // so explicitly reject non-2xx (auth, not-found, server errors) with a
+  // clear message before we try to read the body as SSE.
+  const httpErr = await httpErrorResult(response, "PipesHub chat request");
+  if (httpErr) return httpErr;
+
+  // Drain the AG-UI stream. `applyAGUIFrame` returns true only on a
+  // genuinely terminal frame — a sub-agent's RUN_FINISHED carries no
+  // `result` and must not end the loop.
+  const state = newChatStreamState();
+  try {
+    for await (const frame of iterateSSE(response)) {
+      if (applyAGUIFrame(state, frame)) break;
     }
+  } catch (e: unknown) {
+    return errorResult(`SSE stream failed: ${(e as Error).message}`);
+  }
 
-    // The streaming funcs accept any HTTP status as a "successful request",
-    // so explicitly reject non-2xx (auth, not-found, server errors) with a
-    // clear message before we try to read the body as SSE.
-    const httpErr = await httpErrorResult(response, "PipesHub chat request");
-    if (httpErr) return httpErr;
+  // A token without `agent:execute` gets past the gateway (which checks
+  // `conversation:chat`) and is refused by the assistant one hop later, so
+  // the refusal arrives here as a stream error rather than an HTTP 403.
+  if (state.error) return errorResult(withScopeAdvice(state.error));
 
-    // Drain the AG-UI stream. `applyAGUIFrame` returns true only on a
-    // genuinely terminal frame — a sub-agent's RUN_FINISHED carries no
-    // `result` and must not end the loop.
-    const state = newChatStreamState();
-    try {
-      for await (const frame of iterateSSE(response)) {
-        if (applyAGUIFrame(state, frame)) break;
-      }
-    } catch (e: unknown) {
-      return errorResult(`SSE stream failed: ${(e as Error).message}`);
-    }
+  if (state.conversation) {
+    return jsonResult({
+      ...trimConversation(state.conversation),
+      recordsUsed: state.recordsUsed,
+      ...(notes.length > 0 ? { notes } : {}),
+      next: SHOW_CITATIONS_HINT,
+    });
+  }
 
-    // A token without `agent:execute` gets past the gateway (which checks
-    // `conversation:chat`) and is refused by the assistant one hop later, so
-    // the refusal arrives here as a stream error rather than an HTTP 403.
-    if (state.error) return errorResult(withScopeAdvice(state.error));
+  // Stream ended without a terminal frame — unusual, but salvage what we
+  // accumulated so the LLM has something to work with. `conversation_created`
+  // arrives before any answer text, so a follow-up turn can still resume.
+  const salvaged = salvagedText(state);
+  if (salvaged) {
+    return jsonResult({
+      conversationId: state.conversationId,
+      title: state.title,
+      status: "Inprogress",
+      answer: salvaged,
+      confidence: null,
+      citations: [],
+      followUpQuestions: [],
+      messageCount: 0,
+      recordsUsed: state.recordsUsed,
+      warning: "Stream ended without a terminal RUN_FINISHED; answer is the "
+        + "accumulated TEXT_MESSAGE_CONTENT and citations are unavailable.",
+      ...(notes.length > 0 ? { notes } : {}),
+    });
+  }
 
-    if (state.conversation) {
-      return jsonResult({
-        ...trimConversation(state.conversation),
-        recordsUsed: state.recordsUsed,
-        ...(notes.length > 0 ? { notes } : {}),
-        next: SHOW_CITATIONS_HINT,
-      });
-    }
-
-    // Stream ended without a terminal frame — unusual, but salvage what we
-    // accumulated so the LLM has something to work with. `conversation_created`
-    // arrives before any answer text, so a follow-up turn can still resume.
-    const salvaged = salvagedText(state);
-    if (salvaged) {
-      return jsonResult({
-        conversationId: state.conversationId,
-        title: state.title,
-        status: "Inprogress",
-        answer: salvaged,
-        confidence: null,
-        citations: [],
-        followUpQuestions: [],
-        messageCount: 0,
-        recordsUsed: state.recordsUsed,
-        warning: "Stream ended without a terminal RUN_FINISHED; answer is the "
-          + "accumulated TEXT_MESSAGE_CONTENT and citations are unavailable.",
-        ...(notes.length > 0 ? { notes } : {}),
-      });
-    }
-
-    return errorResult("Stream ended without any usable frames.");
-  },
-};
+  return errorResult("Stream ended without any usable frames.");
+}

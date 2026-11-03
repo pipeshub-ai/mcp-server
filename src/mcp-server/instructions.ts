@@ -6,6 +6,8 @@
 export interface InstructionOptions {
   /** Whether \`pipeshub_chat\` and \`pipeshub_agents\` are mounted. */
   chat: boolean;
+  /** Whether chat may run the user's connected actions. Defaults to true. */
+  actions?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ export const SHOW_CITATIONS_STEP = `4. Before writing the answer, call \`pipeshu
    the \`cite\` and \`quote\` of each passage it will rely on; then answer.
 `;
 
-export function pipeshubInstructions({ chat }: InstructionOptions): string {
+export function pipeshubInstructions({ chat, actions = true }: InstructionOptions): string {
   const orChat = chat ? " or trust a chat answer" : "";
   return `PipesHub searches the user's company Slack, Drive, Jira, Confluence, Gmail
 and 50+ other sources with their own permissions, and returns answers that
@@ -74,20 +76,23 @@ search without \`apps\`, across every source.
 - Every number, date, name or cause must come from a record you cite.
   \`Summary\` and \`Topics\` lines are written by PipesHub's model: confirm
   in the record's own text.
-${chat ? CHAT_SECTION : ""}`;
+${chat ? chatSection(actions) : ""}`;
 }
 
-const CHAT_SECTION = `
+const chatSection = (actions: boolean) => `
 ## \`pipeshub_chat\` is optional
 
 It runs PipesHub's assistant over a few passages; your own search and
 read is as accurate, so a client may leave chat out. Use it only when you
 cannot run that loop, when the user asks for PipesHub's answer, to run an
-org agent (\`agentId\` from \`pipeshub_agents\`), or for an action the user
-asked for. Its answer: treat it as a lead and confirm IDs, statuses and dates in
-the cited record. "Not found" means not in what it read. Actions are on
+org agent (\`agentId\` from \`pipeshub_agents\`)${actions ? ", or for an action the user\nasked for" : ""}. Its answer: treat it as a lead and confirm IDs, statuses and dates in
+the cited record. "Not found" means not in what it read. ${
+  actions
+    ? `Actions are on
 unless an admin has turned them off. Ask it questions, and never ask it to
-write unless the user asked for that action.
+write unless the user asked for that action.`
+    : "It cannot act\nhere: it runs without the user's connected tools."
+}
 `;
 
 export const PIPESHUB_INSTRUCTIONS = pipeshubInstructions({ chat: true });

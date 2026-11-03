@@ -16,7 +16,7 @@ Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, wh
 
 **Optional.** Ask PipesHub's own assistant a question and get an answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web. An agent that can call tools does as well with `pipeshub_search` and `pipeshub_get_record_content`, with fewer wrong claims, at lower cost and latency (see the recommendation above).
 
-> **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Ask it questions, and never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first.
+> **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Ask it questions, and never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first. A host can run chat without actions (`createMCPServer({ allowChatActions: false })`): every turn, plain or with an agent, then sends an empty `tools` list, so the assistant has no connected tools, and the description and server instructions say it cannot act.
 
 > **Speed.** Every turn asks the backend for the short keyword-search wait (`keywordSearchBudget: "short"`): each search inside the assistant waits at most 5 seconds for its keyword (grep) matches after its vector results, and keeps what it found by then, instead of up to 35 seconds. Deployments running `HIGH_ACCURACY_MODE` still wait in full, and backends that predate the field ignore it.
 
@@ -188,7 +188,7 @@ List the PipesHub **agents** configured for this org. To converse with one, take
 
 Each agent is returned as `{ agentId, name, description, systemPrompt, startMessage, tags, webSearch, isActive, toolsets, knowledge }`.
 
-**Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, call `pipeshub_chat` without an `agentId`: plain chat can use the user's connected tools.
+**Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, call `pipeshub_chat` without an `agentId`: plain chat can use the user's connected tools, unless the server runs chat without actions (its description then says it cannot act).
 
 The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the records with `pipeshub_get_record_content`.
 
