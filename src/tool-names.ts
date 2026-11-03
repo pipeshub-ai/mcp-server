@@ -30,11 +30,15 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_indexing_status",
-    "description": "Indexing progress of a collection. Call after `pipeshub_upload`, then\nevery 15–30 s while `done` is false: search finds only COMPLETED\ndocuments. Returns `{ done, total, pendingCount, failedCount, pending,\nfailed }`; tell the user about `failed` entries (FAILED,\nFILE_TYPE_NOT_SUPPORTED, EMPTY, ENABLE_MULTIMODAL_MODELS, with a `reason`).\nAUTO_INDEX_OFF and SKIPPED count in `total` only."
+    "description": "Indexing progress of a collection or web source. Call after\n`pipeshub_upload`, then every 15–30 s while `done` is false: search\nfinds only COMPLETED documents. Returns `{ done, total, pendingCount,\nfailedCount, pending, failed }`; tell the user about `failed` entries (FAILED,\nFILE_TYPE_NOT_SUPPORTED, EMPTY, ENABLE_MULTIMODAL_MODELS, with a `reason`).\nAUTO_INDEX_OFF and SKIPPED count in `total` only."
   },
   {
     "name": "pipeshub_connect_source",
     "description": "Link for the user to connect a source (Slack, Google Drive, Jira,\nConfluence, GitHub, 50+ more). It needs their own sign-in in a browser, so give\nthem `url` (`adminUrl` to connect for the whole org), then check\n`pipeshub_sources`. For files you already have, use `pipeshub_upload`.\nReturns `{ url, adminUrl, instructions }`. Never ask for a password or token\nin chat."
+  },
+  {
+    "name": "pipeshub_add_web_source",
+    "description": "Index a website: crawls from `url` now and daily, as the user's own Web\nconnector. Check progress with `pipeshub_indexing_status` (`collectionId`\n= the returned `connectorId`). Another source on the same host needs a `name`."
   },
   {
     "name": "pipeshub_chat",

@@ -24,8 +24,8 @@ const READ_ONLY = [
   "pipeshub_preview_record",
 ];
 
-/** Tools that add to the user's own collections: they write, but never delete or overwrite. */
-const WRITES = ["pipeshub_create_collection", "pipeshub_upload"];
+/** Tools that add to the user's own sources: they write, but never delete or overwrite. */
+const WRITES = ["pipeshub_create_collection", "pipeshub_upload", "pipeshub_add_web_source"];
 
 /** Tools that can act: chat runs the assistant, which may use the user's connected actions. */
 const ACTS = ["pipeshub_chat"];

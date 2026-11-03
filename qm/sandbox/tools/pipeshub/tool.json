@@ -43,6 +43,11 @@
       "reason": "Sends files from this sandbox into the organization's PipesHub, where others with access can read them. Worth a human glance at what is going."
     },
     {
+      "command": "add-web",
+      "decision": "require_approval",
+      "reason": "Creates a Web connector in the organization's PipesHub and starts a crawl that repeats daily. A write the person should see before it happens."
+    },
+    {
       "command": "auth login",
       "decision": "deny",
       "reason": "The CLI treats `auth login` as `login`; the rule below does not match it, so it is denied by name too."

@@ -53,6 +53,7 @@ The `/.well-known/oauth-protected-resource/mcp` discovery endpoint lists the sco
 | `agent:read`, `agent:execute` | `pipeshub_agents`, `pipeshub_sources`, `pipeshub_chat` with an agent |
 | `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_indexing_status` |
 | `kb:write`, `kb:upload` | `pipeshub_create_collection`, `pipeshub_upload` |
+| `connector:write`, `connector:sync` | `pipeshub_add_web_source` |
 | `user:read`, `team:read`, `usergroup:read` | `pipeshub_directory` |
 | `code:read` | The `pipeshub_code_*` tools |
 
@@ -754,7 +755,7 @@ Both are set with environment variables, in the MCP client's `env` block or with
 
 ## Read-only mode
 
-Two tools write: `pipeshub_create_collection` and `pipeshub_upload` add collections and documents (they never delete or overwrite). They need the `kb:write` and `kb:upload` scopes. To serve read tools only from the local server, pass `--scope read` to `start` or `serve`. On the remote `/mcp`, a token without those scopes is not offered the write tools.
+Three tools write, and none of them delete or overwrite. `pipeshub_create_collection` and `pipeshub_upload` add collections and documents; they need the `kb:write` and `kb:upload` scopes. `pipeshub_add_web_source` sets up a Web connector that crawls a website now and daily; it also needs `connector:write` and `connector:sync` (scope group `connect`). To serve read tools only from the local server, pass `--scope read` to `start` or `serve`. On the remote `/mcp`, a token is offered only the write tools its scopes allow.
 
 ---
 

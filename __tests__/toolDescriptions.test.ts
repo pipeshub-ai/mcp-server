@@ -16,6 +16,7 @@ import { tool$pipeshubSources } from "../src/mcp-server/tools/pipeshubSources.js
 import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubCreateCollection.js";
 import { tool$pipeshubUpload } from "../src/mcp-server/tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "../src/mcp-server/tools/pipeshubIndexingStatus.js";
+import { tool$pipeshubAddWebSource } from "../src/mcp-server/tools/pipeshubAddWebSource.js";
 import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConnectSource.js";
 import { tool$pipeshubPreviewRecord } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
 import { tool$pipeshubShowCitations } from "../src/mcp-server/tools/pipeshubShowCitations.js";
@@ -44,6 +45,7 @@ const definitions: any[] = [
   tool$pipeshubUpload,
   tool$pipeshubIndexingStatus,
   tool$pipeshubConnectSource,
+  tool$pipeshubAddWebSource,
   tool$pipeshubPreviewRecord,
   tool$pipeshubShowCitations,
 ];
@@ -407,7 +409,10 @@ describe("description budget", () => {
   // Raised 2026-10-30 by 250 for `pipeshub_show_citations`, which the agent
   // calls after its answer so the user sees the passages it relied on: when
   // to call it, what to pass, and in what order, in about 260 characters.
-  const TOTAL_MAX = 14850;
+  // Raised 2026-11-03 by 200 for `pipeshub_add_web_source`: what it crawls,
+  // how often, and how to watch progress, in about 210 characters. A token
+  // without the connector scopes is not shown it.
+  const TOTAL_MAX = 15050;
   // Raised 2026-11-01 by 900, deliberately, for "Say only what you read"
   // (about 1,070 characters, of which the old ceiling had room for 249). In
   // an evaluation on public Apache data, most real wrong claims in answers

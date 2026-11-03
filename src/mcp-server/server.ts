@@ -38,6 +38,7 @@ import {
   rememberApps,
 } from "./citation-viewer.js";
 import { withoutCitations } from "./cite.js";
+import { tool$pipeshubAddWebSource } from "./tools/pipeshubAddWebSource.js";
 import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.js";
 import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "./tools/pipeshubIndexingStatus.js";
@@ -177,14 +178,15 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
   // Filling the workspace: a server started with `--scope read` leaves out
-  // the two that write.
+  // the ones that write.
   mount(tool$pipeshubCreateCollection); // 6. new collection to upload into
   mount(tool$pipeshubUpload);           // 7. add documents
   mount(tool$pipeshubIndexingStatus);   // 8. wait until they are searchable
   mount(tool$pipeshubConnectSource);    // 9. link for the human to connect a tool
+  mount(tool$pipeshubAddWebSource);     // 10. crawl a website (`connect` scope)
   if (chat) {
-    tool(cited(tool$pipeshubChat));     // 10. optional: PipesHub's assistant
-    tool(tool$pipeshubAgents);          // 11. discover org agents (for chat)
+    tool(cited(tool$pipeshubChat));     // 11. optional: PipesHub's assistant
+    tool(tool$pipeshubAgents);          // 12. discover org agents (for chat)
   }
   // The answer's sources, shown before it: the model passes the cite codes
   // of the passages it relies on. MCP Apps hosts show them in the citation

@@ -1,5 +1,5 @@
 /*
- * Hand-written: the knowledge-base calls the write tools need. Speakeasy no
+ * Hand-written: the knowledge-base and connector calls the write tools need. Speakeasy no
  * longer generates this package, so these share one request path instead of
  * copying a generated func per endpoint.
  */
@@ -34,7 +34,7 @@ async function send(
   req: {
     operationID: string;
     oAuth2Scopes: string[];
-    method: "GET" | "POST";
+    method: "GET" | "POST" | "PUT";
     path: string;
     query?: string;
     body?: BodyInit | null;
@@ -153,5 +153,68 @@ export function knowledgeHubCollectionRecords(
       limit: query.limit,
       indexingStatus: query.indexingStatus?.join(","),
     }),
+  }, options);
+}
+
+/** `POST /connectors` → `{ connector: { connectorId, … } }`. */
+export function connectorCreate(
+  client$: PipeshubCore,
+  body: { connectorType: string; instanceName: string; scope: "personal"; authType: string },
+  options?: RequestOptions,
+): Promise<SendResult> {
+  return send(client$, {
+    operationID: "createConnectorInstance",
+    oAuth2Scopes: ["connector:write"],
+    method: "POST",
+    path: pathToFunc("/connectors")(),
+    body: JSON.stringify({ ...body, config: { auth: {} } }),
+    json: true,
+  }, options);
+}
+
+/** `PUT /connectors/{connectorId}/config/filters-sync`: what the connector syncs and when. */
+export function connectorSaveSyncConfig(
+  client$: PipeshubCore,
+  connectorId: string,
+  body: { sync: Record<string, unknown>; filters: Record<string, unknown> },
+  options?: RequestOptions,
+): Promise<SendResult> {
+  return send(client$, {
+    operationID: "updateConnectorInstanceFiltersSyncConfig",
+    oAuth2Scopes: ["connector:write"],
+    method: "PUT",
+    path: pathToFunc("/connectors/{connectorId}/config/filters-sync")({ connectorId }),
+    body: JSON.stringify(body),
+    json: true,
+  }, options);
+}
+
+/** `POST /connectors/{connectorId}/toggle` with `type: "sync"`: turns syncing on (or off). */
+export function connectorToggleSync(
+  client$: PipeshubCore,
+  connectorId: string,
+  options?: RequestOptions,
+): Promise<SendResult> {
+  return send(client$, {
+    operationID: "toggleConnectorInstance",
+    oAuth2Scopes: ["connector:sync"],
+    method: "POST",
+    path: pathToFunc("/connectors/{connectorId}/toggle")({ connectorId }),
+    body: JSON.stringify({ type: "sync" }),
+    json: true,
+  }, options);
+}
+
+/** `GET /connectors/{connectorId}` → `{ connector: { status, … } }`; `status` is the sync state. */
+export function connectorGetInstance(
+  client$: PipeshubCore,
+  connectorId: string,
+  options?: RequestOptions,
+): Promise<SendResult> {
+  return send(client$, {
+    operationID: "getConnectorInstance",
+    oAuth2Scopes: ["connector:read"],
+    method: "GET",
+    path: pathToFunc("/connectors/{connectorId}")({ connectorId }),
   }, options);
 }
