@@ -14,7 +14,9 @@ const frontmatter = (p: string) => {
 test("cursor plugin matches the marketplace, package version and Cursor's validator essentials", () => {
   const market = json(".cursor-plugin/marketplace.json");
   const entry = market.plugins[0];
-  const dir = entry.source.replace(/^\.\//, "");
+  // Cursor's reference uses a bare folder name for `source`.
+  expect(entry.source).not.toMatch(/^\.\//);
+  const dir = entry.source;
   expect(existsSync(join(root, dir, ".cursor-plugin/plugin.json"))).toBe(true);
 
   const plugin = json(`${dir}/.cursor-plugin/plugin.json`);

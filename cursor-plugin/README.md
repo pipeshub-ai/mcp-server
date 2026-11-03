@@ -12,7 +12,7 @@ Install **PipesHub** from the Cursor plugin marketplace, or for a team marketpla
 
 ## Sign in
 
-No token goes in any config file. Run the `setup` command in Cursor, or yourself:
+No token goes into Cursor's MCP configuration: `pipeshub login` keeps its sign-in in `~/.config/pipeshub/credentials.json` (mode 0600) and refreshes it. Run the `setup` command in Cursor, or yourself:
 
 ```bash
 npx -y -p @pipeshub-ai/mcp pipeshub login --no-wait   # prints a link and a code; open it and approve

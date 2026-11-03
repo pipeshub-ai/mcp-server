@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "pipeshub",
-      "source": "./cursor-plugin",
+      "source": "cursor-plugin",
       "description": "Permissioned search and cited answers over your workplace sources, from inside Cursor."
     }
   ]
