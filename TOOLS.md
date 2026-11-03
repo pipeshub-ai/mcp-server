@@ -268,7 +268,7 @@ Returns the page where the user connects a source (Slack, Drive, Jira, …). Con
 
 ### `pipeshub_add_web_source`
 
-Indexes a website. It sets up a Web connector for the user, as the connector settings page would: it creates the connector, saves the start URL and page limit, and starts the crawl. The crawl follows links from the start page and runs again daily. Pages become searchable as they index. Check them with `pipeshub_indexing_status`, passing the returned `connectorId` as `collectionId`. Calling it again adds a second source. Needs `connector:write` and `connector:sync`, and the tool is in the `connect` scope group. CLI: `pipeshub add-web <url> [--max-pages <n>] [--name <name>]`.
+Indexes a website. It sets up a Web connector for the user, as the connector settings page would: it creates the connector, saves the start URL and page limit, and starts the crawl. The crawl follows links from the start page and runs again daily. Pages become searchable as they index. Check them with `pipeshub_indexing_status`, passing the returned `connectorId` as `collectionId`. Names are unique, and the default is the host name, so a second source on the same site needs its own `name`. Needs `connector:write` and `connector:sync`, and the tool is in the `connect` scope group. CLI: `pipeshub add-web <url> [--max-pages <n>] [--name <name>]`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -276,7 +276,7 @@ Indexes a website. It sets up a Web connector for the user, as the connector set
 | `maxPages` | integer, 1–10000 | no | Most pages to keep. The default is 100, the connector's own. |
 | `name` | string | no | The source's name. The default is the URL's host name. |
 
-**Response:** `{ connectorId, name, startUrl, maxPages, url }`. `url` opens the user's connectors page. If a step after creating fails, the error names the `connectorId` it made and links to that page, so the person can finish it there. Calling the tool again would add a second source.
+**Response:** `{ connectorId, name, startUrl, maxPages, url }`. `url` opens the user's connectors page. If a step after creating fails, the error names the `connectorId` it made and links to that page, so the person can finish it there.
 
 ---
 

@@ -31,7 +31,7 @@ export const tool$pipeshubAddWebSource: ToolDefinition<typeof args> = {
   description:
     `Index a website: crawls from \`url\` now and daily, as the user's own Web
 connector. Check progress with \`pipeshub_indexing_status\` (\`collectionId\`
-= the returned \`connectorId\`). Calling again adds a second source.`,
+= the returned \`connectorId\`). Another source on the same host needs a \`name\`.`,
   scopes: ["write", "connect"],
   annotations: {
     title: "Add a website to PipesHub",

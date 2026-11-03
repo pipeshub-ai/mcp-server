@@ -38,7 +38,7 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_add_web_source",
-    "description": "Index a website: crawls from `url` now and daily, as the user's own Web\nconnector. Check progress with `pipeshub_indexing_status` (`collectionId`\n= the returned `connectorId`). Calling again adds a second source."
+    "description": "Index a website: crawls from `url` now and daily, as the user's own Web\nconnector. Check progress with `pipeshub_indexing_status` (`collectionId`\n= the returned `connectorId`). Another source on the same host needs a `name`."
   },
   {
     "name": "pipeshub_chat",
