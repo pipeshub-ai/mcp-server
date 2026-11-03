@@ -30,7 +30,7 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_indexing_status",
-    "description": "Indexing progress of a collection. Call after `pipeshub_upload`, then\nevery 15–30 s while `done` is false: search finds only COMPLETED\ndocuments. Returns `{ done, total, pendingCount, failedCount, pending,\nfailed }`; tell the user about `failed` entries (FAILED,\nFILE_TYPE_NOT_SUPPORTED, EMPTY, ENABLE_MULTIMODAL_MODELS, with a `reason`).\nAUTO_INDEX_OFF and SKIPPED count in `total` only."
+    "description": "Indexing progress of a collection or web source. Call after\n`pipeshub_upload`, then every 15–30 s while `done` is false: search\nfinds only COMPLETED documents. Returns `{ done, total, pendingCount,\nfailedCount, pending, failed }`; tell the user about `failed` entries (FAILED,\nFILE_TYPE_NOT_SUPPORTED, EMPTY, ENABLE_MULTIMODAL_MODELS, with a `reason`).\nAUTO_INDEX_OFF and SKIPPED count in `total` only."
   },
   {
     "name": "pipeshub_connect_source",

@@ -18,7 +18,7 @@ const MAX_PAGES = 10_000;
 const RECRAWL_MINUTES = 1440;
 
 const args = {
-  url: z.string().url().refine((u) => /^https?:$/.test(new URL(u).protocol), "an http(s) URL")
+  url: z.url({ protocol: /^https?$/ })
     .describe("Start page; links from it are followed."),
   maxPages: z.number().int().min(1).max(MAX_PAGES).optional()
     .describe(`Most pages to keep (default ${DEFAULT_PAGES}).`),

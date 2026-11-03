@@ -248,13 +248,13 @@ Uploads documents into a collection. The remote server cannot read the agent's d
 
 ### `pipeshub_indexing_status`
 
-Reports how far a collection's records are through indexing, so the agent knows when search will find them. Three filtered listings (pending, failed, all records) whose totals are exact at any collection size.
+Reports how far a collection's or a web source's records are through indexing, so the agent knows when search will find them. The counts are the source's stats (`GET /connectors/{id}/stats`, the numbers its settings page shows), exact at any size. They leave out the folder placeholders a web crawl stores, which never index. Two filtered listings name the pending and failed records.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `collectionId` | string (uuid) | yes | The collection to check. |
+| `collectionId` | string (uuid) | yes | The collection to check, or the `connectorId` from `pipeshub_add_web_source`. |
 
-**Response:** `{ done, total, pendingCount, failedCount, pending, failed }`. `done` is true when no record is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`. `pending` and `failed` list up to 25 records each; `failed` covers records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
+**Response:** `{ done, total, pendingCount, failedCount, pending, failed }`. `done` is true when at least one record is stored and none is `NOT_STARTED`, `QUEUED`, `IN_PROGRESS` or `PAUSED`. With nothing stored yet, `done` is false and a `note` says so, because a crawl stores its first page some time after it starts. `pending` and `failed` list up to 25 records each; `failed` covers records that will not become searchable (`FAILED`, `FILE_TYPE_NOT_SUPPORTED`, `EMPTY`, `ENABLE_MULTIMODAL_MODELS`) with the server's `reason`.
 
 ### `pipeshub_connect_source`
 

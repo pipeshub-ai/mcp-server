@@ -174,27 +174,42 @@ describe("pipeshub_upload", () => {
 });
 
 describe("pipeshub_indexing_status", () => {
-  const record = (id: string, indexingStatus: string, reason?: string) =>
-    ({ id, name: `${id}.md`, nodeType: "record", indexingStatus, ...(reason ? { reason } : {}) });
+  const record = (id: string, indexingStatus: string, reason?: string, isInternal = false) =>
+    ({ id, name: `${id}.md`, nodeType: "record", indexingStatus, isInternal, ...(reason ? { reason } : {}) });
 
-  /** A collection of `counts` records per status; the listing filters by status like the server. */
-  function collection(counts: Record<string, number>, reasons: Record<string, string> = {}) {
+  /**
+   * A source with `counts` records per status. The stats route counts them as
+   * the server does, leaving out `internal` ones (a crawl's folder placeholders,
+   * which stay NOT_STARTED); the listing filters by status and includes them.
+   */
+  function collection(counts: Record<string, number>, reasons: Record<string, string> = {}, internal = 0) {
     return client((_req, seen) => {
+      if (seen.path === `/api/v1/connectors/${KB}/stats`) {
+        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        return Response.json({ success: true, data: { stats: { total, indexingStatus: counts } } });
+      }
       const q = new URLSearchParams(seen.search);
       const wanted = q.get("indexingStatus")?.split(",");
       const limit = Number(q.get("limit"));
-      const matching = Object.entries(counts)
-        .filter(([s]) => !wanted || wanted.includes(s))
-        .flatMap(([s, n]) => Array.from({ length: n }, (_, i) => record(`${s}-${i}`, s, reasons[s])));
+      const placeholders = Array.from({ length: internal }, (_, i) => record(`folder-${i}`, "NOT_STARTED", undefined, true));
+      const matching = [
+        ...placeholders,
+        ...Object.entries(counts).flatMap(([s, n]) => Array.from({ length: n }, (_, i) => record(`${s}-${i}`, s, reasons[s]))),
+      ].filter((r) => !wanted || wanted.includes(r.indexingStatus));
       return Response.json({ items: matching.slice(0, limit), pagination: { totalItems: matching.length } });
     });
   }
 
-  test("counts pending and failed exactly from filtered listings, and is not done while any are queued", async () => {
+  test("counts from the source's stats, names records from filtered listings, and is not done while any are queued", async () => {
     const { core, calls } = collection({ COMPLETED: 3, QUEUED: 1, FAILED: 1 }, { FAILED: "corrupt file" });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
-    expect(calls.every((c) => c.path === `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`)).toBe(true);
-    const q = new URLSearchParams(calls[0]!.search);
+    expect(calls.map((c) => c.path).sort()).toEqual([
+      `/api/v1/connectors/${KB}/stats`,
+      `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
+      `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
+    ]);
+    const listing = calls.find((c) => c.path.includes("knowledge-hub"))!;
+    const q = new URLSearchParams(listing.search);
     expect([q.get("flattened"), q.get("nodeTypes")]).toEqual(["true", "record"]);
     expect(out).toMatchObject({
       done: false,
@@ -207,7 +222,6 @@ describe("pipeshub_indexing_status", () => {
   });
 
   test("a collection past any page size still reaches done when nothing is pending", async () => {
-    // A capped listing would report "not done" forever here; the totals do not.
     const { core } = collection({ COMPLETED: 5000, FAILED: 2 });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
     expect(out).toMatchObject({ done: true, total: 5002, pendingCount: 0, failedCount: 2 });
@@ -221,11 +235,18 @@ describe("pipeshub_indexing_status", () => {
     expect(out.pending).toHaveLength(25);
   });
 
-  test("an empty collection says so", async () => {
+  // A crawl's folder placeholders stay NOT_STARTED for good: counted, they would keep a web source "not done" forever.
+  test("a crawl whose pages are all indexed is done, its folder placeholders left out", async () => {
+    const { core } = collection({ COMPLETED: 5 }, {}, 2);
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: true, total: 5, pendingCount: 0, pending: [] });
+  });
+
+  test("nothing stored yet is not done, so a crawl that just started is polled again", async () => {
     const { core } = collection({});
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
-    expect(out).toMatchObject({ done: true, total: 0 });
-    expect(out.note).toContain("no records");
+    expect(out).toMatchObject({ done: false, total: 0 });
+    expect(out.note).toContain("Keep polling");
   });
 });
 
@@ -314,6 +335,7 @@ describe("pipeshub_add_web_source", () => {
     const url = tool$pipeshubAddWebSource.args.url;
     expect(url.safeParse("https://example.com").success).toBe(true);
     expect(url.safeParse("file:///etc/passwd").success).toBe(false);
+    expect(url.safeParse("not a url").success).toBe(false); // a validation error, not a throw
     expect(url.safeParse("ftp://example.com").success).toBe(false);
     expect(tool$pipeshubAddWebSource.scopes).toEqual(["write", "connect"]);
   });
