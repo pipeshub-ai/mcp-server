@@ -44,6 +44,7 @@ fresh sandbox before the install.
 | "Make these files searchable" | `pipeshub collection create "<name>"` (or reuse a `kind: knowledgeBase` id from `pipeshub sources`), then `pipeshub upload <collectionId> <path>...` |
 | "Is it searchable yet?" | `pipeshub status <collectionId>` every 15–30 s until `done` is true; name any `failed` files and their `reason` |
 | "Connect our Jira / Drive / Slack" | `pipeshub connect <connector>` and give the person the `url`. Only they can sign in to it |
+| "Index our docs site" / a website | `pipeshub add-web <url>`, then `pipeshub status <connectorId>` until `done` |
 
 `collection create` and `upload` wait for the person's approval: they write
 into the organization's PipesHub, and `upload` sends files from this sandbox.

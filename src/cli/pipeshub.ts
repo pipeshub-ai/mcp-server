@@ -36,7 +36,7 @@ import {
   type Ctx,
   type Outcome,
 } from "./commands.js";
-import { collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
+import { addWebSource, collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
 import {
   CLOUD_ORIGIN,
   credentialsPath,
@@ -72,6 +72,7 @@ COMMANDS
                               upload files or folders (walked) to a collection
   status <collectionId>       indexing progress of a collection
   connect [connector]         link to connect a source, e.g. connect Jira
+  add-web <url>               index a website: crawl it now and daily
   mcp install --client <name> add PipesHub to an MCP client, with no token in its config:
                               claude-code, cursor, codex, gemini, claude-desktop
 
@@ -86,6 +87,8 @@ OPTIONS
   --as <format>               get: server-side conversion, e.g. pdf
   --out <path>                get: write to a file instead of stdout
   --max-chars <n>             cap snippet/content length (default 2000)
+  --max-pages <n>             add-web: most pages to keep, 1-10000 (default 100)
+  --name <name>               add-web: name for the source (default: the host name)
   --insecure-http             allow cleartext to a host outside the private allowlist
   --force                     init-qm: overwrite files that already exist;
                               mcp install: replace an existing pipeshub entry;
@@ -125,6 +128,8 @@ interface Flags {
   wait: boolean | null;
   client: string | null;
   dryRun: boolean;
+  maxPages: number | null;
+  name: string | null;
 }
 
 function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
@@ -144,6 +149,8 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     wait: null,
     client: null,
     dryRun: false,
+    maxPages: null,
+    name: null,
   };
   const positional: string[] = [];
 
@@ -167,6 +174,8 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--url": flags.url = needValue(a, argv[++i]); break;
       case "--client": flags.client = needValue(a, argv[++i]); break;
       case "--dry-run": flags.dryRun = true; break;
+      case "--max-pages": flags.maxPages = Number(needValue(a, argv[++i])); break;
+      case "--name": flags.name = needValue(a, argv[++i]); break;
       case "--limit": flags.limit = Number(needValue(a, argv[++i])); break;
       case "--app": flags.apps.push(needValue(a, argv[++i])); break;
       case "--kb": flags.kb.push(needValue(a, argv[++i])); break;
@@ -193,6 +202,9 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
   }
   if (!Number.isFinite(flags.maxChars) || flags.maxChars <= 0) {
     throw new CliError("--max-chars must be a positive number", EXIT.USAGE);
+  }
+  if (flags.maxPages !== null && (!Number.isInteger(flags.maxPages) || flags.maxPages < 1 || flags.maxPages > 10_000)) {
+    throw new CliError("--max-pages must be a whole number from 1 to 10000", EXIT.USAGE);
   }
   return { positional, flags };
 }
@@ -470,6 +482,12 @@ async function run(argv: string[]): Promise<number> {
     case "connect":
       outcome = await connectSource(ctx, positional.slice(1).join(" ").trim() || undefined);
       break;
+    case "add-web": {
+      const url = positional[1] ?? "";
+      if (url === "") throw new CliError("usage: pipeshub add-web <url> [--max-pages <n>] [--name <name>]", EXIT.USAGE);
+      outcome = await addWebSource(ctx, url, { maxPages: flags.maxPages, name: flags.name });
+      break;
+    }
     case "directory":
       if (sub !== "whoami") {
         throw new CliError(

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
+import { tool$pipeshubAddWebSource } from "../src/mcp-server/tools/pipeshubAddWebSource.js";
 import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConnectSource.js";
 import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubCreateCollection.js";
 import { tool$pipeshubIndexingStatus } from "../src/mcp-server/tools/pipeshubIndexingStatus.js";
@@ -241,5 +242,79 @@ describe("pipeshub_connect_source", () => {
     const { core } = client(() => Response.json({}));
     const out = jsonOf(await tool$pipeshubConnectSource.tool(core, {}, ctx()));
     expect(out.url).toBe("https://pipeshub.test/workspace/connectors/personal/");
+  });
+});
+
+describe("pipeshub_add_web_source", () => {
+  const CONN = "9b1e2c3d-4f5a-4b6c-8d7e-0f1a2b3c4d5e";
+  const ok = (calls: Seen[]) => (seen: Seen) =>
+    seen.path === "/api/v1/connectors"
+      ? Response.json({ success: true, connector: { connectorId: CONN } })
+      : Response.json({ success: true });
+
+  test("creates a personal Web connector, saves the crawl and starts it, as the settings page does", async () => {
+    const { core, calls } = client((_req, seen) => ok(calls)(seen));
+    const out = await tool$pipeshubAddWebSource.tool(
+      core,
+      { url: "https://docs.example.com/guide/", maxPages: 50 },
+      ctx(),
+    );
+    expect(out.isError).toBeFalsy();
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "POST /api/v1/connectors",
+      `PUT /api/v1/connectors/${CONN}/config/filters-sync`,
+      `POST /api/v1/connectors/${CONN}/toggle`,
+    ]);
+    expect(JSON.parse(calls[0]!.body as string)).toEqual({
+      connectorType: "Web",
+      instanceName: "docs.example.com",
+      scope: "personal",
+      authType: "NONE",
+      config: { auth: {} },
+    });
+    const sync = JSON.parse(calls[1]!.body as string).sync;
+    const crawl = { url: "https://docs.example.com/guide/", type: "recursive", max_pages: 50 };
+    expect(sync).toMatchObject({ selectedStrategy: "SCHEDULED", customValues: crawl, ...crawl });
+    expect(sync.scheduledConfig.intervalMinutes).toBe(1440);
+    expect(JSON.parse(calls[2]!.body as string)).toEqual({ type: "sync" });
+    expect(jsonOf(out)).toMatchObject({ connectorId: CONN, name: "docs.example.com", maxPages: 50 });
+  });
+
+  test("defaults to the connector's own 100 pages and takes a name", async () => {
+    const { core, calls } = client((_req, seen) => ok(calls)(seen));
+    await tool$pipeshubAddWebSource.tool(core, { url: "https://example.com", name: "Example" }, ctx());
+    expect(JSON.parse(calls[0]!.body as string).instanceName).toBe("Example");
+    expect(JSON.parse(calls[1]!.body as string).sync.max_pages).toBe(100);
+  });
+
+  test("a later failure names the connector it created, so the person can finish it", async () => {
+    const { core, calls } = client((_req, seen) =>
+      seen.path.endsWith("/toggle")
+        ? Response.json({ error: { message: "Insufficient scope. Required: connector:sync" } }, { status: 403 })
+        : ok(calls)(seen)
+    );
+    const out = await tool$pipeshubAddWebSource.tool(core, { url: "https://example.com" }, ctx());
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain(CONN);
+    expect(textOf(out)).toContain("connector:sync");
+    expect(textOf(out)).toContain("/workspace/connectors/personal/");
+  });
+
+  test("a refused create stops before anything else and names the scope", async () => {
+    const { core, calls } = client(() =>
+      Response.json({ error: { message: "Insufficient scope. Required: connector:write" } }, { status: 403 })
+    );
+    const out = await tool$pipeshubAddWebSource.tool(core, { url: "https://example.com" }, ctx());
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain("connector:write");
+    expect(calls).toHaveLength(1);
+  });
+
+  test("accepts only http(s) start URLs and is hidden from a read-only or write-only server", () => {
+    const url = tool$pipeshubAddWebSource.args.url;
+    expect(url.safeParse("https://example.com").success).toBe(true);
+    expect(url.safeParse("file:///etc/passwd").success).toBe(false);
+    expect(url.safeParse("ftp://example.com").success).toBe(false);
+    expect(tool$pipeshubAddWebSource.scopes).toEqual(["write", "connect"]);
   });
 });

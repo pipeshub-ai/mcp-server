@@ -187,7 +187,10 @@ searchable, fill it instead of scaffolding a RAG stack:
    `npm i -g @pipeshub-ai/mcp`; sign it in once with `pipeshub login`, or
    `pipeshub login --url <origin>` when self-hosted).
 3. Poll `pipeshub_indexing_status` every 15–30 s until `done`, then search.
-4. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
+4. For a website (a docs site, a public wiki), `pipeshub_add_web_source` with
+   its start URL crawls it now and daily; poll `pipeshub_indexing_status` with
+   the returned `connectorId`.
+5. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
    link the user signs in on. You cannot connect a source for them.
 
 ## Which tool

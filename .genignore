@@ -31,5 +31,5 @@ src/mcp-server/cli/serve/command.ts
 src/mcp-server/server.ts
 src/mcp-server/tools.ts
 
-# Hand-maintained: the write scope for the knowledge-base write tools.
+# Hand-maintained: the write and connect scopes for the write tools.
 src/mcp-server/scopes.ts

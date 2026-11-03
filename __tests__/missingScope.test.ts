@@ -119,6 +119,8 @@ const PRE_AGENT_TOKEN = [
 ];
 /** The write scopes the agent preset gained so an agent can fill an empty workspace. */
 const WRITE_SCOPES = ["kb:write", "kb:upload"];
+/** add-web: create the Web connector and start its crawl. */
+const CONNECT_SCOPES = ["connector:write", "connector:sync"];
 
 let server: ReturnType<typeof Bun.serve>;
 let origin: string;
@@ -147,7 +149,7 @@ const status = (token: string) =>
 
 describe("auth status", () => {
   test("warns that a token minted without agent:execute cannot run ask", async () => {
-    const out = await status(tokenWith([...PRE_AGENT_TOKEN, ...WRITE_SCOPES]));
+    const out = await status(tokenWith([...PRE_AGENT_TOKEN, ...WRITE_SCOPES, ...CONNECT_SCOPES]));
 
     // Still connected and still exit 0: the token works for everything else.
     expect(out.exit).toBe(EXIT.OK);
@@ -160,7 +162,7 @@ describe("auth status", () => {
   });
 
   test("says nothing when the token has every scope the commands need", async () => {
-    const out = await status(tokenWith([...PRE_AGENT_TOKEN, ...WRITE_SCOPES, "agent:execute"]));
+    const out = await status(tokenWith([...PRE_AGENT_TOKEN, ...WRITE_SCOPES, ...CONNECT_SCOPES, "agent:execute"]));
 
     expect(out.payload["missingScopes"]).toEqual({});
     expect(out.payload["warning"]).toBeUndefined();
@@ -173,6 +175,7 @@ describe("auth status", () => {
     expect(out.payload["missingScopes"]).toEqual({
       "collection create": ["kb:write"],
       upload: ["kb:upload"],
+      "add-web": CONNECT_SCOPES,
     });
   });
 
@@ -189,7 +192,7 @@ describe("auth status", () => {
 describe("what the agent and the operator are told", () => {
   test("whoami is not reported as refused without user:read", () => {
     // It falls back to the token's own claims on any refusal but 401.
-    const missing = missingScopesByCommand(["conversation:chat", "agent:execute", "semantic:write", "kb:read", "connector:read", ...WRITE_SCOPES]);
+    const missing = missingScopesByCommand(["conversation:chat", "agent:execute", "semantic:write", "kb:read", "connector:read", ...WRITE_SCOPES, ...CONNECT_SCOPES]);
     expect(missing).toEqual({});
   });
 

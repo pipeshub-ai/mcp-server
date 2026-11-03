@@ -27,6 +27,7 @@ const CURATED = [
   "pipeshub_upload",
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
+  "pipeshub_add_web_source",
   "pipeshub_chat",
   "pipeshub_agents",
   "pipeshub_show_citations",
@@ -98,16 +99,25 @@ describe("createMCPServer tool registration", () => {
     expect(tools.map((t) => t.name)).toEqual(["pipeshub_search", "pipeshub_agents"]);
   });
 
-  test("the read scope keeps every curated tool except the two that write", async () => {
+  test("the read scope keeps every curated tool except the ones that write", async () => {
     const { client } = await connect({ scopes: ["read"] });
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(
-      CURATED.filter((n) => n !== "pipeshub_create_collection" && n !== "pipeshub_upload"),
+      CURATED.filter((n) =>
+        n !== "pipeshub_create_collection" && n !== "pipeshub_upload" && n !== "pipeshub_add_web_source"
+      ),
     );
   });
 
-  test("read and write scopes together keep every curated tool", async () => {
+  // A token with kb:write and kb:upload but not the connector scopes: /mcp passes these two.
+  test("read and write scopes keep every curated tool except the connect one", async () => {
     const { client } = await connect({ scopes: ["read", "write"] });
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name)).toEqual(CURATED.filter((n) => n !== "pipeshub_add_web_source"));
+  });
+
+  test("read, write and connect scopes keep every curated tool", async () => {
+    const { client } = await connect({ scopes: ["read", "write", "connect"] });
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(CURATED);
   });
@@ -288,7 +298,7 @@ describe("dynamic mode", () => {
 
   test("list_scopes lists the server's scopes", async () => {
     const { client } = await connect({ dynamic: true });
-    expect(text(await client.callTool({ name: "list_scopes", arguments: {} }))).toBe("- read\n- write");
+    expect(text(await client.callTool({ name: "list_scopes", arguments: {} }))).toBe("- read\n- write\n- connect");
   });
 });
 
