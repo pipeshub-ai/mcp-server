@@ -45,8 +45,16 @@ export function wantsJson(extra: unknown): boolean {
 const INDENT = "   ";
 const PASSAGE_INDENT = "     ";
 
+/**
+ * A value for a field that is one line: whitespace runs, line breaks included,
+ * become one space. Names, paths and URLs are document data; a name with a
+ * line break and `recordId: …` after it must not print a second, forged field.
+ * Only passage text keeps its lines, each indented under its `> `.
+ */
 function str(v: unknown): string | undefined {
-  return typeof v === "string" && v !== "" ? v : undefined;
+  if (typeof v !== "string") return undefined;
+  const line = v.split(/\s+/).filter(Boolean).join(" ");
+  return line !== "" ? line : undefined;
 }
 
 function num(v: unknown): number | undefined {
@@ -58,18 +66,18 @@ function recordLines(r: any, n: number): string[] {
   const out: string[] = [`${n}. ${str(r?.recordName) ?? "(no name)"}`];
   const kind = [str(r?.connector), str(r?.recordType)].filter(Boolean).join(" ");
   const facts = [
-    `recordId: ${r?.recordId}`,
+    `recordId: ${str(r?.recordId) ?? ""}`,
     kind || undefined,
-    str(r?.createdAt) && `created ${r.createdAt}`,
-    str(r?.updatedAt) && `updated ${r.updatedAt}`,
-    str(r?.period) && `period ${r.period}`,
-    num(r?.score) !== undefined ? `score ${r.score}` : undefined,
+    str(r?.createdAt) && `created ${str(r.createdAt)}`,
+    str(r?.updatedAt) && `updated ${str(r.updatedAt)}`,
+    str(r?.period) && `period ${str(r.period)}`,
+    num(r?.score) !== undefined ? `score ${num(r.score)}` : undefined,
   ].filter(Boolean);
   out.push(INDENT + facts.join(" · "));
-  if (str(r?.parent)) out.push(`${INDENT}parent: ${r.parent}`);
-  if (str(r?.webUrl)) out.push(`${INDENT}webUrl: ${r.webUrl}`);
-  if (str(r?.status)) out.push(`${INDENT}status: ${r.status}`);
-  const links = Array.isArray(r?.links) ? r.links.filter((l: unknown) => typeof l === "string") : [];
+  if (str(r?.parent)) out.push(`${INDENT}parent: ${str(r.parent)}`);
+  if (str(r?.webUrl)) out.push(`${INDENT}webUrl: ${str(r.webUrl)}`);
+  if (str(r?.status)) out.push(`${INDENT}status: ${str(r.status)}`);
+  const links = Array.isArray(r?.links) ? r.links.map(str).filter(Boolean) : [];
   if (links.length > 0) {
     const found = num(r?.linksFound);
     out.push(`${INDENT}links${found !== undefined ? ` (${links.length} of ${found})` : ""}:`);
@@ -81,7 +89,8 @@ function recordLines(r: any, n: number): string[] {
     out.push(`${INDENT}passages: ${passages.length} shown${found !== undefined ? ` of passagesFound ${found}` : ""}`);
   }
   for (const p of passages) {
-    const text = typeof p === "string" ? p : str(p?.text) ?? "";
+    const raw = typeof p === "string" ? p : p?.text;
+    const text = typeof raw === "string" ? raw : "";
     const lines = text.split("\n");
     out.push(`${INDENT}> ${lines[0] ?? ""}`);
     for (const line of lines.slice(1)) out.push(line === "" ? "" : PASSAGE_INDENT + line);
@@ -99,13 +108,15 @@ export function searchResultText(result: any): string {
   const out: string[] = [];
   const records = Array.isArray(result?.records) ? result.records : [];
   const total = num(result?.totalRecords) ?? records.length;
-  out.push(`totalRecords: ${total}${records.length > 0 ? ", best first" : ""}`);
-  if (str(result?.searchId)) out.push(`searchId: ${result.searchId}`);
+  // A timeline page is shown in date order (pipeshubSearch.ts), not by rank.
+  const order = result?.timeline ? ", oldest first" : ", best first";
+  out.push(`totalRecords: ${total}${records.length > 0 ? order : ""}`);
+  if (str(result?.searchId)) out.push(`searchId: ${str(result.searchId)}`);
   const t = result?.timeline;
   if (t && typeof t === "object") {
     const span = [str(t.start), str(t.end)].filter(Boolean).join(" to ");
     const periods = Array.isArray(t.periods)
-      ? t.periods.map((p: any) => `${p?.label}: ${p?.records ?? 0}`).join(" · ")
+      ? t.periods.map((p: any) => `${str(p?.label) ?? ""}: ${num(p?.records) ?? 0}`).join(" · ")
       : "";
     out.push(`timeline by ${str(t.dateField) ?? "created"}${span ? `, ${span}` : ""}; records per period: ${periods}`);
   }
@@ -126,15 +137,16 @@ export function searchResultText(result: any): string {
     out.push("");
     out.push(`nextOffset: ${result.nextOffset}`);
   }
-  const notes = Array.isArray(result?.notes) ? result.notes.filter((n: unknown) => typeof n === "string") : [];
+  const notes = Array.isArray(result?.notes) ? result.notes.map(str).filter(Boolean) : [];
   if (notes.length > 0) {
     out.push("");
     out.push("notes:");
     for (const n of notes) out.push(`- ${n}`);
   }
-  if (str(result?.next)) {
+  const next = str(result?.next);
+  if (next) {
     out.push("");
-    out.push(result.next);
+    out.push(next);
   }
   return out.join("\n");
 }
