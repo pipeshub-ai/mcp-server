@@ -348,6 +348,12 @@ export function shapeTimeline(
   };
 }
 
+/** Said on a search that matched nothing, so the model neither stops nor guesses. */
+export const NO_RESULTS_NOTE = "No records matched. Try other wording or "
+  + "fewer filters; an exact name, key or link can be looked up with "
+  + "`pipeshub_get_record_content` `mode:\"lookup\"`. Not found here does not "
+  + "mean it does not exist: only indexed records the user can open are searched.";
+
 export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   name: "pipeshub_search",
   description:
@@ -545,7 +551,12 @@ again with \`offset\` set to \`nextOffset\`.`,
       page.nextOffset,
       maxChars,
     );
-    const notes = [...search.notes, ...pagingNotes, ...(note ? [note] : [])];
+    const notes = [
+      ...search.notes,
+      ...pagingNotes,
+      ...(note ? [note] : []),
+      ...(search.entries.length === 0 ? [NO_RESULTS_NOTE] : []),
+    ];
     return jsonResult({
       ...(search.searchId ? { searchId: search.searchId } : {}),
       ...(search.timeline ? { timeline: search.timeline } : {}),

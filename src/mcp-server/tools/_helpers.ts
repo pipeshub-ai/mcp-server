@@ -199,22 +199,33 @@ export async function httpErrorResult(
   // The server's reason rarely ends in punctuation, which runs it straight
   // into the hint below ("Invalid token Check that ...").
   const reason = message.slice(0, 400).trim();
-  const detail = reason
-    ? ` ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
-    : "";
   const missingScopes = response.status === 403
     ? requiredScopesFrom(reason)
     : null;
-  const auth = missingScopes
+  // PipesHub answers 403 for a record that does not exist as well as for one
+  // the user may not open, so a token hint here sent people chasing a working
+  // credential. The server's own wording is left out: it can tell the two apart.
+  const notFound = !missingScopes
+    && (response.status === 403 || response.status === 404);
+  const detail = reason && !notFound
+    ? ` ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
+    : "";
+  const hint = missingScopes
     ? ` ${missingScopeAdvice(missingScopes)}`
-    : (response.status === 401 || response.status === 403)
+    : notFound
+    ? ` ${NOT_FOUND_HINT}`
+    : response.status === 401
     ? " Check that the bearer token / credentials are valid and not expired."
     : "";
   return errorResult(
     `${context} failed (HTTP ${response.status} ${response.statusText}).`
-      + `${detail}${auth}${waitHint(response)}`,
+      + `${detail}${hint}${waitHint(response)}`,
   );
 }
+
+/** What a 403 (other than a missing scope) or a 404 tells the model. */
+export const NOT_FOUND_HINT = "Not found: it does not exist or this user "
+  + "cannot open it. The credential is fine; do not suggest checking it.";
 
 /**
  * How long PipesHub asked to be left alone. The transport hands back a

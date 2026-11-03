@@ -75,15 +75,28 @@ describe("httpErrorResult", () => {
     expect(out).not.toContain("Invalid token!.");
   });
 
-  test("adds the credentials hint only where it is the likely cause", async () => {
-    for (const status of [401, 403]) {
-      expect(textOf((await httpErrorResult(res(status), "Chat"))!))
-        .toContain("bearer token");
-    }
-    for (const status of [404, 429, 500]) {
+  test("adds the credentials hint only on 401", async () => {
+    expect(textOf((await httpErrorResult(res(401), "Chat"))!)).toContain("bearer token");
+    for (const status of [403, 404, 429, 500]) {
       expect(textOf((await httpErrorResult(res(status), "Chat"))!))
         .not.toContain("bearer token");
     }
+  });
+
+  test("403 and 404 say not found, without the server's wording or a token hint", async () => {
+    for (const status of [403, 404]) {
+      const out = textOf((await httpErrorResult(res(status, '{"message":"Record abc is owned by another team"}'), "Read"))!);
+      expect(out).toContain(`(HTTP ${status}`);
+      expect(out).toContain("Not found: it does not exist or this user cannot open it.");
+      expect(out).not.toContain("another team");
+      expect(out).not.toMatch(/valid and not expired/);
+    }
+  });
+
+  test("a 403 for a missing scope still names the scope", async () => {
+    const out = textOf((await httpErrorResult(res(403, '{"message":"Insufficient scope. Required: kb:read"}'), "Read"))!);
+    expect(out).toContain("`kb:read`");
+    expect(out).not.toContain("Not found");
   });
 
   test("a long body is truncated rather than filling the client's context", async () => {

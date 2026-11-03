@@ -129,7 +129,7 @@ describe("backend error text reaches the model without the bearer", () => {
   }
 
   test("an error page that quotes the Authorization header", async () => {
-    for (const status of [400, 401, 403, 500]) {
+    for (const status of [400, 401, 500]) {
       const api = await echoing(status, (auth) => `rejected request with authorization: ${auth}`);
       try {
         const res = await agentsTool(`http://127.0.0.1:${api.port}`, BEARER);
