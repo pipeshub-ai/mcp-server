@@ -1,7 +1,7 @@
 {
   "name": "pipeshub",
   "displayName": "PipesHub",
-  "version": "4.9.1",
+  "version": "4.10.0",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, Confluence, and 50+ workplace sources, from inside Cursor.",
   "author": {
     "name": "PipesHub"
