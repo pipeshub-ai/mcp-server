@@ -24,6 +24,10 @@ test("cursor plugin matches the marketplace, package version and Cursor's valida
   expect(plugin.version).toBe(version);
   expect(market.metadata.version).toBe(version);
   expect(existsSync(join(root, dir, plugin.logo))).toBe(true);
+  // Cursor's schemas allow only name and email here (additionalProperties: false).
+  for (const person of [plugin.author, market.owner]) {
+    expect(Object.keys(person).every((k) => k === "name" || k === "email")).toBe(true);
+  }
 
   const servers = json(`${dir}/mcp.json`).mcpServers;
   expect(Object.keys(servers)).toEqual(["pipeshub", "pipeshub-docs"]);

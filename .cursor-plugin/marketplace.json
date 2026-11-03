@@ -1,8 +1,7 @@
 {
   "name": "pipeshub",
   "owner": {
-    "name": "PipesHub",
-    "url": "https://www.pipeshub.com"
+    "name": "PipesHub"
   },
   "metadata": {
     "description": "PipesHub plugins for Cursor",
