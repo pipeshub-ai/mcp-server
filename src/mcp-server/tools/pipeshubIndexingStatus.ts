@@ -95,6 +95,15 @@ async function stillSyncing(client: PipeshubCore, id: string, signal: AbortSigna
 const sum = (byStatus: Record<string, number>, statuses: readonly string[]) =>
   statuses.reduce((n, s) => n + (byStatus[s] ?? 0), 0);
 
+const outputSchema = {
+  done: z.boolean().optional(),
+  total: z.number().optional(),
+  pendingCount: z.number().optional(),
+  failedCount: z.number().optional(),
+  pending: z.array(z.looseObject({})).optional(),
+  failed: z.array(z.looseObject({})).optional(),
+};
+
 export const tool$pipeshubIndexingStatus: ToolDefinition<typeof args> = {
   name: "pipeshub_indexing_status",
   description:
@@ -113,6 +122,7 @@ AUTO_INDEX_OFF and SKIPPED count in \`total\` only.`,
     readOnlyHint: true,
   },
   args,
+  outputSchema,
   tool: async (client, args, ctx) => {
     const [stats, pending, failed, syncing] = await Promise.all([
       sourceStats(client, args.collectionId, ctx.signal),

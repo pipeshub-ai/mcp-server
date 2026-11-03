@@ -14,6 +14,15 @@ const args = {
   ),
 };
 
+const outputSchema = {
+  agents: z.array(z.looseObject({
+    agentId: z.string().optional(),
+    name: z.string().optional(),
+  })).optional(),
+  total: z.number().optional(),
+  truncated: z.boolean().optional(),
+};
+
 export const tool$pipeshubAgents: ToolDefinition<typeof args> = {
   name: "pipeshub_agents",
   description:
@@ -51,6 +60,7 @@ specific agent is needed, use \`pipeshub_search\` and read the records. Use \`ag
     readOnlyHint: true,
   },
   args,
+  outputSchema,
   tool: async (client, args, ctx) => {
     const all = await listAllAgents(client, {
       search: args.search,

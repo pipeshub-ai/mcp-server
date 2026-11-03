@@ -8,6 +8,8 @@ The server exposes hand-written tools that cover the common PipesHub workflows. 
 
 Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, when you want PipesHub's own assistant to write the answer, to talk to a configured PipesHub agent, or to take an action through the user's connected tools.
 
+
+**Structured output.** `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_sources`, `pipeshub_indexing_status` and `pipeshub_agents` declare an `outputSchema` and return `structuredContent` beside the text, which is unchanged. For the JSON tools it is the same object as the text. A `content` or `thread` read gives the record's citation fields (`recordId`, `recordName`, `webUrl`, `connector`, `updatedAt`), how far the read got (`complete`, `totalBlocks`, `nextStartBlock`) and the text; `navigate` and `lookup` give their `mode` and text. Every tool also sends a top-level `title`, and every input schema is closed (`additionalProperties: false`), so a misspelled argument is refused rather than ignored.
 ---
 
 ### `pipeshub_chat`

@@ -9,6 +9,7 @@ import {
   jsonResult,
   readJson,
   resolveSecurity,
+  citedRecordShape,
   resolveSourceScope,
   searchFilters,
 } from "./_helpers.js";
@@ -354,6 +355,18 @@ export const NO_RESULTS_NOTE = "No records matched. Try other wording or "
   + "`pipeshub_get_record_content` `mode:\"lookup\"`. Not found here does not "
   + "mean it does not exist: only indexed records the user can open are searched.";
 
+const outputSchema = {
+  totalRecords: z.number().optional(),
+  records: z.array(z.looseObject({
+    ...citedRecordShape,
+    recordType: z.string().optional(),
+    createdAt: z.string().optional(),
+    passages: z.array(z.looseObject({})).optional(),
+  })).optional(),
+  nextOffset: z.number().optional(),
+  notes: z.array(z.string()).optional(),
+};
+
 export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
   name: "pipeshub_search",
   description:
@@ -413,6 +426,7 @@ again with \`offset\` set to \`nextOffset\`.`,
     readOnlyHint: true,
   },
   args,
+  outputSchema,
   tool: async (client, args, ctx) => {
     const limit = args.limit ?? DEFAULT_LIMIT;
     const offset = args.offset ?? 0;

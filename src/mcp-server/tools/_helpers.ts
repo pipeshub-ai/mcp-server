@@ -99,6 +99,18 @@ export function jsonResult(value: unknown): CallToolResult {
   };
 }
 
+/**
+ * The citation fields of a record in an output schema: what a client needs to
+ * link an answer to its source.
+ */
+export const citedRecordShape = {
+  recordId: z.string().optional(),
+  recordName: z.string().optional().describe("The record's title."),
+  webUrl: z.string().optional().describe("Link to the record at its source."),
+  connector: z.string().optional().describe("The source app, e.g. Confluence or Slack."),
+  updatedAt: z.string().optional().describe("Last change at the source."),
+};
+
 /** Standard error → CallToolResult conversion. */
 export function errorResult(message: string): CallToolResult {
   return {
