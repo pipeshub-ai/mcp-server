@@ -78,7 +78,6 @@ export const tool$pipeshubDownloadRecord: ToolDefinition<typeof args> = {
 content, metadata header, or summary.
 
 Use this when the user wants the file itself (download, attach, open).
-Get \`recordId\` from a chat citation or a \`pipeshub_search\` hit.
 
 Do not use this to read, summarize, or answer "what does this doc
 say?" regardless of format. That is \`pipeshub_get_record_content\`
@@ -86,9 +85,7 @@ say?" regardless of format. That is \`pipeshub_get_record_content\`
 binary as base64.
 
 \`convertTo\` accepts only \`application/pdf\`; anything else is ignored.
-Returns at most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters; a
-longer text is cut and a larger file is not returned, with a note on how to
-read the rest.`,
+At most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters come back.`,
   scopes: ["read"],
   annotations: {
     title: "Download a document by record id",
