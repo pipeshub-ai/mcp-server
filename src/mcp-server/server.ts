@@ -23,6 +23,7 @@ import { MCPScope } from "./scopes.js";
 import { createRegisterTool, registerDynamicTools, ToolDefinition } from "./tools.js";
 import { tool$pipeshubChat } from "./tools/pipeshubChat.js";
 import { tool$pipeshubSearch } from "./tools/pipeshubSearch.js";
+import { searchAsText } from "./tools/_searchText.js";
 import { tool$pipeshubDownloadRecord } from "./tools/pipeshubDownloadRecord.js";
 import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
@@ -173,7 +174,8 @@ export function createMCPServer(deps: {
   };
 
   mount(tool$pipeshubSources);          // 1. discover sources + models
-  mount(cited(tool$pipeshubSearch));    // 2. find records for a question
+  // Results as text for agents, JSON for programs (see `_searchText.ts`).
+  mount(searchAsText(cited(tool$pipeshubSearch))); // 2. find records for a question
   mount(cited(tool$pipeshubGetRecordContent)); // 3. read / navigate / look up records
   mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
