@@ -8,7 +8,7 @@ Permissioned search and cited answers over your workplace sources (Slack, Drive,
 
 ## Install
 
-Install **PipesHub** from the Cursor plugin marketplace, or for a team marketplace import this repository (`pipeshub-ai/mcp-server`); the marketplace file is `.cursor-plugin/marketplace.json` and the plugin lives in `cursor-plugin/`.
+A Cursor team admin imports this repository as a team marketplace: Dashboard → Plugins & MCPs → Team Marketplaces → Add Marketplace → Import from Repo, with the repository root `https://github.com/pipeshub-ai/mcp-server` (the marketplace file is `.cursor-plugin/marketplace.json`; the plugin lives in `cursor-plugin/`). Each developer then installs **PipesHub** from Customize, unless the admin sets it Default On or Required. It is not yet listed in Cursor's public marketplace.
 
 ## Sign in
 
