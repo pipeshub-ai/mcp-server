@@ -12,6 +12,7 @@ import {
   parsePortFlag,
   parseServerURLFlag,
 } from "../flag-parsers.js";
+import { DEFAULT_HOST } from "../loopback.js";
 
 export const serveCommand = buildCommand({
   loader: async () => {
@@ -31,6 +32,12 @@ export const serveCommand = buildCommand({
         brief:
           "Disable static authentication, allowing credentials to be passed via request headers only",
         default: false,
+      },
+      host: {
+        kind: "parsed",
+        brief: "The address to listen on. Defaults to loopback; pass 0.0.0.0 to accept LAN connections",
+        default: DEFAULT_HOST,
+        parse: String,
       },
       tool: {
         kind: "parsed",
