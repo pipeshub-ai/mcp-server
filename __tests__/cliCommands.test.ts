@@ -368,7 +368,8 @@ describe("get", () => {
 
     const r = await get(ctx(), "rec-1", null, out);
 
-    expect(lastCall()?.args).toEqual({ recordId: "rec-1" });
+    // Saving asks for the whole file, past the cap a model's read gets.
+    expect(lastCall()?.args).toEqual({ recordId: "rec-1", maxChars: 200_000_000 });
     expect(r.payload).toMatchObject({ writtenTo: out, bytes: 6, mimeType: "application/pdf", encoding: "binary" });
     expect(Buffer.compare(await readFile(out), bytes)).toBe(0);
   });

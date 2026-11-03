@@ -446,6 +446,9 @@ function binaryPayload(
   return null;
 }
 
+/** The most base64 characters `get --out` asks for: a file of about 150 MB. */
+const SAVE_MAX_CHARS = 200_000_000;
+
 export async function get(
   ctx: Ctx,
   recordId: string,
@@ -461,6 +464,9 @@ export async function get(
     : "pipeshub_get_record_content";
   const args: Record<string, unknown> = { recordId };
   if (convertTo !== null) args["convertTo"] = convertTo;
+  // The tool caps what it returns for a model's context; a file saved to disk
+  // is wanted whole. A server older than the cap ignores the argument.
+  if (useDownload) args["maxChars"] = SAVE_MAX_CHARS;
 
   const blocks = await callToolBlocks(ctx, toolName, args);
   const binary = binaryPayload(blocks);

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { tool$pipeshubAgents } from "../src/mcp-server/tools/pipeshubAgents.js";
-import { tool$pipeshubDownloadRecord } from "../src/mcp-server/tools/pipeshubDownloadRecord.js";
+import { DOWNLOAD_MAX_CHARS, tool$pipeshubDownloadRecord } from "../src/mcp-server/tools/pipeshubDownloadRecord.js";
 import { trimAgent, trimConversation } from "../src/mcp-server/tools/_helpers.js";
 
 // The three remaining hand-written shapers. Each decides what a model is given:
@@ -193,6 +193,46 @@ describe("pipeshub_download_record", () => {
     const [item] = out.content as Array<{ type: string; resource: { blob: string } }>;
     expect(item!.type).toBe("resource");
     expect(Uint8Array.from(atob(item!.resource.blob), (c) => c.charCodeAt(0))).toEqual(latin1);
+  });
+
+  test("internal block JSON is never returned; the tool points to the reader", async () => {
+    const out = await tool$pipeshubDownloadRecord.tool(
+      client('{"blocks":[]}', 200, "application/blocks"), { recordId: "rec-1" } as never, ctx(),
+    );
+    expect(out.isError).toBeUndefined();
+    expect(out.content).toHaveLength(1);
+    expect(textOf(out)).toContain("pipeshub_get_record_content");
+    expect(textOf(out)).not.toContain("blocks\":");
+  });
+
+  test("a long text is cut at the cap and says how to read the rest", async () => {
+    const out = await tool$pipeshubDownloadRecord.tool(
+      client("x".repeat(DOWNLOAD_MAX_CHARS + 50), 200, "text/plain"), { recordId: "rec-1" } as never, ctx(),
+    );
+    const [body, note] = out.content as Array<{ text: string }>;
+    expect(body!.text.length).toBe(DOWNLOAD_MAX_CHARS);
+    expect(note!.text).toContain("Cut at 100,000");
+    expect(note!.text).toContain('recordId:"rec-1"');
+  });
+
+  test("a binary file over the cap is not returned", async () => {
+    const out = await tool$pipeshubDownloadRecord.tool(
+      client(new Uint8Array(DOWNLOAD_MAX_CHARS), 200, "application/pdf"), { recordId: "rec-1" } as never, ctx(),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.content).toHaveLength(1);
+    expect(out.content[0]!.type).toBe("text");
+    expect(textOf(out)).toContain("was not returned");
+  });
+
+  test("maxChars raises the cap for a caller saving the file", async () => {
+    const out = await tool$pipeshubDownloadRecord.tool(
+      client(new Uint8Array(DOWNLOAD_MAX_CHARS), 200, "application/pdf"),
+      { recordId: "rec-1", maxChars: 10 * DOWNLOAD_MAX_CHARS } as never,
+      ctx(),
+    );
+    expect(out.isError).toBeUndefined();
+    expect(out.content[0]).toMatchObject({ type: "resource" });
   });
 
   test("a failed download is flagged rather than handed over as the document", async () => {
