@@ -89,4 +89,19 @@ describe("tool annotations as a host sees them", () => {
       expect(t.title).toBeTruthy();
     }
   });
+
+  test("input schemas are closed, so a misspelled argument is refused, not dropped", async () => {
+    for (const t of await listedDefinitions()) {
+      expect({ name: t.name, closed: t.inputSchema.additionalProperties }).toEqual({ name: t.name, closed: false });
+    }
+    const { server } = createMCPServer({ logger: createConsoleLogger("error") });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    const client = new Client({ name: "test", version: "0" });
+    await client.connect(clientSide);
+    const r = await client.callTool({ name: "pipeshub_search", arguments: { query: "q", app: ["x"] } });
+    await client.close();
+    expect(r.isError).toBe(true);
+    expect(JSON.stringify(r.content)).toContain("app");
+  });
 });

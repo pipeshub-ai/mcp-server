@@ -173,7 +173,8 @@ export function createRegisterTool(
           // Top-level title is what newer clients show; annotations.title stays for older ones.
           title: tool.annotations.title,
           description: tool.description,
-          inputSchema: tool.args,
+          // Closed: a misspelled argument is refused instead of silently dropped.
+          inputSchema: z.object(tool.args).strict(),
           annotations: tool.annotations,
           ...(tool._meta ? { _meta: tool._meta } : {}),
         },
