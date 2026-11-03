@@ -170,6 +170,8 @@ export function createRegisterTool(
       server.registerTool(
         tool.name,
         {
+          // Top-level title is what newer clients show; annotations.title stays for older ones.
+          title: tool.annotations.title,
           description: tool.description,
           inputSchema: tool.args,
           annotations: tool.annotations,
@@ -183,6 +185,7 @@ export function createRegisterTool(
       server.registerTool(
         tool.name,
         {
+          title: tool.annotations.title,
           description: tool.description,
           annotations: tool.annotations,
           ...(tool._meta ? { _meta: tool._meta } : {}),

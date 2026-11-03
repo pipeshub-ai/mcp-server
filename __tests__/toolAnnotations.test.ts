@@ -30,7 +30,7 @@ const WRITES = ["pipeshub_create_collection", "pipeshub_upload", "pipeshub_add_w
 /** Tools that can act: chat runs the assistant, which may use the user's connected actions. */
 const ACTS = ["pipeshub_chat"];
 
-async function listedTools() {
+async function listedDefinitions() {
   const { server } = createMCPServer({ logger: createConsoleLogger("error") });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
@@ -41,7 +41,11 @@ async function listedTools() {
   await client.connect(clientSide);
   const { tools } = await client.listTools();
   await client.close();
-  return new Map(tools.map((t) => [t.name, t.annotations ?? {}]));
+  return tools;
+}
+
+async function listedTools() {
+  return new Map((await listedDefinitions()).map((t) => [t.name, t.annotations ?? {}]));
 }
 
 describe("tool annotations as a host sees them", () => {
@@ -77,5 +81,12 @@ describe("tool annotations as a host sees them", () => {
     const chat = (await listedTools()).get("pipeshub_chat");
     expect(chat?.readOnlyHint).toBe(false);
     expect(chat?.destructiveHint).toBe(true);
+  });
+
+  test("every tool carries a top-level title, the same as annotations.title", async () => {
+    for (const t of await listedDefinitions()) {
+      expect({ name: t.name, title: t.title }).toEqual({ name: t.name, title: t.annotations?.title });
+      expect(t.title).toBeTruthy();
+    }
   });
 });
