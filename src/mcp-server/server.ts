@@ -226,5 +226,16 @@ export function createMCPServer(deps: {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);
   }
 
+  // The SDK advertises listChanged as soon as anything is registered, but
+  // this server never sends the notifications: every tool is registered
+  // before connect, and the citation tools follow `initialize` without one.
+  // PipesHub's /mcp also builds a server per request, which could not send
+  // one at all. So no client should wait for them.
+  server.server.registerCapabilities({
+    tools: { listChanged: false },
+    prompts: { listChanged: false },
+    resources: { listChanged: false },
+  });
+
   return { server, tools };
 }

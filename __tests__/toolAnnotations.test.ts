@@ -105,3 +105,18 @@ describe("tool annotations as a host sees them", () => {
     expect(JSON.stringify(r.content)).toContain("app");
   });
 });
+
+describe("server capabilities", () => {
+  test("listChanged is not advertised: the server never sends the notifications", async () => {
+    const { server } = createMCPServer({ logger: createConsoleLogger("error") });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    const client = new Client({ name: "test", version: "0" });
+    await client.connect(clientSide);
+    const caps = client.getServerCapabilities();
+    await client.close();
+    expect(caps?.tools?.listChanged).toBe(false);
+    expect(caps?.prompts?.listChanged).toBe(false);
+    expect(caps?.resources?.listChanged).toBe(false);
+  });
+});
