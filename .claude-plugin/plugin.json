@@ -18,6 +18,10 @@
         "Authorization": "Bearer ${PIPESHUB_MCP_TOKEN}",
         "X-PipesHub-Channel": "claude-code-plugin"
       }
+    },
+    "pipeshub-docs": {
+      "type": "http",
+      "url": "https://docs.pipeshub.com/mcp"
     }
   }
 }

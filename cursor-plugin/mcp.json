@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pipeshub": {
+      "command": "npx",
+      "args": ["-y", "@pipeshub-ai/mcp@>=4.9.0", "start"]
+    },
+    "pipeshub-docs": {
+      "url": "https://docs.pipeshub.com/mcp"
+    }
+  }
+}

@@ -22,9 +22,9 @@ if [ "$MCP_NAME" != "$SERVER_NAME" ]; then
   exit 1
 fi
 
-for listing in plugin.json manifest.json .claude-plugin/plugin.json; do
+for listing in plugin.json manifest.json .claude-plugin/plugin.json cursor-plugin/.cursor-plugin/plugin.json .cursor-plugin/marketplace.json; do
   [ -f "$listing" ] || continue
-  LISTED=$(jq -r .version "$listing")
+  LISTED=$(jq -r ".version // .metadata.version" "$listing")
   if [ "$PKG" != "$LISTED" ]; then
     echo "$listing version ($LISTED) must equal package.json ($PKG)"
     exit 1
