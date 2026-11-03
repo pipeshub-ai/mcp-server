@@ -16,21 +16,45 @@ import type { ToolDefinition } from "../tools.js";
  * `passagesFound`, `nextOffset`). Programs still get JSON: the `pipeshub` CLI
  * sends `x-pipeshub-request-id` with every call and parses the result, so any
  * request carrying it, or `x-pipeshub-result-format: json`, gets the result
- * as the tool built it.
+ * as the tool built it. A program that runs the server over stdio, where
+ * there are no headers, sets \`PIPESHUB_MCP_RESULT_FORMAT=json\` on the server.
  */
 
 /** Header a program sends to get JSON results. */
 export const RESULT_FORMAT_HEADER = "x-pipeshub-result-format";
+/** The server's own setting, for callers that send no headers (stdio). */
+export const RESULT_FORMAT_ENV = "PIPESHUB_MCP_RESULT_FORMAT";
+
+export type ResultFormat = "text" | "json";
+
+/**
+ * The format set for the server, from `PIPESHUB_MCP_RESULT_FORMAT`: `text`
+ * (also when unset) or `json`. Any other value stops the server, as an unknown
+ * `PIPESHUB_MCP_CHAT` does, rather than silently sending text to a program.
+ */
+export function resultFormatFromEnv(env: NodeJS.ProcessEnv = process.env): ResultFormat {
+  const raw = (env[RESULT_FORMAT_ENV] ?? "").trim();
+  const value = raw.toLowerCase();
+  if (value === "" || value === "text") return "text";
+  if (value === "json") return "json";
+  throw new Error(
+    `${RESULT_FORMAT_ENV} must be "text" or "json"; "json" sends pipeshub_search `
+      + `results as JSON to every caller (got "${raw}").`,
+  );
+}
 /** Sent by every `pipeshub` CLI release (src/cli/client.ts), which parses JSON. */
 const CLI_REQUEST_ID_HEADER = "x-pipeshub-request-id";
 
 type Headers = Record<string, string | string[] | undefined>;
 
-/** Whether the caller is a program that reads the result as JSON. */
-export function wantsJson(extra: unknown): boolean {
+/**
+ * Whether the caller gets JSON: a format header decides when sent; else the
+ * CLI's request id means JSON; else the server's setting (text by default).
+ */
+export function wantsJson(extra: unknown, serverFormat: ResultFormat = "text"): boolean {
   const headers = (extra as { requestInfo?: { headers?: Headers } } | undefined)
     ?.requestInfo?.headers;
-  if (!headers) return false;
+  if (!headers) return serverFormat === "json";
   const get = (name: string) => {
     const v = headers[name] ?? headers[name.toLowerCase()];
     return Array.isArray(v) ? v[0] : v;
@@ -39,7 +63,8 @@ export function wantsJson(extra: unknown): boolean {
   if (typeof format === "string" && format.trim() !== "") {
     return format.trim().toLowerCase() === "json";
   }
-  return typeof get(CLI_REQUEST_ID_HEADER) === "string";
+  if (typeof get(CLI_REQUEST_ID_HEADER) === "string") return true;
+  return serverFormat === "json";
 }
 
 const INDENT = "   ";
@@ -172,13 +197,16 @@ function resultAsText(result: CallToolResult): CallToolResult {
  * `cited`, so a client that shows no citation card has its `cite` codes
  * removed from the JSON before it is set as text.
  */
-export function searchAsText<T extends ToolDefinition<any>>(def: T): T {
+export function searchAsText<T extends ToolDefinition<any>>(
+  def: T,
+  serverFormat: ResultFormat = "text",
+): T {
   const run = def.tool as (...a: unknown[]) => Promise<CallToolResult>;
   return {
     ...def,
     tool: async (...a: unknown[]) => {
       const result = await run(...a);
-      return wantsJson(a[a.length - 1]) ? result : resultAsText(result);
+      return wantsJson(a[a.length - 1], serverFormat) ? result : resultAsText(result);
     },
   };
 }

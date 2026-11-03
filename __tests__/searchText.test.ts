@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
-import { searchAsText, searchResultText, wantsJson } from "../src/mcp-server/tools/_searchText.js";
+import { resultFormatFromEnv, searchAsText, searchResultText, wantsJson } from "../src/mcp-server/tools/_searchText.js";
 
 // Search results are what an agent reads most, and it pays for them by the
 // token. As JSON every passage's line breaks and quotes are escaped and every
@@ -147,6 +147,22 @@ describe("wantsJson", () => {
     expect(wantsJson(extra({ "x-pipeshub-result-format": "text", "x-pipeshub-request-id": "abc" }))).toBe(false);
   });
 
+  test("a server set to JSON answers callers without a format header in JSON", () => {
+    // A program on stdio sends no headers; the server's setting decides.
+    expect(wantsJson(extra(), "json")).toBe(true);
+    expect(wantsJson(undefined, "json")).toBe(true);
+    expect(wantsJson(extra({ "user-agent": "script" }), "json")).toBe(true);
+    // An explicit header still wins.
+    expect(wantsJson(extra({ "x-pipeshub-result-format": "text" }), "json")).toBe(false);
+  });
+
+  test("the server's setting is read from PIPESHUB_MCP_RESULT_FORMAT", () => {
+    expect(resultFormatFromEnv({})).toBe("text");
+    expect(resultFormatFromEnv({ PIPESHUB_MCP_RESULT_FORMAT: " JSON " })).toBe("json");
+    expect(resultFormatFromEnv({ PIPESHUB_MCP_RESULT_FORMAT: "text" })).toBe("text");
+    expect(() => resultFormatFromEnv({ PIPESHUB_MCP_RESULT_FORMAT: "yaml" })).toThrow(/must be "text" or "json"/);
+  });
+
   test("an agent host, over HTTP or stdio, gets text", () => {
     expect(wantsJson(extra({ "user-agent": "claude-code" }))).toBe(false);
     expect(wantsJson(extra())).toBe(false);
@@ -186,6 +202,13 @@ describe("pipeshub_search through searchAsText", () => {
     const direct = textOf(await tool$pipeshubSearch.tool(core(), { query: "x" } as never, extra as never));
     expect(viaText).toBe(direct);
     expect(JSON.parse(viaText).records[0].recordId).toBe("rec-1");
+  });
+
+  test("a stdio program gets JSON from a server set to JSON", async () => {
+    const asJson = searchAsText(tool$pipeshubSearch, "json");
+    const viaSetting = textOf(await asJson.tool(core(), { query: "x" } as never, { signal } as never));
+    const direct = textOf(await tool$pipeshubSearch.tool(core(), { query: "x" } as never, { signal } as never));
+    expect(viaSetting).toBe(direct);
   });
 
   test("an error is passed on as it is", async () => {
