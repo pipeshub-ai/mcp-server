@@ -1,0 +1,15 @@
+{
+  "name": "pipeshub",
+  "displayName": "PipesHub",
+  "version": "4.9.1",
+  "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, Confluence, and 50+ workplace sources, from inside Cursor.",
+  "author": {
+    "name": "PipesHub",
+    "url": "https://www.pipeshub.com"
+  },
+  "homepage": "https://docs.pipeshub.com/for-agents",
+  "repository": "https://github.com/pipeshub-ai/mcp-server",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "pipeshub", "workplace-search", "rag", "knowledge"],
+  "logo": "assets/logo.svg"
+}

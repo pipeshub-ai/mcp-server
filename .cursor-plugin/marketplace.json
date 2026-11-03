@@ -1,0 +1,18 @@
+{
+  "name": "pipeshub",
+  "owner": {
+    "name": "PipesHub",
+    "url": "https://www.pipeshub.com"
+  },
+  "metadata": {
+    "description": "PipesHub plugins for Cursor",
+    "version": "4.9.1"
+  },
+  "plugins": [
+    {
+      "name": "pipeshub",
+      "source": "./cursor-plugin",
+      "description": "Permissioned search and cited answers over your workplace sources, from inside Cursor."
+    }
+  ]
+}
