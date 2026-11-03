@@ -37,9 +37,10 @@ const TOOL_SCOPES: Readonly<Record<string, readonly string[]>> = {
   // POST /connectors, PUT .../config/filters-sync (connector:write),
   // POST .../toggle (connector:sync).
   pipeshub_add_web_source: ["connector:write", "connector:sync"],
-  // POST /conversations/stream (conversation:chat), and the assistant one hop
-  // later requires agent:execute; agent chats need agent:execute.
-  pipeshub_chat: ["conversation:chat", "agent:execute"],
+  // POST /conversations/stream (conversation:chat). agent:execute is not
+  // required: a host gates connected actions on it (`allowChatActions`), and
+  // an `agentId` turn without it is refused by the agent route as a tool error.
+  pipeshub_chat: ["conversation:chat"],
   // GET /agents (agent:read).
   pipeshub_agents: ["agent:read"],
   // GET /connectors/record/:id/content (connector:read).

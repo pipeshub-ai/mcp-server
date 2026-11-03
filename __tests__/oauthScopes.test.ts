@@ -9,12 +9,13 @@ import { createMCPServer, type ToolCallEvent } from "../src/mcp-server/server.js
 
 const logger = createConsoleLogger("error");
 
-// Every scope a PipesHub /mcp token may be granted for these tools: the
-// server's McpToolScopes less offline_access, code:read (the code tools are
-// the server's own) and config:read (only the model listing in
-// pipeshub_sources uses it, and that tool answers without it).
+// The scopes these tools require: the server's McpToolScopes less
+// offline_access, code:read (the code tools are the server's own),
+// config:read (only the model listing in pipeshub_sources uses it, and that
+// tool answers without it) and agent:execute (it gates chat's actions and
+// agent turns, not whether chat is offered).
 const TOOL_SCOPES = [
-  "semantic:write", "conversation:chat", "agent:read", "agent:execute",
+  "semantic:write", "conversation:chat", "agent:read",
   "kb:read", "kb:write", "kb:upload", "connector:read", "connector:write",
   "connector:sync", "user:read", "team:read", "usergroup:read",
 ];
@@ -80,6 +81,11 @@ describe("grantedOAuthScopes", () => {
     const client = await connect({ grantedOAuthScopes: ["kb:read", "semantic:write", "connector:read", "agent:read"] });
     expect(client.getInstructions()).not.toContain("pipeshub_chat");
     expect((await client.listTools()).tools.map((t) => t.name)).not.toContain("pipeshub_agents");
+  });
+
+  test("a token that can chat but not act still gets chat", async () => {
+    const names = await listed({ grantedOAuthScopes: ["conversation:chat"] });
+    expect(names).toContain("pipeshub_chat");
   });
 
   test("every scope granted lists every tool", async () => {
