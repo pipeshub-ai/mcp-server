@@ -823,7 +823,7 @@ export interface SourceItem {
 export function toSource(n: any): SourceItem {
   return {
     id: n?.id,
-    name: n?.name,
+    name: n?.name ?? undefined,
     kind: n?.connector === "KB" ? "knowledgeBase" : "connector",
     connector: n?.connector,
     hasChildren: n?.hasChildren,

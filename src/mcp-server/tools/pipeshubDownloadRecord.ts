@@ -14,12 +14,20 @@ const readInstead = (recordId: string) =>
   `Read its text in parts with \`pipeshub_get_record_content\` `
   + `\`mode:"content"\` and \`recordId:"${recordId}"\`.`;
 
-/** Keep `result` under `max`: cut text, and refuse a file too big to send whole. */
-function capped(result: CallToolResult, recordId: string, max: number): CallToolResult {
+/**
+ * Keep `result` under `max`: cut text for a read, and refuse a file too big to
+ * send whole. A caller that set `maxChars` is saving the file, so its text is
+ * refused rather than cut, too.
+ */
+function capped(
+  result: CallToolResult,
+  recordId: string,
+  max: number,
+  cutText: boolean,
+): CallToolResult {
   const [item] = result.content;
   if (result.content.length !== 1 || !item) return result;
-  if (item.type === "text") {
-    if (item.text.length <= max) return result;
+  if (item.type === "text" && cutText && item.text.length > max) {
     return {
       content: [
         { type: "text", text: item.text.slice(0, max) },
@@ -32,19 +40,22 @@ function capped(result: CallToolResult, recordId: string, max: number): CallTool
       ],
     };
   }
-  const size = item.type === "resource" && "blob" in item.resource
+  const size = item.type === "text"
+    ? item.text.length
+    : item.type === "resource" && "blob" in item.resource
     ? item.resource.blob.length
     : item.type === "image" || item.type === "audio"
     ? item.data.length
     : 0;
   if (size <= max) return result;
+  const bytes = item.type === "text" ? size : size * 3 / 4;
   // An error, so a client saving the file (an older `pipeshub get --out`)
   // fails loudly rather than writing this note as the file.
   return {
     isError: true,
     content: [{
       type: "text",
-      text: `The file is about ${Math.round(size * 3 / 4 / 1024).toLocaleString("en-US")} KB, `
+      text: `The file is about ${Math.round(bytes / 1024).toLocaleString("en-US")} KB, `
         + "more than one tool result can carry, so it was not returned. "
         + `${readInstead(recordId)} Or open it in PipesHub.`,
     }],
@@ -67,7 +78,8 @@ const args = {
   maxChars: z.number().int().min(1).optional().describe(
     `Most characters to return (text, or base64 for a file). Default `
       + `${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")}, about 25k tokens. Raise it `
-      + "only to save the file to disk, never to read it.",
+      + "only to save the file to disk, never to read it. With it set, a text "
+      + "file over the cap is refused rather than cut.",
   ),
 };
 
@@ -108,7 +120,9 @@ At most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters come back.`,
     const type = result.value.headers.get("content-type") ?? "";
     if (type.split(";")[0]?.trim().toLowerCase() === "application/blocks") {
       await result.value.body?.cancel();
+      // An error, so a client saving the file does not write this note as it.
       return {
+        isError: true,
         content: [{
           type: "text",
           text: "This record has no stored file, only PipesHub's parsed "
@@ -120,6 +134,7 @@ At most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters come back.`,
       await formatResult(result.value),
       args.recordId,
       args.maxChars ?? DOWNLOAD_MAX_CHARS,
+      args.maxChars === undefined,
     );
   },
 };

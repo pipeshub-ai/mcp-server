@@ -199,7 +199,8 @@ describe("pipeshub_download_record", () => {
     const out = await tool$pipeshubDownloadRecord.tool(
       client('{"blocks":[]}', 200, "application/blocks"), { recordId: "rec-1" } as never, ctx(),
     );
-    expect(out.isError).toBeUndefined();
+    // An error, so `pipeshub get --out` does not save this note as the file.
+    expect(out.isError).toBe(true);
     expect(out.content).toHaveLength(1);
     expect(textOf(out)).toContain("pipeshub_get_record_content");
     expect(textOf(out)).not.toContain("blocks\":");
@@ -213,6 +214,15 @@ describe("pipeshub_download_record", () => {
     expect(body!.text.length).toBe(DOWNLOAD_MAX_CHARS);
     expect(note!.text).toContain("Cut at 100,000");
     expect(note!.text).toContain('recordId:"rec-1"');
+  });
+
+  test("a text over a caller's maxChars is refused, not cut, so a saved file is whole", async () => {
+    const out = await tool$pipeshubDownloadRecord.tool(
+      client("x".repeat(51), 200, "text/plain"), { recordId: "rec-1", maxChars: 50 } as never, ctx(),
+    );
+    expect(out.isError).toBe(true);
+    expect(out.content).toHaveLength(1);
+    expect(textOf(out)).toContain("was not returned");
   });
 
   test("a binary file over the cap is not returned", async () => {

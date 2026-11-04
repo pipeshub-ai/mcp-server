@@ -354,6 +354,8 @@ describe("get", () => {
     });
     const e = await cliError(get(ctx(), "rec-1", "pdf", null));
     expect(lastCall()).toMatchObject({ tool: "pipeshub_download_record", args: { recordId: "rec-1", convertTo: "pdf" } });
+    // Nothing is saved, so the cap a model's read gets is not raised.
+    expect(lastCall()?.args).toEqual({ recordId: "rec-1", convertTo: "pdf" });
     expect(e.code).toBe(EXIT.USAGE);
     expect(e.message).toContain("application/pdf");
     expect(e.message).toContain("--out <path>");

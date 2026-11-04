@@ -466,7 +466,7 @@ export async function get(
   if (convertTo !== null) args["convertTo"] = convertTo;
   // The tool caps what it returns for a model's context; a file saved to disk
   // is wanted whole. A server older than the cap ignores the argument.
-  if (useDownload) args["maxChars"] = SAVE_MAX_CHARS;
+  if (outPath !== null) args["maxChars"] = SAVE_MAX_CHARS;
 
   const blocks = await callToolBlocks(ctx, toolName, args);
   const binary = binaryPayload(blocks);

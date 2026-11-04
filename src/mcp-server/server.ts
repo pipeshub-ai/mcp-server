@@ -85,11 +85,13 @@ function observeToolCalls(server: McpServer, onToolCall: (e: ToolCallEvent) => v
       isError = (result as CallToolResult | undefined)?.isError === true;
       return result;
     } finally {
+      // A malformed request may have no params; the SDK's own error must stand.
+      const params = (request as { params?: CallToolRequest["params"] }).params;
       const event: ToolCallEvent = {
-        tool: request.params.name,
+        tool: String(params?.name),
         durationMs: performance.now() - started,
         isError,
-        argumentNames: Object.keys(request.params.arguments ?? {}),
+        argumentNames: Object.keys(params?.arguments ?? {}),
       };
       queueMicrotask(() => {
         try {
