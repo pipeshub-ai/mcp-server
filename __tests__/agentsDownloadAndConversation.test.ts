@@ -235,6 +235,22 @@ describe("pipeshub_download_record", () => {
     expect(textOf(out)).toContain("was not returned");
   });
 
+  test("a file whose Content-Length is over the cap is refused unread", async () => {
+    let read = false;
+    // highWaterMark 0: nothing is pulled until someone reads.
+    const body = new ReadableStream({ pull: (c) => { read = true; c.enqueue(new Uint8Array(1)); c.close(); } }, { highWaterMark: 0 });
+    const res = new Response(body, { headers: { "content-type": "application/pdf", "content-length": String(DOWNLOAD_MAX_CHARS + 1) } });
+    const core = new PipeshubCore({
+      serverURL: "http://pipeshub.test/api/v1",
+      security: { bearerAuth: "pat" },
+      httpClient: new HTTPClient({ fetcher: async () => res }),
+    });
+    const out = await tool$pipeshubDownloadRecord.tool(core, { recordId: "rec-1" } as never, ctx());
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain("was not returned");
+    expect(read).toBe(false);
+  });
+
   test("maxChars raises the cap for a caller saving the file", async () => {
     const out = await tool$pipeshubDownloadRecord.tool(
       client(new Uint8Array(DOWNLOAD_MAX_CHARS), 200, "application/pdf"),

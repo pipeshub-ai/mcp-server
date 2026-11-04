@@ -72,7 +72,7 @@ export type ToolDefinition<
 // catches Office formats (`vnd.openxmlformats-...`), which are zip archives.
 const TEXT_SUBTYPE = /^(json|xml|yaml|x-yaml)$|\+(json|xml|yaml)$/;
 
-function isTextMime(contentType: string): boolean {
+export function isTextMime(contentType: string): boolean {
   const [type = "", subtype = ""] = (contentType.split(";")[0] ?? "")
     .trim()
     .toLowerCase()

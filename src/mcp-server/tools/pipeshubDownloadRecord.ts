@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { recordsStreamRecordBuffer } from "../../funcs/recordsStreamRecordBuffer.js";
-import { formatResult, ToolDefinition } from "../tools.js";
+import { formatResult, isTextMime, ToolDefinition } from "../tools.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { errorResult, httpErrorResult } from "./_helpers.js";
 
@@ -48,19 +48,20 @@ function capped(
     ? item.data.length
     : 0;
   if (size <= max) return result;
-  const bytes = item.type === "text" ? size : size * 3 / 4;
-  // An error, so a client saving the file (an older `pipeshub get --out`)
-  // fails loudly rather than writing this note as the file.
-  return {
-    isError: true,
-    content: [{
-      type: "text",
-      text: `The file is about ${Math.round(bytes / 1024).toLocaleString("en-US")} KB, `
-        + "more than one tool result can carry, so it was not returned. "
-        + `${readInstead(recordId)} Or open it in PipesHub.`,
-    }],
-  };
+  return tooBig(item.type === "text" ? size : size * 3 / 4, recordId);
 }
+
+// An error, so a client saving the file (an older `pipeshub get --out`)
+// fails loudly rather than writing this note as the file.
+const tooBig = (bytes: number, recordId: string): CallToolResult => ({
+  isError: true,
+  content: [{
+    type: "text",
+    text: `The file is about ${Math.round(bytes / 1024).toLocaleString("en-US")} KB, `
+      + "more than one tool result can carry, so it was not returned. "
+      + `${readInstead(recordId)} Or open it in PipesHub.`,
+  }],
+});
 
 const args = {
   recordId: z.string().min(1).describe(
@@ -130,11 +131,18 @@ At most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters come back.`,
         }],
       };
     }
-    return capped(
-      await formatResult(result.value),
-      args.recordId,
-      args.maxChars ?? DOWNLOAD_MAX_CHARS,
-      args.maxChars === undefined,
-    );
+    const max = args.maxChars ?? DOWNLOAD_MAX_CHARS;
+    const cutText = args.maxChars === undefined;
+    // Refuse a file its Content-Length already puts over the cap, unread. Text
+    // is at most 3 UTF-8 bytes a character; base64 is longer than the bytes.
+    // shortcut: a body without Content-Length, or text a read cuts, is still
+    // read whole; count bytes while reading if server memory becomes a concern.
+    const length = Number(result.value.headers.get("content-length"));
+    const text = isTextMime(type);
+    if (!(text && cutText) && length > (text ? 3 * max : max)) {
+      await result.value.body?.cancel();
+      return tooBig(length, args.recordId);
+    }
+    return capped(await formatResult(result.value), args.recordId, max, cutText);
   },
 };
