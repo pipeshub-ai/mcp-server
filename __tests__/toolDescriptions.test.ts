@@ -225,9 +225,10 @@ describe("descriptions say what the tools actually return", () => {
 
   // One entry per record, bounded in size: an agent has to know the list can
   // be cut and how to read the rest.
-  test("search says it returns records, stays bounded, and pages", () => {
+  test("search says it returns records as text, stays bounded, and pages", () => {
     const desc = flat("pipeshub_search");
-    expect(desc).toContain("`records`, one per record");
+    expect(desc).toContain("Returns text, one numbered entry per record");
+    expect(desc).toContain("passages (`> `) of `passagesFound`");
     expect(desc).toContain("under 20,000 characters");
     expect(desc).toContain("`offset` set to `nextOffset`");
     const offset = argSchema("pipeshub_search").properties?.offset?.description ?? "";

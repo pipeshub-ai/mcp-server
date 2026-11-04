@@ -25,6 +25,7 @@ import { createRegisterTool, registerDynamicTools, ToolDefinition } from "./tool
 import { createChatTool, tool$pipeshubChat } from "./tools/pipeshubChat.js";
 import { requiredOAuthScopes } from "./oauth-scopes.js";
 import { tool$pipeshubSearch } from "./tools/pipeshubSearch.js";
+import { type ResultFormat, resultFormatFromEnv, searchAsText } from "./tools/_searchText.js";
 import { tool$pipeshubDownloadRecord } from "./tools/pipeshubDownloadRecord.js";
 import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
@@ -144,6 +145,12 @@ export function createMCPServer(deps: {
    * error result or threw. It runs after the call and cannot fail it.
    */
   onToolCall?: ((e: ToolCallEvent) => void) | undefined;
+  /**
+   * How `pipeshub_search` answers a caller that sends no format header:
+   * text (for agents) or JSON (for programs on stdio). Defaults to the
+   * `PIPESHUB_MCP_RESULT_FORMAT` environment variable, which defaults to text.
+   */
+  resultFormat?: ResultFormat | undefined;
 }) {
   const granted = deps.grantedOAuthScopes && new Set(deps.grantedOAuthScopes);
   const permitted = (name: string): boolean => {
@@ -155,6 +162,7 @@ export function createMCPServer(deps: {
   // A token that cannot chat gets the server without chat, so no text points at it.
   const chat = (deps.chat ?? chatEnabledFromEnv()) && permitted(tool$pipeshubChat.name);
   const actions = deps.allowChatActions ?? true;
+  const resultFormat = deps.resultFormat ?? resultFormatFromEnv();
   const server = new McpServer(
     {
       name: "pipeshub-mcp",
@@ -249,7 +257,8 @@ export function createMCPServer(deps: {
   };
 
   mount(tool$pipeshubSources);          // 1. discover sources + models
-  mount(cited(tool$pipeshubSearch));    // 2. find records for a question
+  // Results as text for agents, JSON for programs (see `_searchText.ts`).
+  mount(searchAsText(cited(tool$pipeshubSearch), resultFormat)); // 2. find records for a question
   mount(cited(tool$pipeshubGetRecordContent)); // 3. read / navigate / look up records
   mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami

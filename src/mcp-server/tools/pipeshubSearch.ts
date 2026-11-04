@@ -407,10 +407,10 @@ is about when records were written.
 For "has this changed?", search for the current state and the earlier one.
 Before answering, check each part of the question against what you read.
 
-Returns \`records\`, one per record, best first: \`recordId\`, name, type,
-\`webUrl\`, source dates, \`parent\`, a ticket's or PR's \`status\` with
-its date, linked records with theirs (\`links\`), \`passagesFound\` and up
-to 3 \`passages\`; a timeline, 1 passage and each period's best records
+Returns text, one numbered entry per record, best first: name,
+\`recordId\`, type, source dates, \`parent\`, \`webUrl\`, a ticket's or PR's
+\`status\`, linked records (\`links\`), up to 3 passages (\`> \`) of
+\`passagesFound\`; a timeline, 1 passage and each period's best records
 first. Stays under 20,000 characters (timeline: 12,000); if cut, call
 again with \`offset\` set to \`nextOffset\`.`,
   scopes: ["read"],

@@ -8,6 +8,7 @@ import { createMCPServer } from "../src/mcp-server/server.js";
 import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import { forgetSearches } from "../src/mcp-server/tools/_searchResults.js";
+import { searchResultText } from "../src/mcp-server/tools/_searchText.js";
 
 // The read tools declare an output schema and send `structuredContent`
 // beside the text. A client that ignores structured output must get the same
@@ -74,15 +75,16 @@ describe("structured output", () => {
     ]);
   });
 
-  test("search sends its JSON as structuredContent, text unchanged, with citation fields", async () => {
+  test("search sends its JSON as structuredContent beside its text, with citation fields", async () => {
     forgetSearches();
     const direct = await tool$pipeshubSearch.tool(sdk(), { query: "leave" } as never, ctx());
     forgetSearches();
     const client = await connect();
     const r = await client.callTool({ name: "pipeshub_search", arguments: { query: "leave" } });
     // The direct call keeps cite codes the client (no MCP Apps) does not get.
-    expect(textOf(r)).toBe(JSON.stringify(JSON.parse(textOf(direct)), (k, v) => (k === "cite" || k === "next" ? undefined : v)));
-    expect(r.structuredContent).toEqual(JSON.parse(textOf(r)));
+    const json = JSON.parse(textOf(direct), (k, v) => (k === "cite" || k === "next" ? undefined : v));
+    expect(r.structuredContent).toEqual(json);
+    expect(textOf(r)).toBe(searchResultText(json));
     expect((r.structuredContent as any).records[0]).toMatchObject({
       recordId: RECORD,
       recordName: "Leave policy",
