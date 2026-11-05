@@ -68,7 +68,10 @@ describe("grantedOAuthScopes", () => {
     expect(names).toEqual([
       "pipeshub_sources",
       "pipeshub_search",
-      "pipeshub_get_record_content",
+      "pipeshub_read_record",
+      "pipeshub_browse",
+      "pipeshub_resolve_reference",
+      "pipeshub_read_thread",
       "pipeshub_download_record",
       "pipeshub_indexing_status",
       "pipeshub_connect_source",

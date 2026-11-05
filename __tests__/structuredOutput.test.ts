@@ -68,8 +68,11 @@ describe("structured output", () => {
     const withSchema = tools.filter((t) => t.outputSchema).map((t) => t.name).sort();
     expect(withSchema).toEqual([
       "pipeshub_agents",
-      "pipeshub_get_record_content",
+      "pipeshub_browse",
       "pipeshub_indexing_status",
+      "pipeshub_read_record",
+      "pipeshub_read_thread",
+      "pipeshub_resolve_reference",
       "pipeshub_search",
       "pipeshub_sources",
     ]);
@@ -94,7 +97,7 @@ describe("structured output", () => {
 
   test("a content read carries the record's citation fields and the same text", async () => {
     const client = await connect();
-    const r = await client.callTool({ name: "pipeshub_get_record_content", arguments: { recordId: RECORD } });
+    const r = await client.callTool({ name: "pipeshub_read_record", arguments: { recordId: RECORD } });
     expect(r.structuredContent).toMatchObject({
       mode: "content",
       recordId: RECORD,
@@ -110,9 +113,9 @@ describe("structured output", () => {
     expect(textOf(direct).startsWith(textOf(r))).toBe(true);
   });
 
-  test("navigate, agents and sources validate against their schemas too", async () => {
+  test("browse, agents and sources validate against their schemas too", async () => {
     const client = await connect();
-    const nav = await client.callTool({ name: "pipeshub_get_record_content", arguments: { mode: "navigate", nodeId: "n1" } });
+    const nav = await client.callTool({ name: "pipeshub_browse", arguments: { nodeId: "n1" } });
     expect(nav.structuredContent).toEqual({ mode: "navigate", text: textOf(nav) });
     const agents = await client.callTool({ name: "pipeshub_agents", arguments: {} });
     expect(agents.structuredContent).toEqual(JSON.parse(textOf(agents)));

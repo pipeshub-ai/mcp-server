@@ -459,6 +459,8 @@ export async function get(
   // (already wrapped in <record> tags by the server), while `download_record`
   // returns the raw bytes with no delimiter at all — so the CLI adds one.
   const useDownload = convertTo !== null || outPath !== null;
+  // The old name, not `pipeshub_read_record`: every server runs it, including
+  // ones from before the record tools were split, which have no read_record.
   const toolName = useDownload
     ? "pipeshub_download_record"
     : "pipeshub_get_record_content";

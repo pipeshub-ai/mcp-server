@@ -11,8 +11,8 @@ import { errorResult, httpErrorResult } from "./_helpers.js";
 export const DOWNLOAD_MAX_CHARS = 100_000;
 
 const readInstead = (recordId: string) =>
-  `Read its text in parts with \`pipeshub_get_record_content\` `
-  + `\`mode:"content"\` and \`recordId:"${recordId}"\`.`;
+  `Read its text in parts with \`pipeshub_read_record\` `
+  + `and \`recordId:"${recordId}"\`.`;
 
 /**
  * Keep `result` under `max`: cut text for a read, and refuse a file too big to
@@ -74,7 +74,7 @@ const args = {
       + "(the MIME type, not `pdf`). A bare `pdf` is ignored and the "
       + "original file is returned with no error. Omit for the file as "
       + "stored. Does not parse the document — use "
-      + "`pipeshub_get_record_content` `mode:\"content\"` for that.",
+      + "`pipeshub_read_record` for that.",
   ),
   maxChars: z.number().int().min(1).optional().describe(
     `Most characters to return (text, or base64 for a file). Default `
@@ -93,8 +93,7 @@ content, metadata header, or summary.
 Use this when the user wants the file itself (download, attach, open).
 
 Do not use this to read, summarize, or answer "what does this doc
-say?" regardless of format. That is \`pipeshub_get_record_content\`
-\`mode:"content"\`. Text formats come back inline; images, audio, and
+say?" regardless of format. That is \`pipeshub_read_record\`. Text formats come back inline; images, audio, and
 binary as base64.
 
 \`convertTo\` accepts only \`application/pdf\`; anything else is ignored.

@@ -28,7 +28,7 @@ export const PARTIAL_COVERAGE_NOTE =
   + "their content is not indexed yet; a source without `coverage` may have "
   + "such records too. So a search that finds nothing does not mean the thing "
   + "does not exist. Look it up by link or key with "
-  + "`pipeshub_get_record_content` `mode:\"lookup\"`, and tell the user which "
+  + "`pipeshub_resolve_reference`, and tell the user which "
   + "content could not be searched.";
 
 const outputSchema = {

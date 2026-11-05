@@ -14,7 +14,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
 
 > **Cursor plugin:** a Cursor team admin imports this repository as a team marketplace (Import from Repo; `.cursor-plugin/marketplace.json`, plugin in [`cursor-plugin/`](./cursor-plugin/README.md)) to add the local MCP server, the docs search server, the skill, and the `ask` and `setup` commands. Sign in once with `pipeshub login`; no token goes in the config.
 >
-> **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`, `pipeshub_agents`). Searching and reading records is the recommended default; `pipeshub_chat` is optional (see [Leaving `pipeshub_chat` out](#leaving-pipeshub_chat-out)).
+> **Looking for the tool reference?** See [TOOLS.md](./TOOLS.md) for descriptions, arguments, and a decision guide for each tool the MCP server exposes (`pipeshub_chat`, `pipeshub_search`, `pipeshub_read_record`, `pipeshub_read_thread`, `pipeshub_browse`, `pipeshub_resolve_reference`, `pipeshub_download_record`, `pipeshub_directory`, `pipeshub_sources`, `pipeshub_agents`). Searching and reading records is the recommended default; `pipeshub_chat` is optional (see [Leaving `pipeshub_chat` out](#leaving-pipeshub_chat-out)).
 >
 > **Using QM?** QM cannot attach a third-party MCP endpoint — it is an MCP *server* to its own harness, not a client. Follow [Use PipesHub with QM](./qm/docs/use-with-qm.md). The deployment-layer bundle in [`qm/`](./qm/) gives agents a `pipeshub` command inside their sandbox; this package ships that command as a second bin.
 
@@ -53,7 +53,7 @@ The `/.well-known/oauth-protected-resource/mcp` discovery endpoint lists the sco
 | `semantic:write` | `pipeshub_search` |
 | `conversation:chat` | `pipeshub_chat` |
 | `agent:read`, `agent:execute` | `pipeshub_agents`, `pipeshub_sources`, `pipeshub_chat` with an agent |
-| `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_indexing_status` |
+| `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, the record tools (`pipeshub_read_record`, `pipeshub_read_thread`, `pipeshub_browse`, `pipeshub_resolve_reference`), `pipeshub_download_record`, `pipeshub_indexing_status` |
 | `kb:write`, `kb:upload` | `pipeshub_create_collection`, `pipeshub_upload` |
 | `connector:write`, `connector:sync` | `pipeshub_add_web_source` |
 | `user:read`, `team:read`, `usergroup:read` | `pipeshub_directory` |
@@ -767,7 +767,7 @@ Three tools write, and none of them delete or overwrite. `pipeshub_create_collec
 
 ## Leaving `pipeshub_chat` out
 
-The server offers all eleven tools, and its instructions and tool descriptions tell the agent to answer with `pipeshub_search` and `pipeshub_get_record_content` first. `pipeshub_chat` runs PipesHub's own assistant and is optional: for an agent that can call tools, it adds cost and time without adding accuracy. In PipesHub's evaluation (100 questions, Claude Opus as the agent), search and read alone found 88% of the facts at $0.54 and 78 seconds median per answer; adding chat also found 88%, at about $0.73 and 97 seconds. See [TOOLS.md](./TOOLS.md) for the full figures.
+The server offers every tool, and its instructions and tool descriptions tell the agent to answer with `pipeshub_search` and `pipeshub_read_record` first. `pipeshub_chat` runs PipesHub's own assistant and is optional: for an agent that can call tools, it adds cost and time without adding accuracy. In PipesHub's evaluation (100 questions, Claude Opus as the agent), search and read alone found 88% of the facts at $0.54 and 78 seconds median per answer; adding chat also found 88%, at about $0.73 and 97 seconds. See [TOOLS.md](./TOOLS.md) for the full figures.
 
 Nothing changes unless you choose to: by default every tool stays. To hold an agent to search and read, leave `pipeshub_chat` out, together with `pipeshub_agents`, which only picks an agent for chat:
 
@@ -777,7 +777,7 @@ Nothing changes unless you choose to: by default every tool stays. To hold an ag
   "env": { "PIPESHUB_MCP_CHAT": "off" }
   ```
 
-  To pick tools one by one instead, list the ones to keep with `--tool` (for example `--tool pipeshub_search --tool pipeshub_get_record_content`). `--tool` does not change the instructions.
+  To pick tools one by one instead, list the ones to keep with `--tool` (for example `--tool pipeshub_search --tool pipeshub_read_record`; an older list that names `pipeshub_get_record_content` gets the four record tools). `--tool` does not change the instructions.
 - **Remote endpoint (`/mcp`):** turn the tool off in the client. In Claude Code, run `claude --disallowedTools "mcp__pipeshub__pipeshub_chat,mcp__pipeshub__pipeshub_agents"`, where `pipeshub` is the name you gave the server, or put the same entries in the `permissions.deny` list of `.claude/settings.json`. In other clients, use the per-tool toggles in their MCP settings, where they offer them.
 
 Keep `pipeshub_chat` when the client cannot run its own tool loop, when you want PipesHub's assistant to write the answer, to talk to a configured PipesHub agent, or to take an action through the user's connected tools.

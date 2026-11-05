@@ -10,7 +10,12 @@ import { tool$pipeshubAgents } from "../src/mcp-server/tools/pipeshubAgents.js";
 import { tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
 import { tool$pipeshubDirectory } from "../src/mcp-server/tools/pipeshubDirectory.js";
 import { tool$pipeshubDownloadRecord } from "../src/mcp-server/tools/pipeshubDownloadRecord.js";
-import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
+import {
+  tool$pipeshubBrowse,
+  tool$pipeshubReadRecord,
+  tool$pipeshubReadThread,
+  tool$pipeshubResolveReference,
+} from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubSearch } from "../src/mcp-server/tools/pipeshubSearch.js";
 import { tool$pipeshubSources } from "../src/mcp-server/tools/pipeshubSources.js";
 import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubCreateCollection.js";
@@ -38,7 +43,10 @@ const definitions: any[] = [
   tool$pipeshubChat,
   tool$pipeshubSearch,
   tool$pipeshubDownloadRecord,
-  tool$pipeshubGetRecordContent,
+  tool$pipeshubReadRecord,
+  tool$pipeshubReadThread,
+  tool$pipeshubBrowse,
+  tool$pipeshubResolveReference,
   tool$pipeshubDirectory,
   tool$pipeshubAgents,
   tool$pipeshubCreateCollection,
@@ -59,22 +67,41 @@ const argSchema = (name: string): any => {
 };
 
 describe("tool descriptions", () => {
-  // navigate and lookup have no tool name of their own to be selected on, so
-  // the mode literals are the only handle the model has. If a rewrite drops
-  // one, the mode becomes unreachable in practice.
-  test("every record mode is named in the record tool", () => {
-    const desc = byName.get("pipeshub_get_record_content") ?? "";
-    for (const mode of ['mode:"content"', 'mode:"thread"', 'mode:"navigate"', 'mode:"lookup"']) {
-      expect(desc).toContain(mode);
+  // Each record tool is listed under its own name; the old name that did all
+  // four by `mode` is not, so no model picks it.
+  test("the record tools are listed one per job, and the old name is not", () => {
+    for (const name of ["pipeshub_read_record", "pipeshub_read_thread", "pipeshub_browse", "pipeshub_resolve_reference"]) {
+      expect(names.has(name)).toBe(true);
+    }
+    expect(names.has("pipeshub_get_record_content")).toBe(false);
+  });
+
+  // Search ranks by wording, so other tools push structural questions to browse.
+  test("search and chat both route structural questions to browse", () => {
+    for (const tool of ["pipeshub_search", "pipeshub_chat"]) {
+      expect(byName.get(tool)).toContain("`pipeshub_browse`");
     }
   });
 
-  // Compensating for the tool name saying "content": other tools have to push
-  // structural questions into navigate mode.
-  test("search and chat both route structural questions to navigate", () => {
-    for (const tool of ["pipeshub_search", "pipeshub_chat"]) {
-      expect(byName.get(tool)).toContain('mode:"navigate"');
+  // The server's listings name its own agent tools in their `Next:` lines;
+  // without the map a model calls tools that do not exist here.
+  test("browse and resolve map the server's Next: names to these tools", () => {
+    for (const tool of ["pipeshub_browse", "pipeshub_resolve_reference"]) {
+      expect(byName.get(tool)).toContain("`navigate(node_id=…)` means `pipeshub_browse`");
+      expect(byName.get(tool)).toContain("`knowledgegraph__fetch_record(record_ids=[…])` means");
     }
+  });
+
+  // Lookup reports a real record as not indexed (audit C-08). Until that is
+  // fixed, this sentence kept a model from telling the user a record has no text.
+  test("resolve says its indexing status can be wrong", () => {
+    expect(byName.get("pipeshub_resolve_reference")).toContain("read the record before saying\nits text is unavailable");
+  });
+
+  // A date-filtered listing is not a complete "what changed" list (C-28); a
+  // description that promised one made a model present 3 of 9 pages as all.
+  test("browse does not promise a complete list of what changed", () => {
+    expect(byName.get("pipeshub_browse")).toContain("they do not promise\nevery record changed in that span");
   });
 
   // `POST /search` renders no caveat of its own — the "ranked sample" note the
@@ -141,10 +168,9 @@ describe("tool descriptions", () => {
 
   // Download is the file as stored, not parsed text. If a rewrite drops the
   // sibling, hosts download a file to answer "what does this doc say?"
-  test("download_record routes reading to get_record_content", () => {
+  test("download_record routes reading to read_record", () => {
     const desc = byName.get("pipeshub_download_record") ?? "";
-    expect(desc).toContain("pipeshub_get_record_content");
-    expect(desc).toContain('mode:"content"');
+    expect(desc).toContain("pipeshub_read_record");
     expect(desc.toLowerCase()).toContain("summarize");
     expect(desc).not.toMatch(/opaque/i);
     expect(desc).toContain("application/pdf");
@@ -256,7 +282,7 @@ describe("descriptions say what the tools actually return", () => {
   // thread replies are separate records, and the parent carries only
   // "Reply Count: N". A GitHub PR record carries diffs and changed files.
   test("record content does not promise a complete conversation", () => {
-    const desc = flat("pipeshub_get_record_content");
+    const desc = flat("pipeshub_read_record");
     expect(desc).not.toContain("COMPLETE text");
     expect(desc).toContain("one record");
     expect(desc).toContain("Reply Count: N");
@@ -267,8 +293,8 @@ describe("descriptions say what the tools actually return", () => {
 
   // `Related` is built from relation edges a connector writes from inside one
   // source. A Slack message that pastes a PR's URL creates no such edge.
-  test("navigate's Related is qualified, and discussion is found by search", () => {
-    const desc = flat("pipeshub_get_record_content");
+  test("browse's Related is qualified, and discussion is found by search", () => {
+    const desc = flat("pipeshub_browse");
     expect(desc).toContain("`Related` lists only links recorded inside a source");
     expect(desc).toContain("not Slack messages or pages that mention");
     expect(desc).toMatch(/search[^.]*number or URL[^.]*Slack/);
@@ -313,7 +339,7 @@ describe("descriptions say what the tools actually return", () => {
       "and the result reports no gap: no `Lost:` block, unread replies, records not loaded or threads not read",
     );
     expect(text).toContain("An extract is not a whole read");
-    expect(text).toContain("Navigate shows which records exist, not what they say");
+    expect(text).toContain("Browsing shows which records exist, not what they say");
     expect(text).toContain("A read ending in `Next:` is unfinished");
     expect(text).toContain("Never finish a passage cut off");
     expect(text).toContain("by the date its own text gives, not by when a record was last changed");
@@ -351,7 +377,7 @@ describe("descriptions say what the tools actually return", () => {
     const order = tools.map((t: any) => t.name as string);
     const at = (n: string) => order.indexOf(n);
     expect(at("pipeshub_search")).toBeLessThan(at("pipeshub_chat"));
-    expect(at("pipeshub_get_record_content")).toBeLessThan(at("pipeshub_chat"));
+    expect(at("pipeshub_read_record")).toBeLessThan(at("pipeshub_chat"));
   });
 
   // The README documents the switch by name; a rename here must not leave it

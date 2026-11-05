@@ -20,7 +20,10 @@ const logger = createConsoleLogger("error");
 const CURATED = [
   "pipeshub_sources",
   "pipeshub_search",
-  "pipeshub_get_record_content",
+  "pipeshub_read_record",
+  "pipeshub_browse",
+  "pipeshub_resolve_reference",
+  "pipeshub_read_thread",
   "pipeshub_download_record",
   "pipeshub_directory",
   "pipeshub_create_collection",
@@ -91,6 +94,30 @@ describe("createMCPServer tool registration", () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(CURATED);
+  });
+
+  // Installed CLIs and QM bundles call the record tools by their old name.
+  test("the old record tool name is not listed but still runs", async () => {
+    const { client } = await connect();
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name)).not.toContain("pipeshub_get_record_content");
+    const r = await client.callTool({
+      name: "pipeshub_get_record_content",
+      arguments: { mode: "lookup", identifiers: "PROJ-1" },
+    });
+    expect(r.isError).toBeFalsy();
+  });
+
+  test("an allow-list that names the old record tool gets the four that replace it", async () => {
+    const { client } = await connect({ allowedTools: ["pipeshub_search", "pipeshub_get_record_content"] });
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name)).toEqual([
+      "pipeshub_search",
+      "pipeshub_read_record",
+      "pipeshub_browse",
+      "pipeshub_resolve_reference",
+      "pipeshub_read_thread",
+    ]);
   });
 
   test("an allow-list exposes only the named tools", async () => {

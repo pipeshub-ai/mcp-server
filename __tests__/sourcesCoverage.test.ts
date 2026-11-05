@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
-import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
+import { tool$pipeshubReadRecord } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 import {
   PARTIAL_COVERAGE_NOTE,
   tool$pipeshubSources,
@@ -153,7 +153,7 @@ describe("pipeshub_sources coverage", () => {
 
     expect(body.coverageNote).toBe(PARTIAL_COVERAGE_NOTE);
     expect(body.coverageNote).toContain("does not mean the thing does not exist");
-    expect(body.coverageNote).toContain('mode:"lookup"');
+    expect(body.coverageNote).toContain("`pipeshub_resolve_reference`");
   });
 
   test("fully indexed sources carry no such note", async () => {
@@ -255,9 +255,9 @@ describe("pipeshub_sources coverage", () => {
 // literal `No record found`; newer ones describe it with a `Not indexed:`
 // line. Either way it exists, so the description must not let the literal
 // read as "does not exist". A missing id is a 403.
-describe("pipeshub_get_record_content description", () => {
+describe("pipeshub_read_record description", () => {
   test("never presents No record found as proof that a record does not exist", () => {
-    const d = tool$pipeshubGetRecordContent.description.replace(/\s+/g, " ");
+    const d = tool$pipeshubReadRecord.description.replace(/\s+/g, " ");
     expect(d).toContain("`No record found` may mean it exists but is not indexed yet");
     expect(d).toContain("`Not indexed:`");
     expect(d).toContain("A missing id is a 403.");
