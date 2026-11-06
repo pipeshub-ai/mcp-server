@@ -16,8 +16,8 @@ export const CLIENT_IDS = [
 ] as const;
 export type ClientId = (typeof CLIENT_IDS)[number];
 
-/** The first @pipeshub-ai/mcp release whose stdio `start` is the bridge: a proxy of the instance's /mcp with index_workspace (4.7.x has neither). */
-export const BRIDGE_PACKAGE = "@pipeshub-ai/mcp@>=4.8.0";
+/** The first @pipeshub-ai/mcp release whose stdio `start` is the bridge: a proxy of the instance's /mcp with index_workspace (4.7 to 4.9 have neither). npx reuses any cached version in range, so the floor must be a release that has it. */
+export const BRIDGE_PACKAGE = "@pipeshub-ai/mcp@>=4.10.0";
 
 export interface McpEntry {
   command: string;

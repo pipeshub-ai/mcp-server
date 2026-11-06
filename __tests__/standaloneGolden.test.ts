@@ -111,7 +111,7 @@ async function codexEntry(): Promise<Entry> {
 /** Spawn the bridge exactly as the agent's config says; only `npx -y @pipeshub-ai/mcp@...` (not published yet) is this checkout's build. */
 async function bridge(entry: Entry): Promise<Client> {
   expect(entry.command).toBe("npx");
-  expect(entry.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.8.0"]);
+  expect(entry.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.10.0"]);
   const t = new StdioClientTransport({ command: "node", args: [BRIDGE, ...entry.args.slice(2)], env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: home, ...entry.env }, stderr: "pipe" });
   const c = new Client({ name: "golden", version: "0" });
   await c.connect(t);

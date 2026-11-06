@@ -166,7 +166,7 @@ describe("what is written", () => {
 
   test("the entry runs the stdio bridge for the given origin and no other command", () => {
     expect(entry.command).toBe("npx");
-    expect(entry.args).toEqual(["-y", "@pipeshub-ai/mcp@>=4.8.0", "start", "--server-url", ORIGIN]);
+    expect(entry.args).toEqual(["-y", "@pipeshub-ai/mcp@>=4.10.0", "start", "--server-url", ORIGIN]);
     expect(bridgeEntry("http://127.0.0.1:64600").args.at(-1)).toBe("http://127.0.0.1:64600");
   });
 
