@@ -284,9 +284,21 @@ describe("uninstall", () => {
     expect([...after.keys()]).toEqual([...empty.keys()]);
     expect(after.get(join(w.home, ".config/zed/settings.json"))).toBe(zed);
     expect(after.get(join(w.cwd, "AGENTS.md"))).toBe(notes);
-    expect(await tree(join(w.home, ".config/pipeshub")).then((t) => t.filter((f) => /credentials|local-account|manifest/.test(f)))).toEqual([]);
+    expect(await tree(join(w.home, ".config/pipeshub")).then((t) => t.filter((f) => /credentials|manifest/.test(f)))).toEqual([]);
+    // the stack keeps its data, so the account password it made stays for the next init
+    expect((await stat(join(w.home, ".config/pipeshub/local-account.json"))).isFile()).toBe(true);
     // twice is fine
     expect((await cli(w.home, w.cwd, ["uninstall"])).code).toBe(0);
+  });
+
+  test("init after uninstall signs in to the same stack with the kept account", async () => {
+    const w = await world("reinit", [".cursor"]);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["uninstall"])).code).toBe(0);
+    const again = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
+    expect(again.code).toBe(0);
+    expect(again.stdout).not.toContain("created the first account");
+    expect(JSON.parse(await readFile(join(w.home, ".config/pipeshub/credentials.json"), "utf8")).accessToken).toBe(fake.issuedToken);
   });
 
   test("an entry the person wrote under the same name is left alone", async () => {

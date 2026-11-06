@@ -40,6 +40,7 @@ import { addWebSource, collectionCreate, connectSource, indexingStatus, upload }
 import { packsAdd, packsEmbedding, packsList, packsRemove } from "./packs.js";
 import { init as initLocal, renderReport } from "./standalone/init.js";
 import { indexCommand } from "./standalone/index.js";
+import { forgetAccount } from "./standalone/signin.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, devDown, devStatus, devUp } from "./standalone/stack.js";
 import { CLIENT_IDS } from "./standalone/clients.js";
 import {
@@ -391,6 +392,7 @@ async function run(argv: string[]): Promise<number> {
     }
     if (sub === "down") {
       const out = await devDown(flags.volumes);
+      if (flags.volumes && out.stopped) await forgetAccount(); // the account lived in the volumes just deleted
       await writeFlushed(process.stdout, JSON.stringify({ requestId, ...out }, null, 2) + "\n");
       return EXIT.OK;
     }

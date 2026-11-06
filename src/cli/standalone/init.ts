@@ -17,7 +17,7 @@ import {
   type ClientId, type Ctx, type Edit, type EditHint, type Target,
 } from "./clients.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, dockerProblem, findLocal, devDown, devUp, readState } from "./stack.js";
-import { forgetAccount, isLoopback, localSignIn } from "./signin.js";
+import { isLoopback, localSignIn } from "./signin.js";
 import { getAt } from "./jsonc.js";
 import { gitRoot, indexRepo } from "./index.js";
 
@@ -362,10 +362,10 @@ async function uninstall(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: string
     }
   }
   if (o.dryRun) {
-    report.signedIn = "would sign out and forget the local account";
+    report.signedIn = "would sign out (the local account is kept: the stack's data is)";
   } else {
     const out = await logout(false, env).catch(() => ({ origin: null, revokeRequested: false }));
-    await forgetAccount(env);
+    // local-account.json stays: the stack's data does, and init needs that password to sign in to it again.
     report.signedIn = out.origin ? `signed out of ${out.origin}${out.revokeRequested ? " and asked the server to revoke it" : ""}` : "no stored sign-in";
     if (manifest?.startedStack) {
       say("Stopping the local stack (its data is kept)...");
