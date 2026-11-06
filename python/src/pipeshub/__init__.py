@@ -15,7 +15,7 @@ def binary_path():
 
 
 def launcher_env():
-    """Tell the CLI how it was launched, so `init` writes an agent config that runs this launcher instead of npx."""
+    """Tell the CLI how it was launched, so `init --local` writes an agent config that runs this launcher instead of npx."""
     if "archive-v" in sys.prefix or "environments-v" in sys.prefix:  # shortcut: uv's cache layout; revisit if uv renames it
         return {"PIPESHUB_LAUNCHER": "uvx"}
     script = os.path.realpath(shutil.which(sys.argv[0]) or sys.argv[0]) if sys.argv and sys.argv[0] else ""

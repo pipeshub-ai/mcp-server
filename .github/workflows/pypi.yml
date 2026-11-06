@@ -1,6 +1,6 @@
 name: PyPI launcher
 
-# `uvx pipeshub init`: the CLI compiled per platform, shipped in wheels (python/).
+# `uvx pipeshub init --local`: the CLI compiled per platform, shipped in wheels (python/).
 # Publishing runs only on a tag named pypi-v<version> and uses PyPI trusted
 # publishing (OIDC): no token is stored in this repository.
 
@@ -65,7 +65,7 @@ jobs:
           $BIN/pipeshub --help
           FAKE="$RUNNER_TEMP/home"
           mkdir -p "$FAKE/.claude" "$FAKE/.cursor"
-          HOME="$FAKE" USERPROFILE="$FAKE" $BIN/pipeshub init --dry-run | tee out.txt
+          HOME="$FAKE" USERPROFILE="$FAKE" $BIN/pipeshub init --local --dry-run | tee out.txt
           grep -q "Dry run: nothing was changed" out.txt
           test -z "$(ls -A "$FAKE/.claude" "$FAKE/.cursor")"
 

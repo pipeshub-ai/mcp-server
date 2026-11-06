@@ -4,7 +4,7 @@
 [project]
 name = "pipeshub"
 dynamic = ["version"]
-description = "Run PipesHub on your own computer and connect it to your coding agents: uvx pipeshub init"
+description = "Run PipesHub on your own computer and connect it to your coding agents: uvx pipeshub init --local"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
