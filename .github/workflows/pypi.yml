@@ -67,7 +67,8 @@ jobs:
           mkdir -p "$FAKE/.claude" "$FAKE/.cursor"
           HOME="$FAKE" USERPROFILE="$FAKE" $BIN/pipeshub init --local --dry-run | tee out.txt
           grep -q "Dry run: nothing was changed" out.txt
-          test -z "$(ls -A "$FAKE/.claude" "$FAKE/.cursor")"
+          # ls -A prints a header per directory when given two, even empty ones.
+          test -z "$(find "$FAKE/.claude" "$FAKE/.cursor" -mindepth 1)"
 
   publish:
     if: startsWith(github.ref, 'refs/tags/pypi-v')
