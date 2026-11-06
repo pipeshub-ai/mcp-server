@@ -177,7 +177,7 @@ const OUTSIDE_DATES_NOTE =
   "Also matching, but written outside your dates, so the date filter left "
   + "them out of `records`. A later write-up, such as release notes, a "
   + "retrospective or a weekly summary, can still be about your period: if one "
-  + "may answer the question, read it with `pipeshub_get_record_content` "
+  + "may answer the question, read it with `pipeshub_read_record` "
   + "before answering.";
 
 /**
@@ -352,7 +352,7 @@ export function shapeTimeline(
 /** Said on a search that matched nothing, so the model neither stops nor guesses. */
 export const NO_RESULTS_NOTE = "No records matched. Try other wording or "
   + "fewer filters; an exact name, key or link can be looked up with "
-  + "`pipeshub_get_record_content` `mode:\"lookup\"`. Not found here does not "
+  + "`pipeshub_resolve_reference`. Not found here does not "
   + "mean it does not exist: only indexed records the user can open are searched.";
 
 const outputSchema = {
@@ -374,24 +374,24 @@ export const tool$pipeshubSearch: ToolDefinition<typeof args> = {
 
 **The default first step for a question about the org's knowledge**, and
 for locating a document by name, topic, or phrase. Then read the records
-that matter with \`pipeshub_get_record_content\` and answer from them;
+that matter with \`pipeshub_read_record\` and answer from them;
 search again with other wording or sources if the first results miss.
 \`pipeshub_chat\`, where offered, is optional: it runs PipesHub's assistant
 and returns an answer with citations to check.
 
 For a full-document task (summarize, extract, review, "what does the doc
-say?"), read the top hit with \`mode:"content"\`. Also: resolve a filename
+say?"), read the top hit with \`pipeshub_read_record\`. Also: resolve a filename
 into a \`recordId\` for \`pipeshub_download_record\`, or show the user a
 ranked list of matching files when they ask "find / search for X".
 
 Not for structural questions — what is under this epic, which pages are
 in this space, what links to this ticket. Ranking by content cannot show
-how records relate; use \`pipeshub_get_record_content\` \`mode:"navigate"\`.
+how records relate; use \`pipeshub_browse\`.
 
 **A ranked sample, never a complete list.** It returns the best-matching
 records and a few passages of each — not every record that matches, not
 every passage. Never count them to answer "how many" / "all" / "every";
-navigate the record group instead, which reports its real total.
+browse the record group with \`pipeshub_browse\` instead, which reports its real total.
 
 By default it searches everything. To search only some sources, pass
 connector ids in \`apps\` and collection ids in \`kb\`.

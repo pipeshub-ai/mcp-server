@@ -119,8 +119,8 @@ const CHAT_DESCRIPTION = `Optional. Ask PipesHub's own assistant. Its answer is 
 few retrieved passages — never a whole document, never a complete list.
 
 **If you can call tools, answer the question yourself:** \`pipeshub_search\`,
-then read the records that matter with \`pipeshub_get_record_content\`
-(\`mode:"navigate"\` for what is under an epic, space or folder, and for
+then read the records that matter with \`pipeshub_read_record\`
+(\`pipeshub_browse\` for what is under an epic, space or folder, and for
 every "how many" / "all"). That is as accurate as adding this tool, with fewer wrong claims,
 at lower cost and latency.
 
@@ -152,7 +152,7 @@ each cited sentence with \`quotes\` copied from its cited text; and
 \`uncitedSentences\`. Treat the answer as a lead: before stating a specific
 ID, status, date, owner, or that something merged or shipped, check the
 claim's quotes, else confirm it in the cited record (\`recordId\` →
-\`mode:"content"\`). A quote shows where to look, not that the claim is
+\`pipeshub_read_record\`). A quote shows where to look, not that the claim is
 right. "Not found" means not in what it read, not that it does not exist.
 To download a cited document, call \`pipeshub_download_record\`.`;
 

@@ -4,18 +4,18 @@ Reference for the tools exposed by the PipesHub MCP server. These tools let an A
 
 The server exposes hand-written tools that cover the common PipesHub workflows. Each one wraps several lower-level API calls so the LLM gets a single, well-shaped response.
 
-**Recommended default: search and read.** An agent that can call tools answers best by running `pipeshub_search` and then reading the records that matter with `pipeshub_get_record_content`. `pipeshub_chat` is optional. In PipesHub's evaluation on 100 real questions about its own work (October 2026, Claude Opus as the agent, 200 answers per setup), search-and-read alone found 88% of the facts with 0.39 wrong claims per answer, at $0.54 and 78 seconds median per answer. Adding `pipeshub_chat` found the same 88%, with 0.47 wrong claims, at about $0.73 (estimated, since MCP does not report what PipesHub's assistant costs) and 97 seconds. Chat alone found 84%. For Claude Haiku the three setups were within 3 points of each other (71–74%), and search-and-read was the cheapest. The tool descriptions and server instructions steer agents this way. Guidance alone does not stop a capable agent from also calling chat, so to get the savings, leave chat out: set `PIPESHUB_MCP_CHAT=off` on the local server, or turn the tool off in the client (see [Leaving `pipeshub_chat` out](./README.md#leaving-pipeshub_chat-out)).
+**Recommended default: search and read.** An agent that can call tools answers best by running `pipeshub_search` and then reading the records that matter with `pipeshub_read_record`. `pipeshub_chat` is optional. In PipesHub's evaluation on 100 real questions about its own work (October 2026, Claude Opus as the agent, 200 answers per setup), search-and-read alone found 88% of the facts with 0.39 wrong claims per answer, at $0.54 and 78 seconds median per answer. Adding `pipeshub_chat` found the same 88%, with 0.47 wrong claims, at about $0.73 (estimated, since MCP does not report what PipesHub's assistant costs) and 97 seconds. Chat alone found 84%. For Claude Haiku the three setups were within 3 points of each other (71–74%), and search-and-read was the cheapest. The tool descriptions and server instructions steer agents this way. Guidance alone does not stop a capable agent from also calling chat, so to get the savings, leave chat out: set `PIPESHUB_MCP_CHAT=off` on the local server, or turn the tool off in the client (see [Leaving `pipeshub_chat` out](./README.md#leaving-pipeshub_chat-out)).
 
 Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, when you want PipesHub's own assistant to write the answer, to talk to a configured PipesHub agent, or to take an action through the user's connected tools.
 
 
-**Structured output.** `pipeshub_search`, `pipeshub_get_record_content`, `pipeshub_sources`, `pipeshub_indexing_status` and `pipeshub_agents` declare an `outputSchema` and return `structuredContent` beside the text, which is unchanged. For the JSON tools it is the same object as the text; for `pipeshub_search`, whose text is written for agents, it is the result as JSON. A `content` read gives the record's citation fields (`recordId`, `recordName`, `webUrl`, `connector`, `updatedAt`), how far the read got (`complete`, `totalBlocks`, `nextStartBlock`) and the text; a `thread` read gives `recordId`, the same progress fields plus `nextStartRecord`, and the text; `navigate` and `lookup` give their `mode` and text. Every tool also sends a top-level `title`, and every tool's top-level arguments are closed (`additionalProperties: false`), so a misspelled argument name is refused rather than ignored. Keys inside a nested object such as `filters` are not checked.
+**Structured output.** `pipeshub_search`, the four record tools, `pipeshub_sources`, `pipeshub_indexing_status` and `pipeshub_agents` declare an `outputSchema` and return `structuredContent` beside the text, which is unchanged. For the JSON tools it is the same object as the text; for `pipeshub_search`, whose text is written for agents, it is the result as JSON. A `pipeshub_read_record` read gives the record's citation fields (`recordId`, `recordName`, `webUrl`, `connector`, `updatedAt`), how far the read got (`complete`, `totalBlocks`, `nextStartBlock`) and the text; a `pipeshub_read_thread` read gives `recordId`, the same progress fields plus `nextStartRecord`, and the text; `pipeshub_browse` and `pipeshub_resolve_reference` give their `mode` (`navigate`, `lookup`) and text. Every tool also sends a top-level `title`, and every tool's top-level arguments are closed (`additionalProperties: false`), so a misspelled argument name is refused rather than ignored. Keys inside a nested object such as `filters` are not checked.
 
 ---
 
 ### `pipeshub_chat`
 
-**Optional.** Ask PipesHub's own assistant a question and get an answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web. An agent that can call tools does as well with `pipeshub_search` and `pipeshub_get_record_content`, with fewer wrong claims, at lower cost and latency (see the recommendation above).
+**Optional.** Ask PipesHub's own assistant a question and get an answer with citations from the org's indexed sources (Drive, Box, Confluence, Slack, Gmail, Jira, the org's KB, etc.) and the live web. An agent that can call tools does as well with `pipeshub_search` and `pipeshub_read_record`, with fewer wrong claims, at lower cost and latency (see the recommendation above).
 
 > **It can also take actions.** Plain chat runs PipesHub's assistant agent with every action the user has connected (for example creating a Jira ticket or sending an email), using their own credentials. Actions are on unless an admin turns them off. Ask it questions, and never ask it to write unless the user asked for that action. The tool is annotated `destructiveHint: true`, so clients that confirm risky calls will ask first. A host can run chat without actions (`createMCPServer({ allowChatActions: false })`): every turn, plain or with an agent, then sends an empty `tools` list, so the assistant has no connected tools, and the description and server instructions say it cannot act.
 
@@ -32,7 +32,7 @@ Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, wh
 **When to pick it over the others:**
 - The client cannot run several tool calls of its own, or the user asks for PipesHub's answer → `pipeshub_chat`.
 - Talking to a configured PipesHub agent → `pipeshub_chat` with its `agentId`.
-- Any other question about the org's knowledge, including open-ended and cross-document ones → `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content`.
+- Any other question about the org's knowledge, including open-ended and cross-document ones → `pipeshub_search`, then read the records that matter with `pipeshub_read_record`.
 - "Find / locate the file named X" → `pipeshub_search` (then `pipeshub_download_record` if the user wants the bytes).
 
 **Response:** the AI's `answer`, `citations[]`, `claims[]`, `uncitedSentences[]`, `followUpQuestions`, plus the `conversationId` to use for follow-ups; `notes[]` when the tool moved a scoping id to the right list or could not check the ids.
@@ -42,7 +42,7 @@ Keep `pipeshub_chat` when the client cannot run its own search-and-read loop, wh
 - `uncitedSentences` are sentences of four or more words that carry no citation.
 - `evidenceNote` appears only when one of the above needs checking, and says what to do.
 
-> The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, check it against the claim's quotes, else confirm it in the cited record (`pipeshub_get_record_content` `mode:"content"`). A quote shows where to look, not that the claim is right. "Not found" means not in what it read, not that it does not exist.
+> The answer is PipesHub's assistant's synthesis of a few retrieved passages, so treat it as a lead. Before stating a specific ID, status, date, owner, or that something merged or shipped, check it against the claim's quotes, else confirm it in the cited record (`pipeshub_read_record`). A quote shows where to look, not that the claim is right. "Not found" means not in what it read, not that it does not exist.
 
 Each citation also carries a `cite` code, to pass to `pipeshub_show_citations` before writing the answer (only in clients that show MCP Apps; see below).
 
@@ -50,7 +50,7 @@ Each citation also carries a `cite` code, to pass to `pipeshub_show_citations` b
 
 ### `pipeshub_search`
 
-Vector / semantic search across the org's indexed documents. It is **the default first step for a question about the org's knowledge**: search, then read the records that matter with `pipeshub_get_record_content` and answer from them. It also **locates a document** by name, topic, or phrase and resolves it to a `recordId`.
+Vector / semantic search across the org's indexed documents. It is **the default first step for a question about the org's knowledge**: search, then read the records that matter with `pipeshub_read_record` and answer from them. It also **locates a document** by name, topic, or phrase and resolves it to a `recordId`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -81,9 +81,9 @@ A record with no source date is left out whenever a bound on that date is set. A
 
 A result stays under 20,000 characters, and a timeline page under 12,000. When records were left out to fit, `nextOffset` is set and the last note says so; call again with the same arguments and `offset: nextOffset`. That page comes from the same results, held briefly for the same caller, not from a new search. If they are no longer held, the search runs again and a note says the ranking may differ.
 
-> Records are the best-matching ones, with a sample of their passages — not every record that matches. Never count them to answer "how many" / "all" / "every"; navigate the record group with `pipeshub_get_record_content` `mode:"navigate"`, which reports the group's real total.
+> Records are the best-matching ones, with a sample of their passages — not every record that matches. Never count them to answer "how many" / "all" / "every"; browse the record group with `pipeshub_browse`, which reports the group's real total.
 >
-> For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_get_record_content` to read/summarize it. For questions that span many documents, read each record that matters.
+> For a **specific named document**, don't stop at search — take the top hit's `recordId` and call `pipeshub_read_record` to read/summarize it. For questions that span many documents, read each record that matters.
 
 Each passage's `text` is at most 350 characters, plus the ` …` mark when it was cut. A passage up to 350 characters is shown whole. A longer one shows at least its first 280 characters and is cut at the first sentence or line end between characters 280 and 350, or else at the last space before 350, and ends in ` …`. Within a record, the passages the search matched come first, by score, then the passages around them.
 
@@ -93,7 +93,7 @@ Each passage's `text` is at most 350 characters, plus the ` …` mark when it wa
 
 Download the file as stored for one record — not PipesHub's parsed content, metadata header, or summary.
 
-**Use it when the user wants the file itself** (download, attach, open, or a PDF preview). **Do not use it to read, summarize, or quote a document** regardless of format — that is `pipeshub_get_record_content` `mode:"content"`. Text formats come back inline; images, audio, and other binary as base64. A result carries at most 100,000 characters (about 25k tokens): a longer text is cut with a note, and a larger file is not returned (an error result); either way the note says to read the text with `pipeshub_get_record_content`. `maxChars` raises the cap for a caller that saves the file to disk, as `pipeshub get --out` does. A record with no stored file (a page or message PipesHub keeps only in parsed form, `application/blocks`) gets that note instead of its internal block JSON. A failed download says why in the same words as the other tools.
+**Use it when the user wants the file itself** (download, attach, open, or a PDF preview). **Do not use it to read, summarize, or quote a document** regardless of format — that is `pipeshub_read_record`. Text formats come back inline; images, audio, and other binary as base64. A result carries at most 100,000 characters (about 25k tokens): a longer text is cut with a note, and a larger file is not returned (an error result); either way the note says to read the text with `pipeshub_read_record`. `maxChars` raises the cap for a caller that saves the file to disk, as `pipeshub get --out` does. A record with no stored file (a page or message PipesHub keeps only in parsed form, `application/blocks`) gets that note instead of its internal block JSON. A failed download says why in the same words as the other tools.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
@@ -104,43 +104,78 @@ Download the file as stored for one record — not PipesHub's parsed content, me
 
 ---
 
-### `pipeshub_get_record_content`
+### `pipeshub_read_record`
 
-Four operations on records, selected by `mode`.
+Read one record's text by `recordId`, in parts when it is long.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `mode` | enum | no | `content` (default), `thread`, `navigate`, or `lookup`. |
-| `recordId` | string | conditional | Required when `mode` is `content` or `thread`. UUID for connector-sourced records or 24-char ObjectId for uploaded ones. Get it from a chat citation, a `pipeshub_search` result, or a `lookup`. |
-| `maxChars` | number (2000–140000) | no | `content` and `thread`. Most characters of text to return. Default 40000 (about 10k tokens). |
-| `query` | string | no | `content` only. What you are looking for. When the record is longer than `maxChars`, the most relevant passages come back first, with the skipped block ranges marked. Ignored when `startBlock` is given. |
-| `extract` | boolean | no | `content` only, with `query` and no `startBlock`. Return only the passages that answer `query`, copied word for word by PipesHub's reader model (the model assigned to the `reader` role, else the workspace's default), instead of the record's text. Needs a newer PipesHub server; an older one ignores it and returns the usual read. |
-| `startBlock` | number | no | `content` and `thread`. Read in order from this block, the value in a previous read's `Next:` line (0 reads from the top). In `thread` mode it applies to the record at `startRecord`. |
-| `startRecord` | number | no | `thread` only. Continue a long thread from this record, with the `startBlock` given beside it in the `Next:` line. |
-| `nodeId` | string | no | `navigate` only. The node to open; omit for a flat listing of everything reachable, newest first. A URL or issue key resolves automatically. |
-| `page` / `limit` | number | no | `navigate` only. 1-based page, 50–200 children per page (default 50). A `limit` under 50 is rejected, not raised. |
-| `depth` | number (1–3) | no | `navigate` only. Above 1 the listing flattens to all descendants down to that level, each row carrying its own `level`. Default 1. |
-| `nodeTypes` | string[] | no | `navigate` only. Restrict children to these node types, e.g. `["record", "folder"]`. |
-| `createdAfter` / `createdBefore` | string | no | `navigate` only. Filter children by source creation time. ISO 8601 `YYYY-MM-DD` (inclusive of the whole day), or a full datetime that **must** carry a timezone offset. |
-| `modifiedAfter` / `modifiedBefore` | string | no | `navigate` only. Same, against source modification time. |
-| `identifiers` | string \| string[] | conditional | Required when `mode` is `lookup`. A URL, issue key, or external ID — or up to 10 of them. |
-| `connectorName` | string | no | `lookup` only. Hint that prioritises resolution order (e.g. `JIRA`, `GOOGLE_DRIVE`). Cannot widen beyond accessible connectors. |
+| `recordId` | string | yes | UUID for connector-sourced records or 24-char ObjectId for uploaded ones. Get it from a chat citation, a `pipeshub_search` result, or `pipeshub_resolve_reference`. |
+| `maxChars` | number (2000–140000) | no | Most characters of text to return. Default 40000 (about 10k tokens). |
+| `query` | string | no | What you are looking for. When the record is longer than `maxChars`, the most relevant passages come back first, with the skipped block ranges marked. Ignored when `startBlock` is given. |
+| `extract` | boolean | no | With `query` and no `startBlock`. Return only the passages that answer `query`, copied word for word by PipesHub's reader model (the model assigned to the `reader` role, else the workspace's default), instead of the record's text. Needs a newer PipesHub server; an older one ignores it and returns the usual read. |
+| `startBlock` | number | no | Read in order from this block, the value in a previous read's `Next:` line (0 reads from the top). |
 
-**`mode: "content"`** (default) — the only way to read one record's full text. Use it for any task that depends on the complete document (summarize, extract all of something, verify a mention, translate, review, compare docs). Prefer it over `pipeshub_download_record` when you need what the record *says* rather than the original file bytes. Returns a metadata header (title, source, key fields such as a ticket's or PR's status and its merge or resolution date, Web URL, pre-generated summary, and on newer servers the records it names or is named by, with their type and status) followed by the parsed text, up to `maxChars` characters. A longer record comes back in parts. Each part ends with a `Read:` line saying which blocks were shown, of how many, and, while anything is left, a `Next:` line naming the exact call that reads on (`startBlock`). To read the whole record, follow `Next:` until a part ends with no `Next:` line; its `Read:` line then says the whole record, or the end of it, was read, and names any block that could not be returned. For a question about part of a long record, pass `query` to get the relevant passages first; the `Read:` line then lists the block ranges shown and offers the call that reads the record in order instead. To pull a few facts out of a long record for less context, pass `query` with `extract: true`: PipesHub's reader model reads the record (up to 120,000 characters, the most relevant parts first when it is longer) and returns the passages that answer the query, then a `Read:` line saying what they came from and the tokens the reader used, and the call that reads the record itself. If the reader model cannot be reached, the usual read comes back with a line saying so. Read without `extract` to list or count everything in a record. Against a PipesHub server from before paged reads, the whole record comes back in one string with no `Read:` line. `No record found` does not mean the record does not exist: on servers from before the not-indexed change it is also the answer for a record that exists but whose content is not indexed yet. Newer servers answer that case with the record's metadata and a `Not indexed:` paragraph naming its status, and keep `No record found` for an indexed record whose stored content could not be loaded. A record that does not exist, or that you may not read, is a `403`; the error says "Not found" and does not point at the credential. A read of a record with text ends with a `Cite:` line, the record's own cite for `pipeshub_show_citations`; a `thread` read has none, because its messages are separate records.
+The only way to read one record's full text. Use it for any task that depends on the complete document (summarize, extract all of something, verify a mention, translate, review, compare docs). Prefer it over `pipeshub_download_record` when you need what the record *says* rather than the original file bytes. Returns a metadata header (title, source, key fields such as a ticket's or PR's status and its merge or resolution date, Web URL, pre-generated summary, and on newer servers the records it names or is named by, with their type and status) followed by the parsed text, up to `maxChars` characters. A longer record comes back in parts. Each part ends with a `Read:` line saying which blocks were shown, of how many, and, while anything is left, a `Next:` line naming the exact call that reads on (`startBlock`). To read the whole record, follow `Next:` until a part ends with no `Next:` line; its `Read:` line then says the whole record, or the end of it, was read, and names any block that could not be returned. For a question about part of a long record, pass `query` to get the relevant passages first; the `Read:` line then lists the block ranges shown and offers the call that reads the record in order instead. To pull a few facts out of a long record for less context, pass `query` with `extract: true`: PipesHub's reader model reads the record (up to 120,000 characters, the most relevant parts first when it is longer) and returns the passages that answer the query, then a `Read:` line saying what they came from and the tokens the reader used, and the call that reads the record itself. If the reader model cannot be reached, the usual read comes back with a line saying so. Read without `extract` to list or count everything in a record. Against a PipesHub server from before paged reads, the whole record comes back in one string with no `Read:` line. `No record found` does not mean the record does not exist: on servers from before the not-indexed change it is also the answer for a record that exists but whose content is not indexed yet. Newer servers answer that case with the record's metadata and a `Not indexed:` paragraph naming its status, and keep `No record found` for an indexed record whose stored content could not be loaded. A record that does not exist, or that you may not read, is a `403`; the error says "Not found" and does not point at the credential. A read of a record with text ends with a `Cite:` line, the record's own cite for `pipeshub_show_citations`; a `thread` read has none, because its messages are separate records.
 
-> One record is not always the whole conversation. A Slack record is one burst of messages; thread replies are separate records, and `Reply Count: N` in the text means those replies are not included. Read them with `mode: "thread"`. GitHub pull request records include diffs and changed files, and can be far larger than a client's tool-output limit; they come back in parts.
+> One record is not always the whole conversation. A Slack record is one burst of messages; thread replies are separate records, and `Reply Count: N` in the text means those replies are not included. Read them with `pipeshub_read_thread`. GitHub pull request records include diffs and changed files, and can be far larger than a client's tool-output limit; they come back in parts.
 
-**`mode: "thread"`** — every message of the Slack thread that `recordId` belongs to, parent first, oldest to newest, limited to what the caller may see. Pass any reply, or a channel message that has replies. A long thread comes back in parts; its `Next:` line names both `startRecord` and `startBlock`, and a reply that was cut short keeps the cursor until it has been read to its end. Replies whose stored content could not be loaded are named. A record that is not part of a thread is an error saying so. A PipesHub server from before thread reads returns only the named record, with a note saying it cannot read the thread.
+---
 
-**`mode: "navigate"`** — browse the hierarchy: RecordGroup (project / space / drive / folder) → Record (epic / story / page / file) → children. Use it when the question is about structure rather than wording (what is under this epic, which pages sit in a space, what links to a ticket) — `pipeshub_search` ranks by content and cannot show how records relate. Opening a record also prints that record's own metadata, so a question about one record is often answered by this call alone. Returns no document text.
+### `pipeshub_read_thread`
+
+Read the whole Slack thread a message belongs to.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `recordId` | string | yes | Any message in the thread: a reply, or a channel message that has replies. |
+| `maxChars` | number (2000–140000) | no | Most characters of text to return. Default 40000. |
+| `startRecord` | number | no | Continue a long thread from this record, with the `startBlock` given beside it in the `Next:` line. |
+| `startBlock` | number | no | With `startRecord`: the block of that record to read on from. |
+
+Every message of the Slack thread that `recordId` belongs to, parent first, oldest to newest, limited to what the caller may see. Pass any reply, or a channel message that has replies. A long thread comes back in parts; its `Next:` line names both `startRecord` and `startBlock`, and a reply that was cut short keeps the cursor until it has been read to its end. Replies whose stored content could not be loaded are named. A record that is not part of a thread is an error saying so. A PipesHub server from before thread reads returns only the named record, with a note saying it cannot read the thread.
+
+---
+
+### `pipeshub_browse`
+
+List what is under a source, space, project, folder or record, with real totals.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `nodeId` | string | no | The node to open; omit for a flat listing of everything reachable, newest first. A `pipeshub_sources` id opens that source; a URL or issue key resolves automatically. |
+| `page` / `limit` | number | no | 1-based page, 50–200 children per page (default 50). A `limit` under 50 is rejected, not raised. |
+| `depth` | number (1–3) | no | Above 1 the listing flattens to all descendants down to that level, each row carrying its own `level`. Default 1. |
+| `nodeTypes` | string[] | no | Restrict children to these node types, e.g. `["record", "folder"]`. |
+| `createdAfter` / `createdBefore` | string | no | Filter children by source creation time. ISO 8601 `YYYY-MM-DD` (inclusive of the whole day), or a full datetime that **must** carry a timezone offset. |
+| `modifiedAfter` / `modifiedBefore` | string | no | Same, against source modification time. Date filters narrow the children; they are not a complete list of every record changed in that span. |
+
+Browse the hierarchy: RecordGroup (project / space / drive / folder) → Record (epic / story / page / file) → children. Use it when the question is about structure rather than wording (what is under this epic, which pages sit in a space, what links to a ticket) — `pipeshub_search` ranks by content and cannot show how records relate. Opening a record also prints that record's own metadata, so a question about one record is often answered by this call alone. Returns no document text.
 
 `Related` lists only links recorded inside a source (Jira issue links, GitHub blocked-by), not Slack messages or pages that mention the record. To find discussion of a PR or ticket, `pipeshub_search` for its number or URL with the Slack connector id in `apps`.
 
-Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *and* their subtasks — instead of one call per level; use it whenever the question needs a hierarchy overview rather than a single node. One page is usually every child, so only pass `page: 2` when the `Next:` line says more exist.
+Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *and* their subtasks — instead of one call per level; use it whenever the question needs a hierarchy overview rather than a single node. One page is usually every child, so only pass `page: 2` when the `Next:` line says more exist. It is the tool for every "how many", "all of" or "every" question: search returns a ranked sample, and only this reports a group's real total.
 
-**`mode: "lookup"`** — resolve an external reference (Jira key or URL, Confluence/Drive/Slack link, bare external ID) to a recordId plus that record's metadata. Searches all connectors the caller can access, regardless of any source filter used elsewhere. A miss is a 200 with empty `matches` and the input echoed in `not_found_identifiers` — which may mean no-access rather than non-existence.
+Returns a rendered flat-text view whose closing `Next:` line names the follow-up call. The server writes that line with its own tool names: `navigate(node_id=…)` is `pipeshub_browse` with that `nodeId`, and `knowledgegraph__fetch_record(record_ids=[…])` is `pipeshub_read_record`, once per id.
 
-**Response for `navigate` and `lookup`:** a rendered flat-text view whose closing `Next:` line names the exact follow-up call to make.
+---
+
+### `pipeshub_resolve_reference`
+
+Turn a link, issue key or external ID into its record.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `identifiers` | string \| string[] | yes | A URL, issue key, or external ID — or up to 10 of them. |
+| `connectorName` | string | no | Hint that prioritises resolution order (e.g. `JIRA`, `GOOGLE_DRIVE`). Cannot widen beyond accessible connectors. |
+
+Resolve an external reference (Jira key or URL, Confluence/Drive/Slack link, bare external ID) to a recordId plus that record's metadata. Searches all connectors the caller can access, regardless of any source filter used elsewhere. A miss is a 200 with empty `matches` and the input echoed in `not_found_identifiers` — which may mean no-access rather than non-existence. The indexing status it shows can be wrong, so read the record before saying its text is unavailable. Returns the same kind of rendered view as `pipeshub_browse`, with the same `Next:` names.
+
+---
+
+### `pipeshub_get_record_content` (old name, not listed)
+
+Before these four tools, one tool did all of their work, picked by `mode` (`content`, `thread`, `navigate`, `lookup`) with the union of their arguments. The server still runs a call to that name, so installed `pipeshub` CLIs, QM bundles and scripts keep working, but it is not in `tools/list`, so no model is offered it. A `--tool pipeshub_get_record_content` allow-list on the local server gets the four tools.
 
 ---
 
@@ -191,7 +226,7 @@ Each agent is returned as `{ agentId, name, description, systemPrompt, startMess
 
 **Route on `toolsets` / `knowledge`, not the name** — names are often generic. Match the request to the agent whose tools can actually perform it (e.g. "create a Jira ticket" → the agent whose toolset includes `jira.create_issue`). If no agent has a tool for the requested action, call `pipeshub_chat` without an `agentId`: plain chat can use the user's connected tools, unless the server runs chat without actions (its description then says it cannot act).
 
-The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the records with `pipeshub_get_record_content`.
+The list **may be empty**. For plain Q&A, use `pipeshub_search` and read the records with `pipeshub_read_record`.
 
 ---
 
@@ -287,16 +322,16 @@ Indexes a website. It sets up a Web connector for the user, as the connector set
 
 | User says... | Use this tool |
 |---|---|
-| "What does the Q4 report say about ARR?" | `pipeshub_search` → top hit → `pipeshub_get_record_content` |
-| "Summarize the onboarding doc" | `pipeshub_search` → top hit → `pipeshub_get_record_content` |
-| "What do we know about X?" (spans many docs) | `pipeshub_search` → read the records that matter with `pipeshub_get_record_content` |
-| "What's our PTO policy?" (no single named file) | `pipeshub_search` → read the top records with `pipeshub_get_record_content` |
+| "What does the Q4 report say about ARR?" | `pipeshub_search` → top hit → `pipeshub_read_record` |
+| "Summarize the onboarding doc" | `pipeshub_search` → top hit → `pipeshub_read_record` |
+| "What do we know about X?" (spans many docs) | `pipeshub_search` → read the records that matter with `pipeshub_read_record` |
+| "What's our PTO policy?" (no single named file) | `pipeshub_search` → read the top records with `pipeshub_read_record` |
 | The client cannot run its own tool loop, or wants PipesHub's own answer | `pipeshub_chat` |
-| "How many / list all / every X" | `pipeshub_get_record_content` `mode:"navigate"` — not `pipeshub_chat` |
+| "How many / list all / every X" | `pipeshub_browse` — not `pipeshub_chat` |
 | "Find the file called *security-review.pdf*" | `pipeshub_search` |
 | "Download that file" (after a search or chat citation) | `pipeshub_download_record` |
-| "What does this PDF say?" / summarize a named file | `pipeshub_get_record_content` `mode:"content"` — not download |
-| "Show me the full content of that record" | `pipeshub_get_record_content` |
+| "What does this PDF say?" / summarize a named file | `pipeshub_read_record` — not download |
+| "Show me the full content of that record" | `pipeshub_read_record` |
 | "Who am I?" / "What's my user id?" | `pipeshub_directory` (`whoami`) |
 | "Who is X?" / "List everyone on the data team" | `pipeshub_directory` (`list_users` / `list_my_teams`) — not `pipeshub_search` |
 | First call of a session, before chat or search | `pipeshub_sources` (cache the result) |

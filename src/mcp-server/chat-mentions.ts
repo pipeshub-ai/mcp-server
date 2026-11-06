@@ -33,12 +33,9 @@ const CUTS: Readonly<Record<string, readonly Cut[]>> = {
     ],
     ["\nOmit `modelKey` on `pipeshub_chat` to use the org's default model.", ""],
   ],
-  pipeshub_get_record_content: [
-    [
-      " `pipeshub_chat` cannot do\nthese — it never sees a whole document.",
-      "",
-    ],
-    ["a `pipeshub_search` top hit, a\nchat citation, or", "a `pipeshub_search` top hit or"],
+  pipeshub_read_record: [
+    ["\n`pipeshub_chat` cannot do these — it never sees a whole document.", ""],
+    ["after `pipeshub_search`, a chat citation, or\n", "after `pipeshub_search` or\n"],
   ],
 };
 
@@ -50,7 +47,8 @@ const RECORD_ID_FROM_CHAT: Cut = [
 // Argument texts, by tool and argument name.
 const ARG_CUTS: Readonly<Record<string, Readonly<Record<string, readonly Cut[]>>>> = {
   pipeshub_download_record: { recordId: [RECORD_ID_FROM_CHAT] },
-  pipeshub_get_record_content: { recordId: [RECORD_ID_FROM_CHAT] },
+  pipeshub_read_record: { recordId: [RECORD_ID_FROM_CHAT] },
+  pipeshub_read_thread: { recordId: [RECORD_ID_FROM_CHAT] },
 };
 
 function applyCuts(where: string, text: string, cuts: readonly Cut[]): string {

@@ -19,7 +19,10 @@ const sdk = () => new PipeshubCore({ serverURL: "http://pipeshub.test/api/v1" })
 const WITHOUT_CHAT = [
   "pipeshub_sources",
   "pipeshub_search",
-  "pipeshub_get_record_content",
+  "pipeshub_read_record",
+  "pipeshub_browse",
+  "pipeshub_resolve_reference",
+  "pipeshub_read_thread",
   "pipeshub_download_record",
   "pipeshub_directory",
   "pipeshub_create_collection",
@@ -94,7 +97,7 @@ describe("a server without chat", () => {
     const flat = instructions.replace(/\s+/g, " ");
     expect(flat).toContain("## Default: search, then read");
     expect(flat).toContain("Reply Count: N");
-    expect(flat).toContain("do NOT count search hits: navigate the record group");
+    expect(flat).toContain("do NOT count search hits: browse the record group");
 
     // No mounted tool's description or argument text names one either, or
     // points at a chat citation.

@@ -202,7 +202,7 @@ describe("pipeshub_download_record", () => {
     // An error, so `pipeshub get --out` does not save this note as the file.
     expect(out.isError).toBe(true);
     expect(out.content).toHaveLength(1);
-    expect(textOf(out)).toContain("pipeshub_get_record_content");
+    expect(textOf(out)).toContain("pipeshub_read_record");
     expect(textOf(out)).not.toContain("blocks\":");
   });
 

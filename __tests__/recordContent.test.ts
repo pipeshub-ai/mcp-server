@@ -3,12 +3,18 @@ import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import * as z from "zod";
 import { SHOW_CITATIONS_HINT } from "../src/mcp-server/cite.js";
-import { tool$pipeshubGetRecordContent } from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
+import {
+  tool$pipeshubBrowse,
+  tool$pipeshubGetRecordContent,
+  tool$pipeshubReadRecord,
+  tool$pipeshubReadThread,
+  tool$pipeshubResolveReference,
+} from "../src/mcp-server/tools/pipeshubGetRecordContent.js";
 
-// This tool has three modes behind one entry point: read a document, walk the
-// knowledge graph, and resolve an identifier to a record. Each has its own
-// required argument and its own failure path, and picking the wrong branch
-// silently sends the request to the wrong endpoint.
+// The record tools: read a document, read a thread, walk the knowledge graph,
+// and resolve an identifier to a record. Most tests run them through the old
+// name, `pipeshub_get_record_content`, whose `mode` picks one; the last block
+// checks that each new tool reaches the same endpoint as its mode.
 
 const REC = "rec-1";
 // Every read of a record with text ends with its cite and the reminder to
@@ -201,7 +207,7 @@ describe("reading part of a long record", () => {
     expect(text.startsWith("<record>…blocks 0–96…</record>")).toBe(true);
     expect(text).toContain("Read: blocks 0–96 of 3000.");
     expect(text).toContain(
-      `Next: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":97}`,
+      `Next: pipeshub_read_record {"recordId":"${REC}","startBlock":97}`,
     );
   });
 
@@ -217,7 +223,7 @@ describe("reading part of a long record", () => {
     expect(text).toContain("most relevant to your query (0–39, 2473–2527 of 3000)");
     expect(text).toContain('"startBlock":40}');
     expect(text).toContain(
-      `To read it in order instead: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":0}`,
+      `To read it in order instead: pipeshub_read_record {"recordId":"${REC}","startBlock":0}`,
     );
   });
 
@@ -379,7 +385,7 @@ describe("thread mode", () => {
 
     expect(text).toContain("Read: thread records 1–4 of 12.");
     expect(text).toContain(
-      `Next: pipeshub_get_record_content {"mode":"thread","recordId":"${REC}","startRecord":3,"startBlock":7}`,
+      `Next: pipeshub_read_thread {"recordId":"${REC}","startRecord":3,"startBlock":7}`,
     );
     expect(text).toContain("could not be loaded");
     expect(text).toContain("t-9");
@@ -427,10 +433,9 @@ describe("thread mode", () => {
     expect(urls).toHaveLength(0);
   });
 
-  test("the description routes thread questions to it", () => {
-    const flat = tool$pipeshubGetRecordContent.description.replace(/\s+/g, " ");
-    expect(flat).toContain('mode:"thread"');
-    expect(flat).toMatch(/Reply Count: N[^.]*\. `mode:"thread"`/);
+  test("the read description routes thread questions to the thread tool", () => {
+    const flat = tool$pipeshubReadRecord.description.replace(/\s+/g, " ");
+    expect(flat).toMatch(/Reply Count: N[^.]*separate records, which `pipeshub_read_thread` reads/);
   });
 });
 
@@ -439,7 +444,7 @@ describe("a Slack record whose messages have replies", () => {
   // over the parent message, trusted a header that said "Has Replies: False",
   // and never read the thread.
   const threadCall =
-    `pipeshub_get_record_content {"mode":"thread","recordId":"${REC}"}`;
+    `pipeshub_read_thread {"recordId":"${REC}"}`;
 
   test("a single message with replies names the thread read", async () => {
     const { core } = client({
@@ -478,7 +483,7 @@ describe("a Slack record whose messages have replies", () => {
     const text = textOf(await run(core, { mode: "content", recordId: REC }));
 
     expect(text).toContain("Replies: A message here has 1 thread reply,");
-    expect(text).toContain(`Next: pipeshub_get_record_content`);
+    expect(text).toContain(`Next: pipeshub_read_record`);
   });
 
   test("an older server's whole record gets the line too", async () => {
@@ -555,7 +560,7 @@ describe("an extract of one record", () => {
     expect(text).toContain("The reader may add a note in square brackets saying where a passage sits; such a note is not a quote.");
     expect(text).toContain("Reader: small-model, 15926 tokens in, 262 out.");
     expect(text).toContain(
-      `To read the record itself: pipeshub_get_record_content {"mode":"content","recordId":"${REC}","startBlock":0}`,
+      `To read the record itself: pipeshub_read_record {"recordId":"${REC}","startBlock":0}`,
     );
   });
 
@@ -649,5 +654,40 @@ describe("an extract of one record", () => {
     expect(text.startsWith("PipesHub's reader model could not be reached, so this is a plain read")).toBe(true);
     expect(text).toContain("<record>65 sponsors</record>");
     expect(text).toContain("Read: the whole record (1 block).");
+  });
+});
+
+describe("the split record tools", () => {
+  const call = async (def: { tool: (...a: never[]) => unknown }, args: Record<string, unknown>) => {
+    const { core, urls } = client({ content: "", text: "" });
+    await (def.tool as (...a: unknown[]) => Promise<unknown>)(
+      core, args, { signal: new AbortController().signal },
+    );
+    return urls[0] ?? "";
+  };
+  const viaMode = async (args: Record<string, unknown>) => call(tool$pipeshubGetRecordContent, args);
+
+  test("each reaches the endpoint its old mode did, with the same query", async () => {
+    const pairs: Array<[unknown, Record<string, unknown>, Record<string, unknown>]> = [
+      [tool$pipeshubReadRecord, { recordId: REC, maxChars: 40_000, query: "q" }, { mode: "content" }],
+      [tool$pipeshubReadThread, { recordId: REC, maxChars: 40_000, startRecord: 2 }, { mode: "thread" }],
+      [tool$pipeshubBrowse, { nodeId: "n-1", page: 1, limit: 50, depth: 2 }, { mode: "navigate" }],
+      [tool$pipeshubResolveReference, { identifiers: "PROJ-1" }, { mode: "lookup" }],
+    ];
+    for (const [def, args, mode] of pairs) {
+      expect(await call(def as never, args)).toBe(await viaMode({ ...mode, ...args }));
+    }
+  });
+
+  test("each schema requires what its job needs and takes nothing from another job", () => {
+    const parse = (def: { args: Record<string, z.ZodType> }, v: unknown) =>
+      z.object(def.args).strict().safeParse(v).success;
+    expect(parse(tool$pipeshubReadRecord, {})).toBe(false);
+    expect(parse(tool$pipeshubReadThread, {})).toBe(false);
+    expect(parse(tool$pipeshubResolveReference, {})).toBe(false);
+    expect(parse(tool$pipeshubBrowse, {})).toBe(true);
+    // navigate once ignored a recordId silently; browse refuses it.
+    expect(parse(tool$pipeshubBrowse, { recordId: REC })).toBe(false);
+    expect(parse(tool$pipeshubReadRecord, { recordId: REC, nodeId: "n-1" })).toBe(false);
   });
 });

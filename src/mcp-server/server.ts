@@ -27,7 +27,13 @@ import { requiredOAuthScopes } from "./oauth-scopes.js";
 import { tool$pipeshubSearch } from "./tools/pipeshubSearch.js";
 import { type ResultFormat, resultFormatFromEnv, searchAsText } from "./tools/_searchText.js";
 import { tool$pipeshubDownloadRecord } from "./tools/pipeshubDownloadRecord.js";
-import { tool$pipeshubGetRecordContent } from "./tools/pipeshubGetRecordContent.js";
+import {
+  tool$pipeshubBrowse,
+  tool$pipeshubGetRecordContent,
+  tool$pipeshubReadRecord,
+  tool$pipeshubReadThread,
+  tool$pipeshubResolveReference,
+} from "./tools/pipeshubGetRecordContent.js";
 import { tool$pipeshubDirectory } from "./tools/pipeshubDirectory.js";
 import { tool$pipeshubSources } from "./tools/pipeshubSources.js";
 import { tool$pipeshubAgents } from "./tools/pipeshubAgents.js";
@@ -101,6 +107,26 @@ function observeToolCalls(server: McpServer, onToolCall: (e: ToolCallEvent) => v
         }
       });
     }
+  });
+}
+
+const RECORD_TOOLS: ToolDefinition<any>[] = [
+  tool$pipeshubReadRecord,
+  tool$pipeshubBrowse,
+  tool$pipeshubResolveReference,
+  tool$pipeshubReadThread,
+];
+
+/** Leave `names` out of `tools/list`; `tools/call` still runs them. */
+function hideFromList(server: McpServer, names: Set<string>) {
+  const handlers = (server.server as unknown as {
+    _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string }> }>>;
+  })._requestHandlers;
+  const list = handlers.get("tools/list");
+  if (!list) return;
+  handlers.set("tools/list", async (request, extra) => {
+    const result = await list(request, extra);
+    return { ...result, tools: result.tools.filter((t) => !names.has(t.name)) };
   });
 }
 
@@ -196,6 +222,10 @@ export function createMCPServer(deps: {
   const scopes = new Set(deps.scopes);
 
   const allowedTools = deps.allowedTools && new Set(deps.allowedTools);
+  // A `--tool` list written before the record tools were split still gets them.
+  if (allowedTools?.has(tool$pipeshubGetRecordContent.name)) {
+    for (const def of RECORD_TOOLS) allowedTools.add(def.name);
+  }
   const [registerTool, tools, toolMap] = createRegisterTool(
     deps.logger,
     server,
@@ -261,7 +291,8 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubSources);          // 1. discover sources + models
   // Results as text for agents, JSON for programs (see `_searchText.ts`).
   mount(searchAsText(cited(tool$pipeshubSearch), resultFormat)); // 2. find records for a question
-  mount(cited(tool$pipeshubGetRecordContent)); // 3. read / navigate / look up records
+  // 3. read, thread, browse and resolve records
+  for (const def of RECORD_TOOLS) mount(def === tool$pipeshubReadRecord ? cited(def) : def);
   mount(tool$pipeshubDownloadRecord);   // 4. fetch a file as stored
   mount(tool$pipeshubDirectory);        // 5. people / groups / teams / whoami
   // Filling the workspace: a server started with `--scope read` leaves out
@@ -311,6 +342,15 @@ export function createMCPServer(deps: {
 
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);
+  }
+
+  // The old name stays callable and is never listed. Dynamic mode lists
+  // tools itself, so it is left out there.
+  if (!deps.dynamic) {
+    mount(cited(tool$pipeshubGetRecordContent));
+    const at = tools.findIndex((t) => t.name === tool$pipeshubGetRecordContent.name);
+    if (at >= 0) tools.splice(at, 1);
+    hideFromList(server, new Set([tool$pipeshubGetRecordContent.name]));
   }
 
   if (deps.onToolCall) observeToolCalls(server, deps.onToolCall);

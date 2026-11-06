@@ -197,10 +197,10 @@ searchable, fill it instead of scaffolding a RAG stack:
 
 | The person says | Use |
 | --- | --- |
-| A question about company knowledge (policy, "what do we know about X") | `pipeshub_search`, then read the records that matter with `pipeshub_get_record_content` `mode: "content"`; answer from them |
-| "How many / list all / every X" | `pipeshub_get_record_content` `mode: "navigate"` — chat undercounts and will not say so |
-| Structure: what's under this epic / folder / space | `pipeshub_get_record_content` `mode: "navigate"` |
-| Summarize / quote one named document | search → `pipeshub_get_record_content` `mode: "content"` |
+| A question about company knowledge (policy, "what do we know about X") | `pipeshub_search`, then read the records that matter with `pipeshub_read_record`; answer from them |
+| "How many / list all / every X" | `pipeshub_browse` — chat undercounts and will not say so |
+| Structure: what's under this epic / folder / space | `pipeshub_browse` |
+| Summarize / quote one named document | search → `pipeshub_read_record` |
 | Find a named file / ticket / page | `pipeshub_search`, then content by `recordId` |
 | Download the file bytes | `pipeshub_download_record` |
 | Talk to a configured PipesHub agent | `pipeshub_agents` for `agentId`, then `pipeshub_chat` with that id |

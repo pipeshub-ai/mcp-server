@@ -365,7 +365,7 @@ describe("what the agent is told", () => {
   test("the search-and-read default and navigate for counts still hold", () => {
     const text = flat(pipeshubInstructions({ chat: true }));
     expect(text).toContain("## Default: search, then read");
-    expect(text).toContain('"how many / all / every" with `mode:"navigate"`');
-    expect(description).toContain("navigate the record group instead");
+    expect(text).toContain('"how many / all / every" with `pipeshub_browse`');
+    expect(description).toContain("browse the record group with `pipeshub_browse` instead");
   });
 });

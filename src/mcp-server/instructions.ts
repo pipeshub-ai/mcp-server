@@ -37,29 +37,30 @@ knowledge:
 
 1. \`pipeshub_search\` (try other wording if it misses): one entry per
    record with up to 3 passages, a sample, never a complete list.
-2. \`pipeshub_get_record_content\` on the records that matter (\`recordId\`).
+2. \`pipeshub_read_record\` on the records that matter (\`recordId\`).
 3. Before answering, list the parts of the question and confirm each is
    answered from what you read. For "all", "every" or "how many", do not
    stop at the first matches.
 ${SHOW_CITATIONS_STEP}
-A named record (issue key, link, external ID) starts with \`mode:"lookup"\`,
-and "how many / all / every" with \`mode:"navigate"\`: do NOT count search
-hits${orChat}: navigate the record group, which reports the real total. Never
-guess a \`recordId\`; follow the \`Next:\` line navigate and lookup end with.
+A named record (issue key, link, external ID) starts with
+\`pipeshub_resolve_reference\`, and "how many / all / every" with
+\`pipeshub_browse\`: do NOT count search hits${orChat}: browse the record
+group, which reports the real total. Never guess a \`recordId\`; follow the
+\`Next:\` line a result ends with.
 
 Over a span of time, \`pipeshub_search\` with \`timeline\`, and set the date
 filters to that span, widened past its end. On a plain search, date filters
 match when a record was written, not when an event happened. For "has this changed?", search for both the
 current state and the earlier one.
 
-Read the record whole (\`mode:"content"\`) to summarize, list all of
-something, check whether it mentions something, rewrite or compare. Slack
-replies are separate records ("Reply Count: N"; \`mode:"thread"\` reads the
-thread). A long record would exceed your tool-output limit, so it comes in
-parts: pass \`query\`, or follow \`Next:\`. \`Related\` omits Slack messages and
-pages that only mention a record. To find Slack discussion of a PR or ticket,
-search its number or URL with the Slack connector in \`apps\`; for pages,
-search without \`apps\`, across every source.
+Read the record whole to summarize, list all of something, check whether
+it mentions something, rewrite or compare. Slack replies are separate
+records ("Reply Count: N"; \`pipeshub_read_thread\` reads the thread). A
+long record would exceed your tool-output limit, so it comes in parts: pass
+\`query\`, or follow \`Next:\`. \`Related\` omits Slack messages and pages that
+only mention a record. To find Slack discussion of a PR or ticket, search its number or URL with the
+Slack connector in \`apps\`; for pages, search without \`apps\`, across
+every source.
 
 ## Say only what you read
 
@@ -67,7 +68,7 @@ search without \`apps\`, across every source.
   "not found in what I searched". Say a record does not mention it only
   when its \`Read:\` line says the whole record or thread was shown and the
   result reports no gap: no \`Lost:\` block, unread replies, records not
-  loaded or threads not read. An extract is not a whole read. Navigate
+  loaded or threads not read. An extract is not a whole read. Browsing
   shows which records exist, not what they say.
 - A read ending in \`Next:\` is unfinished: read on. Never finish a passage
   cut off with "…".

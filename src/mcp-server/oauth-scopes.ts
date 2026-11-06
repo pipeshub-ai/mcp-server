@@ -17,8 +17,14 @@ const TOOL_SCOPES: Readonly<Record<string, readonly string[]>> = {
   // POST /search: Node takes semantic:read or semantic:write, the Python
   // search route requires semantic:write.
   pipeshub_search: ["semantic:write"],
-  // GET /connectors/record/:id/content (connector:read); lookup and navigate
-  // take kb:read or connector:read.
+  // GET /connectors/record/:id/content (connector:read).
+  pipeshub_read_record: ["connector:read"],
+  pipeshub_read_thread: ["connector:read"],
+  // Navigate and lookup take kb:read or connector:read; connector:read is
+  // named so that the record tools need one scope.
+  pipeshub_browse: ["connector:read"],
+  pipeshub_resolve_reference: ["connector:read"],
+  // The record tools by their old, unlisted name.
   pipeshub_get_record_content: ["connector:read"],
   // GET /knowledgeBase/stream/record/:id (kb:read).
   pipeshub_download_record: ["kb:read"],

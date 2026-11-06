@@ -28,7 +28,10 @@ const REFRESHED = jwt({ userId: USER_ID, exp: 4102444800, who: "refreshed" });
 const CURATED = [
   "pipeshub_sources",
   "pipeshub_search",
-  "pipeshub_get_record_content",
+  "pipeshub_read_record",
+  "pipeshub_browse",
+  "pipeshub_resolve_reference",
+  "pipeshub_read_thread",
   "pipeshub_download_record",
   "pipeshub_directory",
   "pipeshub_create_collection",

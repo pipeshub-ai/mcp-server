@@ -193,7 +193,7 @@ describe("pipeshub_search outsideDates", () => {
 
   test("the field says what it is and how to read it", () => {
     expect(shapeOutsideDates({ searchResults: hits([release]), records: [release] })?.note)
-      .toContain("read it with `pipeshub_get_record_content`");
+      .toContain("read it with `pipeshub_read_record`");
   });
 });
 
