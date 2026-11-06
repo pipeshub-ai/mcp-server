@@ -80,16 +80,22 @@ const inIgnoredDir = (path: string) => {
   return dirs.some((d) => IGNORED_ANYWHERE.has(d)) || (dirs.length > 0 && IGNORED_AT_TOP.has(dirs[0]!));
 };
 
+// File names that usually hold a secret: never sent, whatever the content.
+const SECRET_NAME = /^(\.env(\..*)?|.*\.(pem|key|p12|pfx|kdbx)|id_rsa.*|id_ed25519.*|credentials.*)$/i;
+const looksSecret = (path: string) => SECRET_NAME.test(path.slice(path.lastIndexOf("/") + 1));
+
 /** The files to send: `git ls-files` (tracked + untracked, .gitignore respected), minus binary, oversize, symlinked and server-ignored ones. */
-async function collect(root: string, limits: Limits, cache: Map<string, { m: number; s: number; sha: string }>): Promise<{ entries: Entry[]; skipped: number; ignored: number }> {
+async function collect(root: string, limits: Limits, cache: Map<string, { m: number; s: number; sha: string }>): Promise<{ entries: Entry[]; skipped: number; ignored: number; secrets: number }> {
   const names = git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]).split("\0").filter(Boolean);
   const entries: Entry[] = [];
   let skipped = 0;
   let ignored = 0;
+  let secrets = 0;
   // ignoreBOM: keep a leading byte-order mark in the text, so the server hashes the same bytes this side did.
   const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   for (const path of names) {
     if (inIgnoredDir(path)) { ignored++; continue; }
+    if (looksSecret(path)) { secrets++; continue; }
     try {
       const st = await lstat(join(root, path));
       // A link is never followed: it may point outside the repository (a key, a config) and its content is not this repository's.
@@ -105,7 +111,7 @@ async function collect(root: string, limits: Limits, cache: Map<string, { m: num
       skipped++; // deleted since ls-files, unreadable, or not UTF-8
     }
   }
-  return { entries, skipped, ignored };
+  return { entries, skipped, ignored, secrets };
 }
 
 export type HashCache = Map<string, { m: number; s: number; sha: string }>;
@@ -113,7 +119,7 @@ export type HashCache = Map<string, { m: number; s: number; sha: string }>;
 async function pass(auth: Auth, root: string, key: string, name: string, cache: Map<string, { m: number; s: number; sha: string }>, say: (s: string) => void, waitSeconds: number, startSeconds = START_SECONDS) {
   const reg = await call(auth, "PUT", `/${key}`, { name });
   const limits = reg.body["limits"] as Limits;
-  const { entries, skipped, ignored } = await collect(root, limits, cache);
+  const { entries, skipped, ignored, secrets } = await collect(root, limits, cache);
   if (entries.length > limits.maxManifestEntries) throw new CliError(`${entries.length} files is over this PipesHub's limit of ${limits.maxManifestEntries}.`, EXIT.USAGE);
   const m = (await call(auth, "POST", `/${key}/manifest`, {
     files: entries.map(({ path, sha256, size }) => ({ path, sha256, size })),
@@ -140,7 +146,7 @@ async function pass(auth: Auth, root: string, key: string, name: string, cache: 
   }
   await flush();
   await call(auth, "POST", `/${key}/commit`);
-  say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large, linked or unreadable${ignored ? `; ${ignored} in ignored folders` : ""}).`);
+  say(`Sent ${todo.length} changed of ${entries.length} files (${skipped} skipped: binary, large, linked or unreadable${ignored ? `; ${ignored} in ignored folders` : ""}${secrets ? `; ${secrets} likely secret${secrets === 1 ? "" : "s"} (.env, keys, credentials) never sent` : ""}).`);
   if (refused.length) say(`PipesHub refused ${refused.length} file(s): ${refused.slice(0, 10).map((r) => `${r.path} (${r.reason})`).join(", ")}${refused.length > 10 ? ", ..." : ""}`);
   let status = (await call(auth, "GET", `/${key}`)).body as unknown as Status;
   const began = Date.now();
@@ -155,7 +161,7 @@ async function pass(auth: Auth, root: string, key: string, name: string, cache: 
     await new Promise((r) => setTimeout(r, 1000));
     status = (await call(auth, "GET", `/${key}`)).body as unknown as Status;
   }
-  return { sent: todo.length, files: entries.length, skipped, ignored, rejected: refused, state: status.state, indexing: status.indexing };
+  return { sent: todo.length, files: entries.length, skipped, ignored, secrets, rejected: refused, state: status.state, indexing: status.indexing };
 }
 
 const START_SECONDS = 90;

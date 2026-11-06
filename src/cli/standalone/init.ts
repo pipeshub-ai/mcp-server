@@ -5,6 +5,7 @@
 // reverse exactly what was added. Re-running changes nothing.
 
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { chmod, mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -16,7 +17,7 @@ import {
   type ClientId, type Ctx, type Edit, type EditHint, type Target,
 } from "./clients.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, dockerProblem, findLocal, devDown, devUp, readState } from "./stack.js";
-import { forgetAccount, localSignIn } from "./signin.js";
+import { forgetAccount, isLoopback, localSignIn } from "./signin.js";
 import { getAt } from "./jsonc.js";
 import { gitRoot, indexRepo } from "./index.js";
 
@@ -290,8 +291,18 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
 
   // 5. The repository init was run in: one command sets up the agents and indexes the code.
   const inRepo = gitRoot(o.cwd);
-  const repoRoot = o.index ? inRepo : null;
+  let repoRoot = o.index ? inRepo : null;
   let indexedHere = false;
+  // A repository that is the home directory would push dotfiles and everything else under it.
+  if (repoRoot !== null && realpathSync(repoRoot) === realpathSync(env["HOME"] || homedir())) {
+    report.warnings.push(`${repoRoot} is your home directory, so it was not indexed. Run '${cmd} index <repository>' for a project.`);
+    repoRoot = null;
+  }
+  if (repoRoot !== null && !o.dryRun && !isLoopback(origin)
+    && !(o.yes || await confirm(`${origin} is not on this computer. Send the files of ${repoRoot} to it?`, false, o))) {
+    report.code = `not indexed (${origin} is not on this computer; --yes sends it)`;
+    repoRoot = null;
+  }
   if (repoRoot !== null) {
     if (o.dryRun) {
       report.code = `would index ${repoRoot}`;

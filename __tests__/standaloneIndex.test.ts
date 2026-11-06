@@ -201,6 +201,19 @@ describe("pipeshub index on awkward repositories", () => {
     expect(JSON.parse(r.stdout).skipped).toBe(2);
   });
 
+  test("files that usually hold secrets are never sent, and the count is reported", async () => {
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    for (const n of [".env", ".env.local", "server.pem", "tls.key", "store.p12", "store.pfx", "id_rsa", "id_ed25519.pub", "vault.kdbx", "credentials.json"]) {
+      await writeFile(join(dir, n), "TOP_SECRET_VALUE\n");
+    }
+    sh(dir, "add", "-A");
+    const r = await run(["index"]);
+    expect(r.code).toBe(0);
+    expect([...f2.repo.files.keys()]).toEqual(["a.py"]);
+    expect([...f2.repo.files.values()].join("")).not.toContain("TOP_SECRET_VALUE");
+    expect(JSON.parse(r.stdout).secrets).toBe(10);
+  });
+
   test("files under vendor/ and node_modules/ do not count toward the server's file limit", async () => {
     await mkdir(join(dir, "vendor", "x"), { recursive: true });
     await mkdir(join(dir, "node_modules", "y"), { recursive: true });

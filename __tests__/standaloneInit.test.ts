@@ -408,6 +408,15 @@ describe("init indexes the repository it is run in", () => {
     expect(r.stdout.split("\n").length).toBeLessThan(16);
   }, 30_000);
 
+  test("a repository that is the home directory is never indexed", async () => {
+    const w = await repoWorld("home-repo", true);
+    git(w.home, "init", "-q");
+    const r = await cli(w.home, w.home, ["init", "--local", "--yes", "--url", fake.origin], ceiling());
+    expect(r.code).toBe(0);
+    expect(pushed()).toEqual([]);
+    expect(r.stdout).toContain("home directory");
+  }, 30_000);
+
   test("outside a git repository: nothing is pushed and the hint says how to index one", async () => {
     const w = await repoWorld("no-repo", false);
     const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin], ceiling());
