@@ -94,7 +94,7 @@ function fileBadge(c: Citation) {
   if (icon) {
     const img = el("img", `app-icon${MONO_ICONS.has(icon) ? " mono" : ""}`) as HTMLImageElement;
     img.src = ICONS[icon]!;
-    img.alt = img.title = label;
+    img.alt = img.title = c.connector!;
     return img;
   }
   return el("span", `file ${cls}`, label);
