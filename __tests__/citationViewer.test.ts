@@ -1,3 +1,4 @@
+import { readdir } from "node:fs/promises";
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -76,6 +77,9 @@ describe("citation viewer registration", () => {
     expect(page.text).not.toContain("/*VIEW_SCRIPT*/");
     expect(page.text).not.toMatch(/<script[^>]*\ssrc=/);
     expect(page.text!.match(/<\/script/g)).toHaveLength(1);
+    // Every connector logo is inlined once, as a data URI.
+    const logos = (await readdir("src/mcp-app/connector-icons")).length;
+    expect(page.text!.match(/data:image\/svg\+xml;base64,/g)).toHaveLength(logos);
   });
 
   test("with chat off the search path still shows its sources", async () => {
