@@ -146,7 +146,7 @@ async function pass(auth: Auth, root: string, key: string, name: string, cache: 
   const began = Date.now();
   const deadline = began + waitSeconds * 1000;
   for (;;) {
-    if (status.state === "stuck") throw new CliError(`${status.error ?? "the sync did not start"} Look at: docker compose -p pipeshub-slim logs pipeshub-slim`, EXIT.ERROR);
+    if (status.state === "stuck") throw new CliError(`${status.error ?? "the sync did not start"} Look at: docker compose -p pipeshub-standalone logs pipeshub-slim`, EXIT.ERROR);
     if (["ready", "failed"].includes(status.state) || Date.now() >= deadline) break;
     // "syncing" with no records yet means the server has not picked the commit up.
     if (status.state === "syncing" && Date.now() - began > startSeconds * 1000) {

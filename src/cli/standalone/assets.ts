@@ -16,7 +16,7 @@ export const COMPOSE_REVISION = "launch/slim";
 
 const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up'; ${COMPOSE_REVISION}.
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.
-name: @{PIPESHUB_PROJECT:-pipeshub-slim}
+name: @{PIPESHUB_PROJECT:-pipeshub-standalone}
 
 services:
   pipeshub-slim:

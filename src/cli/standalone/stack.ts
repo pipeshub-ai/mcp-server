@@ -15,7 +15,7 @@ export const DEFAULT_PORT = 3000;
 
 /** The docker executable: PIPESHUB_DOCKER for one outside the PATH, else `docker`. */
 export const dockerBin = (env: NodeJS.ProcessEnv): string => env["PIPESHUB_DOCKER"] || "docker";
-export const DEFAULT_PROJECT = "pipeshub-slim";
+export const DEFAULT_PROJECT = "pipeshub-standalone";
 
 export interface StackState {
   project: string;
@@ -105,14 +105,13 @@ export async function devUp(
 ): Promise<StackState> {
   const problem = dockerProblem(env);
   if (problem) throw new CliError(problem, EXIT.ERROR);
-  const firstStart = (await readState(env)) === null;
   await prepare(opts.port, opts.project, env);
   const origin = `http://127.0.0.1:${opts.port}`;
   say(`Starting PipesHub on ${origin} (first start downloads the images; later starts take about 30 s)...`);
   const code = compose(["up", "-d"], opts.project, env);
   if (code !== 0) {
-    // Compose creates the network and the database container before it finds the port taken: leave nothing of this attempt behind.
-    compose(["down", ...(firstStart ? ["--volumes"] : [])], opts.project, env);
+    // Compose creates the network and the database container before it finds the port taken: remove them, but never the data volumes.
+    compose(["down"], opts.project, env);
     throw new CliError(
       `'docker compose up' failed (exit ${code}). If port ${opts.port} is taken, pick another with --port; if the images cannot be pulled, check your network or PIPESHUB_IMAGE / IMAGE_TAG.`,
       EXIT.ERROR,

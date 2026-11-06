@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { devUp, findLocal } from "../src/cli/standalone/stack.js";
+import { DEFAULT_PROJECT, devUp, findLocal } from "../src/cli/standalone/stack.js";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
 
 // Which listener on this computer `init` may treat as PipesHub without being told.
@@ -46,7 +46,7 @@ describe("findLocal", () => {
 });
 
 describe("devUp when compose cannot start the stack", () => {
-  test("what the failed attempt created is taken down again, with its volumes on a first start", async () => {
+  test("what the failed attempt created is taken down again, but never its volumes", async () => {
     const dir = await mkdtemp(join(tmpdir(), "standalone-dock-"));
     const log = join(dir, "docker.log");
     await writeFile(join(dir, "docker"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *" up "*) exit 1 ;; esac\nexit 0\n`);
@@ -55,7 +55,7 @@ describe("devUp when compose cannot start the stack", () => {
     await expect(devUp({ port: 65111, project: "standalone-fail", waitSeconds: 1 }, env)).rejects.toThrow(/docker compose up/);
     const calls = (await readFile(log, "utf8")).split("\n").filter((l) => l.includes("compose -p standalone-fail"));
     expect(calls.some((l) => / up -d$/.test(l))).toBe(true);
-    expect(calls.at(-1)).toMatch(/ down --volumes$/);
+    expect(calls.at(-1)).toMatch(/ down$/);
     await rm(dir, { recursive: true, force: true });
   });
 });
@@ -77,4 +77,8 @@ describe("the web browser pack on a stack started by `pipeshub dev up`", () => {
     }
     await rm(dir, { recursive: true, force: true });
   });
+});
+
+test("the default project does not clash with the repository's own slim compose", () => {
+  expect(DEFAULT_PROJECT).toBe("pipeshub-standalone");
 });
