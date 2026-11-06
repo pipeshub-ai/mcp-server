@@ -27,12 +27,13 @@ type RecordInfo = {
   recordName?: string;
   mimeType?: string;
   extension?: string;
+  connector?: string;
   webUrl?: string;
 };
 
 /**
  * A record's name, type and link, from the metadata header a short read
- * starts with (`Name:`, `MIME Type:`, `Web URL:` lines). Empty when the read
+ * starts with (`Name:`, `Connector:`, `MIME Type:`, `Web URL:` lines). Empty when the read
  * fails: the citation still opens, under a generic name.
  */
 async function recordInfo(
@@ -52,9 +53,11 @@ async function recordInfo(
   const extension = /\.([A-Za-z0-9]{1,5})$/.exec(recordName ?? "")?.[1]?.toLowerCase();
   const webUrl = field("Web URL");
   const mimeType = field("MIME Type");
+  const connector = field("Connector");
   return {
     ...(recordName ? { recordName } : {}),
     ...(mimeType ? { mimeType } : {}),
+    ...(connector ? { connector } : {}),
     ...(extension ? { extension } : {}),
     ...(webUrl && /^https?:\/\//.test(webUrl) ? { webUrl } : {}),
   };

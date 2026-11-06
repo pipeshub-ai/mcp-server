@@ -26,6 +26,8 @@ type Citation = {
   webUrl?: string;
   mimeType?: string;
   extension?: string;
+  /** The app the record came from, e.g. "CONFLUENCE"; a page or message has no file type. */
+  connector?: string;
   pageNum?: number[];
   blockNum?: number[];
   boundingBox?: Point[];
@@ -70,7 +72,10 @@ function fileBadge(c: Citation) {
     : kind === "sheet" ? ["sheet", ext === "CSV" ? "CSV" : "XLS"]
     : kind === "docx" ? ["doc", "DOC"]
     : kind === "web" ? ["web", "WEB"]
-    : ["text", (ext || "TXT").slice(0, 4)];
+    : ext ? ["text", ext.slice(0, 4)]
+    // An app's record (a page, an issue, a message) is named by its app, not called a text file.
+    : c.connector ? ["app", c.connector.split(" ")[0]!]
+    : ["text", "TXT"];
   return el("span", `file ${cls}`, label);
 }
 

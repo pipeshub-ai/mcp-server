@@ -236,10 +236,10 @@ describe("pipeshub_show_citations", () => {
   const header = "<record>\nRecord ID: R\nName: Contoso-Pentest-Report.pdf\nMIME Type: application/pdf\n"
     + "Web URL: https://pipeshub.test/record/R\n\nRecord blocks (sorted):\n\nName: not a header line";
 
-  function client(reads: string[], status = 200) {
+  function client(reads: string[], status = 200, content = header) {
     const fetcher = async (input: RequestInfo | URL) => {
       reads.push(new URL((input as Request).url).pathname);
-      return Response.json({ content: header }, { status });
+      return Response.json({ content }, { status });
     };
     return new PipeshubCore({
       serverURL: "http://pipeshub.test/api/v1",
@@ -273,6 +273,17 @@ describe("pipeshub_show_citations", () => {
     });
     expect(data[0].boundingBox).toHaveLength(4);
     expect(data[1]).toMatchObject({ number: 2, pageNum: [4], blockNum: [15], text: "" });
+  });
+
+  test("an app's record carries its connector and no made-up extension", async () => {
+    const page = "<record>\nRecord ID: R\nName: BBS015 SAAS: Bug Bash Session\nConnector: CONFLUENCE\n"
+      + "Type: WEBPAGE\nMIME Type: text/html\n\nbody";
+    const out = await tool$pipeshubShowCitations.tool(client([], 200, page), {
+      citations: [{ cite: `${RID}.1...` }],
+    }, ctx());
+    const [c] = (out._meta as any)["pipeshub/citations"].citations;
+    expect(c).toMatchObject({ connector: "CONFLUENCE", mimeType: "text/html" });
+    expect(c.extension).toBeUndefined();
   });
 
   test("a record it cannot read still opens, as \"Source\"", async () => {
