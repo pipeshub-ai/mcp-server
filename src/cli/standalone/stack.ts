@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { CliError, EXIT } from "../config.js";
 import { SECRET_NAMES, composeFile } from "./assets.js";
@@ -69,6 +70,20 @@ export async function healthy(origin: string, timeoutMs = 3000): Promise<boolean
   }
 }
 
+/** The version of the package this code runs from (written into the compose file's header); "unknown" when its package.json is not found. */
+async function cliVersion(): Promise<string> {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 6; i++, dir = dirname(dir)) {
+    try {
+      const pkg = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as { name?: string; version?: string };
+      if (pkg.name?.startsWith("@pipeshub-ai/") && pkg.version) return pkg.version;
+    } catch {
+      // keep walking
+    }
+  }
+  return "unknown";
+}
+
 export const parseEnvFile = (text: string) =>
   Object.fromEntries(text.split("\n").filter((l) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
 
@@ -76,7 +91,7 @@ export const parseEnvFile = (text: string) =>
 async function prepare(port: number, project: string, env: NodeJS.ProcessEnv): Promise<string> {
   const dir = standaloneDir(env);
   await mkdir(join(dir, "workspace"), { recursive: true, mode: 0o700 });
-  await writeAtomic(join(dir, "docker-compose.yml"), composeFile(), 0o600);
+  await writeAtomic(join(dir, "docker-compose.yml"), composeFile(await cliVersion()), 0o600);
   await writeAtomic(join(dir, "seccomp-browser.json"), SECCOMP_PROFILE, 0o600);
   const have = parseEnvFile(await readFile(join(dir, ".env"), "utf8").catch(() => ""));
   for (const name of SECRET_NAMES) have[name] ||= randomBytes(24).toString("hex");

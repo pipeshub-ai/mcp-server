@@ -1,7 +1,7 @@
 {
   "name": "@pipeshub-ai/standalone",
   "version": "0.1.0",
-  "description": "Run PipesHub on your own computer and connect it to your coding agents: npx @pipeshub-ai/standalone init",
+  "description": "Run PipesHub on your own computer and connect it to your coding agents: npx @pipeshub-ai/standalone init --local",
   "license": "Apache-2.0",
   "author": "Pipeshub",
   "repository": {

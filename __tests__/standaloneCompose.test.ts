@@ -7,7 +7,12 @@ import { composeFile } from "../src/cli/standalone/assets.js";
 // lines `MAX_CONCURRENT_PARSING=6 pipeshub dev up` silently changed nothing.
 
 describe("the pinned compose file", () => {
-  const text = composeFile();
+  const text = composeFile("4.10.0");
+
+  test("the header names the CLI version, not an internal branch", () => {
+    expect(text.split("\n")[0]).toContain("CLI version 4.10.0");
+    expect(text).not.toMatch(/launch\//);
+  });
 
   test("runs the database on the published pgvector image, tuned through its command line", () => {
     expect(text).toContain("image: ${PG_IMAGE:-pgvector/pgvector}:${PG_TAG:-pg18}");

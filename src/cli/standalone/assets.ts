@@ -3,18 +3,13 @@
 // turned into `${VAR}` below, so they are not read as template-literal holes.
 
 /**
- * The slim stack: the app and PostgreSQL with pgvector, nothing else. This is
- * the compose file of the `launch/slim` branch of pipeshub-ai (deployment/slim,
- * the integration of the local sign-in fixes and local repository indexing: device sign-in, OAUTH_ISSUER, write scopes) with the `build:` sections removed, so no repository
- * checkout is needed, and the image names overridable from the environment.
+ * The slim stack: the app and PostgreSQL with pgvector, nothing else. It is the project's slim compose file with the `build:` sections
+ * removed, so no repository checkout is needed, and the image names overridable from the environment.
  *
- * shortcut: the default image tags are the names that branch uses and are not
- * published yet. Pin the published tags here (or set PIPESHUB_IMAGE/IMAGE_TAG/
+ * shortcut: the default image tag of the app is not published yet. Pin the published tag here (or set PIPESHUB_IMAGE/IMAGE_TAG/
  * PG_IMAGE/PG_TAG) before the package is published.
  */
-export const COMPOSE_REVISION = "launch/slim";
-
-const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up'; ${COMPOSE_REVISION}.
+const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up' (CLI version @{REVISION}).
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.
 name: @{PIPESHUB_PROJECT:-pipeshub-standalone}
 
@@ -83,7 +78,7 @@ services:
       # Client connections per pool; the sum for the worst case (73) is worked out in the server's slim-start.sh against max_connections 120.
       PG_POOL_MAX: @{PG_POOL_MAX:-4}
       PG_JOBS_POOL_MAX: @{PG_JOBS_POOL_MAX:-2}
-      # shadow logs an org-scoped access with no org bound; enforce refuses it.
+      # shadow logs a request that has no organisation bound; enforce refuses it.
       ORG_CONTEXT_MODE: @{ORG_CONTEXT_MODE:-shadow}
       TELEMETRY_COLLECTION_FLAG: @{TELEMETRY_COLLECTION_FLAG:-}
     healthcheck:
@@ -117,7 +112,7 @@ volumes:
   pipeshub-pg:
 `.replaceAll("@{", "${");
 
-export const composeFile = (): string => COMPOSE;
+export const composeFile = (cliVersion: string): string => COMPOSE.replace("${REVISION}", cliVersion);
 
 /** Names the .env must define (12 secrets); `dev up` generates each once and never rewrites it. */
 export const SECRET_NAMES = [
