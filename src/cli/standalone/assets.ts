@@ -3,13 +3,14 @@
 // turned into `${VAR}` below, so they are not read as template-literal holes.
 
 /**
- * The slim stack: the app and PostgreSQL with pgvector, nothing else. It is the project's slim compose file with the `build:` sections
+ * The slim stack: the app, PostgreSQL with pgvector, and Neo4j for the graph. It is the project's slim compose file with the `build:` sections
  * removed, so no repository checkout is needed, and the image names overridable from the environment.
  *
  * shortcut: the default image tag of the app is not published yet. Pin the published tag here (or set PIPESHUB_IMAGE/IMAGE_TAG/
  * PG_IMAGE/PG_TAG) before the package is published.
  */
-const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up' (CLI version @{REVISION}).
+const COMPOSE = `# PipesHub standalone (slim): the app, PostgreSQL and Neo4j. Written by 'pipeshub dev up' (CLI version @{REVISION}).
+# The graph runs on Neo4j until the PostgreSQL graph store is complete.
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.
 name: @{PIPESHUB_PROJECT:-pipeshub-standalone}
 
@@ -20,6 +21,8 @@ services:
     stop_grace_period: 30s
     depends_on:
       postgres:
+        condition: service_healthy
+      neo4j:
         condition: service_healthy
     ports:
       - "127.0.0.1:@{PIPESHUB_PORT:-3000}:3000"
@@ -43,7 +46,10 @@ services:
       # A local single-user laptop: the stock scopes plus the write ones, so agent write tools and pipeshub index work. kb:delete stays off. offline_access gives the login a refresh token (an older base lacks it).
       MCP_SCOPES: @{MCP_SCOPES:-openid,profile,email,offline_access,semantic:write,conversation:write,conversation:chat,kb:read,kb:write,kb:upload,team:read,user:read,usergroup:read,config:read,agent:read,agent:execute,connector:read,code:read,code:write}
       AGENT_EXTRA_SCOPES: @{AGENT_EXTRA_SCOPES:-kb:write,kb:upload,code:write,offline_access}
-      DATA_STORE: postgres
+      DATA_STORE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: @{NEO4J_PASSWORD:?}
       DOC_STORE: postgres
       VECTOR_DB_TYPE: pgvector
       KV_STORE_TYPE: postgres
@@ -107,18 +113,41 @@ services:
       timeout: 3s
       retries: 20
 
+  neo4j:
+    image: @{NEO4J_IMAGE:-neo4j}:@{NEO4J_TAG:-5.26.0}
+    restart: unless-stopped
+    mem_limit: @{NEO4J_MEMORY_LIMIT:-1536m}
+    # No published port: only the app reaches it, over the compose network.
+    environment:
+      NEO4J_AUTH: neo4j/@{NEO4J_PASSWORD:?}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_PASSWORD: @{NEO4J_PASSWORD:?}
+    volumes:
+      - pipeshub-neo4j:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p $$NEO4J_PASSWORD 'RETURN 1' >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
 volumes:
   pipeshub-data:
   pipeshub-pg:
+  pipeshub-neo4j:
 `.replaceAll("@{", "${");
 
 export const composeFile = (cliVersion: string): string => COMPOSE.replace("${REVISION}", cliVersion);
 
-/** Names the .env must define (12 secrets); `dev up` generates each once and never rewrites it. */
+/** Names the .env must define (13 secrets); `dev up` generates each once and never rewrites it. */
 export const SECRET_NAMES = [
   "SECRET_KEY", "JWT_SECRET", "SCOPED_JWT_SECRET", "COOKIE_SECRET",
   "PG_ADMIN_PASSWORD", "PG_NODE_PASSWORD", "PG_CONNECTORS_PASSWORD", "PG_INDEXING_PASSWORD",
-  "PG_QUERY_PASSWORD", "PG_KV_PASSWORD", "PG_JOBS_PASSWORD", "PG_MIGRATE_PASSWORD",
+  "PG_QUERY_PASSWORD", "PG_KV_PASSWORD", "PG_JOBS_PASSWORD", "PG_MIGRATE_PASSWORD", "NEO4J_PASSWORD",
 ] as const;
 
 /** Written into a file that is wholly ours; uninstall deletes only files that carry it. */

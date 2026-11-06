@@ -1,13 +1,35 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { composeFile } from "../src/cli/standalone/assets.js";
+import { SECRET_NAMES, composeFile } from "../src/cli/standalone/assets.js";
 
 // The compose file `pipeshub dev up` writes must pass the settings a laptop owner turns through to the container; without these
 // lines `MAX_CONCURRENT_PARSING=6 pipeshub dev up` silently changed nothing.
 
 describe("the pinned compose file", () => {
   const text = composeFile("4.10.0");
+
+  test("the graph runs on Neo4j: a service with no published port, its password only from .env, and the app waits for it", () => {
+    const neo4j = text.slice(text.indexOf("\n  neo4j:"), text.indexOf("\nvolumes:"));
+    expect(neo4j).toContain("image: ${NEO4J_IMAGE:-neo4j}:${NEO4J_TAG:-5.26.0}");
+    expect(neo4j).toContain("NEO4J_PLUGINS: '[\"apoc\"]'");
+    expect(neo4j).toContain("NEO4J_server_memory_heap_max__size: 512m");
+    expect(neo4j).toContain("NEO4J_server_memory_pagecache_size: 256m");
+    expect(neo4j).toContain("pipeshub-neo4j:/data");
+    expect(neo4j).toContain("cypher-shell -u neo4j -p $$NEO4J_PASSWORD 'RETURN 1'");
+    expect(neo4j).not.toContain("ports:");
+    expect(text).toContain("\n  pipeshub-neo4j:\n");
+    expect(text).toContain("DATA_STORE: neo4j");
+    expect(text).not.toContain("DATA_STORE: postgres");
+    expect(text).toContain("NEO4J_URI: bolt://neo4j:7687");
+    expect(text).toMatch(/depends_on:[\s\S]*neo4j:\s+condition: service_healthy/);
+    // every password is a reference to .env, never a value
+    expect(text.match(/NEO4J_(PASSWORD|AUTH): .*/g)).toEqual([
+      "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}", "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?}", "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}",
+    ]);
+    expect(SECRET_NAMES).toContain("NEO4J_PASSWORD");
+    expect(text.split("\n")[1]).toContain("until the PostgreSQL graph store is complete");
+  });
 
   test("the header names the CLI version, not an internal branch", () => {
     expect(text.split("\n")[0]).toContain("CLI version 4.10.0");

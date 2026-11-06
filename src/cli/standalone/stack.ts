@@ -44,9 +44,9 @@ async function writeAtomic(path: string, text: string, mode: number): Promise<vo
   await rename(tmp, path);
 }
 
-/** Null when Docker and Compose work, else the sentence to show. */
-export function dockerProblem(env: NodeJS.ProcessEnv = process.env): string | null {
-  const run = (args: string[]) => spawnSync(dockerBin(env), args, { env, encoding: "utf8", timeout: 30_000 });
+/** Null when Docker and Compose work, else the sentence to show. A slow or hung Docker counts as a problem once `timeoutMs` passes. */
+export function dockerProblem(env: NodeJS.ProcessEnv = process.env, timeoutMs = 30_000): string | null {
+  const run = (args: string[]) => spawnSync(dockerBin(env), args, { env, encoding: "utf8", timeout: timeoutMs });
   const compose = run(["compose", "version"]);
   if (compose.error && (compose.error as NodeJS.ErrnoException).code === "ENOENT") {
     return "Docker is not installed. Install Docker Desktop (https://docs.docker.com/get-docker/) or Docker Engine, then run this again.";
@@ -155,13 +155,24 @@ export async function devDown(volumes: boolean, env: NodeJS.ProcessEnv = process
   return { stopped: true, project: state.project };
 }
 
+/** Docker's health of the graph database container: healthy, unhealthy, starting, or unknown when it is not running. */
+function neo4jHealth(state: StackState, env: NodeJS.ProcessEnv): string {
+  const dir = standaloneDir(env);
+  const r = spawnSync(
+    dockerBin(env),
+    ["compose", "-p", state.project, "--env-file", join(dir, ".env"), "-f", join(dir, "docker-compose.yml"), "ps", "--format", "{{.Health}}", "neo4j"],
+    { env, encoding: "utf8", timeout: 15_000 },
+  );
+  return r.status === 0 && r.stdout.trim() !== "" ? r.stdout.trim() : "unknown";
+}
+
 export async function devStatus(env: NodeJS.ProcessEnv = process.env) {
   const state = await readState(env);
   const problem = dockerProblem(env);
   return {
     docker: problem === null ? "ok" : problem,
     configured: state !== null,
-    ...(state ? { project: state.project, origin: state.origin, healthy: await healthy(state.origin) } : {}),
+    ...(state ? { project: state.project, origin: state.origin, healthy: await healthy(state.origin), neo4j: problem === null ? neo4jHealth(state, env) : "unknown" } : {}),
   };
 }
 
