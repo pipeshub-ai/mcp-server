@@ -13,7 +13,7 @@ const ENTRY = join(import.meta.dir, "..", "src", "cli", "pipeshub.ts");
 
 let root: string;
 let fake: FakeLocal;
-beforeAll(async () => { root = await mkdtemp(join(tmpdir(), "l9a-init-")); });
+beforeAll(async () => { root = await mkdtemp(join(tmpdir(), "standalone-init-")); });
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 // Each test gets a fresh stack (no account yet) unless its describe says otherwise.
 const freshStack = () => { beforeEach(() => { fake = startFakeLocal(); }); afterEach(() => fake.stop()); };

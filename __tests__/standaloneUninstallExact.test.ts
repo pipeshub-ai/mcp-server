@@ -42,7 +42,7 @@ describe("through init and uninstall with the person's client rewriting its file
   const ENTRY = join(import.meta.dir, "..", "src", "cli", "pipeshub.ts");
   test("an empty servers object and CRLF come back exactly", async () => {
     const fake = startFakeLocal();
-    const root = await mkdtemp(join(tmpdir(), "l9i-exact-"));
+    const root = await mkdtemp(join(tmpdir(), "standalone-exact-"));
     try {
       const home = join(root, "home");
       const cwd = join(root, "proj");

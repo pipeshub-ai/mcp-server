@@ -1,6 +1,6 @@
 // `pipeshub index [path] [--watch]`: push the working tree of a git repository
 // into the local PipesHub's code graph, through the local-repos API
-// (notes handoffs/L9-C-api.md): register, send a manifest of hashes, upload
+// (/api/v1/local-repos): register, send a manifest of hashes, upload
 // only what the server lacks, commit, and wait until it is indexed.
 //
 // shortcut: watch mode re-runs the whole pass on a debounced change (the hash

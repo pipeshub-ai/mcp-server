@@ -128,7 +128,7 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
         return json({});
       }
 
-      // local repositories (notes handoffs/L9-C-api.md)
+      // local repositories
       if (p.startsWith("/api/v1/local-repos")) {
         if (bearer !== state.issuedToken) return json({ detail: "no" }, 401);
         const rest = p.slice("/api/v1/local-repos".length).split("/").filter(Boolean);

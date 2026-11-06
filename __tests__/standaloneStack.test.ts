@@ -11,7 +11,7 @@ let fake: FakeLocal | null = null;
 afterEach(() => { fake?.stop(); fake = null; });
 
 async function home(): Promise<NodeJS.ProcessEnv> {
-  return { HOME: await mkdtemp(join(tmpdir(), "l9i-stack-")) };
+  return { HOME: await mkdtemp(join(tmpdir(), "standalone-stack-")) };
 }
 
 describe("findLocal", () => {
@@ -26,7 +26,7 @@ describe("findLocal", () => {
   test("a stale state.json pointing at a listener that is not the stack's container is not adopted", async () => {
     fake = startFakeLocal({ orgExists: true });
     const env = await home();
-    const dir = await mkdtemp(join(tmpdir(), "l9i-nodocker-"));
+    const dir = await mkdtemp(join(tmpdir(), "standalone-nodocker-"));
     await writeFile(join(dir, "docker"), "#!/bin/sh\nexit 1\n", { mode: 0o755 }); // compose knows no such project
     const port = Number(new URL(fake.origin).port);
     await mkdir(join(env["HOME"]!, ".pipeshub", "standalone"), { recursive: true });
@@ -47,26 +47,26 @@ describe("findLocal", () => {
 
 describe("devUp when compose cannot start the stack", () => {
   test("what the failed attempt created is taken down again, with its volumes on a first start", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "l9i-dock-"));
+    const dir = await mkdtemp(join(tmpdir(), "standalone-dock-"));
     const log = join(dir, "docker.log");
     await writeFile(join(dir, "docker"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *" up "*) exit 1 ;; esac\nexit 0\n`);
     await chmod(join(dir, "docker"), 0o755);
     const env = { HOME: join(dir, "home"), PATH: `${dir}:/usr/bin:/bin` };
-    await expect(devUp({ port: 65111, project: "l9i-fail", waitSeconds: 1 }, env)).rejects.toThrow(/docker compose up/);
-    const calls = (await readFile(log, "utf8")).split("\n").filter((l) => l.includes("compose -p l9i-fail"));
+    await expect(devUp({ port: 65111, project: "standalone-fail", waitSeconds: 1 }, env)).rejects.toThrow(/docker compose up/);
+    const calls = (await readFile(log, "utf8")).split("\n").filter((l) => l.includes("compose -p standalone-fail"));
     expect(calls.some((l) => / up -d$/.test(l))).toBe(true);
     expect(calls.at(-1)).toMatch(/ down --volumes$/);
     await rm(dir, { recursive: true, force: true });
   });
 });
 
-describe("the web browser pack on a stack started by `pipeshub dev up` (QA L10 R2-04)", () => {
+describe("the web browser pack on a stack started by `pipeshub dev up`", () => {
   test("the compose file applies the seccomp profile and `dev up` writes it next to the compose file", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "l9i-sec-"));
+    const dir = await mkdtemp(join(tmpdir(), "standalone-sec-"));
     await writeFile(join(dir, "docker"), `#!/bin/sh\ncase "$*" in *" up "*) exit 1 ;; esac\nexit 0\n`);
     await chmod(join(dir, "docker"), 0o755);
     const env = { HOME: join(dir, "home"), PATH: `${dir}:/usr/bin:/bin` };
-    await devUp({ port: 65112, project: "l9i-sec", waitSeconds: 1 }, env).catch(() => undefined);
+    await devUp({ port: 65112, project: "standalone-sec", waitSeconds: 1 }, env).catch(() => undefined);
     const compose = await readFile(join(dir, "home", ".pipeshub", "standalone", "docker-compose.yml"), "utf8");
     expect(compose).toContain("security_opt:\n      - seccomp=./seccomp-browser.json");
     const profile = JSON.parse(await readFile(join(dir, "home", ".pipeshub", "standalone", "seccomp-browser.json"), "utf8"));

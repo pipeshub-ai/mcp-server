@@ -14,7 +14,7 @@ describe("the pinned compose file", () => {
     expect(text).toContain("MAX_CONCURRENT_INDEXING: ${MAX_CONCURRENT_INDEXING:-}");
   });
 
-  // D-80: bge-base (768 dimensions) is the default embedding model, run in ONNX batches of 4 chunks (880 MiB of growth at 16, 156 at 4).
+  // bge-base (768 dimensions) is the default embedding model, run in ONNX batches of 4 chunks: a batch of 16 grows the process by 880 MiB, 4 by 156 MiB.
   test("defaults to the bge-base embedding model and a batch of 4 chunks", () => {
     expect(text).toContain("DEFAULT_EMBEDDING_MODEL: ${DEFAULT_EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}");
     expect(text).toContain("EMBEDDING_SERVER_BATCH_SIZE: ${EMBEDDING_SERVER_BATCH_SIZE:-4}");

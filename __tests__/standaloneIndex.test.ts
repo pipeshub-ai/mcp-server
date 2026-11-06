@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
 
-// `pipeshub index` against a fake of the local-repos API (handoffs/L9-C-api.md):
+// `pipeshub index` against a fake of the local-repos API (/api/v1/local-repos):
 // only git-listed text files are sent, only what the server lacks is uploaded,
 // a second run sends nothing, and a deleted file is removed on the server.
 
@@ -32,7 +32,7 @@ async function cli(args: string[], env: Record<string, string> = {}) {
 }
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), "l9a-index-"));
+  root = await mkdtemp(join(tmpdir(), "standalone-index-"));
   repo = join(root, "my-repo");
   home = join(root, "home");
   await mkdir(join(repo, "src"), { recursive: true });

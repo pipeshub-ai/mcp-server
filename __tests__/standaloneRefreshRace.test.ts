@@ -15,7 +15,7 @@ describe("refreshing an expired sign-in from several callers at once", () => {
   test("every caller gets a working token and nobody is told to sign in again", async () => {
     fake = startFakeLocal({ orgExists: true });
     fake.rotate = { delayMs: 150, current: "refresh-0" };
-    const home = await mkdtemp(join(tmpdir(), "l9i-race-"));
+    const home = await mkdtemp(join(tmpdir(), "standalone-race-"));
     try {
       const file = join(home, ".config", "pipeshub", "credentials.json");
       await mkdir(join(home, ".config", "pipeshub"), { recursive: true });

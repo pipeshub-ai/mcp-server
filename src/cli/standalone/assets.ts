@@ -12,7 +12,7 @@
  * published yet. Pin the published tags here (or set PIPESHUB_IMAGE/IMAGE_TAG/
  * PG_IMAGE/PG_IMAGE_REV) before the package is published.
  */
-export const COMPOSE_REVISION = "launch/l9-integration";
+export const COMPOSE_REVISION = "launch/slim";
 
 const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL, nothing else. Written by 'pipeshub dev up'; ${COMPOSE_REVISION}.
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.
@@ -67,7 +67,7 @@ services:
       PIPESHUB_FOLDER_ROOTS: /workspace
       EMBEDDING_BACKEND: fastembed
       DEFAULT_EMBEDDING_MODEL: @{DEFAULT_EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}
-      # Chunks per ONNX run: bge-base grows the process by 880 MiB at 16, 156 MiB at 4 and 25 MiB at 1 (D-80).
+      # Chunks per ONNX run: bge-base grows the process by 880 MiB at 16, 156 MiB at 4 and 25 MiB at 1.
       EMBEDDING_SERVER_BATCH_SIZE: @{EMBEDDING_SERVER_BATCH_SIZE:-4}
       # Records parsed / indexed at once; empty = the image's default (4 and 6), sized for a 4 GB container.
       MAX_CONCURRENT_PARSING: @{MAX_CONCURRENT_PARSING:-}

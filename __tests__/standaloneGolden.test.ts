@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// The L9 golden path, run the way a developer would, on a real slim stack:
+// The golden path, run the way a developer would, on a real slim stack:
 //
 //   1. npx @pipeshub-ai/standalone init --yes     (run in a small multi-language git repository: starts the stack, signs in,
 //      writes Claude Code + Codex, and indexes the repository)
@@ -23,7 +23,7 @@ import { join } from "node:path";
 
 const RUN = process.env["PIPESHUB_E2E"] === "1";
 const PORT = process.env["PIPESHUB_GOLDEN_PORT"] ?? "64620";
-const PROJECT = process.env["PIPESHUB_GOLDEN_PROJECT"] ?? "l9i-golden";
+const PROJECT = process.env["PIPESHUB_GOLDEN_PROJECT"] ?? "standalone-golden";
 const ROOT = join(import.meta.dir, "..");
 const BRIDGE = join(ROOT, "bin", "mcp-server.js");
 
@@ -132,9 +132,9 @@ const git = (...a: string[]) => {
   if (r.status !== 0) throw new Error(r.stderr);
 };
 
-describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", () => {
+describe.skipIf(!RUN)("golden path: npx init -> npx index -> ask the agent", () => {
   beforeAll(async () => {
-    base = await mkdtemp(join(tmpdir(), "l9i-golden-"));
+    base = await mkdtemp(join(tmpdir(), "standalone-golden-"));
     home = join(base, "home");
     repo = join(base, "repo");
     for (const [rel, body] of Object.entries(seeded)) {
@@ -158,7 +158,7 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
   afterAll(async () => {
     if (home) await npx(["dev", "down", "--volumes"], base, 300_000).catch(() => undefined);
     if (process.env["GOLDEN_REPORT"]) await writeFile(process.env["GOLDEN_REPORT"], JSON.stringify(report, null, 2) + "\n");
-    console.log(`[l9i-golden] ${JSON.stringify(report)}`);
+    console.log(`[standalone-golden] ${JSON.stringify(report)}`);
     if (base) await rm(base, { recursive: true, force: true });
   }, 400_000);
 

@@ -19,7 +19,7 @@ import { join } from "node:path";
 
 const RUN = process.env["PIPESHUB_E2E"] === "1";
 const PORT = process.env["PIPESHUB_E2E_PORT"] ?? "64610";
-const PROJECT = process.env["PIPESHUB_E2E_PROJECT"] ?? "l9a-e2e";
+const PROJECT = process.env["PIPESHUB_E2E_PROJECT"] ?? "standalone-e2e";
 const ROOT = join(import.meta.dir, "..");
 const CLI = join(ROOT, "src", "cli", "pipeshub.ts");
 const BRIDGE = join(ROOT, "bin", "mcp-server.js");
@@ -65,7 +65,7 @@ async function bridge(): Promise<Client> {
     env: { PATH: "/usr/bin:/bin:/usr/local/bin", HOME: home, ...e.env },
     stderr: "pipe",
   });
-  const c = new Client({ name: "l9a-e2e", version: "0" });
+  const c = new Client({ name: "standalone-e2e", version: "0" });
   await c.connect(t);
   return c;
 }
@@ -99,7 +99,7 @@ async function seedDocument(): Promise<void> {
 
 describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
   beforeAll(async () => {
-    base = await mkdtemp(join(tmpdir(), "l9a-e2e-"));
+    base = await mkdtemp(join(tmpdir(), "standalone-e2e-"));
     home = join(base, "home");
     project = join(base, "project");
     await mkdir(project, { recursive: true });
@@ -176,7 +176,7 @@ describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
       }
       expect(text).toContain(MARKER);
       firstAnswerSeconds = Math.round((Date.now() - t0) / 1000);
-      console.log(`[l9a-e2e] dev up -> init -> first search hit: ${firstAnswerSeconds} s`);
+      console.log(`[standalone-e2e] dev up -> init -> first search hit: ${firstAnswerSeconds} s`);
     } finally {
       await c.close();
     }

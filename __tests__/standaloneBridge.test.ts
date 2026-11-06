@@ -27,7 +27,7 @@ let root: string;
 let fake: FakeLocal;
 let token = "";
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), "l9b-"));
+  root = await mkdtemp(join(tmpdir(), "standalone-"));
   // The temp dir may sit inside a checkout; a plain folder must not resolve to it.
   process.env["GIT_CEILING_DIRECTORIES"] = root;
 });

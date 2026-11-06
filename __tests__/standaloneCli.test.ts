@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 const ENTRY = join(import.meta.dir, "..", "src", "cli", "pipeshub.ts");
 let home: string;
-beforeAll(async () => { home = await mkdtemp(join(tmpdir(), "l9a-cli-")); });
+beforeAll(async () => { home = await mkdtemp(join(tmpdir(), "standalone-cli-")); });
 afterAll(async () => { await rm(home, { recursive: true, force: true }); });
 
 async function cli(args: string[], env: Record<string, string> = {}) {
