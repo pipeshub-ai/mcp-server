@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
 import { unwatched } from "../src/cli/standalone/index.js";
+// The children run with a restricted PATH, so node is resolved here (CI installs it outside /usr/bin) and these two tests skip where there is none.
+const NODE = Bun.which("node");
+const nodeTest = NODE ? test : test.skip;
 
 // `pipeshub index` against a fake of the local-repos API (/api/v1/local-repos):
 // only git-listed text files are sent, only what the server lacks is uploaded,
@@ -252,7 +255,7 @@ describe("pipeshub index on awkward repositories", () => {
     expect(Date.now() - t).toBeLessThan(9000);
   }, 30_000);
 
-  test("a long wait for indexing renews the sign-in when the access token runs out in the middle (an hour-long index ended \"not signed in\")", async () => {
+  nodeTest("a long wait for indexing renews the sign-in when the access token runs out in the middle (an hour-long index ended \"not signed in\")", async () => {
     await writeFile(join(dir, "a.py"), "x = 1\n");
     sh(dir, "add", "-A");
     const file = join(h2, ".config", "pipeshub", "credentials.json");
@@ -262,7 +265,7 @@ describe("pipeshub index on awkward repositories", () => {
       accessToken: f2.issuedToken, refreshToken: "refresh-0", expiresAt: Date.now() + 3_600_000,
     }), { mode: 0o600 });
     f2.repo.status = "indexing";
-    const proc = Bun.spawn(["node", join(import.meta.dir, "..", "standalone", "bin", "pipeshub.js"), "index"], {
+    const proc = Bun.spawn([NODE!, join(import.meta.dir, "..", "standalone", "bin", "pipeshub.js"), "index"], {
       cwd: dir, env: { PATH: "/usr/bin:/bin", HOME: h2, PIPESHUB_BASE_URL: f2.origin, GIT_CEILING_DIRECTORIES: root, PIPESHUB_INDEX_WAIT_SECONDS: "60" }, stdout: "pipe", stderr: "pipe",
     });
     try {
@@ -279,7 +282,7 @@ describe("pipeshub index on awkward repositories", () => {
     }
   }, 60_000);
 
-  test("--watch signs in again when the access token has expired, instead of failing every later edit", async () => {
+  nodeTest("--watch signs in again when the access token has expired, instead of failing every later edit", async () => {
     await writeFile(join(dir, "a.py"), "x = 1\n");
     sh(dir, "add", "-A");
     const creds = {
@@ -289,7 +292,7 @@ describe("pipeshub index on awkward repositories", () => {
     await mkdir(join(h2, ".config", "pipeshub"), { recursive: true });
     await writeFile(join(h2, ".config", "pipeshub", "credentials.json"), JSON.stringify(creds), { mode: 0o600 });
     // Node, on the built file: recursive fs.watch is what the installed command uses, and Bun's differs.
-    const proc = Bun.spawn(["node", join(import.meta.dir, "..", "standalone", "bin", "pipeshub.js"), "index", "--watch"], {
+    const proc = Bun.spawn([NODE!, join(import.meta.dir, "..", "standalone", "bin", "pipeshub.js"), "index", "--watch"], {
       cwd: dir, env: { PATH: "/usr/bin:/bin", HOME: h2, PIPESHUB_BASE_URL: f2.origin, GIT_CEILING_DIRECTORIES: root }, stdout: "pipe", stderr: "pipe",
     });
     try {
