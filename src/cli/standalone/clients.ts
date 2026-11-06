@@ -210,8 +210,17 @@ const canon = (v: unknown): string =>
       ? Object.fromEntries(Object.entries(x as object).sort(([a], [b]) => a.localeCompare(b)))
       : x);
 const same = (a: unknown, b: unknown) => canon(a) === canon(b);
-/** An entry that looks like one of ours (older `mcp install`, another port): safe to update without --force. */
-const looksOurs = (v: unknown) => JSON.stringify(v).includes("@pipeshub-ai/");
+/** An entry that looks like one of ours (an older install, another port): the bridge on a loopback origin, with no token in its arguments. Safe to update without --force. */
+const looksOurs = (v: unknown) => {
+  const args = (v as { args?: unknown } | null)?.args;
+  if (!Array.isArray(args) || !args.some((a) => typeof a === "string" && a.includes("@pipeshub-ai/")) || args.includes("--bearer-auth")) return false;
+  const url = args[args.indexOf("--server-url") + 1];
+  try {
+    return typeof url === "string" && ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
 
 function editJson(t: Target, before: string | null, mode: "add" | "remove", force: boolean, hint?: EditHint): Edit {
   const path = t.path!;

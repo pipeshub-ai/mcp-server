@@ -152,6 +152,18 @@ describe.each(all)("$id file $n", (c) => {
     expect(r.after).toContain(ORIGIN);
     expect(r.after).not.toContain("9999");
   });
+
+  test(`${label(c)}: an entry with a token argument or a remote origin is not ours to replace`, () => {
+    if (t.kind !== "json") return;
+    const root = t.path![0]!;
+    for (const args of [
+      '"-y", "@pipeshub-ai/mcp@>=4.8.0", "start", "--server-url", "http://127.0.0.1:9999", "--bearer-auth", "x"',
+      '"-y", "@pipeshub-ai/mcp@>=4.8.0", "start", "--server-url", "https://pipeshub.example.com"',
+    ]) {
+      const theirs = `{\n  "${root}": {\n    "pipeshub": { "command": "npx", "args": [${args}] }\n  }\n}\n`;
+      expect(edit(t, theirs, "add").status).toBe("conflict");
+    }
+  });
 });
 
 describe("what is written", () => {
