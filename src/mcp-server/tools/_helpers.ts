@@ -7,6 +7,7 @@ import * as z from "zod";
 import { Security } from "../../models/security.js";
 import { PipeshubCore } from "../../core.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { encodeCite } from "../cite.js";
 import { agentsListAgents } from "../../funcs/agentsListAgents.js";
 import { connectorGetConnectorStats } from "../../funcs/connectorGetConnectorStats.js";
 import { knowledgeHubGetKnowledgeHubRootNodes } from "../../funcs/knowledgeHubGetKnowledgeHubRootNodes.js";
@@ -327,11 +328,17 @@ export async function decodeBearer(
  * The full Conversation blob is ~kilobytes; the LLM almost always only wants
  * the latest answer + grounding. Pull just that.
  */
-export function trimConversation(conv: any) {
+/** The assistant's latest message in a conversation, or undefined. */
+export function lastBotMessage(conv: any): any {
   const messages: any[] = Array.isArray(conv?.messages) ? conv.messages : [];
-  const lastBot = [...messages].reverse().find(
+  return [...messages].reverse().find(
     (m) => m?.messageType === "bot_response",
   );
+}
+
+export function trimConversation(conv: any) {
+  const messages: any[] = Array.isArray(conv?.messages) ? conv.messages : [];
+  const lastBot = lastBotMessage(conv);
   const answer: string | null = typeof lastBot?.content === "string"
     ? lastBot.content
     : null;
@@ -387,6 +394,7 @@ interface ReadCitation extends EvidenceCitation {
   recordId: unknown;
   mimeType: unknown;
   pageNum: unknown;
+  cite: string | undefined;
 }
 
 /**
@@ -419,6 +427,7 @@ export function readCitations(citations: unknown): ReadCitation[] {
       mimeType: md.mimeType,
       webUrl: md.webUrl,
       pageNum: md.pageNum,
+      cite: encodeCite({ ...md, recordId: md.recordId ?? cd?.recordId ?? c?.recordId }),
     };
   });
 }
@@ -458,6 +467,7 @@ export function shapeCitations(read: ReadCitation[], claims: Claim[] = []) {
       mimeType: c.mimeType,
       webUrl: c.webUrl,
       pageNum: c.pageNum,
+      ...(c.cite ? { cite: c.cite } : {}),
     };
   });
 }

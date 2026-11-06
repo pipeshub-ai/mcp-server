@@ -29,8 +29,8 @@ export interface InstallResult {
   next: string;
 }
 
-/** The first release whose stdio `start` falls back to the `pipeshub login` sign-in. Ships with this command. */
-export const FIRST_START_WITH_SIGN_IN = "4.7.0";
+/** The first release whose stdio `start` falls back to the `pipeshub login` sign-in, trial workspaces included (4.8.0 does not read a trial credential). Ships with this command. */
+export const FIRST_START_WITH_SIGN_IN = "4.9.0";
 
 function entryFor(origin: string): { command: string; args: string[] } {
   return {

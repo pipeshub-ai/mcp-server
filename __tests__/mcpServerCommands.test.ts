@@ -35,9 +35,12 @@ const CURATED = [
   "pipeshub_upload",
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
+  "pipeshub_add_web_source",
   "pipeshub_chat",
   "pipeshub_agents",
 ];
+// A client that shows MCP Apps views also gets `pipeshub_show_citations`
+// and `pipeshub_preview_record` (citationViewer.test.ts).
 
 interface ApiCall {
   path: string;
@@ -223,6 +226,23 @@ describe("serve", () => {
     expect(res.status).toBe(204);
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+  });
+
+  test("GET and DELETE /mcp get 405 with Allow: POST", async () => {
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`]);
+    for (const method of ["GET", "DELETE"]) {
+      const res = await fetch(`http://127.0.0.1:${s.port}/mcp`, {
+        method,
+        headers: { accept: "text/event-stream" },
+      });
+      expect(res.status).toBe(405);
+      expect(res.headers.get("allow")).toBe("POST");
+      expect(await res.json()).toEqual({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Method not allowed." },
+        id: null,
+      });
+    }
   });
 
   test("--env values are set before the server starts", async () => {
@@ -474,7 +494,8 @@ describe("start (stdio)", () => {
   // The README's way to leave chat out: an `env` entry in the MCP client's
   // server config, or `--env` on the command line.
   test("PIPESHUB_MCP_CHAT=off leaves chat and agents out, and so do the instructions", async () => {
-    const withoutChat = CURATED.filter((t) => t !== "pipeshub_chat" && t !== "pipeshub_agents");
+    const chatOnly = ["pipeshub_chat", "pipeshub_agents"];
+    const withoutChat = CURATED.filter((t) => !chatOnly.includes(t));
     for (const [args, env] of [
       [["--server-url", `${apiOrigin}/api/v1`], { PIPESHUB_MCP_CHAT: "off" }],
       [["--server-url", `${apiOrigin}/api/v1`, "--env", "PIPESHUB_MCP_CHAT=off"], {}],

@@ -13,6 +13,14 @@ export interface InstructionOptions {
  * that names \`pipeshub_chat\` or \`pipeshub_agents\` is left out, so the
  * text never points at a tool the host cannot see.
  */
+/**
+ * The step that asks for the citations card. A client that shows no MCP Apps
+ * views is sent the instructions without it (server.ts).
+ */
+export const SHOW_CITATIONS_STEP = `4. Before writing the answer, call \`pipeshub_show_citations\` once with
+   the \`cite\` and \`quote\` of each passage it will rely on; then answer.
+`;
+
 export function pipeshubInstructions({ chat }: InstructionOptions): string {
   const contentTools = chat
     ? "\`pipeshub_search\` / \`pipeshub_chat\`"
@@ -40,7 +48,7 @@ knowledge. Retrieve and read it yourself:
 3. Before answering, list the parts of the question and confirm each is
    answered from what you read. For "all", "every" or "how many", do not
    stop at the first matches.
-
+${SHOW_CITATIONS_STEP}
 A named record (issue key, link, external ID) starts with \`mode:"lookup"\`
 instead, and "how many / all / every" with \`mode:"navigate"\` (below).
 
@@ -67,6 +75,27 @@ the text; \`mode:"thread"\` reads the whole thread). A long record, such as
 a GitHub PR with its diffs, would exceed your tool-output limit, so it comes
 back in parts: pass \`query\` to get the passages that matter first, or
 follow the closing \`Next:\` line to read on.
+
+## Say only what you read
+
+Most wrong claims go past what was read. Before answering:
+
+- Something missing: search its exact name, number or version and open
+  matching hits, then say "not found in what I searched". Say a record
+  does not mention it only when its \`Read:\` line says the whole record or
+  thread was shown and the result reports no gap: no \`Lost:\` block, unread
+  replies, records not loaded or threads not read. An extract is not a whole
+  read. Navigate shows which records exist, not what they say.
+- A read ending in \`Next:\` is unfinished: read on. Never finish a passage
+  cut off with "…".
+- Current state: prefer the later decision, result or announcement by the
+  date its own text gives, not by when a record was last changed; follow
+  the links it names. For "what changed?", report the earlier state too.
+  Take a vote's outcome from its result, not remarks along the way.
+- Every number, date, name or cause in the answer must come from a record
+  or tool result you cite. Header \`Summary\` and \`Topics\` lines, and some
+  search passages, are written by PipesHub's model: confirm details in the
+  record's own text.
 
 ${chat ? CHAT_SECTION : ""}## Other tools
 

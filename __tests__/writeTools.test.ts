@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
+import { tool$pipeshubAddWebSource } from "../src/mcp-server/tools/pipeshubAddWebSource.js";
 import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConnectSource.js";
 import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubCreateCollection.js";
 import { tool$pipeshubIndexingStatus } from "../src/mcp-server/tools/pipeshubIndexingStatus.js";
@@ -173,27 +174,49 @@ describe("pipeshub_upload", () => {
 });
 
 describe("pipeshub_indexing_status", () => {
-  const record = (id: string, indexingStatus: string, reason?: string) =>
-    ({ id, name: `${id}.md`, nodeType: "record", indexingStatus, ...(reason ? { reason } : {}) });
+  const record = (id: string, indexingStatus: string, reason?: string, isInternal = false) =>
+    ({ id, name: `${id}.md`, nodeType: "record", indexingStatus, isInternal, ...(reason ? { reason } : {}) });
 
-  /** A collection of `counts` records per status; the listing filters by status like the server. */
-  function collection(counts: Record<string, number>, reasons: Record<string, string> = {}) {
+  /**
+   * A source with `counts` records per status. The stats route counts them as
+   * the server does, leaving out `internal` ones (a crawl's folder placeholders,
+   * which stay NOT_STARTED); the listing filters by status and includes them.
+   */
+  function collection(
+    counts: Record<string, number>,
+    reasons: Record<string, string> = {},
+    internal = 0,
+    connector: Response | (() => Response) = () => Response.json({ success: true, connector: { status: "IDLE" } }),
+  ) {
     return client((_req, seen) => {
+      if (seen.path === `/api/v1/connectors/${KB}`) return typeof connector === "function" ? connector() : connector;
+      if (seen.path === `/api/v1/connectors/${KB}/stats`) {
+        const total = Object.values(counts).reduce((a, b) => a + b, 0);
+        return Response.json({ success: true, data: { stats: { total, indexingStatus: counts } } });
+      }
       const q = new URLSearchParams(seen.search);
       const wanted = q.get("indexingStatus")?.split(",");
       const limit = Number(q.get("limit"));
-      const matching = Object.entries(counts)
-        .filter(([s]) => !wanted || wanted.includes(s))
-        .flatMap(([s, n]) => Array.from({ length: n }, (_, i) => record(`${s}-${i}`, s, reasons[s])));
+      const placeholders = Array.from({ length: internal }, (_, i) => record(`folder-${i}`, "NOT_STARTED", undefined, true));
+      const matching = [
+        ...placeholders,
+        ...Object.entries(counts).flatMap(([s, n]) => Array.from({ length: n }, (_, i) => record(`${s}-${i}`, s, reasons[s]))),
+      ].filter((r) => !wanted || wanted.includes(r.indexingStatus));
       return Response.json({ items: matching.slice(0, limit), pagination: { totalItems: matching.length } });
     });
   }
 
-  test("counts pending and failed exactly from filtered listings, and is not done while any are queued", async () => {
+  test("counts from the source's stats, names records from filtered listings, and is not done while any are queued", async () => {
     const { core, calls } = collection({ COMPLETED: 3, QUEUED: 1, FAILED: 1 }, { FAILED: "corrupt file" });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
-    expect(calls.every((c) => c.path === `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`)).toBe(true);
-    const q = new URLSearchParams(calls[0]!.search);
+    expect(calls.map((c) => c.path).sort()).toEqual([
+      `/api/v1/connectors/${KB}`,
+      `/api/v1/connectors/${KB}/stats`,
+      `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
+      `/api/v1/knowledgeBase/knowledge-hub/nodes/app/${KB}`,
+    ]);
+    const listing = calls.find((c) => c.path.includes("knowledge-hub"))!;
+    const q = new URLSearchParams(listing.search);
     expect([q.get("flattened"), q.get("nodeTypes")]).toEqual(["true", "record"]);
     expect(out).toMatchObject({
       done: false,
@@ -206,7 +229,6 @@ describe("pipeshub_indexing_status", () => {
   });
 
   test("a collection past any page size still reaches done when nothing is pending", async () => {
-    // A capped listing would report "not done" forever here; the totals do not.
     const { core } = collection({ COMPLETED: 5000, FAILED: 2 });
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
     expect(out).toMatchObject({ done: true, total: 5002, pendingCount: 0, failedCount: 2 });
@@ -220,11 +242,34 @@ describe("pipeshub_indexing_status", () => {
     expect(out.pending).toHaveLength(25);
   });
 
-  test("an empty collection says so", async () => {
+  // A crawl's folder placeholders stay NOT_STARTED for good: counted, they would keep a web source "not done" forever.
+  test("a crawl whose pages are all indexed is done, its folder placeholders left out", async () => {
+    const { core } = collection({ COMPLETED: 5 }, {}, 2);
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: true, total: 5, pendingCount: 0, pending: [] });
+  });
+
+  // A crawl stores pages in batches: those stored can all be indexed before the next batch.
+  test("a source that is still syncing is not done, even with nothing pending", async () => {
+    const { core } = collection({ COMPLETED: 10 }, {}, 0, () =>
+      Response.json({ success: true, connector: { status: "SYNCING" } }));
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: false, syncing: true, total: 10, pendingCount: 0 });
+  });
+
+  test("a refused sync-state check (a collection, or no connector:read) leaves the counts in charge", async () => {
+    const { core } = collection({ COMPLETED: 3 }, {}, 0, () =>
+      Response.json({ error: { message: "Insufficient scope. Required: connector:read" } }, { status: 403 }));
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: true, total: 3 });
+    expect(out.syncing).toBeUndefined();
+  });
+
+  test("nothing stored yet is not done, so a crawl that just started is polled again", async () => {
     const { core } = collection({});
     const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
-    expect(out).toMatchObject({ done: true, total: 0 });
-    expect(out.note).toContain("no records");
+    expect(out).toMatchObject({ done: false, total: 0 });
+    expect(out.note).toContain("Keep polling");
   });
 });
 
@@ -241,5 +286,80 @@ describe("pipeshub_connect_source", () => {
     const { core } = client(() => Response.json({}));
     const out = jsonOf(await tool$pipeshubConnectSource.tool(core, {}, ctx()));
     expect(out.url).toBe("https://pipeshub.test/workspace/connectors/personal/");
+  });
+});
+
+describe("pipeshub_add_web_source", () => {
+  const CONN = "9b1e2c3d-4f5a-4b6c-8d7e-0f1a2b3c4d5e";
+  const ok = (calls: Seen[]) => (seen: Seen) =>
+    seen.path === "/api/v1/connectors"
+      ? Response.json({ success: true, connector: { connectorId: CONN } })
+      : Response.json({ success: true });
+
+  test("creates a personal Web connector, saves the crawl and starts it, as the settings page does", async () => {
+    const { core, calls } = client((_req, seen) => ok(calls)(seen));
+    const out = await tool$pipeshubAddWebSource.tool(
+      core,
+      { url: "https://docs.example.com/guide/", maxPages: 50 },
+      ctx(),
+    );
+    expect(out.isError).toBeFalsy();
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "POST /api/v1/connectors",
+      `PUT /api/v1/connectors/${CONN}/config/filters-sync`,
+      `POST /api/v1/connectors/${CONN}/toggle`,
+    ]);
+    expect(JSON.parse(calls[0]!.body as string)).toEqual({
+      connectorType: "Web",
+      instanceName: "docs.example.com",
+      scope: "personal",
+      authType: "NONE",
+      config: { auth: {} },
+    });
+    const sync = JSON.parse(calls[1]!.body as string).sync;
+    const crawl = { url: "https://docs.example.com/guide/", type: "recursive", max_pages: 50 };
+    expect(sync).toMatchObject({ selectedStrategy: "SCHEDULED", customValues: crawl, ...crawl });
+    expect(sync.scheduledConfig.intervalMinutes).toBe(1440);
+    expect(JSON.parse(calls[2]!.body as string)).toEqual({ type: "sync" });
+    expect(jsonOf(out)).toMatchObject({ connectorId: CONN, name: "docs.example.com", maxPages: 50 });
+  });
+
+  test("defaults to the connector's own 100 pages and takes a name", async () => {
+    const { core, calls } = client((_req, seen) => ok(calls)(seen));
+    await tool$pipeshubAddWebSource.tool(core, { url: "https://example.com", name: "Example" }, ctx());
+    expect(JSON.parse(calls[0]!.body as string).instanceName).toBe("Example");
+    expect(JSON.parse(calls[1]!.body as string).sync.max_pages).toBe(100);
+  });
+
+  test("a later failure names the connector it created, so the person can finish it", async () => {
+    const { core, calls } = client((_req, seen) =>
+      seen.path.endsWith("/toggle")
+        ? Response.json({ error: { message: "Insufficient scope. Required: connector:sync" } }, { status: 403 })
+        : ok(calls)(seen)
+    );
+    const out = await tool$pipeshubAddWebSource.tool(core, { url: "https://example.com" }, ctx());
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain(CONN);
+    expect(textOf(out)).toContain("connector:sync");
+    expect(textOf(out)).toContain("/workspace/connectors/personal/");
+  });
+
+  test("a refused create stops before anything else and names the scope", async () => {
+    const { core, calls } = client(() =>
+      Response.json({ error: { message: "Insufficient scope. Required: connector:write" } }, { status: 403 })
+    );
+    const out = await tool$pipeshubAddWebSource.tool(core, { url: "https://example.com" }, ctx());
+    expect(out.isError).toBe(true);
+    expect(textOf(out)).toContain("connector:write");
+    expect(calls).toHaveLength(1);
+  });
+
+  test("accepts only http(s) start URLs and is hidden from a read-only or write-only server", () => {
+    const url = tool$pipeshubAddWebSource.args.url;
+    expect(url.safeParse("https://example.com").success).toBe(true);
+    expect(url.safeParse("file:///etc/passwd").success).toBe(false);
+    expect(url.safeParse("not a url").success).toBe(false); // a validation error, not a throw
+    expect(url.safeParse("ftp://example.com").success).toBe(false);
+    expect(tool$pipeshubAddWebSource.scopes).toEqual(["write", "connect"]);
   });
 });

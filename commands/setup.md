@@ -6,7 +6,7 @@ Get the `pipeshub` MCP server in this plugin working. Never ask the user to past
 
 1. Check whether `PIPESHUB_MCP_TOKEN` is set in the environment (test only that it is non-empty, e.g. `test -n "$PIPESHUB_MCP_TOKEN" && echo set`). Check `PIPESHUB_MCP_URL` the same way; unset means PipesHub Cloud (`https://app.pipeshub.com/mcp`).
 2. If the token is missing, tell the user:
-   - No PipesHub yet: sign up at https://app.pipeshub.com (or self-host: https://docs.pipeshub.com/for-agents-local-demo.md).
+   - No PipesHub yet: sign up at https://app.pipeshub.com/?ref=claude-code-plugin (or self-host: https://docs.pipeshub.com/for-agents-local-demo.md).
    - Mint a personal access token in **Workspace → Developer settings**.
    - Export it in their shell profile, outside this chat: `export PIPESHUB_MCP_TOKEN=phpat_...` (plus `export PIPESHUB_MCP_URL=https://<their-instance>/mcp` if self-hosted), then restart Claude Code.
 3. If the token is set (with or without `PIPESHUB_MCP_URL`), call `pipeshub_sources`. Sources listed means it works; suggest `/pipeshub:ask <question>`. A 401 means the token is wrong or expired; no sources means nothing is connected or indexed yet, so point them to the PipesHub UI to add a connector or upload files.

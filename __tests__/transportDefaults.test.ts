@@ -268,6 +268,85 @@ describe("default timeout", () => {
   });
 });
 
+// A tool whose request runs a model on the server (a record extract) needs
+// longer than a cheap read to start answering, and must not run it twice.
+describe("per-request deadline and one try", () => {
+  const extractLike = { headers: { "x-pipeshub-timeout-ms": "1000", "x-pipeshub-one-try": "1" } };
+
+  test("a request may wait longer than the configured timeout", async () => {
+    steps = [async () => {
+      await Bun.sleep(300);
+      return ok();
+    }];
+    process.env["PIPESHUB_MCP_TIMEOUT_MS"] = "100";
+
+    const res = await getUser(sdk(), extractLike);
+
+    expect(res.ok && res.value.status).toBe(200);
+  });
+
+  test("it is still abandoned after its own deadline", async () => {
+    steps = [async () => {
+      await Bun.sleep(3_000);
+      return ok();
+    }];
+    process.env["PIPESHUB_MCP_TIMEOUT_MS"] = "100";
+    const started = Date.now();
+
+    const res = await getUser(sdk(), extractLike);
+
+    expect(Date.now() - started).toBeLessThan(2_500);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.error.message).toContain("within 1 s");
+  });
+
+  test("a GET marked one-try is not retried after a 504", async () => {
+    steps = [status(504), ok];
+
+    const res = await getUser(sdk(), extractLike);
+
+    expect(res.ok && res.value.status).toBe(504);
+    expect(seen).toHaveLength(1);
+  });
+
+  test("a shorter per-request deadline does not cut the configured one", async () => {
+    steps = [async () => {
+      await Bun.sleep(300);
+      return ok();
+    }];
+    process.env["PIPESHUB_MCP_TIMEOUT_MS"] = "2000";
+
+    const res = await getUser(sdk(), { headers: { "x-pipeshub-timeout-ms": "100" } });
+
+    expect(res.ok && res.value.status).toBe(200);
+  });
+
+  test("neither header reaches PipesHub", async () => {
+    let names: string[] = [];
+    steps = [() => ok()];
+    const probe = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(req) {
+        names = [...req.headers.keys()];
+        return Response.json({ _id: USER_ID });
+      },
+    });
+    try {
+      await usersGetUserById(new PipeshubCore({
+        serverURL: `http://127.0.0.1:${probe.port}/api/v1`,
+        security: { bearerAuth: TOKEN },
+      }), { id: USER_ID }, extractLike);
+    } finally {
+      probe.stop(true);
+    }
+
+    expect(names).not.toContain("x-pipeshub-timeout-ms");
+    expect(names).not.toContain("x-pipeshub-one-try");
+  });
+});
+
 describe("configuration", () => {
   test("a value that is not a whole number in range is refused in plain words", () => {
     const cases: Array<[string, string, string]> = [

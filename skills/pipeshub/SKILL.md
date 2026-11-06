@@ -32,7 +32,21 @@ https://docs.pipeshub.com/for-agents-bootstrap.md
 
 If they have no running PipesHub, **do not scaffold LangChain**.
 
-Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com and
+To try it with no account, run `npm i -g @pipeshub-ai/mcp`, then
+`pipeshub init --trial --client claude-code` (or `cursor`, `codex`, `gemini`,
+`claude-desktop`). It creates a trial workspace on PipesHub Cloud that stays open
+for 3 days, signs the CLI in to it, and adds PipesHub to that client; restart
+the client. Add their files with `pipeshub collection create <name>`, then
+`pipeshub upload <collectionId> <path>...`. If `init --trial` says trials are not offered or
+are paused, use one of the options below. It will not replace an existing
+sign-in without `--force`; do not add `--force` unless the user agrees.
+If `init` returns a `claimUrl`, give it to the user: opening it makes them the
+workspace's admin so it stays past `expiresAt`. It also ends this CLI's trial
+token, so after they open it run `pipeshub login --url <origin> --no-wait`, give
+them the link and code, and finish with `pipeshub login --wait` (`pipeshub auth
+status` shows the claim link again).
+
+Fastest is **PipesHub Cloud**: they sign up at https://app.pipeshub.com/?ref=pipeshub-skill and
 connect a source or upload files and let it index. To connect a local client
 with no token copied anywhere, run `npm i -g @pipeshub-ai/mcp`, then
 `pipeshub login --no-wait`: give the user the link and code, and finish with
@@ -173,7 +187,10 @@ searchable, fill it instead of scaffolding a RAG stack:
    `npm i -g @pipeshub-ai/mcp`; sign it in once with `pipeshub login`, or
    `pipeshub login --url <origin>` when self-hosted).
 3. Poll `pipeshub_indexing_status` every 15–30 s until `done`, then search.
-4. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
+4. For a website (a docs site, a public wiki), `pipeshub_add_web_source` with
+   its start URL crawls it now and daily; poll `pipeshub_indexing_status` with
+   the returned `connectorId`.
+5. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
    link the user signs in on. You cannot connect a source for them.
 
 ## Which tool

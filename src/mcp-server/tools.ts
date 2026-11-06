@@ -27,6 +27,8 @@ export type ToolDefinition<
     name: string;
     description: string;
     scopes?: MCPScope[];
+    /** Tool `_meta`, e.g. the MCP Apps view (`ui.resourceUri`) or `ui.visibility`. */
+    _meta?: Record<string, unknown>;
     args: Args;
     annotations: {
       title: string;
@@ -45,6 +47,7 @@ export type ToolDefinition<
     name: string;
     description: string;
     scopes?: MCPScope[];
+    _meta?: Record<string, unknown>;
     args?: undefined;
     annotations: {
       title: string;
@@ -170,6 +173,7 @@ export function createRegisterTool(
           description: tool.description,
           inputSchema: tool.args,
           annotations: tool.annotations,
+          ...(tool._meta ? { _meta: tool._meta } : {}),
         },
         async (args, ctx) => {
           return tool.tool(getSDK(), args, ctx);
@@ -181,6 +185,7 @@ export function createRegisterTool(
         {
           description: tool.description,
           annotations: tool.annotations,
+          ...(tool._meta ? { _meta: tool._meta } : {}),
         },
         async (ctx) => {
           return tool.tool(getSDK(), ctx);

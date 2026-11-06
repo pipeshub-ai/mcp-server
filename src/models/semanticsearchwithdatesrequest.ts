@@ -40,6 +40,12 @@ export type SemanticSearchWithDatesRequest =
      * by period for one ranked search; a server without that refuses it.
      */
     timeline?: "created" | "modified" | "off" | undefined;
+    /**
+     * `false` runs the search without saving it to the user's search
+     * history (no history entry, no stored citations); the response then has
+     * no `searchId`. A server older than the option ignores it and saves.
+     */
+    saveHistory?: boolean | undefined;
   };
 
 export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
@@ -58,4 +64,5 @@ export const SemanticSearchWithDatesRequest$zodSchema: z.ZodType<
   modifiedBefore: z.string().optional(),
   rewriteQuery: z.boolean().optional(),
   timeline: z.enum(["created", "modified", "off"]).optional(),
+  saveHistory: z.boolean().optional(),
 });

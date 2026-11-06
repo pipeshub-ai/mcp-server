@@ -20,10 +20,12 @@ const READ_ONLY = [
   "pipeshub_agents",
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
+  "pipeshub_show_citations",
+  "pipeshub_preview_record",
 ];
 
-/** Tools that add to the user's own collections: they write, but never delete or overwrite. */
-const WRITES = ["pipeshub_create_collection", "pipeshub_upload"];
+/** Tools that add to the user's own sources: they write, but never delete or overwrite. */
+const WRITES = ["pipeshub_create_collection", "pipeshub_upload", "pipeshub_add_web_source"];
 
 /** Tools that can act: chat runs the assistant, which may use the user's connected actions. */
 const ACTS = ["pipeshub_chat"];
@@ -32,7 +34,10 @@ async function listedTools() {
   const { server } = createMCPServer({ logger: createConsoleLogger("error") });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
-  const client = new Client({ name: "test", version: "0" });
+  // A client that shows MCP Apps views, so the citation tools are listed too.
+  const client = new Client({ name: "test", version: "0" }, {
+    capabilities: { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
+  });
   await client.connect(clientSide);
   const { tools } = await client.listTools();
   await client.close();

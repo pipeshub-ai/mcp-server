@@ -1,5 +1,5 @@
 // Commands that fill a workspace: create a collection, upload local files,
-// check indexing, and get the link to connect a source.
+// add a website, check indexing, and get the link to connect a source.
 //
 // `upload` posts straight to the REST upload endpoint instead of going through
 // /mcp: the files are on this machine, and /mcp caps a request body at 5 MB.
@@ -25,6 +25,24 @@ export async function collectionCreate(ctx: Ctx, name: string): Promise<Outcome>
 export async function indexingStatus(ctx: Ctx, collectionId: string): Promise<Outcome> {
   const out = decodeToolJson(await callTool(ctx, "pipeshub_indexing_status", { collectionId }));
   return { exit: EXIT.OK, payload: { requestId: ctx.requestId, ...(out as object) } };
+}
+
+export async function addWebSource(
+  ctx: Ctx,
+  url: string,
+  opts: { maxPages: number | null; name: string | null },
+): Promise<Outcome> {
+  const out = decodeToolJson(await callTool(ctx, "pipeshub_add_web_source", {
+    url,
+    ...(opts.maxPages !== null ? { maxPages: opts.maxPages } : {}),
+    ...(opts.name !== null ? { name: opts.name } : {}),
+  })) as { connectorId?: string; maxPages?: number };
+  return {
+    exit: EXIT.OK,
+    payload: { requestId: ctx.requestId, ...(out as object), next: `pipeshub status ${out.connectorId ?? ""}` },
+    text: `Crawling ${url} (up to ${out.maxPages ?? "?"} pages, again daily).`
+      + ` Pages become searchable as they index: pipeshub status ${out.connectorId ?? ""}`,
+  };
 }
 
 export async function connectSource(ctx: Ctx, connector: string | undefined): Promise<Outcome> {

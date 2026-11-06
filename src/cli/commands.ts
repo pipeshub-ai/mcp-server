@@ -102,6 +102,8 @@ function arr(value: unknown): unknown[] {
  *   collection create  POST /knowledgeBase                       kb:write
  *   upload             POST /knowledgeBase/:id/upload            kb:upload
  *   status             GET  /knowledgeBase/knowledge-hub/nodes/… kb:read
+ *   add-web            POST /connectors, PUT …/config/filters-sync connector:write
+ *                      POST /connectors/:id/toggle               connector:sync
  *
  * `directory whoami` is left out on purpose. It probes GET /users/:id
  * (user:read), but on any refusal other than 401 it still returns the
@@ -117,6 +119,7 @@ export const COMMAND_SCOPES: Readonly<Record<string, readonly string[]>> = {
   "collection create": ["kb:write"],
   upload: ["kb:upload"],
   status: ["kb:read"],
+  "add-web": ["connector:write", "connector:sync"],
 };
 
 /**
@@ -293,6 +296,7 @@ export async function search(
       recordName: rec["recordName"] ?? null,
       webUrl: rec["webUrl"] ?? null,
       ...(typeof rec["recordType"] === "string" ? { recordType: rec["recordType"] } : {}),
+      ...(typeof rec["createdAt"] === "string" ? { createdAt: rec["createdAt"] } : {}),
       ...(typeof rec["updatedAt"] === "string" ? { updatedAt: rec["updatedAt"] } : {}),
       ...(typeof rec["parent"] === "string" ? { parent: rec["parent"] } : {}),
       ...(typeof rec["status"] === "string" ? { status: rec["status"] } : {}),

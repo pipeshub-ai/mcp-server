@@ -41,8 +41,11 @@ security reviewer to stop here — it is the most confusing thing in the scope
 model, and it is worth saying so before they ask.
 
 `kb:write` and `kb:upload` are needed only for `pipeshub collection create`
-and `pipeshub upload`, which the bundle sends for the person's approval
-(`tool.json`). Leave them off the token for a read-only deployment.
+and `pipeshub upload`, and `connector:write` and `connector:sync` only for
+`pipeshub add-web`. The bundle sends all three commands for the person's
+approval (`tool.json`). Leave these scopes off the token for a read-only
+deployment. With the connector scopes, the token can also create and
+reconfigure the person's other connectors and start or stop their syncs.
 
 Deliberately excluded: `agent:execute`, `agent:read`, `conversation:write`,
 `team:read`, `offline_access` (a PAT has no refresh token anyway), and the OIDC

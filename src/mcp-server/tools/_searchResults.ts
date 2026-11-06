@@ -10,10 +10,18 @@
  */
 
 import { createHash } from "node:crypto";
+import { encodeCite } from "../cite.js";
 import { isoFromEpochMs, SNIPPET_MAX_CHARS } from "./_helpers.js";
 
 /** Passages shown per record. The rest are counted in `passagesFound`. */
 export const PASSAGES_PER_RECORD = 3;
+
+/**
+ * Passages shown per record of a timeline search, which lists records from
+ * every period of a span: the best one says what the record is about, and
+ * the record itself is one read away.
+ */
+export const TIMELINE_PASSAGES_PER_RECORD = 1;
 
 /**
  * Linked records shown per record, one line each. The rest are counted in
@@ -32,14 +40,29 @@ const LINK_NAME_MAX_CHARS = 100;
  */
 export const SEARCH_RESULT_MAX_CHARS = 20_000;
 
+/**
+ * Most characters one page of a timeline search may take. The server runs a
+ * timeline on its own whenever a search's dates span more than a month, so
+ * most timelines are searches the agent asked for as plain ones; at the full
+ * 20,000 they came to about four times a plain search.
+ */
+export const TIMELINE_RESULT_MAX_CHARS = 12_000;
+
+/** Records shown of the matches outside a dated search's bounds. */
+export const OUTSIDE_DATES_MAX_RECORDS = 5;
+
+/** Most characters the matches outside a dated search's bounds may take on a page. */
+export const OUTSIDE_DATES_MAX_CHARS = 3_000;
+
 /** Room kept for the envelope and the note that says the list was cut. */
 const ENVELOPE_RESERVE_CHARS = 600;
 
 export interface SearchPassage {
+  /** Ends with `PASSAGE_CUT_MARK` when the passage was cut. */
   text: string;
-  truncated?: true;
-  contentChars?: number;
   pageNum?: number;
+  /** For `pipeshub_show_citations`: where the passage is. */
+  cite?: string;
 }
 
 export interface SearchRecordEntry {
@@ -50,7 +73,9 @@ export interface SearchRecordEntry {
   recordType?: string;
   connector?: string;
   webUrl?: string;
+  /** `YYYY-MM-DD`, at the source. */
   createdAt?: string;
+  /** `YYYY-MM-DD`, at the source; left out when it is `createdAt`'s day. */
   updatedAt?: string;
   /** Where the record sits: channel, thread, project, space, PR. */
   parent?: string;
@@ -195,10 +220,11 @@ function toPassage(hit: any, text: string): SearchPassage {
     ? hit.metadata.pageNum
     : [hit?.metadata?.pageNum];
   const page = pages.find((p: unknown) => typeof p === "number");
+  const cite = encodeCite(hit?.metadata);
   return {
     text: cut ? text.slice(0, passageCut(text)).trimEnd() + PASSAGE_CUT_MARK : text,
-    ...(cut ? { truncated: true as const, contentChars: text.length } : {}),
     ...(page !== undefined ? { pageNum: page } : {}),
+    ...(cite ? { cite } : {}),
   };
 }
 
@@ -229,6 +255,7 @@ export function groupSearchResults(
   hits: any[],
   records: any[],
   omittedPassages: Record<string, unknown> = {},
+  passagesPerRecord = PASSAGES_PER_RECORD,
 ): SearchRecordEntry[] {
   const docs = new Map<string, any>();
   for (const r of records) {
@@ -254,7 +281,7 @@ export function groupSearchResults(
     const passages: SearchPassage[] = [];
     const seen = new Set<string>();
     for (const { hit } of ranked) {
-      if (passages.length >= PASSAGES_PER_RECORD) break;
+      if (passages.length >= passagesPerRecord) break;
       const text = passageText(hit);
       if (text === undefined || seen.has(text)) continue;
       seen.add(text);
@@ -262,8 +289,9 @@ export function groupSearchResults(
     }
     const best = ranked[0]?.hit?.score;
     const omitted = omittedPassages[recordId];
-    const createdAt = isoFromEpochMs(doc?.sourceCreatedAtTimestamp);
-    const updatedAt = isoFromEpochMs(doc?.sourceLastModifiedTimestamp);
+    const createdAt = isoFromEpochMs(doc?.sourceCreatedAtTimestamp)?.slice(0, 10);
+    const changed = isoFromEpochMs(doc?.sourceLastModifiedTimestamp)?.slice(0, 10);
+    const updatedAt = changed === createdAt ? undefined : changed;
     const parent = parentFromLocation(doc?.location);
     const recordName = doc?.recordName ?? md.recordName;
     const connector = doc?.connectorName ?? md.connector;
@@ -300,9 +328,19 @@ export interface SearchPage {
 }
 
 /**
+ * A record as a page shows it: its score to two places. Entries keep the
+ * score the server sent, so records are ranked on it, not on the rounding.
+ */
+export function shownRecord(entry: SearchRecordEntry): SearchRecordEntry {
+  return typeof entry.score === "number"
+    ? { ...entry, score: Math.round(entry.score * 100) / 100 }
+    : entry;
+}
+
+/**
  * The records from `offset` that fit in `maxChars` of compact JSON, leaving
- * room for the envelope. At least one record is returned whenever one is
- * left, so a page always makes progress.
+ * room for the envelope, as `shownRecord` shows them. At least one record is
+ * returned whenever one is left, so a page always makes progress.
  */
 export function pageSearchRecords(
   entries: SearchRecordEntry[],
@@ -313,9 +351,10 @@ export function pageSearchRecords(
   const records: SearchRecordEntry[] = [];
   let used = 2;
   for (let i = offset; i < entries.length; i++) {
-    const size = JSON.stringify(entries[i]).length + 1;
+    const shown = shownRecord(entries[i]!);
+    const size = JSON.stringify(shown).length + 1;
     if (records.length > 0 && used + size > budget) break;
-    records.push(entries[i]!);
+    records.push(shown);
     used += size;
   }
   const end = offset + records.length;
@@ -328,6 +367,7 @@ export function pageNote(
   shown: number,
   total: number,
   nextOffset: number | undefined,
+  maxChars = SEARCH_RESULT_MAX_CHARS,
 ): string | undefined {
   if (nextOffset === undefined && offset === 0) return undefined;
   const range = shown === 0
@@ -336,7 +376,7 @@ export function pageNote(
   const rest = nextOffset === undefined
     ? "This is the last page."
     : `The rest were left out to keep this result under ${
-      SEARCH_RESULT_MAX_CHARS.toLocaleString("en-US")
+      maxChars.toLocaleString("en-US")
     } characters. For the next records, call pipeshub_search again with the `
       + `same arguments and offset: ${nextOffset}.`;
   return `${range} of ${total}. ${rest}`;
@@ -363,6 +403,12 @@ interface CachedSearch {
   timeline?: unknown;
   /** Matches written outside the date bounds, sent with the first page. */
   outsideDates?: unknown;
+  /**
+   * A timeline's records in date order, by recordId. `entries` are then in
+   * tiers (every period's best record, then every period's second), and a
+   * page is shown in this order.
+   */
+  dateOrder?: Record<string, number>;
 }
 
 const pageCache = new Map<string, CachedSearch>();

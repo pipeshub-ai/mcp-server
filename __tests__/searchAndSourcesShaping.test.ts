@@ -135,11 +135,11 @@ describe("pipeshub_search", () => {
     expect(body.records).toEqual([
       {
         recordId: REC, recordName: "A", connector: "KB", webUrl: "u1", score: 0.9,
-        passagesFound: 1, passages: [{ text: "first" }],
+        passagesFound: 1, passages: [{ text: "first", cite: `${REC}....` }],
       },
       {
         recordId: "rec-2", recordName: "B", score: 0.4,
-        passagesFound: 1, passages: [{ text: "second" }],
+        passagesFound: 1, passages: [{ text: "second", cite: "rec-2...." }],
       },
     ]);
   });
@@ -167,8 +167,8 @@ describe("pipeshub_search", () => {
     expect(jsonOf(out).records[0]).toMatchObject({
       recordId: REC,
       recordType: "PULL_REQUEST",
-      createdAt: "2026-08-28T09:30:00.000Z",
-      updatedAt: "2026-09-26T17:05:00.000Z",
+      createdAt: "2026-08-28",
+      updatedAt: "2026-09-26",
     });
   });
 

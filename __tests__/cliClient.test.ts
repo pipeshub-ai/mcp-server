@@ -102,6 +102,7 @@ describe("callToolBlocks request", () => {
 
     expect(seen!.headers.get("authorization")).toBe("Bearer tok-123456");
     expect(seen!.headers.get("x-pipeshub-request-id")).toBe("req-1");
+    expect(seen!.headers.get("x-pipeshub-channel")).toBe("pipeshub-cli");
     expect(seen!.headers.get("accept")).toContain("text/event-stream");
     expect(seen!.body).toEqual({
       jsonrpc: "2.0",

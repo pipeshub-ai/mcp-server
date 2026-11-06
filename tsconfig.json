@@ -30,6 +30,6 @@
     "target": "es2022",
     "useUnknownInCatchVariables": true,
   },
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules", "src/mcp-app"],
   "include": ["src/**/*.ts"]
 }

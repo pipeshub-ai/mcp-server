@@ -1,6 +1,6 @@
 {
   "name": "pipeshub",
-  "version": "4.8.0",
+  "version": "4.9.1",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, Confluence, and 50+ workplace sources, from inside Claude Code.",
   "author": {
     "name": "PipesHub",
@@ -15,8 +15,13 @@
       "type": "http",
       "url": "${PIPESHUB_MCP_URL:-https://app.pipeshub.com/mcp}",
       "headers": {
-        "Authorization": "Bearer ${PIPESHUB_MCP_TOKEN}"
+        "Authorization": "Bearer ${PIPESHUB_MCP_TOKEN}",
+        "X-PipesHub-Channel": "claude-code-plugin"
       }
+    },
+    "pipeshub-docs": {
+      "type": "http",
+      "url": "https://docs.pipeshub.com/mcp"
     }
   }
 }

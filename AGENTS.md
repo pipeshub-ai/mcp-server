@@ -31,7 +31,7 @@ Do not invent `tool.json` field names. Bind to `@yc-software/qm/contract` types.
 
 Do not use OAuth `client_credentials`. That grant has no user identity, so permission filters collapse.
 
-Do not add PAT scopes beyond the agent preset (the read scopes plus `kb:write` and `kb:upload`, which the write tools need) to make something work. If a command needs more, stop and report — it may be unmintable. Search needs `semantic:write` (`src/funcs/semanticSearchSearch.ts:125`), not `semantic:read` (search history, `src/hooks/oauth2scopes.ts:90-97`).
+Do not add PAT scopes beyond the agent preset (the read scopes plus `kb:write` and `kb:upload`, which the write tools need, and `connector:write` and `connector:sync`, which `pipeshub_add_web_source` needs) to make something work. If a command needs more, stop and report — it may be unmintable. Search needs `semantic:write` (`src/funcs/semanticSearchSearch.ts:125`), not `semantic:read` (search history, `src/hooks/oauth2scopes.ts:90-97`).
 
 Cite `file:line` for claims about how PipesHub or QM behaves. Prefer stopping over guessing.
 
@@ -56,7 +56,7 @@ Exit `6` on `ask` means the response had no citation objects. Relay the answer a
 
 Environment: `PIPESHUB_TOKEN` then `PIPESHUB_MCP_TOKEN`; `PIPESHUB_BASE_URL` then `PIPESHUB_MCP_URL`. Normalize the URL to an origin. The MCP path is always `{origin}/mcp`.
 
-With no token in the environment, the CLI uses the sign-in `pipeshub login` stored (device code against the instance's `pipeshub_device_client_id`; `~/.config/pipeshub/credentials.json`, 0600), and only for the origin that issued it. The environment always wins, so QM is unchanged. `login` takes no token: it is not `auth set`. `mcp install --client <name>` writes a client entry that runs `npx -y @pipeshub-ai/mcp@>=4.7.0 start` (`FIRST_START_WITH_SIGN_IN`, the first `start` that uses that sign-in); it never writes a token into a client config.
+With no token in the environment, the CLI uses the sign-in `pipeshub login` stored (device code against the instance's `pipeshub_device_client_id`; `~/.config/pipeshub/credentials.json`, 0600), and only for the origin that issued it. The environment always wins, so QM is unchanged. `login` takes no token: it is not `auth set`. `mcp install --client <name>` writes a client entry that runs `npx -y @pipeshub-ai/mcp@>=4.9.0 start` (`FIRST_START_WITH_SIGN_IN`, the first `start` that uses that sign-in); it never writes a token into a client config.
 
 Cleartext HTTP is allowed only for loopback, RFC1918, link-local, and names ending in `.local` / `.internal` / `.svc`, plus `host.docker.internal`. Public DNS needs HTTPS (`--insecure-http` override).
 

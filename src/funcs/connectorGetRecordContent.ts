@@ -128,6 +128,7 @@ async function $do(
     "query": payload$.query,
     "startBlock": payload$.startBlock,
     "startRecord": payload$.startRecord,
+    "extract": payload$.extract,
   });
 
   const headers$ = new Headers(compactMap({
