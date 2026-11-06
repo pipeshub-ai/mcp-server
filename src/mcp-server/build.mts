@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { build } from "bun";
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, readdir, readFile, writeFile } from "node:fs/promises";
 import { packExtension } from "@anthropic-ai/mcpb";
 import { join } from "node:path";
 import { createConsoleLogger } from "./console-logger.ts";
@@ -14,11 +14,19 @@ const shouldPack = process.argv.includes("--pack");
  * styles are inlined. The server imports it from a generated module.
  */
 async function buildCitationViewer() {
+  // PipesHub's connector logos (from its frontend's public/icons/connectors/), as data URIs by file name.
+  const iconDir = "./src/mcp-app/connector-icons";
+  const icons: Record<string, string> = {};
+  for (const file of (await readdir(iconDir)).filter((f) => f.endsWith(".svg"))) {
+    const svg = await readFile(join(iconDir, file));
+    icons[file.slice(0, -4)] = `data:image/svg+xml;base64,${svg.toString("base64")}`;
+  }
   const out = await build({
     entrypoints: ["./src/mcp-app/citation-viewer.ts"],
     target: "browser",
     format: "esm",
     minify: true,
+    define: { CONNECTOR_ICONS: JSON.stringify(icons) },
     throw: true,
   });
   const script = (await out.outputs[0]!.text())

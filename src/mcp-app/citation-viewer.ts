@@ -26,6 +26,8 @@ type Citation = {
   webUrl?: string;
   mimeType?: string;
   extension?: string;
+  /** The app the record came from, e.g. "CONFLUENCE"; a page or message has no file type. */
+  connector?: string;
   pageNum?: number[];
   blockNum?: number[];
   boundingBox?: Point[];
@@ -62,6 +64,20 @@ let citations: Citation[] = [];
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** Connector logo data URIs by name, inlined by build.mts. */
+declare const CONNECTOR_ICONS: Record<string, string>;
+// Read once: the build pastes the whole map at every mention.
+const ICONS = CONNECTOR_ICONS;
+// Logos drawn in black, which PipesHub's own UI inverts on dark.
+const MONO_ICONS = new Set(["github", "linear"]);
+
+/** The bundled logo name for a connector such as "CONFLUENCE DATA CENTER" or "MICROSOFT TEAMS", if any. */
+function connectorIcon(connector: string): string | undefined {
+  const name = connector.toLowerCase();
+  return [name.replace(/[\s_]+/g, ""), name.split(/[\s_]/)[0]!, name.split(/[\s_]/).at(-1)!]
+    .find((k) => k in ICONS);
+}
+
 /** A small colored file-type badge, as PipesHub's file icons tell types apart. */
 function fileBadge(c: Citation) {
   const kind = c.kind === "web" ? "web" : kindOf(c);
@@ -70,7 +86,17 @@ function fileBadge(c: Citation) {
     : kind === "sheet" ? ["sheet", ext === "CSV" ? "CSV" : "XLS"]
     : kind === "docx" ? ["doc", "DOC"]
     : kind === "web" ? ["web", "WEB"]
-    : ["text", (ext || "TXT").slice(0, 4)];
+    : ext ? ["text", ext.slice(0, 4)]
+    // An app's record (a page, an issue, a message) shows its app's logo, not a text-file badge.
+    : c.connector ? ["app", c.connector.split(" ")[0]!]
+    : ["text", "TXT"];
+  const icon = cls === "app" ? connectorIcon(c.connector!) : undefined;
+  if (icon) {
+    const img = el("img", `app-icon${MONO_ICONS.has(icon) ? " mono" : ""}`) as HTMLImageElement;
+    img.src = ICONS[icon]!;
+    img.alt = img.title = c.connector!;
+    return img;
+  }
   return el("span", `file ${cls}`, label);
 }
 
