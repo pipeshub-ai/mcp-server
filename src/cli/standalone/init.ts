@@ -157,6 +157,7 @@ async function apply(t: Target, mode: "add" | "remove", o: InitOptions, env: Nod
           for (const d of [...rec.madeDirs].reverse()) if ((await readdir(d).catch(() => ["x"])).length === 0) await rmdir(d).catch(() => undefined);
         } else {
           await writeAtomic(t.file, original);
+          if (rec.original) await rm(rec.original, { force: true }); // used: the file is back as it was
         }
         delete known[t.file];
       }
@@ -183,7 +184,10 @@ async function apply(t: Target, mode: "add" | "remove", o: InitOptions, env: Nod
   if (mode === "add" && r.after !== null) {
     // The first original wins: a later run that changes our entry again still restores what the person had.
     known[t.file] = { sha: sha(r.after), original: rec ? rec.original : backupPath, madeDirs: rec ? rec.madeDirs : madeDirs };
-  } else if (mode === "remove") delete known[t.file];
+  } else if (mode === "remove") {
+    if (rec?.original) await rm(rec.original, { force: true }); // used for the hint above
+    delete known[t.file];
+  }
   return out;
 }
 

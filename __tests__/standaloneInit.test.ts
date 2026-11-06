@@ -285,6 +285,8 @@ describe("uninstall", () => {
     expect(after.get(join(w.home, ".config/zed/settings.json"))).toBe(zed);
     expect(after.get(join(w.cwd, "AGENTS.md"))).toBe(notes);
     expect(await tree(join(w.home, ".config/pipeshub")).then((t) => t.filter((f) => /credentials|manifest/.test(f)))).toEqual([]);
+    // the backups the uninstall restored from are gone
+    expect(await tree(join(w.home, ".config/pipeshub/backups"))).toEqual([]);
     // the stack keeps its data, so the account password it made stays for the next init
     expect((await stat(join(w.home, ".config/pipeshub/local-account.json"))).isFile()).toBe(true);
     // twice is fine
