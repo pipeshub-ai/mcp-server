@@ -70,6 +70,12 @@ def write_wheel(target, binary, exe, plat, version, out):
     return wheel
 
 
+def generate_sources():
+    """The CLI imports the citation viewer page that `npm run build` generates (gitignored), so a clean checkout needs it first."""
+    if not (ROOT / "src/mcp-server/citation-viewer-html.generated.ts").exists():
+        subprocess.run(["bun", "src/mcp-server/build.mts"], cwd=ROOT, check=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("targets", nargs="*", choices=list(TARGETS))
@@ -77,6 +83,7 @@ def main():
     args = ap.parse_args()
     out = Path(args.out)
     version = json.loads((ROOT / "standalone/package.json").read_text())["version"]
+    generate_sources()
     for t in args.targets or TARGETS:
         bun_target, plat, exe = TARGETS[t]
         binary = compile_cli(bun_target, exe, out / "bin" / t)
