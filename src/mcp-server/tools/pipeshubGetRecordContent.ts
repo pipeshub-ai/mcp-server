@@ -4,8 +4,10 @@ import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
 import { ONE_TRY_HEADER, REQUEST_TIMEOUT_HEADER } from "../../hooks/transport-defaults.js";
+import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { ToolDefinition } from "../tools.js";
 import {
+  citedRecordShape,
   errorResult,
   httpErrorResult,
   jsonResult,
@@ -25,6 +27,58 @@ export async function renderedResult(response: Response) {
     ? { content: [{ type: "text" as const, text }] }
     : jsonResult(parsed.value);
 }
+
+/**
+ * A navigate or lookup result with its text also as `structuredContent`.
+ * The server's own fields are not passed on: their shape is not this
+ * package's to promise.
+ */
+function asStructured(mode: "navigate" | "lookup", result: CallToolResult): CallToolResult {
+  if (result.isError) return result;
+  const text = result.content.map((c) => c.type === "text" ? c.text : "").join("");
+  return { ...result, structuredContent: { mode, text } };
+}
+
+/**
+ * The value of one `Name: value` line of the metadata header a read starts
+ * with; the header ends at the first blank line.
+ */
+export function headerField(content: string, name: string): string | undefined {
+  const header = content.split("\n\n")[0] ?? "";
+  return new RegExp(`^${name}: (.+)$`, "m").exec(header)?.[1]?.trim();
+}
+
+/** A read's citation fields and progress, beside its unchanged text. */
+function readStructured(read: RecordRead, recordId: string, thread: boolean, text: string) {
+  const content = typeof read?.content === "string" ? read.content : "";
+  const field = (name: string) => thread ? undefined : headerField(content, name);
+  const webUrl = field("Web URL");
+  const updatedAt = field("Last Updated At") ?? field("Last Updated") ?? field("File Last Modified");
+  const pick = <T>(v: T | null | undefined) => v ?? undefined;
+  return Object.fromEntries(Object.entries({
+    mode: thread ? "thread" : "content",
+    recordId,
+    recordName: field("Name"),
+    webUrl: webUrl && /^https?:\/\//.test(webUrl) ? webUrl : undefined,
+    connector: field("Connector"),
+    updatedAt,
+    complete: pick(read?.complete),
+    totalBlocks: pick(read?.totalBlocks),
+    nextStartBlock: pick(read?.nextStartBlock),
+    nextStartRecord: pick(read?.nextStartRecord),
+    text,
+  }).filter(([, v]) => v !== undefined));
+}
+
+const outputSchema = {
+  mode: z.enum(["content", "thread", "navigate", "lookup"]).optional(),
+  ...citedRecordShape,
+  complete: z.boolean().optional(),
+  totalBlocks: z.number().optional(),
+  nextStartBlock: z.number().optional(),
+  nextStartRecord: z.number().optional(),
+  text: z.string().optional().describe("The same text as the content block."),
+};
 
 /** What a read returns by default: about 10k tokens, inside common clients'
  * tool-output limits (Claude Code's is 25k tokens). */
@@ -240,6 +294,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
     readOnlyHint: true,
   },
   args,
+  outputSchema,
   tool: async (client, args, ctx) => {
     const fetchOptions = { fetchOptions: { signal: ctx.signal } };
 
@@ -262,7 +317,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
       const httpErr = await httpErrorResult(r.value, "Navigate knowledge graph");
       if (httpErr) return httpErr;
 
-      return renderedResult(r.value);
+      return asStructured("navigate", await renderedResult(r.value));
     }
 
     if (args.mode === "lookup") {
@@ -281,7 +336,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
       const httpErr = await httpErrorResult(r.value, "Record lookup");
       if (httpErr) return httpErr;
 
-      return renderedResult(r.value);
+      return asStructured("lookup", await renderedResult(r.value));
     }
 
     if (!args.recordId) {
@@ -329,19 +384,18 @@ it using the \`Web URL\` from its metadata header (when present).`,
     // of the record that was and how to read on.
     const parsed = await readJson<RecordRead>(result.value);
     if (!parsed.ok) return parsed.result;
+    // A thread read joins several records' messages, so no one record's
+    // cite stands for it; their search passages carry their own.
+    const text = thread
+      ? renderRead(parsed.value, args.recordId, thread)
+      : withRecordCite(
+        renderRead(parsed.value, args.recordId, thread),
+        parsed.value?.content,
+        args.recordId,
+      );
     return {
-      content: [{
-        type: "text",
-        // A thread read joins several records' messages, so no one record's
-        // cite stands for it; their search passages carry their own.
-        text: thread
-          ? renderRead(parsed.value, args.recordId, thread)
-          : withRecordCite(
-            renderRead(parsed.value, args.recordId, thread),
-            parsed.value?.content,
-            args.recordId,
-          ),
-      }],
+      content: [{ type: "text", text }],
+      structuredContent: readStructured(parsed.value, args.recordId, thread, text),
     };
   },
 };

@@ -29,6 +29,11 @@ export type ToolDefinition<
     scopes?: MCPScope[];
     /** Tool `_meta`, e.g. the MCP Apps view (`ui.resourceUri`) or `ui.visibility`. */
     _meta?: Record<string, unknown>;
+    /**
+     * The shape of `structuredContent`. A tool that sets it and returns a JSON
+     * object as its only text gets that object as `structuredContent`.
+     */
+    outputSchema?: ZodRawShapeCompat;
     args: Args;
     annotations: {
       title: string;
@@ -48,6 +53,7 @@ export type ToolDefinition<
     description: string;
     scopes?: MCPScope[];
     _meta?: Record<string, unknown>;
+    outputSchema?: ZodRawShapeCompat;
     args?: undefined;
     annotations: {
       title: string;
@@ -66,7 +72,7 @@ export type ToolDefinition<
 // catches Office formats (`vnd.openxmlformats-...`), which are zip archives.
 const TEXT_SUBTYPE = /^(json|xml|yaml|x-yaml)$|\+(json|xml|yaml)$/;
 
-function isTextMime(contentType: string): boolean {
+export function isTextMime(contentType: string): boolean {
   const [type = "", subtype = ""] = (contentType.split(";")[0] ?? "")
     .trim()
     .toLowerCase()
@@ -119,6 +125,29 @@ export async function formatResult(
   return response.ok ? { content } : { content, isError: true };
 }
 
+/**
+ * `result` with its JSON-object text also as `structuredContent`, for a tool
+ * with an output schema; other text goes in its `text` field. The content is
+ * left as it is, byte for byte. Output schemas keep every field optional so
+ * that either form is valid.
+ */
+export function withStructuredContent(result: CallToolResult): CallToolResult {
+  const [only] = result.content;
+  if (result.isError || result.structuredContent || result.content.length !== 1 || only?.type !== "text") {
+    return result;
+  }
+  try {
+    const value: unknown = JSON.parse(only.text);
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return { ...result, structuredContent: value as Record<string, unknown> };
+    }
+  } catch {
+    // not JSON: sent as `text` below
+  }
+  // The SDK refuses a result without it once an output schema is declared.
+  return { ...result, structuredContent: { text: only.text } };
+}
+
 export function createRegisterTool(
   logger: ConsoleLogger,
   server: McpServer,
@@ -166,29 +195,41 @@ export function createRegisterTool(
       return;
     }
 
+    // Open: the text stays the contract, and a field the server adds must not
+    // fail the call.
+    const output = tool.outputSchema
+      ? { outputSchema: z.looseObject(tool.outputSchema) }
+      : {};
+    const finish = tool.outputSchema ? withStructuredContent : (r: CallToolResult) => r;
     if (tool.args) {
       server.registerTool(
         tool.name,
         {
+          // Top-level title is what newer clients show; annotations.title stays for older ones.
+          title: tool.annotations.title,
           description: tool.description,
-          inputSchema: tool.args,
+          // Closed: a misspelled argument is refused instead of silently dropped.
+          inputSchema: z.object(tool.args).strict(),
+          ...output,
           annotations: tool.annotations,
           ...(tool._meta ? { _meta: tool._meta } : {}),
         },
         async (args, ctx) => {
-          return tool.tool(getSDK(), args, ctx);
+          return finish(await tool.tool(getSDK(), args, ctx));
         },
       );
     } else {
       server.registerTool(
         tool.name,
         {
+          title: tool.annotations.title,
           description: tool.description,
+          ...output,
           annotations: tool.annotations,
           ...(tool._meta ? { _meta: tool._meta } : {}),
         },
         async (ctx) => {
-          return tool.tool(getSDK(), ctx);
+          return finish(await tool.tool(getSDK(), ctx));
         },
       );
     }

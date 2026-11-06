@@ -51,13 +51,11 @@ describe("readJson status guard", () => {
     expect(text).not.toContain("[object Object]");
   });
 
-  test("401 and 403 point at the credential", async () => {
-    for (const status of [401, 403]) {
-      const parsed = await readJson(jsonResponse(status, unauthorized));
-      expect(parsed.ok).toBe(false);
-      if (parsed.ok) return;
-      expect(textOf(parsed.result)).toContain("token");
-    }
+  test("401 points at the credential; 403 says not found", async () => {
+    const r401 = await readJson(jsonResponse(401, unauthorized));
+    expect(!r401.ok && textOf(r401.result)).toContain("token");
+    const r403 = await readJson(jsonResponse(403, unauthorized));
+    expect(!r403.ok && textOf(r403.result)).toContain("Not found");
   });
 
   test("a 200 still parses normally", async () => {

@@ -12,6 +12,7 @@ import {
   parsePortFlag,
   parseServerURLFlag,
 } from "../flag-parsers.js";
+import { DEFAULT_HOST } from "../loopback.js";
 
 export const startCommand = buildCommand({
   loader: async () => {
@@ -31,6 +32,12 @@ export const startCommand = buildCommand({
         brief: "The port to use when the SSE transport is enabled",
         default: "2718",
         parse: parsePortFlag,
+      },
+      host: {
+        kind: "parsed",
+        brief: "The address to listen on when the SSE transport is enabled. Defaults to loopback; pass 0.0.0.0 to accept LAN connections",
+        default: DEFAULT_HOST,
+        parse: String,
       },
       tool: {
         kind: "parsed",

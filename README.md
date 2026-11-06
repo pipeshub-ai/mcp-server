@@ -740,6 +740,10 @@ For a full list of server arguments:
 npx @pipeshub-ai/mcp --help
 ```
 
+### Local HTTP server
+
+`serve` (and `start --transport sse`) listens on `127.0.0.1` only. Pass `--host 0.0.0.0` to accept connections from other machines. A browser request is answered only when its `Origin` is `localhost`, `127.0.0.1` or `[::1]`; any other origin gets 403. Clients that send no `Origin` (CLIs, desktop apps) are unaffected.
+
 ### Retries and Timeouts
 
 The local server (`start` and `serve`) retries a PipesHub request that is refused with 429, 502, 503 or 504. It waits for as long as the `Retry-After` header asks, or, without one, backs off for half a second and then a second. It stops after three tries in all and passes the last answer on. A `Retry-After` of more than 30 seconds is not waited out: that answer is passed on at once, and the tool's error says how long PipesHub asked to wait. Only requests that are safe to repeat are retried (`GET`, `HEAD`, `OPTIONS`, `PUT`, `DELETE`). Search and chat are `POST`s and are never retried, because a repeat would be a second search or a second answer.

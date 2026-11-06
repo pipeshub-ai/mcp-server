@@ -33,3 +33,8 @@ src/mcp-server/tools.ts
 
 # Hand-maintained: the write and connect scopes for the write tools.
 src/mcp-server/scopes.ts
+
+# Hand-maintained: `tools` on the chat bodies, which `pipeshub_chat` sends
+# empty when the host turns chat actions off.
+src/models/createconversationrequest.ts
+src/models/addmessagerequest.ts

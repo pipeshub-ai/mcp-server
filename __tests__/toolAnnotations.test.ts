@@ -30,7 +30,7 @@ const WRITES = ["pipeshub_create_collection", "pipeshub_upload", "pipeshub_add_w
 /** Tools that can act: chat runs the assistant, which may use the user's connected actions. */
 const ACTS = ["pipeshub_chat"];
 
-async function listedTools() {
+async function listedDefinitions() {
   const { server } = createMCPServer({ logger: createConsoleLogger("error") });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
@@ -41,7 +41,11 @@ async function listedTools() {
   await client.connect(clientSide);
   const { tools } = await client.listTools();
   await client.close();
-  return new Map(tools.map((t) => [t.name, t.annotations ?? {}]));
+  return tools;
+}
+
+async function listedTools() {
+  return new Map((await listedDefinitions()).map((t) => [t.name, t.annotations ?? {}]));
 }
 
 describe("tool annotations as a host sees them", () => {
@@ -77,5 +81,42 @@ describe("tool annotations as a host sees them", () => {
     const chat = (await listedTools()).get("pipeshub_chat");
     expect(chat?.readOnlyHint).toBe(false);
     expect(chat?.destructiveHint).toBe(true);
+  });
+
+  test("every tool carries a top-level title, the same as annotations.title", async () => {
+    for (const t of await listedDefinitions()) {
+      expect({ name: t.name, title: t.title }).toEqual({ name: t.name, title: t.annotations?.title });
+      expect(t.title).toBeTruthy();
+    }
+  });
+
+  test("input schemas are closed, so a misspelled argument is refused, not dropped", async () => {
+    for (const t of await listedDefinitions()) {
+      expect({ name: t.name, closed: t.inputSchema.additionalProperties }).toEqual({ name: t.name, closed: false });
+    }
+    const { server } = createMCPServer({ logger: createConsoleLogger("error") });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    const client = new Client({ name: "test", version: "0" });
+    await client.connect(clientSide);
+    const r = await client.callTool({ name: "pipeshub_search", arguments: { query: "q", app: ["x"] } });
+    await client.close();
+    expect(r.isError).toBe(true);
+    expect(JSON.stringify(r.content)).toContain("app");
+  });
+});
+
+describe("server capabilities", () => {
+  test("listChanged is not advertised: the server never sends the notifications", async () => {
+    const { server } = createMCPServer({ logger: createConsoleLogger("error") });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverSide);
+    const client = new Client({ name: "test", version: "0" });
+    await client.connect(clientSide);
+    const caps = client.getServerCapabilities();
+    await client.close();
+    expect(caps?.tools?.listChanged).toBe(false);
+    expect(caps?.prompts?.listChanged).toBe(false);
+    expect(caps?.resources?.listChanged).toBe(false);
   });
 });

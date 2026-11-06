@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
-import { tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
+import { createChatTool, tool$pipeshubChat } from "../src/mcp-server/tools/pipeshubChat.js";
 
 // The answer arrives as a stream of frames rather than one response, so this
 // tool has to decide what to hand back when the stream does not end the way it
@@ -246,4 +246,34 @@ describe("keyword search wait", () => {
       expect(sent.body).toMatchObject({ keywordSearchBudget: "short" });
     });
   }
+});
+
+describe("chat without actions", () => {
+  const routes: Array<[string, Record<string, unknown>]> = [
+    ["a new conversation", {}],
+    ["a follow-up", { conversationId: "c-1" }],
+    ["a new agent conversation", { agentId: "a-1" }],
+    ["an agent follow-up", { agentId: "a-1", conversationId: "c-1" }],
+  ];
+  const noActions = createChatTool({ actions: false });
+  for (const [name, args] of routes) {
+    test(`${name} sends an empty tool list, so no connected action can run`, async () => {
+      const { core, sent } = recording(finished);
+      await noActions.tool(core, { query: "q", ...args } as never, { signal: new AbortController().signal } as never);
+      expect((sent.body as { tools?: unknown }).tools).toEqual([]);
+    });
+    test(`${name} with actions on sends no tool list, as before`, async () => {
+      const { core, sent } = recording(finished);
+      await ask(core, args);
+      expect(sent.body).not.toHaveProperty("tools");
+    });
+  }
+
+  test("its description says it cannot act, and it is not destructive", () => {
+    expect(noActions.description).toContain("It cannot act here");
+    expect(noActions.description).not.toContain("It can also act");
+    expect(noActions.description).not.toContain("take an action");
+    expect(noActions.annotations.destructiveHint).toBe(false);
+    expect(createChatTool({ actions: true })).toBe(tool$pipeshubChat);
+  });
 });

@@ -33,6 +33,8 @@ export type CreateConversationRequest = {
   timezone?: string | undefined;
   currentTime?: string | undefined;
   keywordSearchBudget?: "short" | "full" | undefined;
+  /** Connected actions the assistant may use; `[]` for none, omitted for all. */
+  tools?: Array<string> | undefined;
 };
 
 export const CreateConversationRequest$zodSchema: z.ZodType<
@@ -52,6 +54,7 @@ export const CreateConversationRequest$zodSchema: z.ZodType<
   query: z.string(),
   recordIds: z.array(z.string()).optional(),
   timezone: z.string().optional(),
+  tools: z.array(z.string()).optional(),
 }).describe(
   "Request body for creating a new AI conversation.<br><br>\n<b>Query Processing:</b><br>\nThe query is processed through PipesHub's AI pipeline which:\n<ul>\n<li>Performs semantic search across indexed knowledge bases</li>\n<li>Retrieves relevant context from matching documents</li>\n<li>Generates a response with citations to source materials</li>\n<li>Suggests follow-up questions based on the conversation</li>\n</ul>\n",
 );
