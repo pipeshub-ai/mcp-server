@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -121,6 +121,19 @@ describe("init and dev flags", () => {
       expect(r.stdout).toContain(w);
     }
   });
+});
+
+describe("a dry run does not wait on Docker", () => {
+  test("a docker that hangs costs a few seconds at most, and shows as a warning", async () => {
+    const bin = join(home, "slow-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(join(bin, "docker"), "#!/bin/sh\nsleep 30\n", { mode: 0o755 });
+    const t0 = Date.now();
+    const r = await cli(["init", "--local", "--dry-run", "--client", "cursor"], { PATH: `${bin}:/usr/bin:/bin` });
+    expect(r.code).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(10_000);
+    expect(r.stdout).toContain("Docker");
+  }, 20_000);
 });
 
 describe("every command in the usage text dispatches", () => {

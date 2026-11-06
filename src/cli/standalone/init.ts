@@ -228,7 +228,7 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
   }
   if (origin === null) {
     origin = `http://127.0.0.1:${o.port}`;
-    const problem = dockerProblem(env);
+    const problem = dockerProblem(env, o.dryRun ? 3000 : undefined); // a dry run only warns, so it never waits long for Docker
     if (o.dryRun) {
       report.stack = `would start the local stack with Docker on ${origin}`;
       if (problem) report.warnings.push(problem);
