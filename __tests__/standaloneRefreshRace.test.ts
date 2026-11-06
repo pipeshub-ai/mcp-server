@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { storedLogin } from "../src/cli/login.js";
@@ -31,6 +31,29 @@ describe("refreshing an expired sign-in from several callers at once", () => {
       expect([...tokens][0]).not.toBe("old");
       expect(JSON.parse(await readFile(file, "utf8")).refreshToken).toBe(fake.rotate.current);
       expect(fake.log.filter((l) => l === "POST /api/v1/oauth2/token").length).toBe(1);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a lock left by a dead process more than two minutes ago is replaced, and no lock file is left behind", async () => {
+    fake = startFakeLocal({ orgExists: true });
+    fake.rotate = { delayMs: 0, current: "refresh-0" };
+    const home = await mkdtemp(join(tmpdir(), "standalone-stale-"));
+    try {
+      const dir = join(home, ".config", "pipeshub");
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, "credentials.json"), JSON.stringify({
+        origin: fake.origin, clientId: "c", tokenEndpoint: `${fake.origin}/api/v1/oauth2/token`,
+        accessToken: "old", refreshToken: "refresh-0", expiresAt: Date.now() - 1000,
+      }), { mode: 0o600 });
+      const lock = join(dir, "credentials.json.lock");
+      await writeFile(lock, "");
+      const old = new Date(Date.now() - 200_000);
+      await utimes(lock, old, old);
+      const got = await storedLogin(fake.origin, false, { HOME: home });
+      expect(got?.accessToken).not.toBe("old");
+      expect((await readdir(dir)).filter((n) => n.includes(".lock"))).toEqual([]);
     } finally {
       await rm(home, { recursive: true, force: true });
     }

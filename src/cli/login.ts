@@ -8,6 +8,7 @@
 // variables still win, so a QM sandbox (PIPESHUB_TOKEN from its keychain)
 // behaves exactly as before.
 
+import { randomBytes } from "node:crypto";
 import { chmod, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -283,9 +284,11 @@ export async function storedLogin(
   });
 }
 
+const STALE_LOCK_MS = 120_000;
+
 async function withRefreshLock<T>(lock: string, fn: () => Promise<T>): Promise<T> {
   await mkdir(dirname(lock), { recursive: true, mode: 0o700 });
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + STALE_LOCK_MS + 10_000; // long enough to outlast a lock a dead process left
   let held = false;
   while (!held && Date.now() < deadline) {
     try {
@@ -294,8 +297,11 @@ async function withRefreshLock<T>(lock: string, fn: () => Promise<T>): Promise<T
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") break; // cannot lock here: refresh unlocked rather than not at all
       const age = Date.now() - ((await stat(lock).catch(() => null))?.mtimeMs ?? Date.now());
-      if (age > 30_000) await rm(lock, { force: true }); // left by a process that died
-      else await new Promise((r) => setTimeout(r, 100));
+      // left by a process that died. Renamed away (not removed) so two waiters cannot both delete a lock the other just took.
+      if (age > STALE_LOCK_MS) {
+        const gone = `${lock}.stale.${process.pid}.${randomBytes(4).toString("hex")}`;
+        if (await rename(lock, gone).then(() => true, () => false)) await rm(gone, { force: true });
+      } else await new Promise((r) => setTimeout(r, 100));
     }
   }
   try {
