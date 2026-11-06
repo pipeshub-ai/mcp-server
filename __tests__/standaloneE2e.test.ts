@@ -14,7 +14,7 @@ import { join } from "node:path";
 // Needs Docker, the built bridge (npm run build) and the slim images. It runs
 // only when PIPESHUB_E2E=1 (npm run test:e2e), and then a missing dependency
 // FAILS the run rather than skipping. Image names come from the environment the
-// compose file reads: PIPESHUB_IMAGE, IMAGE_TAG, PG_IMAGE, PG_MAJOR, PG_IMAGE_REV.
+// compose file reads: PIPESHUB_IMAGE, IMAGE_TAG, PG_IMAGE, PG_TAG.
 // This repo's CI runs `bun test` without Docker, so this is skipped there on purpose.
 
 const RUN = process.env["PIPESHUB_E2E"] === "1";
@@ -34,7 +34,7 @@ let firstAnswerSeconds = 0;
 
 async function cli(args: string[], timeoutMs = 120_000) {
   const env: Record<string, string> = { PATH: "/usr/bin:/bin:/usr/local/bin", HOME: home, PIPESHUB_PROJECT: PROJECT };
-  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_MAJOR", "PG_IMAGE_REV", "APP_MEMORY_LIMIT"]) {
+  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_TAG", "APP_MEMORY_LIMIT"]) {
     if (process.env[k]) env[k] = process.env[k]!;
   }
   const proc = Bun.spawn([process.execPath, CLI, ...args], { cwd: project, env, stdout: "pipe", stderr: "pipe" });

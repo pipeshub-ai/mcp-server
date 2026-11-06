@@ -10,7 +10,7 @@
  *
  * shortcut: the default image tags are the names that branch uses and are not
  * published yet. Pin the published tags here (or set PIPESHUB_IMAGE/IMAGE_TAG/
- * PG_IMAGE/PG_IMAGE_REV) before the package is published.
+ * PG_IMAGE/PG_TAG) before the package is published.
  */
 export const COMPOSE_REVISION = "launch/slim";
 
@@ -94,26 +94,16 @@ services:
       start_period: 40s
 
   postgres:
-    image: @{PG_IMAGE:-pipeshubai/postgres}:@{PG_MAJOR:-18}-@{PG_IMAGE_REV:-1}
+    image: @{PG_IMAGE:-pgvector/pgvector}:@{PG_TAG:-pg18}
     restart: unless-stopped
     shm_size: 256m
     mem_limit: @{PG_MEMORY_LIMIT:-1g}
+    # The app creates its own roles and installs vector and pg_trgm (its bootstrap step), so the stock pgvector image is enough.
+    command: ["postgres", "-c", "shared_buffers=@{PG_SHARED_BUFFERS:-128MB}", "-c", "max_connections=@{PG_MAX_CONNECTIONS:-120}", "-c", "autovacuum_work_mem=@{PG_AUTOVACUUM_WORK_MEM:-32MB}", "-c", "maintenance_work_mem=@{PG_MAINTENANCE_WORK_MEM:-64MB}"]
     environment:
       POSTGRES_DB: pipeshub
       POSTGRES_PASSWORD: @{PG_ADMIN_PASSWORD:?}
       PGDATA: /var/lib/postgresql/data
-      PG_SHARED_BUFFERS: @{PG_SHARED_BUFFERS:-128MB}
-      PG_MAX_CONNECTIONS: @{PG_MAX_CONNECTIONS:-120}
-      PG_AUTOVACUUM_WORK_MEM: @{PG_AUTOVACUUM_WORK_MEM:-32MB}
-      PG_MAINTENANCE_WORK_MEM: @{PG_MAINTENANCE_WORK_MEM:-64MB}
-      PG_NODE_PASSWORD: @{PG_NODE_PASSWORD:?}
-      PG_CONNECTORS_PASSWORD: @{PG_CONNECTORS_PASSWORD:?}
-      PG_INDEXING_PASSWORD: @{PG_INDEXING_PASSWORD:?}
-      PG_QUERY_PASSWORD: @{PG_QUERY_PASSWORD:?}
-      PG_KV_PASSWORD: @{PG_KV_PASSWORD:?}
-      PG_JOBS_PASSWORD: @{PG_JOBS_PASSWORD:?}
-      PG_MIGRATE_PASSWORD: @{PG_MIGRATE_PASSWORD:?}
-      PG_BACKUP_PASSWORD: @{PG_MIGRATE_PASSWORD:?}
     volumes:
       - pipeshub-pg:/var/lib/postgresql/data
     healthcheck:

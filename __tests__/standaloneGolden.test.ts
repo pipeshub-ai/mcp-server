@@ -18,7 +18,7 @@ import { join } from "node:path";
 // own files byte for byte as they were. Everything happens under a fake HOME.
 //
 // Needs Docker, `npm run build`, and the slim images named by PIPESHUB_IMAGE / IMAGE_TAG / PG_IMAGE /
-// PG_MAJOR / PG_IMAGE_REV (the compose file reads them). Runs only with PIPESHUB_E2E=1 (npm run test:e2e);
+// PG_TAG (the compose file reads them). Runs only with PIPESHUB_E2E=1 (npm run test:e2e);
 // then a missing dependency FAILS rather than skips. GOLDEN_REPORT=<file> writes the numbers as JSON.
 
 const RUN = process.env["PIPESHUB_E2E"] === "1";
@@ -77,7 +77,7 @@ const mine = (p: string) => ![".config/pipeshub", ".pipeshub", ".npm"].some((d) 
 
 function env(extra: Record<string, string> = {}): Record<string, string> {
   const e: Record<string, string> = { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: home, PIPESHUB_PROJECT: PROJECT, npm_config_update_notifier: "false", ...extra };
-  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_MAJOR", "PG_IMAGE_REV", "APP_MEMORY_LIMIT", "DOCKER_HOST"]) if (process.env[k]) e[k] = process.env[k]!;
+  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_TAG", "APP_MEMORY_LIMIT", "DOCKER_HOST"]) if (process.env[k]) e[k] = process.env[k]!;
   return e;
 }
 

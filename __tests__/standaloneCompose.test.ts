@@ -9,6 +9,12 @@ import { composeFile } from "../src/cli/standalone/assets.js";
 describe("the pinned compose file", () => {
   const text = composeFile();
 
+  test("runs the database on the published pgvector image, tuned through its command line", () => {
+    expect(text).toContain("image: ${PG_IMAGE:-pgvector/pgvector}:${PG_TAG:-pg18}");
+    expect(text).not.toContain("pipeshubai/postgres");
+    expect(text).toContain('"-c", "shared_buffers=${PG_SHARED_BUFFERS:-128MB}"');
+  });
+
   test("passes the record concurrency settings through, empty meaning the image's default", () => {
     expect(text).toContain("MAX_CONCURRENT_PARSING: ${MAX_CONCURRENT_PARSING:-}");
     expect(text).toContain("MAX_CONCURRENT_INDEXING: ${MAX_CONCURRENT_INDEXING:-}");
