@@ -59,6 +59,9 @@ export function recallApps(caller: string | undefined, now = Date.now()): boolea
 
 export function rememberApps(caller: string | undefined, apps: boolean): void {
   if (!caller) return;
+  // A host that showed views on one connection keeps them: its other
+  // connections (same token) may initialize without announcing them.
+  apps ||= recallApps(caller) === true;
   appsByCaller.delete(caller);
   appsByCaller.set(caller, { apps, at: Date.now() });
   if (appsByCaller.size > APPS_MEMORY_MAX) {

@@ -132,7 +132,14 @@ describe("a client without MCP Apps views", () => {
       name: "pipeshub_show_citations",
       arguments: { citations: [{ cite: `${RID}....` }] },
     });
-    expect(call.isError).toBe(true);
+    // Still callable: a host that listed it earlier must not be refused.
+    expect(JSON.stringify(call)).not.toContain("disabled");
+  });
+
+  test("a later initialize without views does not hide them from a caller that showed them", async () => {
+    await initialized("tok-a", SHOWS_APPS);
+    await initialized("tok-a", {});
+    for (const name of CITATION_TOOLS) expect(await listedStateless("tok-a")).toContain(name);
   });
 
   test("a client that shows views keeps them, and the step", async () => {

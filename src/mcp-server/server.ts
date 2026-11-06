@@ -1,10 +1,11 @@
-import { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   CallToolRequest,
   CallToolResult,
   InitializeRequest,
   InitializeRequestSchema,
   InitializeResult,
+  ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { withoutChatMentions } from "./chat-mentions.js";
@@ -281,15 +282,6 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubShowCitations);
   tool(tool$pipeshubPreviewRecord);
   registerCitationViewer(server);
-  // Listed, and callable, only for a client that shows views. A getter, so
-  // it follows the client's answer without a list-changed notification.
-  const registered = (server as unknown as {
-    _registeredTools: Record<string, RegisteredTool | undefined>;
-  })._registeredTools;
-  for (const name of [tool$pipeshubShowCitations.name, tool$pipeshubPreviewRecord.name]) {
-    if (registered[name]) Object.defineProperty(registered[name], "enabled", { get: showsApps });
-  }
-
   const initialize = (server.server as unknown as {
     _oninitialize(request: InitializeRequest): Promise<InitializeResult>;
   })._oninitialize.bind(server.server);
@@ -312,6 +304,20 @@ export function createMCPServer(deps: {
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);
   }
+
+  // Listed only for a client that shows views, but always callable: a host
+  // that listed them earlier (another of its connections may have said no
+  // views since) must not get "Tool ... disabled" mid-answer.
+  // After every registration: the SDK sets its own handler on the first one.
+  const citationTools = new Set([tool$pipeshubShowCitations.name, tool$pipeshubPreviewRecord.name]);
+  const handlers = (server.server as unknown as {
+    _requestHandlers: Map<string, (request: unknown, extra: unknown) => Promise<ListToolsResult>>;
+  })._requestHandlers;
+  const listTools = handlers.get("tools/list")!;
+  handlers.set("tools/list", async (request, extra) => {
+    const result = await listTools(request, extra);
+    return showsApps() ? result : { ...result, tools: result.tools.filter((t) => !citationTools.has(t.name)) };
+  });
 
   if (deps.onToolCall) observeToolCalls(server, deps.onToolCall);
 
