@@ -157,7 +157,7 @@ async function hasMcpEndpoint(auth: BridgeAuth, logger: ReturnType<typeof create
   }
 }
 
-async function startStdio(flags: StartCommandFlags) {
+export async function startStdio(flags: StartCommandFlags) {
   const logger = createConsoleLogger(flags["log-level"]);
   const transport = new StdioServerTransport();
   const { security, serverURL, proxy } = await stdioCredential(flags, logger);

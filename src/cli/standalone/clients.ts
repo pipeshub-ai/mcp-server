@@ -31,7 +31,15 @@ export interface McpEntry {
  * so this entry does not change when it does. Chat is off for coding clients:
  * search-and-read is as accurate and cheaper (TOOLS.md).
  */
-export function bridgeEntry(origin: string): McpEntry {
+export function bridgeEntry(origin: string, env: NodeJS.ProcessEnv = process.env): McpEntry {
+  // The pip/uvx launcher (python/) sets these, so the agent runs the bundled `start` and needs no Node.
+  // shortcut: the uvx pin is the first launcher release; raise it when the bridge needs a newer one.
+  if (env["PIPESHUB_LAUNCHER"] === "uvx") {
+    return { command: "uvx", args: ["--from", "pipeshub>=0.1.0", "pipeshub", "start", "--server-url", origin], env: { PIPESHUB_MCP_CHAT: "off" } };
+  }
+  if (env["PIPESHUB_LAUNCHER"] === "pip" && env["PIPESHUB_LAUNCHER_COMMAND"]) {
+    return { command: env["PIPESHUB_LAUNCHER_COMMAND"], args: ["start", "--server-url", origin], env: { PIPESHUB_MCP_CHAT: "off" } };
+  }
   return {
     command: "npx",
     args: ["-y", BRIDGE_PACKAGE, "start", "--server-url", origin],
@@ -213,10 +221,13 @@ const same = (a: unknown, b: unknown) => canon(a) === canon(b);
 /** An entry that looks like one of ours (an older install, another port): the bridge on a loopback origin, with no token in its arguments. Safe to update without --force. */
 const looksOurs = (v: unknown) => {
   const args = (v as { args?: unknown } | null)?.args;
-  if (!Array.isArray(args) || !args.some((a) => typeof a === "string" && a.includes("@pipeshub-ai/")) || args.includes("--bearer-auth")) return false;
-  const url = args[args.indexOf("--server-url") + 1];
+  if (!Array.isArray(args) || args.includes("--bearer-auth")) return false;
+  const at = args.indexOf("--server-url");
+  // the npm package, or a launcher's `... start --server-url <origin>`
+  const bridge = args.some((a) => typeof a === "string" && a.includes("@pipeshub-ai/")) || (at > 0 && args[at - 1] === "start");
+  const url = args[at + 1];
   try {
-    return typeof url === "string" && ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname);
+    return bridge && typeof url === "string" && ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname);
   } catch {
     return false;
   }
