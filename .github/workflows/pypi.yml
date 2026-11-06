@@ -15,8 +15,18 @@ permissions:
   contents: read
 
 jobs:
+  # Linux and Windows binaries cross-compile fine on Linux. The macOS ones must be built and signed on a Mac.
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: linux-windows
+            os: ubuntu-latest
+            targets: linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl windows-x64
+          - name: macos
+            os: macos-14
+            targets: darwin-arm64 darwin-x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -24,11 +34,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: bun install
-      # bun cross-compiles every target from one Linux runner.
-      - run: python3 python/build_wheels.py
+      - run: python3 python/build_wheels.py ${{ matrix.targets }}
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-${{ matrix.name }}
           path: python/dist/*.whl
           if-no-files-found: error
 
@@ -52,7 +61,8 @@ jobs:
           python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
-          name: wheels
+          pattern: wheels-*
+          merge-multiple: true
           path: dist
       - run: python3 -m unittest discover -s python/tests -v
       - run: |
@@ -60,7 +70,7 @@ jobs:
           if [ -d venv/Scripts ]; then BIN=venv/Scripts; else BIN=venv/bin; fi
           $BIN/pip install --no-index --find-links dist pipeshub
           $BIN/pipeshub --version
-          # bun writes an ad-hoc signature into the macOS binaries (checked: LC_CODE_SIGNATURE is present); fail here if it is not valid.
+          # build_wheels.py signs the macOS binaries on the Mac that built them; fail here if the signature is not valid.
           if [ "$RUNNER_OS" = macOS ]; then codesign --verify --verbose venv/lib/python3.12/site-packages/pipeshub/bin/pipeshub; fi
           $BIN/pipeshub --help
           FAKE="$RUNNER_TEMP/home"
@@ -80,7 +90,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels
+          pattern: wheels-*
+          merge-multiple: true
           path: dist
       - name: Tag matches the wheel version
         run: |

@@ -19,5 +19,6 @@ No Node anywhere: the entry `init --local` writes for each agent runs `uvx --fro
 ```bash
 bun install
 python3 python/build_wheels.py            # all targets into python/dist/ (or name targets, e.g. linux-x64)
+                                          # the darwin targets build only on macOS, where the binary is signed
 python3 -m unittest discover -s python/tests
 ```

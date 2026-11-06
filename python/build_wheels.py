@@ -2,12 +2,14 @@
 
     python3 build_wheels.py [target ...] [--out dist]     # no target = all
 
+The darwin targets must be built on macOS (the binary is signed there); the others build anywhere.
 Needs `bun` on PATH and the repo's dependencies installed (`bun install`).
 """
 import argparse
 import base64
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tomllib  # shortcut: Python 3.11+ to build, not to run; fine while wheels are built in CI
@@ -34,9 +36,15 @@ def sha(data):
 
 
 def compile_cli(bun_target, exe, out):
+    mac = bun_target.startswith("bun-darwin")
+    if mac and not shutil.which("codesign"):
+        sys.exit("darwin wheels must be built on macOS so the binary can be signed")
     out.mkdir(parents=True, exist_ok=True)
     path = out / exe
     subprocess.run(["bun", "build", "--compile", "--target=" + bun_target, "src/cli/pipeshub.ts", "--outfile", str(path)], cwd=ROOT, check=True)
+    if mac:  # a cross-compiled binary carries a signature macOS rejects as modified; sign it where it is built
+        subprocess.run(["codesign", "--force", "--sign", "-", str(path)], check=True)
+        subprocess.run(["codesign", "--verify", str(path)], check=True)
     return path
 
 
