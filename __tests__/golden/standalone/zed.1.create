@@ -1,0 +1,18 @@
+<!-- pipeshub:begin (managed by pipeshub init; remove with: pipeshub init --uninstall) -->
+## PipesHub
+
+PipesHub runs on this computer and is connected as the MCP server `pipeshub`.
+
+**What the team knows** (decisions, tickets, docs, chat, owners): call `pipeshub_search`, read the records that matter with `pipeshub_get_record_content`, and answer from them, not from memory. Try other wording when a search misses; for "all" or "how many", do not stop at the first hits.
+
+**This repository's code**:
+- Not indexed yet, or changed a lot since? Call `index_workspace` first (incremental, safe to repeat). The `pipeshub_code_*` tools appear once a repository is indexed.
+- Who calls X, what X calls, what breaks if it changes: `pipeshub_code_neighbours`, `pipeshub_code_impact`.
+- Where X is defined: `pipeshub_code_search`. A string or regex needs `mode` and `path`.
+- A map: `pipeshub_code_symbols` on a directory, `pipeshub_code_entry_points`, `pipeshub_code_outline` for one file. Then `pipeshub_code_read` one symbol or line range.
+- Read files yourself for what you are about to edit: the indexed copy can lag.
+
+Keep calls small: set `limit`, use `depth` 1 or 2, outline before read, a symbol or line range, not a whole file.
+Cite what you found as repo, file path and line range. If a result has a `coverage` note, say the answer may be incomplete.
+If a tool says PipesHub is not reachable, tell the user to run `npx @pipeshub-ai/standalone dev up`.
+<!-- pipeshub:end -->

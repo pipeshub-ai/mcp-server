@@ -1,0 +1,8 @@
+# >>> pipeshub (managed by pipeshub init) >>>
+[mcp_servers.pipeshub]
+command = "npx"
+args = ["-y", "@pipeshub-ai/mcp@>=4.10.0", "start", "--server-url", "http://127.0.0.1:3000"]
+
+[mcp_servers.pipeshub.env]
+PIPESHUB_MCP_CHAT = "off"
+# <<< pipeshub <<<
