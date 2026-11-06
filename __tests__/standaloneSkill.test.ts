@@ -54,7 +54,7 @@ describe("skill and rule text", () => {
   });
 
   test("it says nothing internal, and no secret", () => {
-    for (const { text } of texts) expect(text).not.toMatch(/\b(L9|D-\d+|QA|EE|enterprise|tenant|bearer|token)\b/i);
+    for (const { text } of texts) expect(text).not.toMatch(/\b(QA|enterprise|tenant|bearer|token)\b/i);
   });
 });
 

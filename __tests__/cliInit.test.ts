@@ -87,8 +87,24 @@ async function storeLogin(value: Record<string, unknown>) {
 }
 
 describe("pipeshub init", () => {
+  test("without --local it takes the trial path and asks the instance for a workspace", async () => {
+    const r = await cli(["init", "--url", origin]);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ workspaceId: "ws-1" });
+    expect(seen.length).toBe(1);
+  });
+
+  test("local-only flags without --local are refused and name --local", async () => {
+    for (const flag of [["--port", "3001"], ["--no-start"], ["--no-index"], ["--project"]]) {
+      const r = await cli(["init", "--url", origin, ...flag]);
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("--local");
+    }
+    expect(seen.length).toBe(0);
+  });
+
   test("creates a trial workspace, stores its token 0600, and never prints it", async () => {
-    const r = await cli(["init", "--trial", "--url", origin]);
+    const r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(0);
     expect(JSON.parse(r.stdout)).toMatchObject({
       workspaceId: "ws-1",
@@ -108,7 +124,7 @@ describe("pipeshub init", () => {
   });
 
   test("later commands use the trial token, only on its own origin", async () => {
-    await cli(["init", "--trial", "--url", origin]);
+    await cli(["init", "--url", origin]);
     const status = await cli(["auth", "status"]);
     expect(status.code).toBe(0);
     expect(seen.at(-1)?.authorization).toBe(`Bearer ${TOKEN}`);
@@ -119,7 +135,7 @@ describe("pipeshub init", () => {
 
   test("tags the request with the client it installs for", async () => {
     // A client that writes a file in HOME, so nothing outside the test is touched.
-    const r = await cli(["init", "--trial", "--url", origin, "--client", "cursor"]);
+    const r = await cli(["init", "--url", origin, "--client", "cursor"]);
     expect(r.code).toBe(0);
     expect(seen[0]?.body).toEqual({ client: "cursor" });
     expect(JSON.parse(r.stdout).mcp).toMatchObject({ client: "cursor", wrote: join(home, ".cursor", "mcp.json") });
@@ -129,22 +145,22 @@ describe("pipeshub init", () => {
 
   test("refuses to replace a real sign-in without --force", async () => {
     await storeLogin({ origin, clientId: "pipeshub-agent", tokenEndpoint: `${origin}/t`, accessToken: "e30.x.y", expiresAt: Date.now() + 3_600_000 });
-    const r = await cli(["init", "--trial", "--url", origin]);
+    const r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain(`pipeshub init --trial --url ${origin} --force`);
+    expect(r.stderr).toContain(`pipeshub init --url ${origin} --force`);
     expect(seen).toHaveLength(0);
 
-    expect((await cli(["init", "--trial", "--url", origin, "--force"])).code).toBe(0);
+    expect((await cli(["init", "--url", origin, "--force"])).code).toBe(0);
   });
 
   test("refuses a second trial while the first is open, but not once it has closed", async () => {
-    await cli(["init", "--trial", "--url", origin]);
+    await cli(["init", "--url", origin]);
     seen.length = 0;
-    expect((await cli(["init", "--trial", "--url", origin])).code).toBe(2);
+    expect((await cli(["init", "--url", origin])).code).toBe(2);
     expect(seen).toHaveLength(0);
 
     await storeLogin({ origin, accessToken: TOKEN, expiresAt: Date.now() - 1000, sandbox: { workspaceId: "old" } });
-    expect((await cli(["init", "--trial", "--url", origin])).code).toBe(0);
+    expect((await cli(["init", "--url", origin])).code).toBe(0);
   });
 
   test("a closed trial says how to get a new one", async () => {
@@ -152,24 +168,24 @@ describe("pipeshub init", () => {
     const r = await cli(["auth", "status"]);
     expect(r.code).toBe(3);
     expect(r.stderr).toContain("trial workspace");
-    expect(r.stderr).toContain(`pipeshub init --trial --url ${origin}`);
+    expect(r.stderr).toContain(`pipeshub init --url ${origin}`);
     expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
   });
 
   test("answers each refusal with its own exit code and next step", async () => {
     reply = () => new Response("", { status: 404 });
-    let r = await cli(["init", "--trial", "--url", origin]);
+    let r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
 
     reply = () => Response.json({}, { status: 429, headers: { "retry-after": "1200" } });
-    r = await cli(["init", "--trial", "--url", origin]);
+    r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(5);
     expect(r.stderr).toContain("20 min");
     expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
 
     reply = () => Response.json({}, { status: 503 });
-    r = await cli(["init", "--trial", "--url", origin]);
+    r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("paused");
     expect(r.stderr).toContain(`pipeshub login --url ${origin}`);
@@ -177,18 +193,18 @@ describe("pipeshub init", () => {
   });
 
   test("says when PIPESHUB_TOKEN would shadow the trial", async () => {
-    const r = await cli(["init", "--trial", "--url", origin], { PIPESHUB_TOKEN: "env-token" });
+    const r = await cli(["init", "--url", origin], { PIPESHUB_TOKEN: "env-token" });
     expect(r.code).toBe(0);
     expect(JSON.parse(r.stdout).note).toContain("PIPESHUB_TOKEN");
   });
 
   test("names the variable that actually shadows the trial", async () => {
-    const r = await cli(["init", "--trial", "--url", origin], { PIPESHUB_MCP_TOKEN: "env-token" });
+    const r = await cli(["init", "--url", origin], { PIPESHUB_MCP_TOKEN: "env-token" });
     expect(JSON.parse(r.stdout).note).toContain("PIPESHUB_MCP_TOKEN is set");
   });
 
   test("rejects --dry-run before creating anything", async () => {
-    const r = await cli(["init", "--trial", "--url", origin, "--dry-run"]);
+    const r = await cli(["init", "--url", origin, "--dry-run"]);
     expect(r.code).toBe(2);
     expect(seen).toHaveLength(0);
   });
@@ -196,7 +212,7 @@ describe("pipeshub init", () => {
   test("a failed client install still reports the workspace and the install-only recovery", async () => {
     await mkdir(join(home, ".cursor"), { recursive: true });
     await writeFile(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { pipeshub: {} } }));
-    const r = await cli(["init", "--trial", "--url", origin, "--client", "cursor"]);
+    const r = await cli(["init", "--url", origin, "--client", "cursor"]);
     expect(r.code).toBe(1);
     const out = JSON.parse(r.stdout);
     expect(out.workspaceId).toBe("ws-1");
@@ -210,7 +226,7 @@ describe("pipeshub init", () => {
     const bin = join(home, "bin");
     await mkdir(bin, { recursive: true });
     await writeFile(join(bin, "claude"), "#!/bin/sh\necho 'MCP server pipeshub already exists' >&2\nexit 1\n", { mode: 0o755 });
-    const r = await cli(["init", "--trial", "--url", origin, "--client", "claude-code"], { PATH: `${bin}:${process.env["PATH"]}` });
+    const r = await cli(["init", "--url", origin, "--client", "claude-code"], { PATH: `${bin}:${process.env["PATH"]}` });
     expect(r.code).toBe(1);
     expect(JSON.parse(r.stdout).recover).toBe(`pipeshub mcp install --client claude-code --url ${origin} --force`);
   });
@@ -218,7 +234,7 @@ describe("pipeshub init", () => {
   test("a non-CliError from the install still reports the workspace and a recovery", async () => {
     // A directory where the config file should be makes the read fail with EISDIR.
     await mkdir(join(home, ".cursor", "mcp.json"), { recursive: true });
-    const r = await cli(["init", "--trial", "--url", origin, "--client", "cursor"]);
+    const r = await cli(["init", "--url", origin, "--client", "cursor"]);
     expect(r.code).toBe(1);
     const out = JSON.parse(r.stdout);
     expect(out.workspaceId).toBe("ws-1");
@@ -233,11 +249,11 @@ describe("pipeshub init", () => {
       deviceCode: "dev", userCode: "ABCD-EFGH", verificationUri: `${origin}/device`,
       verificationUriComplete: `${origin}/device`, intervalSeconds: 1, expiresAt: Date.now() + 60_000,
     }), { mode: 0o600 });
-    const refused = await cli(["init", "--trial", "--url", origin]);
+    const refused = await cli(["init", "--url", origin]);
     expect(refused.code).toBe(2);
     expect(refused.stderr).toContain("waiting for browser approval");
     expect(seen).toHaveLength(0);
-    expect((await cli(["init", "--trial", "--url", origin, "--force"])).code).toBe(0);
+    expect((await cli(["init", "--url", origin, "--force"])).code).toBe(0);
     await expect(stat(pendingFile)).rejects.toThrow();
   });
 
@@ -246,7 +262,7 @@ describe("pipeshub init", () => {
       await storeLogin({ origin, accessToken: "real-sign-in", expiresAt: Date.now() + 3_600_000 });
       return created();
     };
-    const r = await cli(["init", "--trial", "--url", origin]);
+    const r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("created but not stored");
     expect(JSON.parse(await readFile(credentials(), "utf8")).accessToken).toBe("real-sign-in");
@@ -259,7 +275,7 @@ describe("pipeshub init", () => {
 
   test("an explicit --url wins over an unparseable environment origin", async () => {
     const env = { PIPESHUB_BASE_URL: "not a url" };
-    const created = await cli(["init", "--trial", "--url", origin], env);
+    const created = await cli(["init", "--url", origin], env);
     expect(created.code).toBe(0);
     expect(JSON.parse(created.stdout).note).toContain("PIPESHUB_BASE_URL is not a valid URL");
     const r = await cli(["mcp", "install", "--client", "cursor", "--url", origin, "--dry-run"], env);
@@ -279,7 +295,7 @@ describe("pipeshub init", () => {
   });
 
   test("mcp install honours --url", async () => {
-    await cli(["init", "--trial", "--url", origin]);
+    await cli(["init", "--url", origin]);
     const r = await cli(["mcp", "install", "--client", "cursor", "--url", origin, "--dry-run"], { PIPESHUB_BASE_URL: "http://127.0.0.1:9" });
     expect(r.code).toBe(0);
     expect(JSON.parse(r.stdout).entry.args).toContain(origin);
@@ -287,7 +303,7 @@ describe("pipeshub init", () => {
   });
 
   test("--insecure-http with --client on a public http origin is refused before creating anything", async () => {
-    const r = await cli(["init", "--trial", "--url", "http://203.0.113.9:1", "--insecure-http", "--client", "cursor"]);
+    const r = await cli(["init", "--url", "http://203.0.113.9:1", "--insecure-http", "--client", "cursor"]);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("needs HTTPS");
     expect(seen).toHaveLength(0);
@@ -295,11 +311,11 @@ describe("pipeshub init", () => {
 
   test("warns in JSON and text when the environment names another origin, beside the token note", async () => {
     const env = { PIPESHUB_BASE_URL: "http://127.0.0.1:9", PIPESHUB_TOKEN: "env-token" };
-    const j = JSON.parse((await cli(["init", "--trial", "--url", origin], env)).stdout);
+    const j = JSON.parse((await cli(["init", "--url", origin], env)).stdout);
     expect(j.note).toContain("PIPESHUB_TOKEN is set");
     expect(j.note).toContain("PIPESHUB_BASE_URL names http://127.0.0.1:9");
-    await cli(["init", "--trial", "--url", origin, "--force"], env);
-    const t = await cli(["init", "--trial", "--url", origin, "--force", "--text"], env);
+    await cli(["init", "--url", origin, "--force"], env);
+    const t = await cli(["init", "--url", origin, "--force", "--text"], env);
     expect(t.stdout).toContain("Note: PIPESHUB_TOKEN is set");
     expect(t.stdout).toContain("Note: PIPESHUB_BASE_URL names");
   });
@@ -314,7 +330,7 @@ describe("pipeshub init", () => {
   test("hands over the claim link: printed, kept 0600, shown again by auth status", async () => {
     const claimUrl = `${origin}/claim#token=claim-secret`;
     reply = () => created(72, { claimUrl });
-    const r = await cli(["init", "--trial", "--url", origin]);
+    const r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(0);
     const j = JSON.parse(r.stdout);
     expect(j.claimUrl).toBe(claimUrl);
@@ -336,13 +352,13 @@ describe("pipeshub init", () => {
 
   test("text output carries the claim link; a link off the instance's origin is dropped", async () => {
     reply = () => created(72, { claimUrl: `${origin}/claim#token=abc` });
-    const t = await cli(["init", "--trial", "--url", origin, "--text"]);
+    const t = await cli(["init", "--url", origin, "--text"]);
     expect(t.stdout).toContain(`${origin}/claim#token=abc`);
 
     // The link carries a secret: never keep one that points anywhere but the instance.
     for (const claimUrl of ["javascript:alert(1)", `blob:${origin}/claim-id`, "https://evil.example/claim#token=abc", "http://203.0.113.9/claim#token=abc"]) {
       reply = () => created(72, { claimUrl });
-      const r = await cli(["init", "--trial", "--url", origin, "--force"]);
+      const r = await cli(["init", "--url", origin, "--force"]);
       expect(r.code).toBe(0);
       expect(JSON.parse(r.stdout).claimUrl).toBeUndefined();
       expect(r.stdout + r.stderr).not.toContain("token=abc");
@@ -351,7 +367,7 @@ describe("pipeshub init", () => {
   });
 
   test("rejects an unknown client before creating anything", async () => {
-    const r = await cli(["init", "--trial", "--url", origin, "--client", "notepad"]);
+    const r = await cli(["init", "--url", origin, "--client", "notepad"]);
     expect(r.code).toBe(2);
     expect(seen).toHaveLength(0);
   });

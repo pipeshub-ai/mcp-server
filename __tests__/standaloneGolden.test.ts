@@ -164,7 +164,7 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
 
   test("the one command, npx init --yes in the repository: starts the stack, signs in with the device grant, writes Claude Code and Codex without touching the person's other entries, and indexes the repository", async () => {
     t0 = Date.now();
-    const r = await npx(["init", "--yes", "--port", PORT], repo);
+    const r = await npx(["init", "--local", "--yes", "--port", PORT], repo);
     report["init_s"] = Math.round((Date.now() - t0) / 100) / 10;
     if (r.code !== 0) throw new Error(`npx init exited ${r.code}\n--- stderr ---\n${r.stderr.slice(-3000)}\n--- stdout ---\n${r.stdout.slice(-1500)}`);  // a failure must say why
     expect(r.stdout).toContain("started the local stack");
@@ -265,7 +265,7 @@ describe.skipIf(!RUN)("L9 golden path: npx init -> npx index -> ask the agent", 
   });
 
   test("npx init --uninstall leaves every agent file byte for byte as it was, and removes the ones init added", async () => {
-    const r = await npx(["init", "--uninstall"], repo, 300_000);
+    const r = await npx(["init", "--local", "--uninstall"], repo, 300_000);
     expect(r.code).toBe(0);
     const after = new Map(await Promise.all((await walk(home, (p) => !mine(p))).map(async (f) => [f, await readFile(f, "utf8")] as const)));
     expect([...after.keys()]).toEqual([...before.keys()]);

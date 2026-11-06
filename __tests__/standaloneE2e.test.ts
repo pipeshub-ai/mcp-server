@@ -127,7 +127,7 @@ describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
   }, 900_000);
 
   test("init finds the stack, creates the first account, signs in, and writes the detected agents", async () => {
-    const r = await cli(["init", "--yes", "--project"]);
+    const r = await cli(["init", "--local", "--yes", "--project"]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("created the first account");
     for (const f of [".claude.json", ".claude/skills/pipeshub/SKILL.md", ".codex/config.toml", ".codex/AGENTS.md", ".cursor/mcp.json", ".gemini/settings.json", ".gemini/GEMINI.md", ".config/zed/settings.json"]) {
@@ -205,7 +205,7 @@ describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
       .filter((f) => !f.includes("/.pipeshub/") && !f.endsWith("init-manifest.json"))
       .map(async (f) => [f, await readFile(f, "utf8")] as const)));
     const before = await snap();
-    const r = await cli(["init", "--yes", "--project"]);
+    const r = await cli(["init", "--local", "--yes", "--project"]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("already signed in");
     expect(await snap()).toEqual(before);

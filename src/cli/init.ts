@@ -1,4 +1,4 @@
-// `pipeshub init --trial`: a trial workspace for an agent with no account. The server
+// `pipeshub init`: a trial workspace for an agent with no account. The server
 // hands back a token once; it goes straight into the 0600 credentials file
 // that `pipeshub login` uses, and is never printed.
 
@@ -40,7 +40,7 @@ function claimLink(v: unknown, origin: string): string | undefined {
 /** Why the stored sign-in must not be replaced without --force, or null. */
 async function keepReason(origin: string, env: NodeJS.ProcessEnv): Promise<string | null> {
   // With --url, so following it targets this origin, not the default one.
-  const replace = `pipeshub init --trial --url ${origin} --force`;
+  const replace = `pipeshub init --url ${origin} --force`;
   const pending = await readPending(env);
   if (pending !== null && pending.expiresAt > Date.now()) {
     return `A sign-in to ${pending.origin} is waiting for browser approval ('pipeshub login --wait'), which would replace a trial workspace. Finish it, or run '${replace}' to cancel it.`;
@@ -52,7 +52,7 @@ async function keepReason(origin: string, env: NodeJS.ProcessEnv): Promise<strin
       ? `You already have a trial workspace on ${current.origin} until ${new Date(current.expiresAt).toISOString()}; use it, or run '${replace}' to replace it.`
       : null;
   }
-  return `${credentialsPath(env)} holds your sign-in to ${current.origin}, which 'pipeshub init --trial' would replace. Use that sign-in, or run '${replace}' to replace it with a trial workspace.`;
+  return `${credentialsPath(env)} holds your sign-in to ${current.origin}, which 'pipeshub init' would replace. Use that sign-in, or run '${replace}' to replace it with a trial workspace.`;
 }
 
 export async function createSandbox(

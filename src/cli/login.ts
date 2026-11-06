@@ -368,7 +368,7 @@ async function revokeAll(login: StoredLogin, insecureHttp: boolean): Promise<boo
 function signInAgain(stored: StoredLogin): CliError {
   return new CliError(
     stored.sandbox
-      ? `your trial workspace on ${stored.origin} has closed. Run 'pipeshub init --trial --url ${stored.origin}' for a new one, or 'pipeshub login --url ${stored.origin}' to sign in.`
+      ? `your trial workspace on ${stored.origin} has closed. Run 'pipeshub init --url ${stored.origin}' for a new one, or 'pipeshub login --url ${stored.origin}' to sign in.`
       : `your sign-in to ${stored.origin} has expired. Run 'pipeshub login --url ${stored.origin}' again.`,
     EXIT.UNAUTHENTICATED,
   );

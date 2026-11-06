@@ -38,7 +38,7 @@ import {
 } from "./commands.js";
 import { addWebSource, collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
 import { packsAdd, packsEmbedding, packsList, packsRemove } from "./packs.js";
-import { init, renderReport } from "./standalone/init.js";
+import { init as initLocal, renderReport } from "./standalone/init.js";
 import { indexCommand } from "./standalone/index.js";
 import { DEFAULT_PORT, DEFAULT_PROJECT, devDown, devStatus, devUp } from "./standalone/stack.js";
 import { CLIENT_IDS } from "./standalone/clients.js";
@@ -60,8 +60,7 @@ USAGE
   pipeshub <command> [options]
 
 COMMANDS
-  init --trial [--client <name>]
-                              no account yet: create a trial workspace (3 days)
+  init [--client <name>]      no account yet: create a trial workspace (3 days)
                               and sign this CLI in to it
   login [--url <origin>]      sign in from the browser (default PipesHub Cloud)
   logout                      sign out and forget the stored sign-in
@@ -81,11 +80,12 @@ COMMANDS
   add-web <url>               index a website: crawl it now and daily
   mcp install --client <name> add PipesHub to an MCP client, with no token in its config:
                               claude-code, cursor, codex, gemini, claude-desktop
-  init                        set up PipesHub on this computer for your coding agents:
+  init --local                set up PipesHub on this computer for your coding agents:
                               start the local stack (Docker), sign in on loopback, and
                               write each detected agent's MCP entry and instructions
-  uninstall                   undo init (same as init --uninstall)
-  dev up|down|status          start, stop or inspect the local PipesHub (Docker Compose)
+  uninstall                   undo init --local (same as init --local --uninstall)
+  dev up|down|status          start, stop or inspect the local PipesHub (Docker Compose);
+                              to also set up your agents, run init --local
   index [path]                push a git repository into the code graph (--watch to follow it)
   packs list                  optional packs (web browser, document converter, embedding models) and their state
   packs add <id>              install a pack; --wait follows the download (the default in a terminal)
@@ -108,16 +108,16 @@ OPTIONS
   --insecure-http             allow cleartext to a host outside the private allowlist
   --force                     init-qm: overwrite files that already exist;
                               mcp install: replace an existing pipeshub entry;
-                              init --trial: replace the stored sign-in
+                              init: replace the stored sign-in
   --client <name>             mcp install, init: the client to configure
-  --dry-run                   mcp install, init: show what would change, change nothing
-  --yes, -y                   init: never ask; take the defaults
-  --uninstall                 init: remove everything init added
-  --project                   init: also write this repository's AGENTS.md / CLAUDE.md block and rule files
-  --port <n>                  init, dev up: port of the local stack (default 3000)
-  --no-start                  init: do not start the stack; fail if none is running
-  --no-index                  init: do not index the git repository it is run in
-  --trial                     init: create a hosted trial workspace instead of setting up the local stack
+  --dry-run                   mcp install, init --local: show what would change, change nothing
+  --yes, -y                   init --local: never ask; take the defaults
+  --uninstall                 init --local: remove everything init added
+  --project                   init --local: also write this repository's AGENTS.md / CLAUDE.md block and rule files
+  --port <n>                  init --local, dev up: port of the local stack (default 3000)
+  --no-start                  init --local: do not start the stack; fail if none is running
+  --no-index                  init --local: do not index the git repository it is run in
+  --local                     init: set up the local stack instead of creating a trial workspace
   --volumes                   dev down: also delete the stack's data
   --watch                     index: keep the index current as files change
   --url <origin>              login, init, mcp install: the PipesHub to use
@@ -171,7 +171,7 @@ interface Flags {
   file: string | null;
   use: boolean;
   builtin: boolean;
-  trial: boolean;
+  local: boolean;
   maxPages: number | null;
   name: string | null;
 }
@@ -206,7 +206,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     file: null,
     use: false,
     builtin: false,
-    trial: false,
+    local: false,
     maxPages: null,
     name: null,
   };
@@ -234,7 +234,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--watch": flags.watch = true; break;
       case "--use": flags.use = true; break;
       case "--builtin": flags.builtin = true; break;
-      case "--trial": flags.trial = true; break;
+      case "--local": flags.local = true; break;
       case "--file": flags.file = needValue(a, argv[++i]); break;
       case "--port": flags.port = Number(needValue(a, argv[++i])); break;
       case "--insecure-http": flags.insecureHttp = true; break;
@@ -358,8 +358,9 @@ async function run(argv: string[]): Promise<number> {
   const requestId = newRequestId();
 
   // These need no credential (or make their own), so they run before the check below.
-  if ((command === "init" && !flags.trial) || command === "uninstall") {
-    const { exit, report } = await init({
+  // --uninstall only exists for the local setup, and the files it removes say 'pipeshub init --uninstall'.
+  if (command === "uninstall" || (command === "init" && (flags.local || flags.uninstall))) {
+    const { exit, report } = await initLocal({
       dryRun: flags.dryRun,
       yes: flags.yes,
       uninstall: flags.uninstall || command === "uninstall",
@@ -385,7 +386,7 @@ async function run(argv: string[]): Promise<number> {
     }
     if (sub === "up") {
       const state = await devUp({ port: flags.port, project: process.env["PIPESHUB_PROJECT"] || DEFAULT_PROJECT, waitSeconds: 600 }, process.env, (s) => void progress(s));
-      await writeFlushed(process.stdout, JSON.stringify({ requestId, ...state, next: "pipeshub init" }, null, 2) + "\n");
+      await writeFlushed(process.stdout, JSON.stringify({ requestId, ...state, next: "pipeshub init --local" }, null, 2) + "\n");
       return EXIT.OK;
     }
     if (sub === "down") {
@@ -407,14 +408,14 @@ async function run(argv: string[]): Promise<number> {
     }
     if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
       const more = (CLIENT_IDS as readonly string[]).includes(flags.client)
-        ? ` (${flags.client} is set up by 'pipeshub init --client ${flags.client}')` : "";
+        ? ` (${flags.client} is set up by 'pipeshub init --local --client ${flags.client}')` : "";
       throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}${more}`, EXIT.USAGE);
     }
     const origin = flags.url !== null
       ? resolveOrigin({ PIPESHUB_BASE_URL: flags.url })
       : resolveOrigin() ?? (await storedLogin(null, flags.insecureHttp))?.origin ?? null;
     if (origin === null) {
-      throw new CliError("no PipesHub address: set PIPESHUB_BASE_URL or --url, or run 'pipeshub init' (local) or 'pipeshub login --url <origin>'.", EXIT.USAGE);
+      throw new CliError("no PipesHub address: set PIPESHUB_BASE_URL or --url, or run 'pipeshub init --local' or 'pipeshub login --url <origin>'.", EXIT.USAGE);
     }
     assertClientTransport(origin, "Serve the instance over HTTPS first.");
     const signedIn = resolveToken() === null && (await storedLogin(origin, flags.insecureHttp)) !== null;
@@ -453,9 +454,11 @@ async function run(argv: string[]): Promise<number> {
 
   if (isLogin) return login(origin, flags, requestId, envOrigin);
   if (command === "init") {
-    if (positional.length > 1) throw new CliError("usage: pipeshub init --trial [--url <origin>] [--client <name>]", EXIT.USAGE);
+    const localOnly = ["--port", "--no-start", "--no-index", "--project"].filter((n) => argv.some((a) => a === n || a.startsWith(`${n}=`)));
+    if (localOnly.length) throw new CliError(`${localOnly.join(", ")} only apply to the local setup: add --local ('pipeshub init --local').`, EXIT.USAGE);
+    if (positional.length > 1) throw new CliError("usage: pipeshub init [--url <origin>] [--client <name>]", EXIT.USAGE);
     if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
-    return initTrial(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null, envOrigin);
+    return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null, envOrigin);
   }
   if (command === "logout") {
     const out = await logout(flags.insecureHttp);
@@ -681,7 +684,7 @@ function assertClientTransport(origin: string, advice: string): void {
   }
 }
 
-async function initTrial(origin: string, flags: Flags, requestId: string, envToken: boolean, envOrigin: string | null): Promise<number> {
+async function init(origin: string, flags: Flags, requestId: string, envToken: boolean, envOrigin: string | null): Promise<number> {
   let client: McpClient | undefined;
   if (flags.client !== null) {
     if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {

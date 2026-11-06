@@ -63,7 +63,7 @@ describe("through init and uninstall with the person's client rewriting its file
         await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text()]);
         return p.exited;
       };
-      expect(await run(["init", "--yes", "--url", fake.origin])).toBe(0);
+      expect(await run(["init", "--local", "--yes", "--url", fake.origin])).toBe(0);
       for (const f of [join(home, ".codeium/windsurf/mcp_config.json"), join(home, ".gemini/settings.json")]) {
         await writeFile(f, (await readFile(f, "utf8")).replace('"dark"', '"light"')); // the client rewrites a value
       }

@@ -60,7 +60,7 @@ async function call(auth: Auth, method: string, path: string, body?: unknown): P
     throw new CliError(`could not reach ${origin}: ${describeFetchFailure(e)}\n${unreachableNextStep(origin)}`);
   });
   const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (res.status === 401) throw new CliError("not signed in to this PipesHub. Run 'pipeshub init' or 'pipeshub login'.", EXIT.UNAUTHENTICATED);
+  if (res.status === 401) throw new CliError("not signed in to this PipesHub. Run 'pipeshub init --local' or 'pipeshub login'.", EXIT.UNAUTHENTICATED);
   if (res.status === 403) throw new CliError("this sign-in cannot index repositories (needs the code:write scope). Run 'pipeshub login' again after updating PipesHub.", EXIT.FORBIDDEN);
   if (res.status === 404 && path === "") throw new CliError("this PipesHub has no local-repository API; update the local stack.", EXIT.ERROR);
   if (res.status >= 400) throw new CliError(`${method} ${path || "/"} failed: HTTP ${res.status} ${String(parsed["detail"] ?? "")}`.trim(), EXIT.ERROR);
@@ -213,7 +213,7 @@ export async function indexCommand(
       const s = await storedLogin(origin0, false, env);
       if (s) { token = s.accessToken; origin ??= s.origin; }
     }
-    if (origin === null || token === null) throw new CliError("not signed in. Run 'pipeshub init' first.", EXIT.UNAUTHENTICATED);
+    if (origin === null || token === null) throw new CliError("not signed in. Run 'pipeshub init --local' first.", EXIT.UNAUTHENTICATED);
     assertTransport(origin, false);
     return { origin, token };
   };

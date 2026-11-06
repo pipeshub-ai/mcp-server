@@ -47,7 +47,7 @@ describe("unknown commands", () => {
   });
 
   test("an unknown option still fails loudly", async () => {
-    expect((await cli(["init", "--dry-runn"])).code).toBe(2);
+    expect((await cli(["init", "--local", "--dry-runn"])).code).toBe(2);
   });
 });
 
@@ -69,11 +69,11 @@ describe("--dry-run needs no credential", () => {
   test("mcp install for a client only init knows points at init", async () => {
     const r = await cli(["mcp", "install", "--client", "windsurf", "--dry-run"], { PIPESHUB_BASE_URL: "http://127.0.0.1:3000" });
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("pipeshub init --client windsurf");
+    expect(r.stderr).toContain("pipeshub init --local --client windsurf");
   });
 
   test("init --dry-run and uninstall --dry-run run with nothing set and change nothing", async () => {
-    const a = await cli(["init", "--dry-run", "--no-start", "--client", "cursor"]);
+    const a = await cli(["init", "--local", "--dry-run", "--no-start", "--client", "cursor"]);
     expect(a.code).toBe(0);
     expect(a.stdout).toContain("Dry run: nothing was changed.");
     expect(a.stdout).toContain(join(home, ".cursor", "mcp.json"));
@@ -85,14 +85,14 @@ describe("--dry-run needs no credential", () => {
 
 describe("init and dev flags", () => {
   test("an unknown --client is a usage error that lists the clients", async () => {
-    const r = await cli(["init", "--client", "notepad", "--dry-run"]);
+    const r = await cli(["init", "--local", "--client", "notepad", "--dry-run"]);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("claude-code, codex, claude-desktop, cursor, windsurf, vscode, gemini, zed, cline");
   });
 
   test("--port must be a port number", async () => {
     for (const p of ["0", "70000", "x", "3.5"]) expect((await cli(["dev", "up", "--port", p])).code).toBe(2);
-    expect((await cli(["init", "--port"])).stderr).toContain("--port requires a value");
+    expect((await cli(["init", "--local", "--port"])).stderr).toContain("--port requires a value");
   });
 
   test("dev needs a subcommand", async () => {

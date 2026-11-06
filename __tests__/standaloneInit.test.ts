@@ -75,7 +75,7 @@ describe("init twice against one fresh local PipesHub", () => {
     await writeFile(join(w.home, ".config/zed/settings.json"), '// Zed settings\n{\n  "theme": "One Dark", // mine\n}\n');
     await writeFile(join(w.home, ".gemini/settings.json"), '{ "theme": "dark" }\n');
 
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--project", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--project", "--url", fake.origin]);
     expect(r.stderr).not.toContain(fake.issuedToken);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("created the first account");
@@ -132,7 +132,7 @@ describe("init twice against one fresh local PipesHub", () => {
     expect(backupsBefore).toBe(2); // zed and gemini settings existed before the first run
     const accountCalls = fake.log.filter((l) => l === "POST /api/v1/org" || l === "POST /api/v1/personal-access-tokens").length;
 
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--project", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--project", "--url", fake.origin]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("already signed in");
     expect(r.stdout).not.toMatch(/^(Created|Updated) /m);
@@ -155,7 +155,7 @@ describe("init options", () => {
     const w = await world("backup", [".cursor"]);
     const original = '{ "mcpServers": { "other": { "command": "x" } } }\n';
     await writeFile(join(w.home, ".cursor/mcp.json"), original);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
     expect(r.code).toBe(0);
     const backups = (await tree(join(w.home, ".config/pipeshub/backups"))).filter((f) => f.endsWith("mcp.json"));
     expect(backups).toHaveLength(1);
@@ -164,7 +164,7 @@ describe("init options", () => {
 
   test("--dry-run prints every change and writes nothing at all", async () => {
     const w = await world("dry", [".cursor", ".codex"]);
-    const r = await cli(w.home, w.cwd, ["init", "--dry-run", "--project", "--url", fake.origin], { NOT_OURS: "1" });
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--dry-run", "--project", "--url", fake.origin], { NOT_OURS: "1" });
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("Dry run: nothing was changed.");
     expect(r.stdout).toContain(join(w.home, ".cursor/mcp.json"));
@@ -175,13 +175,13 @@ describe("init options", () => {
     expect(await tree(w.cwd)).toEqual([]);
     // it also did not sign in or touch the stack's accounts
     const asked = fake.log.length;
-    await cli(w.home, w.cwd, ["init", "--dry-run", "--url", fake.origin]);
+    await cli(w.home, w.cwd, ["init", "--local", "--dry-run", "--url", fake.origin]);
     expect(fake.log.length).toBe(asked);
   });
 
   test("signs in with the device grant, approved by init on loopback: a refresh token is stored, no personal token is minted", async () => {
     const w = await world("device", [".cursor"]);
-    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin])).code).toBe(0);
     const creds = JSON.parse(await readFile(join(w.home, ".config/pipeshub/credentials.json"), "utf8"));
     expect(creds.accessToken).toBe(fake.issuedToken);
     expect(creds.refreshToken).toMatch(/^refresh-/);
@@ -198,7 +198,7 @@ describe("init options", () => {
     const other = startFakeLocal({ orgExists: true, deviceExpiresIn: 1 });
     try {
       const w = await world("browser", [".cursor"]);
-      const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", other.origin]);
+      const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", other.origin]);
       expect(r.stderr).toContain(`${other.origin}/device?user_code=CODE-1`);
       expect(r.stdout).not.toContain("already signed in");
       expect(r.code).toBe(3); // nobody approved it before the code expired
@@ -210,13 +210,13 @@ describe("init options", () => {
 
   test("project files are written only when asked (--project)", async () => {
     const w = await world("noproj", [".codex"]);
-    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin])).code).toBe(0);
     expect(await tree(w.cwd)).toEqual([]);
   });
 
   test("--json prints a machine-readable report", async () => {
     const w = await world("json", [".cursor"]);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--json", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--json", "--url", fake.origin]);
     const report = JSON.parse(r.stdout);
     expect(report.clients).toEqual(["cursor"]);
     expect(report.files[0].status).toBe("created");
@@ -225,7 +225,7 @@ describe("init options", () => {
 
   test("with no agent installed it says so and still exits 0", async () => {
     const w = await world("none", []);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("No supported coding agent found");
     expect(r.stderr).not.toContain("Found");
@@ -234,7 +234,7 @@ describe("init options", () => {
   test("--client limits what is written; a malformed file is reported, left alone, and fails the run", async () => {
     const w = await world("bad", [".cursor", ".gemini"]);
     await writeFile(join(w.home, ".cursor/mcp.json"), '{ "mcpServers": ');
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--client", "cursor,gemini", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--client", "cursor,gemini", "--url", fake.origin]);
     expect(r.code).toBe(1);
     expect(r.stdout).toContain("Cannot edit");
     expect(await readFile(join(w.home, ".cursor/mcp.json"), "utf8")).toBe('{ "mcpServers": ');
@@ -249,7 +249,7 @@ describe("init options", () => {
       await writeFile(join(w.home, ".config/pipeshub/credentials.json"), JSON.stringify({
         origin: fake.origin, clientId: "c", tokenEndpoint: fake.origin + "/t", accessToken: "x", expiresAt: Date.now() + 3_600_000 }));
       await chmod(join(w.home, ".config/pipeshub/credentials.json"), 0o600);
-      const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", other.origin]);
+      const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", other.origin]);
       expect(r.stdout).not.toContain("already signed in");
     } finally {
       other.stop();
@@ -269,10 +269,10 @@ describe("uninstall", () => {
     const snapshot = async () => new Map(await Promise.all((await tree(w.home)).concat(await tree(w.cwd)).filter((f) => !f.includes("/.config/pipeshub/")).map(async (f) => [f, await readFile(f, "utf8")] as const)));
     const empty = await snapshot();
 
-    expect((await cli(w.home, w.cwd, ["init", "--yes", "--project", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--project", "--url", fake.origin])).code).toBe(0);
     expect((await snapshot()).size).toBeGreaterThan(empty.size);
 
-    const dry = await cli(w.home, w.cwd, ["init", "--uninstall", "--dry-run"]);
+    const dry = await cli(w.home, w.cwd, ["init", "--local", "--uninstall", "--dry-run"]);
     expect(dry.code).toBe(0);
     expect(dry.stdout).toContain("Would");
 
@@ -293,7 +293,7 @@ describe("uninstall", () => {
     const w = await world("mine", [".cursor"]);
     const theirs = '{\n  "mcpServers": {\n    "pipeshub": { "command": "my-own" }\n  }\n}\n';
     await writeFile(join(w.home, ".cursor/mcp.json"), theirs);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("Skipped");
     expect(await readFile(join(w.home, ".cursor/mcp.json"), "utf8")).toBe(theirs);
@@ -307,7 +307,7 @@ describe("the next steps name a command the person can type", () => {
 
   test("run through npx there is no 'pipeshub' on the path, so the hints say npx; installed, they say pipeshub", async () => {
     const via = await world("hint-npx", [".cursor"]);
-    const npx = await cli(via.home, via.cwd, ["init", "--yes", "--url", fake.origin], { npm_command: "exec" });
+    const npx = await cli(via.home, via.cwd, ["init", "--local", "--yes", "--url", fake.origin], { npm_command: "exec" });
     expect(npx.stdout).toContain("npx @pipeshub-ai/standalone index");
     expect(npx.stdout).toContain("npx @pipeshub-ai/standalone uninstall");
     expect(npx.stdout).not.toMatch(/: pipeshub index/);
@@ -315,7 +315,7 @@ describe("the next steps name a command the person can type", () => {
     fake.stop();
     fake = startFakeLocal(); // a fresh stack: this home has no account on the first one
     const installed = await world("hint-installed", [".cursor"]);
-    const plain = await cli(installed.home, installed.cwd, ["init", "--yes", "--url", fake.origin]);
+    const plain = await cli(installed.home, installed.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
     expect(plain.stdout).toContain("pipeshub index");
     expect(plain.stdout).not.toContain("npx @pipeshub-ai/standalone index");
   }, 30_000);
@@ -350,7 +350,7 @@ describe("uninstall gives back the person's files exactly", () => {
     const ours = (f: string) => f.includes("/.config/pipeshub");
     const filesBefore = (await tree(w.home)).filter((f) => !ours(f));
     const dirsBefore = (await dirs(w.home)).filter((f) => !ours(f));
-    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin])).code).toBe(0);
     expect(await readFile(join(w.home, ".claude/skills/pipeshub/SKILL.md"), "utf8")).toContain("pipeshub");
     expect((await cli(w.home, w.cwd, ["uninstall"])).code).toBe(0);
     expect((await tree(w.home)).filter((f) => !ours(f))).toEqual(filesBefore);
@@ -361,7 +361,7 @@ describe("uninstall gives back the person's files exactly", () => {
   test("a file the person changed after init is edited, not overwritten", async () => {
     const w = await world("edited", [".cursor"]);
     await writeFile(join(w.home, ".cursor/mcp.json"), '{"mcpServers":{"other":{"command":"echo"}}}');
-    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin])).code).toBe(0);
     const mine = JSON.parse(await readFile(join(w.home, ".cursor/mcp.json"), "utf8"));
     mine.mcpServers.added = { command: "later" };
     await writeFile(join(w.home, ".cursor/mcp.json"), JSON.stringify(mine, null, 2));
@@ -373,7 +373,7 @@ describe("uninstall gives back the person's files exactly", () => {
   test("the backups of the person's files are private", async () => {
     const w = await world("private", [".cursor"]);
     await writeFile(join(w.home, ".cursor/mcp.json"), '{"mcpServers":{}}');
-    expect((await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin])).code).toBe(0);
+    expect((await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin])).code).toBe(0);
     const b = (await tree(join(w.home, ".config/pipeshub/backups"))).filter((f) => f.endsWith("mcp.json"));
     expect(b).toHaveLength(1);
     expect((await stat(b[0]!)).mode & 0o777).toBe(0o600);
@@ -398,7 +398,7 @@ describe("init indexes the repository it is run in", () => {
 
   test("inside a git repository: the one command indexes it and says so in a few lines", async () => {
     const w = await repoWorld("in-repo", true);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin], ceiling());
     expect(r.code).toBe(0);
     expect(r.stderr).toContain("Indexing");
     expect([...fake.repo.files.keys()]).toEqual(["a.py"]);
@@ -410,7 +410,7 @@ describe("init indexes the repository it is run in", () => {
 
   test("outside a git repository: nothing is pushed and the hint says how to index one", async () => {
     const w = await repoWorld("no-repo", false);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin], ceiling());
     expect(r.code).toBe(0);
     expect(pushed()).toEqual([]);
     expect(r.stdout).toContain("Index a repository's code");
@@ -419,7 +419,7 @@ describe("init indexes the repository it is run in", () => {
 
   test("--no-index leaves the repository alone and keeps the hint", async () => {
     const w = await repoWorld("opt-out", true);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--no-index", "--url", fake.origin], ceiling());
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--no-index", "--url", fake.origin], ceiling());
     expect(r.code).toBe(0);
     expect(pushed()).toEqual([]);
     expect(r.stdout).toContain("Index this repository's code");
@@ -429,7 +429,7 @@ describe("init indexes the repository it is run in", () => {
     const w = await repoWorld("refused", true);
     fake.repo.status = "stuck";
     fake.repo.error = "the sync of this repository did not start";
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin], ceiling());
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("Warning");
     expect(r.stdout).toContain("did not start");
@@ -438,7 +438,7 @@ describe("init indexes the repository it is run in", () => {
 
   test("--dry-run says it would index and pushes nothing", async () => {
     const w = await repoWorld("dry-index", true);
-    const r = await cli(w.home, w.cwd, ["init", "--dry-run", "--url", fake.origin], ceiling());
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--dry-run", "--url", fake.origin], ceiling());
     expect(r.stdout).toContain("would index");
     expect(pushed()).toEqual([]);
   });
@@ -446,7 +446,7 @@ describe("init indexes the repository it is run in", () => {
   test("the installed skill tells the agent to call index_workspace when the open folder is not indexed", async () => {
     const w = await repoWorld("skill", false);
     await mkdir(join(w.home, ".claude"), { recursive: true });
-    await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], ceiling());
+    await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin], ceiling());
     const skill = await readFile(join(w.home, ".claude/skills/pipeshub/SKILL.md"), "utf8");
     expect(skill).toMatch(/index_workspace/);
     expect(skill).toMatch(/not (been )?indexed|no repository/i);
@@ -459,7 +459,7 @@ describe("the first account is created only on a stack init can show is its own"
 
   test("a listener at --url that is not the stack dev up started never receives the generated password", async () => {
     const w = await world("not-ours", [".cursor"]);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin], { NOT_OURS: "1" });
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin], { NOT_OURS: "1" });
     expect(r.code).not.toBe(0);
     expect(r.stderr).toContain("create the first account");
     expect(fake.log).not.toContain("POST /api/v1/org");
@@ -468,7 +468,7 @@ describe("the first account is created only on a stack init can show is its own"
 
   test("one that is (state.json, and docker shows the container publishing that port) gets the account", async () => {
     const w = await world("ours", [".cursor"]);
-    const r = await cli(w.home, w.cwd, ["init", "--yes", "--url", fake.origin]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("created the first account");
   }, 30_000);
