@@ -6,7 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { chmod, mkdir, readFile, readdir, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { CliError, EXIT, resolveOrigin } from "../config.js";
@@ -95,12 +95,20 @@ async function readManifest(env: NodeJS.ProcessEnv): Promise<Manifest | null> {
   }
 }
 
-async function writeAtomic(path: string, text: string, mode?: number): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
+/** Replaces the file in one step. A symlink is written through (not swapped for a plain file) and an existing file keeps its mode. */
+export async function writeAtomic(path: string, text: string, mode?: number): Promise<void> {
+  let target = path;
+  try {
+    target = await realpath(path);
+    mode ??= (await stat(target)).mode & 0o7777;
+  } catch {
+    // no such file yet: create it at `path` with the default (or given) mode
+  }
+  await mkdir(dirname(target), { recursive: true });
+  const tmp = `${target}.${process.pid}.tmp`;
   await writeFile(tmp, text, mode === undefined ? {} : { mode });
   if (mode !== undefined) await chmod(tmp, mode);
-  await rename(tmp, path);
+  await rename(tmp, target);
 }
 
 /** Copy a file we are about to change into the CLI's own backups directory (once per run and file). */
