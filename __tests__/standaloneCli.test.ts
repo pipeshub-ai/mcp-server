@@ -123,6 +123,20 @@ describe("init and dev flags", () => {
   });
 });
 
+describe("every command in the usage text dispatches", () => {
+  test("none of them is reported as unknown", async () => {
+    const help = (await cli(["--help"])).stdout;
+    const section = help.split("COMMANDS\n")[1]!.split("\nOPTIONS")[0]!;
+    const words = [...new Set(section.split("\n").map((l) => /^  ([a-z][a-z-]*)\b/.exec(l)?.[1]).filter((w): w is string => !!w))];
+    expect(words).toContain("add-web");
+    for (const w of words) {
+      // Nothing listens on port 9, so a command that does get dispatched fails fast and offline.
+      const r = await cli([w, "--url", "http://127.0.0.1:9"], { PIPESHUB_BASE_URL: "http://127.0.0.1:9" });
+      expect(r.stderr).not.toContain("unknown command");
+    }
+  }, 60_000);
+});
+
 describe("index", () => {
   test("outside a git repository it is a usage error", async () => {
     // The temp dir may itself sit inside a checkout; stop git's search at its parent.

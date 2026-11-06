@@ -314,7 +314,7 @@ function emit(outcome: Outcome, json: boolean): Promise<void> {
 /** Every command word. An unknown one is a usage error before any credential or sandbox check, so a typo never looks like an auth problem. */
 export const COMMANDS = [
   "login", "logout", "auth", "init-qm", "sources", "search", "ask", "get", "collection", "upload", "status",
-  "mcp", "connect", "directory", "init", "uninstall", "dev", "index", "packs",
+  "mcp", "connect", "add-web", "directory", "init", "uninstall", "dev", "index", "packs",
 ] as const;
 
 /** y/N on stderr, read from stdin. */
