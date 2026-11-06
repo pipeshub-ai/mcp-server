@@ -20,6 +20,8 @@ import {
   type CallToolResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import { realpath } from "node:fs/promises";
+import { relative, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeshubInstructions } from "../mcp-server/instructions.js";
 import { newRequestId, postMcp } from "./client.js";
@@ -162,6 +164,13 @@ export function createBridge(opts: BridgeOptions): Server {
       };
       const explicit = typeof a["path"] === "string" && a["path"] !== "" ? [a["path"]] : [];
       let folders = explicit;
+      // The path comes from the model: only a folder the person opened (this process's directory or a client root) may be pushed.
+      if (explicit.length > 0) {
+        const allowed = [process.cwd(), ...(await rootFolders(server))];
+        if (!(await isInside(explicit[0]!, allowed))) {
+          return textError(`${explicit[0]} is not inside this process's folder or one of the client's open folders, so it is not indexed. Open that folder in the editor, or run 'pipeshub index' there.`);
+        }
+      }
       if (folders.length === 0) {
         folders = await rootFolders(server);
         if (folders.length === 0) {
@@ -193,6 +202,18 @@ export function createBridge(opts: BridgeOptions): Server {
   });
 
   return server;
+}
+
+/** True when `path` (symlinks resolved) is one of `bases` or below it. */
+async function isInside(path: string, bases: string[]): Promise<boolean> {
+  const real = await realpath(resolve(path)).catch(() => null);
+  if (real === null) return false;
+  for (const b of bases) {
+    const base = await realpath(b).catch(() => null);
+    const rel = base === null ? null : relative(base, real);
+    if (rel !== null && !rel.startsWith("..") && !isAbsolute(rel)) return true;
+  }
+  return false;
 }
 
 /** The client's open folders as local paths; none when it shares no roots or an answer fails. */

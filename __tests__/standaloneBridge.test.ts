@@ -175,11 +175,20 @@ describe("index_workspace", () => {
     expect(fake.log.some((l) => l.includes("local-repos"))).toBe(false);
   });
 
-  test("without roots, an explicit path is indexed", async () => {
+  test("an explicit path inside a folder the client shares is indexed", async () => {
     const dir = await repo("ws-explicit");
-    const c = await connect({ roots: null });
+    const c = await connect({ roots: [root] });
     const r = await c.callTool({ name: "index_workspace", arguments: { path: dir, waitSeconds: 0 } });
     expect(jsonOf(r).folders[0]).toMatchObject({ ok: true, repo: "ws-explicit" });
+  });
+
+  test("a path outside the process folder and the client's roots is refused, and nothing is sent", async () => {
+    const dir = await repo("ws-outside");
+    const c = await connect({ roots: null });
+    const r = await c.callTool({ name: "index_workspace", arguments: { path: dir, waitSeconds: 0 } });
+    expect(r.isError).toBe(true);
+    expect(JSON.stringify(r.content)).toContain("not inside");
+    expect(fake.log.some((l) => l.includes("local-repos"))).toBe(false);
   });
 
   test("waits for the code tools and then tells the client the tool list changed", async () => {
