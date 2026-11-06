@@ -84,6 +84,9 @@ const inIgnoredDir = (path: string) => {
 const SECRET_NAME = /^(\.env(\..*)?|.*\.(pem|key|p12|pfx|kdbx)|id_rsa.*|id_ed25519.*|credentials.*)$/i;
 const looksSecret = (path: string) => SECRET_NAME.test(path.slice(path.lastIndexOf("/") + 1));
 
+/** Changes under these folders never trigger a re-index (the push skips them anyway, and a build writes them constantly). */
+export const unwatched = (file: string) => /(^|[/\\])(\.git|node_modules|dist)([/\\]|$)/.test(file);
+
 /** The files to send: `git ls-files` (tracked + untracked, .gitignore respected), minus binary, oversize, symlinked and server-ignored ones. */
 async function collect(root: string, limits: Limits, cache: Map<string, { m: number; s: number; sha: string }>): Promise<{ entries: Entry[]; skipped: number; ignored: number; secrets: number }> {
   const names = git(root, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]).split("\0").filter(Boolean);
@@ -258,10 +261,10 @@ export async function indexCommand(
     if (again) { again = false; void run(); }
   };
   watch(root, { recursive: true }, (_ev, file) => {
-    if (file && /^\.git([/\\]|$)/.test(file)) return;
+    if (file && unwatched(file)) return;
     clearTimeout(timer);
     timer = setTimeout(() => void run(), 500);
-  });
+  }).on("error", (e) => say(`watching stopped: ${e.message}. Run the command again to resume.`));
   await new Promise<never>(() => undefined);
   return { exit: EXIT.OK, payload: {} };
 }

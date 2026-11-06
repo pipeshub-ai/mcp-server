@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
+import { unwatched } from "../src/cli/standalone/index.js";
 
 // `pipeshub index` against a fake of the local-repos API (/api/v1/local-repos):
 // only git-listed text files are sent, only what the server lacks is uploaded,
@@ -307,4 +308,9 @@ describe("pipeshub index on awkward repositories", () => {
       proc.kill();
     }
   }, 60_000);
+});
+
+test("watch mode ignores .git, node_modules and dist at any depth, and nothing else", () => {
+  for (const f of [".git/HEAD", "node_modules/x/y.js", "pkg/node_modules/x.js", "dist/a.js", "web/dist/b.js"]) expect(unwatched(f)).toBe(true);
+  for (const f of ["src/a.py", "distance.py", "gitignore.txt", "src/.github/ci.yml"]) expect(unwatched(f)).toBe(false);
 });

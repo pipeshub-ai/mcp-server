@@ -69,8 +69,8 @@ export async function healthy(origin: string, timeoutMs = 3000): Promise<boolean
   }
 }
 
-const parseEnvFile = (text: string) =>
-  Object.fromEntries(text.split("\n").filter((l) => /^[A-Z_]+=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
+export const parseEnvFile = (text: string) =>
+  Object.fromEntries(text.split("\n").filter((l) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(l)).map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
 
 /** Write the compose file and the .env (secrets generated once, never rewritten). */
 async function prepare(port: number, project: string, env: NodeJS.ProcessEnv): Promise<string> {

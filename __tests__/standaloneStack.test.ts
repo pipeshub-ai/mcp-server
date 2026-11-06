@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_PROJECT, devUp, findLocal } from "../src/cli/standalone/stack.js";
+import { DEFAULT_PROJECT, devUp, findLocal, parseEnvFile } from "../src/cli/standalone/stack.js";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
 
 // Which listener on this computer `init` may treat as PipesHub without being told.
@@ -81,4 +81,8 @@ describe("the web browser pack on a stack started by `pipeshub dev up`", () => {
 
 test("the default project does not clash with the repository's own slim compose", () => {
   expect(DEFAULT_PROJECT).toBe("pipeshub-standalone");
+});
+
+test("an .env line is read whatever case or digits its name has", () => {
+  expect(parseEnvFile("SECRET_KEY=a\nPg2_x=b\n_lead=c\n9bad=d\n# note\n")).toEqual({ SECRET_KEY: "a", Pg2_x: "b", _lead: "c" });
 });
