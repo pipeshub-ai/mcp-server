@@ -109,8 +109,9 @@ const args = {
   ),
   query: z.string().min(1).max(2000).optional().describe(
     "Content mode: what you are looking for in this record. PipesHub's "
-      + "reader model then returns only the passages that answer it, copied "
-      + "word for word: far shorter than a read. With `extract: false`, the "
+      + "reader model then returns only the passages that answer it, meant to "
+      + "be word for word (the result flags any line it could not find in the "
+      + "record): far shorter than a read. With `extract: false`, the "
       + "record's text instead, the passages most relevant to `query` first "
       + "when it is longer than `maxChars`. Ignored when `startBlock` is given.",
   ),
