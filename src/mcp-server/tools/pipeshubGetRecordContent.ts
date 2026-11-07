@@ -108,10 +108,11 @@ const args = {
       + "Required when `mode` is `content` or `thread`.",
   ),
   query: z.string().min(1).max(2000).optional().describe(
-    "Content mode: what you are looking for in this record. When the record "
-      + "is longer than `maxChars`, the passages most relevant to it come "
-      + "back first, with the skipped block ranges marked. Ignored when "
-      + "`startBlock` is given.",
+    "Content mode: what you are looking for in this record. PipesHub's "
+      + "reader model then returns only the passages that answer it, copied "
+      + "word for word: far shorter than a read. With `extract: false`, the "
+      + "record's text instead, the passages most relevant to `query` first "
+      + "when it is longer than `maxChars`. Ignored when `startBlock` is given.",
   ),
   startBlock: z.int().min(0).optional().describe(
     "Read in order from this block — the value in a previous read's `Next:` "
@@ -123,11 +124,10 @@ const args = {
       + "`startBlock` given beside it in a previous read's `Next:` line.",
   ),
   extract: z.boolean().optional().describe(
-    "Content mode, with `query`: return only the passages that answer "
-      + "`query`, copied word for word by PipesHub's reader model, instead of "
-      + "the record's text: far shorter than a read. Use it to pull facts out "
-      + "of a record. Read without it to list or count everything in a "
-      + "record, or when the extract lacks what you need.",
+    "Content mode, with `query`: on unless set to false. Set "
+      + "`extract: false` to read the record's text instead of the reader's "
+      + "passages: to list or count everything in a record, or when the "
+      + "extract lacks what you need.",
   ),
   maxChars: z.int().min(2000).max(140000).default(DEFAULT_MAX_CHARS).describe(
     "Content and thread modes: most characters of text to return. The "
@@ -345,7 +345,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
       );
     }
     const thread = args.mode === "thread";
-    const extract = !thread && !!args.extract && !!args.query && args.startBlock === undefined;
+    const extract = !thread && args.extract !== false && !!args.query && args.startBlock === undefined;
     const [result] = await connectorGetRecordContent(client, {
       recordId: args.recordId,
       maxChars: args.maxChars,

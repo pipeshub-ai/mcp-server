@@ -206,13 +206,14 @@ describe("reading part of a long record", () => {
   });
 
   test("a read chosen by the question says which parts it skipped", async () => {
+    // `extract: false` turns the reader off; an older server that ignores `extract` answers the same way
     const { core } = client({
       content: "selected",
       mode: "record", order: "relevance", totalBlocks: 3000,
       shownBlocks: [[0, 39], [2473, 2527]], complete: false, nextStartBlock: 40,
     });
 
-    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q" }));
+    const text = textOf(await run(core, { mode: "content", recordId: REC, query: "q", extract: false }));
 
     expect(text).toContain("most relevant to your query (0–39, 2473–2527 of 3000)");
     expect(text).toContain('"startBlock":40}');
@@ -542,6 +543,21 @@ describe("an extract of one record", () => {
     for (const url of urls.slice(1)) expect(params(url).get("extract")).toBeNull();
   });
 
+  // The reader is on by default: in an evaluation on public Apache records it cut the cost of an answer by about a tenth
+  // for Sonnet and Opus with the same facts right (2026-11-07). `extract: false` is the agent's way back to the text.
+  test("is on whenever a content read has a question, unless extract is false", async () => {
+    const { core, urls } = client({ content: "x" });
+
+    await run(core, { mode: "content", recordId: REC, query: "how many sponsors" });
+    await run(core, { mode: "content", recordId: REC, query: "q", extract: false });
+    await run(core, { mode: "content", recordId: REC });
+
+    expect(params(urls[0]!).get("extract")).toBe("true");
+    expect(params(urls[1]!).get("extract")).toBeNull();
+    expect(params(urls[1]!).get("query")).toBe("q");
+    expect(params(urls[2]!).get("extract")).toBeNull();
+  });
+
   test("returns the passages, says what they came from, and names the full read", async () => {
     const { core } = client(EXTRACT);
 
@@ -622,7 +638,7 @@ describe("an extract of one record", () => {
       });
 
       const slowExtract = await run(core, { mode: "content", recordId: REC, query: "q", extract: true });
-      const slowRead = await run(core, { mode: "content", recordId: REC, query: "q" });
+      const slowRead = await run(core, { mode: "content", recordId: REC, query: "q", extract: false });
       expect(textOf(slowExtract)).toBe("x" + CITE_FOOTER);
       expect((slowRead as { isError?: boolean }).isError).toBe(true);
 
