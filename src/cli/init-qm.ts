@@ -34,7 +34,7 @@ async function packageRoot(): Promise<string> {
     dir = parent;
   }
   throw new CliError(
-    "could not locate the installed package root — reinstall @pipeshub-ai/mcp",
+    "could not locate the installed package root — reinstall @pipeshub-ai/mcp. init-qm needs the npm package: run npx -p @pipeshub-ai/mcp pipeshub init-qm <dir> (the pip and uvx program cannot).",
   );
 }
 

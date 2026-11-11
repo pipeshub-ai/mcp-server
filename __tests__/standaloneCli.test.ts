@@ -142,7 +142,7 @@ describe("every command in the usage text dispatches", () => {
     const section = help.split("COMMANDS\n")[1]!.split("\nOPTIONS")[0]!;
     const words = [...new Set(section.split("\n").map((l) => /^  ([a-z][a-z-]*)\b/.exec(l)?.[1]).filter((w): w is string => !!w))];
     expect(words).toContain("add-web");
-    for (const w of words) {
+    for (const w of words.filter((x) => x !== "start")) { // `start` serves MCP on stdin until it closes
       // Nothing listens on port 9, so a command that does get dispatched fails fast and offline.
       const r = await cli([w, "--url", "http://127.0.0.1:9"], { PIPESHUB_BASE_URL: "http://127.0.0.1:9" });
       expect(r.stderr).not.toContain("unknown command");

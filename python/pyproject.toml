@@ -1,0 +1,20 @@
+# No build backend on purpose: the wheels are platform-specific and carry a
+# compiled binary, so build_wheels.py writes them directly (stdlib only) and
+# reads this file for the metadata. The version is the npm package's.
+[project]
+name = "pipeshub"
+dynamic = ["version"]
+description = "Run PipesHub on your own computer and connect it to your coding agents: uvx pipeshub init --local"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Pipeshub" }]
+keywords = ["pipeshub", "mcp", "claude-code", "codex", "cursor"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://pipeshub.com"
+Source = "https://github.com/pipeshub-ai/mcp-server/tree/main/python"
+
+[project.scripts]
+pipeshub = "pipeshub:main"
