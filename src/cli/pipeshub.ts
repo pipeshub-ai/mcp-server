@@ -112,7 +112,7 @@ OPTIONS
                               init: replace the stored sign-in
   --client <name>             mcp install, init: the client to configure
   --dry-run                   mcp install, init --local: show what would change, change nothing
-  --yes, -y                   init --local: never ask; take the defaults
+  --yes, -y                   init --local: never ask; take the defaults (never sends code to a host outside this computer)
   --uninstall                 init --local: remove everything init added
   --project                   init --local: also write this repository's AGENTS.md / CLAUDE.md block and rule files
   --port <n>                  init --local, dev up: port of the local stack (default 3000)

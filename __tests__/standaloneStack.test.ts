@@ -45,6 +45,33 @@ describe("findLocal", () => {
   });
 });
 
+describe("devUp when the stack's own images are not published", () => {
+  // A docker that resolves the two images, has none locally, and (when `pull` fails) cannot pull them.
+  async function shim(pullOk: boolean) {
+    const dir = await mkdtemp(join(tmpdir(), "standalone-img-"));
+    const log = join(dir, "docker.log");
+    const cfg = JSON.stringify({ services: { postgres: { image: "pipeshubai/postgres:18-1" }, "pipeshub-migrate": { image: "pipeshubai/pipeshub-migrate:latest" } } });
+    await writeFile(join(dir, "docker"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in\n *" config "*) echo '${cfg}' ;;\n "image inspect"*) exit 1 ;;\n "pull"*) exit ${pullOk ? 0 : 1} ;;\n *" up "*) exit 1 ;;\nesac\nexit 0\n`, { mode: 0o755 });
+    return { dir, log, env: { HOME: join(dir, "home"), PATH: `${dir}:/usr/bin:/bin` } };
+  }
+
+  test("fails before `up`, naming the image and the variables that point at a local one", async () => {
+    const t = await shim(false);
+    const err = await devUp({ port: 65112, project: "standalone-img", waitSeconds: 1 }, t.env).catch((e: Error) => e);
+    expect((err as Error).message).toContain("pipeshubai/postgres:18-1");
+    expect((err as Error).message).toMatch(/PG_IMAGE.*PIPESHUB_MIGRATE_IMAGE/);
+    expect(await readFile(t.log, "utf8")).not.toMatch(/ up /);
+    await rm(t.dir, { recursive: true, force: true });
+  });
+
+  test("an image that pulls is fine: `up` runs", async () => {
+    const t = await shim(true);
+    await expect(devUp({ port: 65113, project: "standalone-img", waitSeconds: 1 }, t.env)).rejects.toThrow(/docker compose up/);
+    expect(await readFile(t.log, "utf8")).toMatch(/ up /);
+    await rm(t.dir, { recursive: true, force: true });
+  });
+});
+
 describe("devUp when compose cannot start the stack", () => {
   test("what the failed attempt created is taken down again, but never its volumes", async () => {
     const dir = await mkdtemp(join(tmpdir(), "standalone-dock-"));

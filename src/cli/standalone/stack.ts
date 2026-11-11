@@ -113,6 +113,41 @@ function compose(args: string[], project: string, env: NodeJS.ProcessEnv): numbe
   return r.status ?? 1;
 }
 
+/**
+ * The images of the two services that run PipesHub's own database and migrations, as compose resolves them (PG_IMAGE, PIPESHUB_MIGRATE_IMAGE
+ * and their tags included). Empty when compose does not say, in which case `up` is left to report.
+ */
+function ownImages(project: string, env: NodeJS.ProcessEnv): string[] {
+  const dir = standaloneDir(env);
+  const r = spawnSync(
+    dockerBin(env),
+    ["compose", "-p", project, "--env-file", join(dir, ".env"), "-f", join(dir, "docker-compose.yml"), "config", "--format", "json"],
+    { env, encoding: "utf8", timeout: 30_000 },
+  );
+  try {
+    const services = (JSON.parse(r.stdout) as { services?: Record<string, { image?: string }> }).services ?? {};
+    return [...new Set([services["postgres"]?.image, services["pipeshub-migrate"]?.image].filter((i): i is string => !!i))];
+  } catch {
+    return [];
+  }
+}
+
+/** Fails at once, naming the image, when one of the stack's own images is neither here nor pullable (instead of Docker's raw error from `up`). */
+function ensureOwnImages(project: string, env: NodeJS.ProcessEnv, say: (s: string) => void): void {
+  const run = (args: string[]) => spawnSync(dockerBin(env), args, { env, encoding: "utf8", timeout: 600_000 });
+  for (const image of ownImages(project, env)) {
+    if (run(["image", "inspect", image]).status === 0) continue;
+    say(`Pulling ${image} ...`);
+    if (run(["pull", "--quiet", image]).status !== 0) {
+      throw new CliError(
+        `The image ${image} could not be pulled (it may not be published yet, or the registry is unreachable). `
+          + "Set PG_IMAGE (and PG_TAG) or PIPESHUB_MIGRATE_IMAGE (and MIGRATE_TAG) to an image you built locally, then run this again.",
+        EXIT.ERROR,
+      );
+    }
+  }
+}
+
 export async function devUp(
   opts: { port: number; project: string; waitSeconds: number },
   env: NodeJS.ProcessEnv = process.env,
@@ -123,6 +158,7 @@ export async function devUp(
   await prepare(opts.port, opts.project, env);
   const origin = `http://127.0.0.1:${opts.port}`;
   say(`Starting PipesHub on ${origin} (first start downloads the images; later starts take about 30 s)...`);
+  ensureOwnImages(opts.project, env, say);
   const code = compose(["up", "-d"], opts.project, env);
   if (code !== 0) {
     // Compose creates the network and the database container before it finds the port taken: remove them, but never the data volumes.

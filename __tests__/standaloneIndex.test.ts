@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFakeLocal, type FakeLocal } from "./helpers/fakeLocalPipeshub.js";
-import { unwatched } from "../src/cli/standalone/index.js";
+import { indexRepo, unwatched } from "../src/cli/standalone/index.js";
 // The children run with a restricted PATH, so node is resolved here (CI installs it outside /usr/bin) and these two tests skip where there is none.
 const NODE = Bun.which("node");
 const nodeTest = NODE ? test : test.skip;
@@ -253,6 +253,21 @@ describe("pipeshub index on awkward repositories", () => {
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("still indexing");
     expect(Date.now() - t).toBeLessThan(9000);
+  }, 30_000);
+
+  test("indexRepo asks for the sign-in again on every request, so a token renewed mid-pass is the one used", async () => {
+    await writeFile(join(dir, "a.py"), "x = 1\n");
+    sh(dir, "add", "-A");
+    let calls = 0;
+    const auth = async () => {
+      // the first request registers the repository; the sign-in is renewed (and the old token revoked) before the next one
+      if (++calls === 2) f2.issuedToken = "renewed-token";
+      return { origin: f2.origin, token: f2.issuedToken };
+    };
+    const r = await indexRepo(dir, auth, () => undefined, 5);
+    expect(r.state).toBe("ready");
+    expect(calls).toBeGreaterThan(3);
+    expect([...f2.repo.files.keys()]).toEqual(["a.py"]);
   }, 30_000);
 
   nodeTest("a long wait for indexing renews the sign-in when the access token runs out in the middle (an hour-long index ended \"not signed in\")", async () => {

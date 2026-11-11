@@ -217,7 +217,12 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
   }
 
   // 1. The local stack.
-  let origin: string | null = o.url !== null ? resolveOrigin({ PIPESHUB_BASE_URL: o.url }) : resolveOrigin(env);
+  // --url is the one explicit override; an origin from the environment only counts when it is on this computer.
+  const fromEnv = resolveOrigin(env);
+  let origin: string | null = o.url !== null ? resolveOrigin({ PIPESHUB_BASE_URL: o.url }) : fromEnv !== null && isLoopback(fromEnv) ? fromEnv : null;
+  if (o.url === null && fromEnv !== null && origin === null) {
+    report.warnings.push(`PIPESHUB_BASE_URL / PIPESHUB_MCP_URL (${fromEnv}) is not on this computer, so 'init --local' ignored it; pass --url <origin> to use it.`);
+  }
   if (o.url !== null && origin === null) throw new CliError("--url needs an origin, e.g. http://127.0.0.1:3000", EXIT.USAGE);
   let startedStack = false;
   if (origin === null) {
@@ -303,8 +308,9 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
     repoRoot = null;
   }
   if (repoRoot !== null && !o.dryRun && !isLoopback(origin)
-    && !(o.yes || await confirm(`${origin} is not on this computer. Send the files of ${repoRoot} to it?`, false, o))) {
-    report.code = `not indexed (${origin} is not on this computer; --yes sends it)`;
+    && !(await confirm(`${origin} is not on this computer. Send the files of ${repoRoot} to it?`, false, o))) {
+    // --yes takes the default (no): sending code off this computer needs an answer from a person, or the explicit 'index' command.
+    report.code = `not indexed (${origin} is not on this computer; run '${cmd} index' to send it)`;
     repoRoot = null;
   }
   if (repoRoot !== null) {
@@ -313,9 +319,15 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
     } else {
       say(`Indexing ${repoRoot} ...`);
       try {
-        const login = await storedLogin(origin, false, env);
-        if (!login) throw new CliError("not signed in", EXIT.UNAUTHENTICATED);
-        const r = await indexRepo(repoRoot, { origin, token: login.accessToken }, (m) => say(m), Number(env["PIPESHUB_INDEX_WAIT_SECONDS"] ?? 180));
+        const sent = origin;
+        // Read (and renewed) for every request: the sign-in can run out between registering the repository and the uploads.
+        const auth = async () => {
+          const login = await storedLogin(sent, false, env);
+          if (!login) throw new CliError("not signed in", EXIT.UNAUTHENTICATED);
+          return { origin: sent, token: login.accessToken };
+        };
+        await auth();
+        const r = await indexRepo(repoRoot, auth, (m) => say(m), Number(env["PIPESHUB_INDEX_WAIT_SECONDS"] ?? 180));
         const files = `${r.files} file${r.files === 1 ? "" : "s"}`;
         report.code = r.state === "ready"
           ? `${r.repo}: ${files}, ready${r.codeTools ? "" : " (code tools appear in a few seconds)"}`

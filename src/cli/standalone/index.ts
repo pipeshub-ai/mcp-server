@@ -191,18 +191,18 @@ export async function waitForCodeTools(auth: { origin: string; token: string }, 
  */
 export async function indexRepo(
   path: string,
-  auth: { origin: string; token: string },
+  auth: Auth,
   say: (s: string) => void,
   waitSeconds: number,
 ) {
   const root = git(resolve(path), ["rev-parse", "--show-toplevel"]).trim();
-  assertTransport(auth.origin, false);
+  assertTransport((await auth()).origin, false);
   const key = await identity(root);
   let cache = caches.get(root);
   if (!cache) caches.set(root, (cache = new Map()));
   const name = basename(root).replace(/[<>]/g, "_"); // the server refuses markup in a repository name
-  const r = await pass(async () => auth, root, key, name, cache, say, waitSeconds);
-  const codeTools = r.state === "ready" ? await waitForCodeTools(auth, CODE_TOOLS_SECONDS) : false;
+  const r = await pass(auth, root, key, name, cache, say, waitSeconds);
+  const codeTools = r.state === "ready" ? await waitForCodeTools(await auth(), CODE_TOOLS_SECONDS) : false;
   return { repo: name, root, repoKey: key, ...r, codeTools };
 }
 
