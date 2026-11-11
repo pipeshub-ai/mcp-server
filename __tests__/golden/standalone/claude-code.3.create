@@ -1,0 +1,8 @@
+---
+description: Ask about this repository's code with PipesHub
+argument-hint: <question>
+---
+
+<!-- managed by pipeshub init -->
+
+Answer this question about the code in the current repository with the `pipeshub_code_*` tools of the `pipeshub` MCP server: $ARGUMENTS. Call `index_workspace` first if the repository is not indexed. Keep calls small and cite repo, file path and line range.

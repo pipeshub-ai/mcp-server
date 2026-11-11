@@ -1,0 +1,7 @@
+---
+description: Index this repository into PipesHub
+---
+
+<!-- managed by pipeshub init -->
+
+Call the `index_workspace` tool of the `pipeshub` MCP server for the current working directory (pass it as `path`). Report the files sent, the state and whether the `pipeshub_code_*` tools are listed now. On an error, show it and suggest running `npx @pipeshub-ai/standalone index` in the repository.

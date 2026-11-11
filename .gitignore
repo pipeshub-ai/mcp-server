@@ -37,6 +37,7 @@ coverage/
 .pnpm-debug.log
 # TypeScript
 *.tsbuildinfo
+/standalone/bin
 
 # Built by `npm run build` from src/mcp-app/
 src/mcp-server/citation-viewer-html.generated.ts
