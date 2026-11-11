@@ -77,7 +77,7 @@ const mine = (p: string) => ![".config/pipeshub", ".pipeshub", ".npm"].some((d) 
 
 function env(extra: Record<string, string> = {}): Record<string, string> {
   const e: Record<string, string> = { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: home, PIPESHUB_PROJECT: PROJECT, npm_config_update_notifier: "false", ...extra };
-  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_TAG", "APP_MEMORY_LIMIT", "DOCKER_HOST"]) if (process.env[k]) e[k] = process.env[k]!;
+  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_TAG", "PIPESHUB_MIGRATE_IMAGE", "MIGRATE_TAG", "APP_MEMORY_LIMIT", "DOCKER_HOST"]) if (process.env[k]) e[k] = process.env[k]!;
   return e;
 }
 

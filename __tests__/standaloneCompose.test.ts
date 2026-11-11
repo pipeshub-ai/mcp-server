@@ -16,7 +16,8 @@ describe("the pinned compose file", () => {
     expect(neo4j).toContain("NEO4J_server_memory_heap_max__size: 512m");
     expect(neo4j).toContain("NEO4J_server_memory_pagecache_size: 256m");
     expect(neo4j).toContain("pipeshub-neo4j:/data");
-    expect(neo4j).toContain("cypher-shell -u neo4j -p $$NEO4J_PASSWORD 'RETURN 1'");
+    // Neo4j reads every NEO4J_* variable as a setting and refuses to start on an unknown one, so the password is only in NEO4J_AUTH.
+    expect(neo4j).toContain("cypher-shell -u neo4j -p \\\"$${NEO4J_AUTH#neo4j/}\\\" 'RETURN 1'");
     expect(neo4j).not.toContain("ports:");
     expect(text).toContain("\n  pipeshub-neo4j:\n");
     expect(text).toContain("DATA_STORE: neo4j");
@@ -25,7 +26,7 @@ describe("the pinned compose file", () => {
     expect(text).toMatch(/depends_on:[\s\S]*neo4j:\s+condition: service_healthy/);
     // every password is a reference to .env, never a value
     expect(text.match(/NEO4J_(PASSWORD|AUTH): .*/g)).toEqual([
-      "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}", "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?}", "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}",
+      "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}", "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?}",
     ]);
     expect(SECRET_NAMES).toContain("NEO4J_PASSWORD");
     expect(text.split("\n")[1]).toContain("until the PostgreSQL graph store is complete");
@@ -36,10 +37,37 @@ describe("the pinned compose file", () => {
     expect(text).not.toMatch(/launch\//);
   });
 
-  test("runs the database on the published pgvector image, tuned through its command line", () => {
-    expect(text).toContain("image: ${PG_IMAGE:-pgvector/pgvector}:${PG_TAG:-pg18}");
-    expect(text).not.toContain("pipeshubai/postgres");
-    expect(text).toContain('"-c", "shared_buffers=${PG_SHARED_BUFFERS:-128MB}"');
+  test("runs the database on the repository's PostgreSQL image, which creates its own roles, and migrates before the app starts", () => {
+    expect(text).toContain("image: ${PG_IMAGE:-pipeshubai/postgres}:${PG_TAG:-18-1}");
+    expect(text).not.toContain("pgvector/pgvector");
+    expect(text).toContain("PG_SHARED_BUFFERS: ${PG_SHARED_BUFFERS:-128MB}");
+    // the image refuses to start on an empty password, and the roles it creates are the ones the app logs in as
+    for (const n of ["NODE", "CONNECTORS", "INDEXING", "QUERY", "KV", "JOBS", "MIGRATE", "BACKUP"]) expect(text).toContain(`PG_${n}_PASSWORD: \${PG_${n}_PASSWORD:?}`);
+    expect(text).toContain("image: ${PIPESHUB_MIGRATE_IMAGE:-pipeshubai/pipeshub-migrate}:${MIGRATE_TAG:-latest}");
+    expect(text).toMatch(/pipeshub-migrate:\s+image:[\s\S]*depends_on:\s+postgres:\s+condition: service_healthy/);
+    expect(text).toMatch(/pipeshub-slim:[\s\S]*depends_on:\s+pipeshub-migrate:\s+condition: service_completed_successfully/);
+  });
+
+  test("a placement worker runs from the migration image, as the migrate and jobs logins, once the migration is done", () => {
+    const w = text.slice(text.indexOf("\n  pipeshub-placement:"), text.indexOf("\n  neo4j:"));
+    expect(w).toContain("image: ${PIPESHUB_MIGRATE_IMAGE:-pipeshubai/pipeshub-migrate}:${MIGRATE_TAG:-latest}");
+    expect(w).toContain('command: ["python", "-m", "db.maintain", "placement", "--watch", "1"]');
+    expect(w).toContain("PG_MIGRATE_URL: postgresql+psycopg://pipeshub_migrate:");
+    expect(w).toContain("PG_JOBS_URL: postgresql://pipeshub_jobs:");
+    expect(w).toMatch(/depends_on:\s+pipeshub-migrate:\s+condition: service_completed_successfully/);
+  });
+
+  test("each service logs in as its own PostgreSQL role, direct (no pooler), with no administrator or migrate password in the app", () => {
+    const app = text.slice(text.indexOf("\n  pipeshub-slim:"), text.indexOf("\n  postgres:"));
+    for (const [v, role] of [["PG_NODE_URL", "node_login"], ["PG_JOBS_URL", "jobs"], ["PG_CORE_URL", "kv_login"], ["PG_CORE_CONNECTORS_URL", "connectors_login"],
+      ["PG_CORE_INDEXING_URL", "indexing_login"], ["PG_CORE_QUERY_URL", "query_login"]] as const) expect(app).toContain(`${v}: postgresql://pipeshub_${role}:`);
+    // without these the Node API has no address for the Python services ("connectorBackend URL is not configured")
+    for (const [v, port] of [["QUERY_BACKEND", 8000], ["CONNECTOR_BACKEND", 8088], ["INDEXING_BACKEND", 8091], ["EMBEDDING_SERVER_URL", 8002]] as const) expect(app).toContain(`${v}: http://localhost:${port}`);
+    expect(app).toContain("PG_POOLER: none");
+    expect(app).toContain("PGVECTOR_POOLER: none");
+    expect(app).toContain("PGVECTOR_JOBS_DSN: postgresql://pipeshub_jobs:");
+    expect(app).not.toContain("PG_ADMIN_PASSWORD");
+    expect(app).not.toContain("PG_MIGRATE_PASSWORD");
   });
 
   test("passes the record concurrency settings through, empty meaning the image's default", () => {
