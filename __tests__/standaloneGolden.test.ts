@@ -112,7 +112,7 @@ async function codexEntry(): Promise<Entry> {
 async function bridge(entry: Entry): Promise<Client> {
   expect(entry.command).toBe("npx");
   expect(entry.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.10.0"]);
-  const t = new StdioClientTransport({ command: "node", args: [BRIDGE, ...entry.args.slice(2)], env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: home, ...entry.env }, stderr: "pipe" });
+  const t = new StdioClientTransport({ command: "node", args: [BRIDGE, ...entry.args.slice(2)], env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: home, ...entry.env }, stderr: "pipe", cwd: repo });
   const c = new Client({ name: "golden", version: "0" });
   await c.connect(t);
   return c;
@@ -185,11 +185,11 @@ describe.skipIf(!RUN)("golden path: npx init -> npx index -> ask the agent", () 
     expect(JSON.parse(await new Response(st.stdout).text()).scopes).toEqual(expect.arrayContaining(["code:write", "kb:write", "code:read"]));
   }, 900_000);
 
-  test("ask: through the Claude Code bridge the 9 code tools and index_workspace are listed; callers and callees are right in four languages", async () => {
+  test("ask: through the Claude Code bridge the 12 code tools and index_workspace are listed; callers and callees are right in four languages", async () => {
     const c = await bridge(await claudeEntry());
     try {
       const names = await toolNames(c);
-      expect(names.filter((n) => n.startsWith("pipeshub_code_"))).toHaveLength(9);
+      expect(names.filter((n) => n.startsWith("pipeshub_code_"))).toHaveLength(12);
       expect(names).toContain("index_workspace");
       report["commands"] = npxCalls; // init; the question is asked to the agent, not typed as a command
       expect(report["commands"]).toBe(1);
@@ -207,7 +207,7 @@ describe.skipIf(!RUN)("golden path: npx init -> npx index -> ask the agent", () 
   test("through the Codex bridge (its own config) the same tools answer, and a search returns a cited hit", async () => {
     const c = await bridge(await codexEntry());
     try {
-      expect((await toolNames(c)).filter((n) => n.startsWith("pipeshub_code_"))).toHaveLength(9);
+      expect((await toolNames(c)).filter((n) => n.startsWith("pipeshub_code_"))).toHaveLength(12);
       const [cf, cq, rf, rq] = PAIRS["python"]!;
       expect(await neighbours(c, rf, rq, "outbound")).toEqual([`${cf}#${cq}`]);
       const hits = JSON.parse(text(await c.callTool({ name: "pipeshub_search", arguments: { query: "function target helper", limit: 5 } }))).records as

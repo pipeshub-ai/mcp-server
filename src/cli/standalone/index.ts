@@ -48,17 +48,24 @@ async function identity(root: string): Promise<string> {
 /** Where to send and with which token, asked for again on every request: an index can wait longer than an access token lives. */
 export type Auth = () => Promise<{ origin: string; token: string }>;
 
-async function call(auth: Auth, method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+async function call(auth: Auth, method: string, path: string, body?: unknown, unavailableSeconds = UNAVAILABLE_SECONDS): Promise<{ status: number; body: Record<string, unknown> }> {
   const { origin, token } = await auth();
-  const res = await fetch(`${origin}/api/v1/local-repos${path}`, {
-    method,
-    headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    redirect: "error",
-    signal: AbortSignal.timeout(120_000),
-  }).catch((e: unknown) => {
-    throw new CliError(`could not reach ${origin}: ${describeFetchFailure(e)}\n${unreachableNextStep(origin)}`);
-  });
+  const until = Date.now() + unavailableSeconds * 1000;
+  let res: Response;
+  // 503 is the answer while the stack's Python services are still starting (the API is up before them, so `dev up` has already returned).
+  for (;;) {
+    res = await fetch(`${origin}/api/v1/local-repos${path}`, {
+      method,
+      headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      redirect: "error",
+      signal: AbortSignal.timeout(120_000),
+    }).catch((e: unknown) => {
+      throw new CliError(`could not reach ${origin}: ${describeFetchFailure(e)}\n${unreachableNextStep(origin)}`);
+    });
+    if (res.status !== 503 || Date.now() >= until) break;
+    await new Promise((r) => setTimeout(r, UNAVAILABLE_POLL_MS));
+  }
   const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 401) throw new CliError("not signed in to this PipesHub. Run 'pipeshub init --local' or 'pipeshub login'.", EXIT.UNAUTHENTICATED);
   if (res.status === 403) throw new CliError("this sign-in cannot index repositories (needs the code:write scope). Run 'pipeshub login' again after updating PipesHub.", EXIT.FORBIDDEN);
@@ -168,6 +175,9 @@ async function pass(auth: Auth, root: string, key: string, name: string, cache: 
 }
 
 const START_SECONDS = 90;
+/** How long a call waits for a 503 (the stack's services still starting) to clear, polling every UNAVAILABLE_POLL_MS. */
+const UNAVAILABLE_SECONDS = Number(process.env["PIPESHUB_INDEX_UNAVAILABLE_SECONDS"] ?? 180);
+const UNAVAILABLE_POLL_MS = Number(process.env["PIPESHUB_INDEX_UNAVAILABLE_POLL_MS"] ?? 3000);
 const CODE_TOOLS_SECONDS = 15;
 const caches = new Map<string, HashCache>();
 

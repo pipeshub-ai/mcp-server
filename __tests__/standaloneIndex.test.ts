@@ -71,6 +71,20 @@ describe("pipeshub index", () => {
     expect([...fake.repo.files.values()].join("")).not.toContain("do-not-send");
   });
 
+  test("waits while the stack's services are still starting (503) and then indexes; gives up with the status once the wait is over", async () => {
+    const commits = fake.repo.commits;
+    fake.repo.unavailable = 3;
+    const ok = await cli(["index"], { PIPESHUB_INDEX_UNAVAILABLE_POLL_MS: "20" });
+    expect(ok.code).toBe(0);
+    expect(fake.repo.unavailable).toBe(0);
+    fake.repo.unavailable = 1000;
+    const late = await cli(["index"], { PIPESHUB_INDEX_UNAVAILABLE_SECONDS: "0" });
+    fake.repo.unavailable = 0;
+    expect(late.code).not.toBe(0);
+    expect(late.stderr).toContain("HTTP 503");
+    fake.repo.commits = commits; // the later tests count the commits of their own runs
+  });
+
   test("a second run uploads nothing; a changed file uploads alone; a deleted file is removed on the server", async () => {
     const puts = () => fake.log.filter((l) => l.endsWith("/files")).length;
     const before = puts();
