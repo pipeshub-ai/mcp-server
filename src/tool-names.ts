@@ -34,7 +34,7 @@ export const toolNames: Array<{ name: string; description: string }>= [
   },
   {
     "name": "pipeshub_connect_source",
-    "description": "Link for the user to connect a source (Slack, Google Drive, Jira,\nConfluence, GitHub, 50+ more). It needs their own sign-in in a browser, so give\nthem `url` (`adminUrl` to connect for the whole org), then check\n`pipeshub_sources`. For files you already have, use `pipeshub_upload`.\nReturns `{ url, adminUrl, instructions }`. Never ask for a password or token\nin chat."
+    "description": "Link for the user to connect a source (Slack, Google Drive, Jira,\nConfluence, GitHub, 35+ more). It needs their own sign-in in a browser, so give\nthem `url` (`adminUrl` to connect for the whole org), then check\n`pipeshub_sources`. For files you already have, use `pipeshub_upload`.\nReturns `{ url, adminUrl, instructions }`. Never ask for a password or token\nin chat."
   },
   {
     "name": "pipeshub_add_web_source",

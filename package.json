@@ -2,6 +2,29 @@
   "name": "@pipeshub-ai/mcp",
   "version": "4.10.0",
   "mcpName": "io.github.pipeshub-ai/mcp",
+  "description": "PipesHub MCP: connect Claude Code, Codex, Cursor and other MCP clients to your company's permission-aware search and cited answers. Local stdio bridge to a PipesHub instance's remote /mcp endpoint, plus the pipeshub CLI.",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "enterprise-search",
+    "enterprise-rag",
+    "context-layer",
+    "claude-code",
+    "codex",
+    "cursor",
+    "rag",
+    "knowledge-base",
+    "glean-alternative"
+  ],
+  "homepage": "https://docs.pipeshub.com/mcp/overview",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pipeshub-ai/mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pipeshub-ai/mcp-server/issues"
+  },
+  "license": "Apache-2.0",
   "author": "Pipeshub",
   "type": "module",
   "sideEffects": false,

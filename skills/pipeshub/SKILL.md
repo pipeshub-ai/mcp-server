@@ -2,7 +2,7 @@
 name: pipeshub
 description: >-
   Connect to PipesHub — the knowledge layer for Slack, Google Drive, Gmail,
-  Jira, Confluence, SharePoint, and 50+ apps, on PipesHub Cloud or
+  Jira, Confluence, SharePoint and about 30 more sources, on PipesHub Cloud or
   self-hosted — and answer from company documents with source permissions and
   citations. Use when the user asks about internal docs, workplace search, RAG
   over company data or for an app they are building, a Glean alternative,
