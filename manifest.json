@@ -2,8 +2,8 @@
   "manifest_version": "0.3",
   "name": "mcp",
   "version": "4.10.0",
-  "description": "Permissioned search and cited answers across about 35 sources: Slack, Drive, Gmail, Jira and more.",
-  "long_description": "Permissioned search and cited answers across about 35 of your company's sources, including Slack, Google Drive, Gmail, Jira, Confluence and SharePoint, with the signed-in user's permissions.\n\nSet `instance_url` to your PipesHub origin (PipesHub Cloud: `https://app.pipeshub.com`) and paste a personal access token into `bearer_auth`. It acts as you, so results follow your permissions. Start with `pipeshub_sources`, then `pipeshub_search` and `pipeshub_get_record_content`; cite `recordId` / `webUrl`. Tool reference: https://github.com/pipeshub-ai/mcp-server/blob/main/TOOLS.md",
+  "description": "Permissioned search and cited answers across 30+ sources: Slack, Drive, Gmail, Jira and more.",
+  "long_description": "Permissioned search and cited answers across 30+ of your company's sources, including Slack, Google Drive, Gmail, Jira, Confluence and SharePoint, with the signed-in user's permissions.\n\nSet `instance_url` to your PipesHub origin (PipesHub Cloud: `https://app.pipeshub.com`) and paste a personal access token into `bearer_auth`. It acts as you, so results follow your permissions. Start with `pipeshub_sources`, then `pipeshub_search` and `pipeshub_get_record_content`; cite `recordId` / `webUrl`. Tool reference: https://github.com/pipeshub-ai/mcp-server/blob/main/TOOLS.md",
   "author": {
     "name": "PipesHub",
     "url": "https://www.pipeshub.com"
@@ -92,7 +92,7 @@
     },
     {
       "name": "pipeshub_connect_source",
-      "description": "Link for the user to connect a source (Slack, Google Drive, Jira,\nConfluence, GitHub, 35+ more). It needs their own sign-in in a browser, so give\nthem `url` (`adminUrl` to connect for the whole org), then check\n`pipeshub_sources`. For files you already have, use `pipeshub_upload`.\nReturns `{ url, adminUrl, instructions }`. Never ask for a password or token\nin chat."
+      "description": "Link for the user to connect a source (Slack, Google Drive, Jira,\nConfluence, GitHub, 25+ more). It needs their own sign-in in a browser, so give\nthem `url` (`adminUrl` to connect for the whole org), then check\n`pipeshub_sources`. For files you already have, use `pipeshub_upload`.\nReturns `{ url, adminUrl, instructions }`. Never ask for a password or token\nin chat."
     },
     {
       "name": "pipeshub_add_web_source",

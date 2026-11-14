@@ -17,7 +17,7 @@ export const tool$pipeshubConnectSource: ToolDefinition<typeof args> = {
   name: "pipeshub_connect_source",
   description:
     `Link for the user to connect a source (Slack, Google Drive, Jira,
-Confluence, GitHub, 35+ more). It needs their own sign-in in a browser, so give
+Confluence, GitHub, 25+ more). It needs their own sign-in in a browser, so give
 them \`url\` (\`adminUrl\` to connect for the whole org), then check
 \`pipeshub_sources\`. For files you already have, use \`pipeshub_upload\`.
 Returns \`{ url, adminUrl, instructions }\`. Never ask for a password or token

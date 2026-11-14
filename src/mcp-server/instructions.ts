@@ -26,7 +26,7 @@ export const SHOW_CITATIONS_STEP = `4. Before writing the answer, call \`pipeshu
 export function pipeshubInstructions({ chat, actions = true }: InstructionOptions): string {
   const orChat = chat ? " or trust a chat answer" : "";
   return `PipesHub searches the user's company Slack, Drive, Jira, Confluence, Gmail
-and 35+ other sources with their own permissions, and returns answers that
+and 25+ other sources with their own permissions, and returns answers that
 link to the source. Use it for any question about company docs, tickets,
 chats or people.
 

@@ -2,7 +2,7 @@
   "name": "pipeshub",
   "displayName": "PipesHub",
   "version": "4.10.0",
-  "description": "Permissioned search and cited answers across about 35 sources (Slack, Drive, Gmail, Jira, Confluence and more), from inside Cursor.",
+  "description": "Permissioned search and cited answers across 30+ sources (Slack, Drive, Gmail, Jira, Confluence and more), from inside Cursor.",
   "author": {
     "name": "PipesHub"
   },
