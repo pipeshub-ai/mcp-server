@@ -9,7 +9,7 @@
     {
       "name": "pipeshub",
       "source": ".",
-      "description": "Permissioned search and cited answers over your company's Slack, Drive, Jira, Confluence, and 50+ sources."
+      "description": "Permissioned search and cited answers across 30+ of your company's sources, including Slack, Drive, Jira and Confluence."
     }
   ]
 }

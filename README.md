@@ -1,8 +1,10 @@
 # Connecting MCP Clients to PipesHub MCP Server
 
-This guide covers how to connect PipesHub's remote MCP server to **Cursor**, **Claude Code**, **Gemini CLI**, **Codex CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials or bearer tokens.
+PipesHub gives AI agents permission-aware search and cited answers across 30+ of your company's sources (Slack, Google Drive, Jira, Confluence, GitHub and more). Through `pipeshub_chat`, its agents can also act in about 20 apps and in any app with an MCP server. Every PipesHub instance serves a **remote MCP server** over Streamable HTTP at `{your-instance}/mcp`. This package, `@pipeshub-ai/mcp`, adds a **local stdio bridge** (`npx @pipeshub-ai/mcp start`) to that endpoint for clients that prefer a local process, and the **`pipeshub` CLI** (`login`, `mcp install`, search and ask from a shell).
 
-PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP Clients connect to this endpoint directly -- no local npm packages or stdio processes needed.
+Setup guides with docs pages: [Claude Code](https://docs.pipeshub.com/mcp/claude-code), [Claude Desktop](https://docs.pipeshub.com/mcp/claude-desktop), [Claude.ai](https://docs.pipeshub.com/mcp/claude-ai), [Cursor](https://docs.pipeshub.com/mcp/cursor), [Codex](https://docs.pipeshub.com/mcp/codex), [Gemini CLI](https://docs.pipeshub.com/mcp/gemini-cli), [LibreChat](https://docs.pipeshub.com/mcp/librechat), [Omnigent](https://docs.pipeshub.com/mcp/omnigent) and [QM](https://docs.pipeshub.com/mcp/qm); also the [local server](https://docs.pipeshub.com/mcp/local-server) and the [CLI](https://docs.pipeshub.com/mcp/cli).
+
+This guide covers connecting **Cursor**, **Claude Code**, **Gemini CLI**, **Codex CLI**, **Claude.ai (Web)**, and **LibreChat** using static OAuth credentials or bearer tokens. Clients that speak remote MCP connect to `/mcp` directly and need no local package; the stdio bridge is optional (see [Local MCP Server (Stdio)](#local-mcp-server-stdio)).
 
 [![Watch the PipesHub demo on YouTube](https://img.youtube.com/vi/VgyND38QZ7w/maxresdefault.jpg)](https://youtu.be/VgyND38QZ7w)
 
