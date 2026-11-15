@@ -271,6 +271,20 @@ describe("pipeshub_indexing_status", () => {
     expect(out).toMatchObject({ done: false, total: 0 });
     expect(out.note).toContain("Keep polling");
   });
+
+  // The server answers an empty page with `preparing: true` while the source's copy is not finished.
+  test("a listing still being prepared says so instead of naming no records", async () => {
+    const { core } = client((_req, seen) => {
+      if (seen.path === `/api/v1/connectors/${KB}`) return Response.json({ success: true, connector: { status: "IDLE" } });
+      if (seen.path === `/api/v1/connectors/${KB}/stats`) {
+        return Response.json({ success: true, data: { stats: { total: 3, indexingStatus: { COMPLETED: 1, QUEUED: 1, FAILED: 1 } } } });
+      }
+      return Response.json({ success: true, items: [], pagination: { totalItems: 0, hasNext: false }, preparing: true });
+    });
+    const out = jsonOf(await tool$pipeshubIndexingStatus.tool(core, { collectionId: KB }, ctx()));
+    expect(out).toMatchObject({ done: false, preparing: true, pendingCount: 1, failedCount: 1, pending: [], failed: [] });
+    expect(out.note).toContain("still being prepared");
+  });
 });
 
 describe("pipeshub_connect_source", () => {
