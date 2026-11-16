@@ -6,7 +6,7 @@
 import * as z from "zod";
 import { Security } from "../../models/security.js";
 import { PipeshubCore } from "../../core.js";
-import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult } from "@modelcontextprotocol/server";
 import { encodeCite } from "../cite.js";
 import { agentsListAgents } from "../../funcs/agentsListAgents.js";
 import { connectorGetConnectorStats } from "../../funcs/connectorGetConnectorStats.js";

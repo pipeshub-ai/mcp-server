@@ -1,6 +1,6 @@
 // Shared by the write tools and the `pipeshub upload` CLI command.
 
-import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult } from "@modelcontextprotocol/server";
 import { PipeshubCore } from "../../core.js";
 import { knowledgeBaseUpload, UploadFile } from "../../funcs/knowledgeBaseWrite.js";
 import { errorResult, httpErrorResult, iterateSSE } from "./_helpers.js";

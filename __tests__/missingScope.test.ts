@@ -93,7 +93,7 @@ describe("a missing scope refused inside the chat stream", () => {
     const out = await tool$pipeshubChat.tool(
       core,
       { query: "what is the leave policy?" } as never,
-      { signal: new AbortController().signal } as never,
+      { mcpReq: { signal: new AbortController().signal } } as never,
     );
 
     expect(out.isError).toBe(true);

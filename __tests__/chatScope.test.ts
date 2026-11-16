@@ -39,7 +39,7 @@ function chatClient() {
     httpClient: new HTTPClient({ fetcher }),
   });
   const run = (args: Record<string, unknown>) =>
-    tool$pipeshubChat.tool(client, args as any, { signal: undefined } as any);
+    tool$pipeshubChat.tool(client, args as any, { mcpReq: { signal: undefined } } as any);
   return {
     run,
     listed: () => seen.some((s) => s.path.endsWith("/knowledge-hub/nodes")),

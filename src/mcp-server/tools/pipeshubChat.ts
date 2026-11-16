@@ -9,9 +9,8 @@
 // TEXT_MESSAGE_CONTENT, RUN_FINISHED, RUN_ERROR — are folded by `./_agui.js`,
 // which is kept separate so the fold stays a pure function over frames.
 
-import type { ShapeOutput } from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
-import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ServerContext } from "@modelcontextprotocol/server";
+import type { ShapeOutput } from "../zod-shapes.js";
 import * as z from "zod";
 import { PipeshubCore } from "../../core.js";
 import { SHOW_CITATIONS_HINT } from "../cite.js";
@@ -180,10 +179,10 @@ type ChatArgs = ShapeOutput<typeof args>;
 async function runChat(
   client: PipeshubCore,
   args: ChatArgs,
-  ctx: RequestHandlerExtra<ServerRequest, ServerNotification>,
+  ctx: ServerContext,
   tools: { tools?: string[] },
 ): Promise<CallToolResult> {
-  const fetchOptions = { signal: ctx.signal };
+  const fetchOptions = { signal: ctx.mcpReq.signal };
   // Plain chat runs in agent mode. With no `agentCapabilities` in the body,
   // the backend turns on both internal search and web search, and with no
   // `tools` it gives the assistant every action the user has connected.
@@ -209,7 +208,7 @@ async function runChat(
       client,
       filters.apps,
       filters.kb,
-      { signal: ctx.signal },
+      { signal: ctx.mcpReq.signal },
     );
     notes = resolved.notes;
     if (resolved.scope.apps.length > 0 || resolved.scope.kb.length > 0) {

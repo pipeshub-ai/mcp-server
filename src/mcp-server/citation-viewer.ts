@@ -6,8 +6,7 @@
 // that says at `initialize` it shows no views gets none of it (server.ts).
 
 import { createHash } from "node:crypto";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
+import type { McpServer, ClientCapabilities } from "@modelcontextprotocol/server";
 import type { PipeshubCore } from "../core.js";
 
 export const CITATION_VIEWER_URI = "ui://pipeshub/citations.html";

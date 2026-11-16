@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { recordsStreamRecordBuffer } from "../../funcs/recordsStreamRecordBuffer.js";
 import { formatResult, isTextMime, ToolDefinition } from "../tools.js";
-import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult } from "@modelcontextprotocol/server";
 import { errorResult, httpErrorResult } from "./_helpers.js";
 
 /**
@@ -112,7 +112,7 @@ At most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters come back.`,
     const [result] = await recordsStreamRecordBuffer(client, {
       recordId: args.recordId,
       convertTo: args.convertTo,
-    }, { fetchOptions: { signal: ctx.signal } }).$inspect();
+    }, { fetchOptions: { signal: ctx.mcpReq.signal } }).$inspect();
     if (!result.ok) return errorResult(result.error.message);
     const httpErr = await httpErrorResult(result.value, "Download");
     if (httpErr) return httpErr;

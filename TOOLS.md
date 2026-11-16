@@ -283,6 +283,20 @@ Indexes a website. It sets up a Web connector for the user, as the connector set
 
 ---
 
+## Resources: pick a source or an agent
+
+The server also lists the user's connectors, collections and agents as MCP resources, so a person can attach one from the client's menu (in Claude: + → Connectors → the PipesHub server). A resource reaches the model as text, not as a tool argument, so the text tells the model what to do with the id; the model applies it, not the server.
+
+| Resource | URI | Attaching it tells the model to |
+|---|---|---|
+| `Connector · <name> (<type>)` | `pipeshub://source/apps/<connectorId>` | include `<connectorId>` in `apps` on every `pipeshub_search` |
+| `Collection · <name>` | `pipeshub://source/kb/<collectionId>` | include `<collectionId>` in `kb` on every `pipeshub_search` |
+| `Agent · <name>` | `pipeshub://agent/<agentId>` | send the questions to `pipeshub_chat` with that `agentId`, and keep it for follow-ups |
+
+Several attached sources combine: each adds its id to the same search. MCP has no groups for resources, so each name starts with its group and the list is sorted connectors, collections, agents. Sources are listed when `pipeshub_sources` is offered; active agents only when `pipeshub_chat` and `pipeshub_agents` are both offered. A failed source list or agent list leaves the other in place. Reading a resource checks the id against what this user can see, so a made-up URI is refused.
+
+**How the list stays current.** On the 2026-07-28 protocol, `resources/list` carries `ttlMs: 120000` and `cacheScope: "private"`: a client that honors them asks again after two minutes, so a new connector, collection or agent shows up without reconnecting. A client on the 2025 protocol keeps the list it read when it connected, and shows a new source only after the user reconnects the server. Either way, a user can name a source in words instead; the model finds it with `pipeshub_sources`. Clients without a resource menu (Cursor) work the same way.
+
 ## Quick Decision Guide
 
 | User says... | Use this tool |

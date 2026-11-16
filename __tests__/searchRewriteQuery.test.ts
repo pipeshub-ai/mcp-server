@@ -25,7 +25,7 @@ function client(reply: unknown = { searchId: "s1", searchResponse: { searchResul
   };
 }
 
-const ctx = () => ({ signal: new AbortController().signal }) as never;
+const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
 
 describe("pipeshub_search turns off the server's query rewrite and search history", () => {
   test("every search asks for the query as written, not saved", async () => {

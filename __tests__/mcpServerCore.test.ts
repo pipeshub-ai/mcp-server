@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
+import { Client } from "@modelcontextprotocol/client";
 import { PipeshubCore } from "../src/core.js";
 import { RequestIDHook } from "../src/hooks/requestid.js";
 import { HTTPClient } from "../src/lib/http.js";

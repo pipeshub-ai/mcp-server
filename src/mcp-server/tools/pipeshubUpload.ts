@@ -86,7 +86,7 @@ Slack, Drive, Jira and other tools use \`pipeshub_connect_source\`.`,
       );
     }
 
-    const up = await uploadToCollection(client, args.collectionId, files, ctx.signal);
+    const up = await uploadToCollection(client, args.collectionId, files, ctx.mcpReq.signal);
     if (!up.ok) return up.result;
     const { outcome } = up;
     return jsonResult({

@@ -36,7 +36,7 @@ const ask = (core: PipeshubCore, extra: Record<string, unknown> = {}) =>
   tool$pipeshubChat.tool(
     core,
     { query: "what is the leave policy?", ...extra } as never,
-    { signal: new AbortController().signal } as never,
+    { mcpReq: { signal: new AbortController().signal } } as never,
   );
 
 const textOf = (r: { content: Array<{ text?: string }> }) =>
@@ -259,7 +259,7 @@ describe("chat without actions", () => {
   for (const [name, args] of routes) {
     test(`${name} sends an empty tool list, so no connected action can run`, async () => {
       const { core, sent } = recording(finished);
-      await noActions.tool(core, { query: "q", ...args } as never, { signal: new AbortController().signal } as never);
+      await noActions.tool(core, { query: "q", ...args } as never, { mcpReq: { signal: new AbortController().signal } } as never);
       expect((sent.body as { tools?: unknown }).tools).toEqual([]);
     });
     test(`${name} with actions on sends no tool list, as before`, async () => {

@@ -42,7 +42,7 @@ connector. Check progress with \`pipeshub_indexing_status\` (\`collectionId\`
   },
   args,
   tool: async (client, args, ctx) => {
-    const options = { fetchOptions: { signal: ctx.signal } };
+    const options = { fetchOptions: { signal: ctx.mcpReq.signal } };
     const name = args.name ?? new URL(args.url).hostname;
     const created = await connectorCreate(
       client,

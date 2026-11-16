@@ -3,8 +3,8 @@
  * gets 405; loopback by default, browser requests from loopback origins only.
  */
 
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { toNodeHandler } from "@modelcontextprotocol/node";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import express from "express";
 import { LocalContext } from "../../cli.js";
 import {
@@ -42,18 +42,16 @@ async function startStreamableHTTP(cliFlags: ServeCommandFlags) {
 
   app.use(express.json());
 
-  app.post("/mcp", async (req, res) => {
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(req.headers)) {
-      if (Array.isArray(value)) {
-        for (const v of value) headers.append(key, v);
-      } else if (value !== undefined) {
-        headers.set(key, value);
-      }
-    }
+  const logError = (error: unknown) => {
+    logger.error("MCP protocol error", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  };
 
-    const transport = new StreamableHTTPServerTransport({});
-
+  // A fresh server per request, for both the 2025 protocol and 2026-07-28.
+  // The credential comes from each request's own headers.
+  const handler = createMcpHandler(({ requestInfo }) => {
     const { server: mcpServer } = createMCPServer({
       logger,
       allowedTools: cliFlags.tool,
@@ -61,21 +59,21 @@ async function startStreamableHTTP(cliFlags: ServeCommandFlags) {
       scopes: cliFlags.scope,
       serverURL: cliFlags["server-url"],
       getSDK: () =>
-        buildSDK(headers, cliFlags, cliFlags["disable-static-auth"], logger),
+        buildSDK(
+          requestInfo?.headers ?? new Headers(),
+          cliFlags,
+          cliFlags["disable-static-auth"],
+          logger,
+        ),
       serverIdx: cliFlags["server-index"],
       instance_url: cliFlags["instance-url"],
     });
+    mcpServer.server.onerror = logError;
+    return mcpServer;
+  }, { onerror: logError });
+  const serveMcp = toNodeHandler(handler, { onerror: logError });
 
-    mcpServer.server.onerror = (error) => {
-      logger.error("MCP protocol error", {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-    };
-
-    await mcpServer.connect(transport as Transport);
-    await transport.handleRequest(req, res, req.body);
-  });
+  app.post("/mcp", (req, res) => serveMcp(req, res, req.body));
 
   // Stateless: no SSE stream to GET and no session to DELETE. The MCP spec
   // asks for 405 here, which clients read as "POST only".

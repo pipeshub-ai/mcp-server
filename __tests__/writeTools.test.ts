@@ -13,7 +13,7 @@ import { tool$pipeshubUpload } from "../src/mcp-server/tools/pipeshubUpload.js";
 // and a link that loses the connector on a redirect.
 
 const KB = "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90";
-const ctx = () => ({ signal: new AbortController().signal }) as never;
+const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
 const textOf = (r: { content: Array<{ text?: string }> }) => r.content.map((c) => c.text ?? "").join("");
 const jsonOf = (r: { content: Array<{ text?: string }> }) => JSON.parse(textOf(r));
 
