@@ -41,6 +41,7 @@ import {
   rememberApps,
 } from "./citation-viewer.js";
 import { withoutCitations } from "./cite.js";
+import { registerAgentResources, registerSourceResources } from "./source-resources.js";
 import { tool$pipeshubAddWebSource } from "./tools/pipeshubAddWebSource.js";
 import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.js";
 import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
@@ -281,6 +282,10 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubShowCitations);
   tool(tool$pipeshubPreviewRecord);
   registerCitationViewer(server);
+  // Same scope as listing sources.
+  if (permitted(tool$pipeshubSources.name)) registerSourceResources(server, getClient);
+  // Agents after sources, so they list last; only where chat can take the question.
+  if (chat && permitted(tool$pipeshubAgents.name)) registerAgentResources(server, getClient);
   // Listed, and callable, only for a client that shows views. A getter, so
   // it follows the client's answer without a list-changed notification.
   const registered = (server as unknown as {
