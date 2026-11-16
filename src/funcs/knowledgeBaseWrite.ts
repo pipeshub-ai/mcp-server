@@ -29,7 +29,7 @@ type SendResult = Result<
   | ConnectionError
 >;
 
-async function send(
+export async function send(
   client$: PipeshubCore,
   req: {
     operationID: string;

@@ -70,6 +70,7 @@ describe("structured output", () => {
       "pipeshub_agents",
       "pipeshub_get_record_content",
       "pipeshub_indexing_status",
+      "pipeshub_mcp_servers",
       "pipeshub_search",
       "pipeshub_sources",
     ]);

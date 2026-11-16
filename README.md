@@ -56,6 +56,8 @@ The `/.well-known/oauth-protected-resource/mcp` discovery endpoint lists the sco
 | `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_indexing_status` |
 | `kb:write`, `kb:upload` | `pipeshub_create_collection`, `pipeshub_upload` |
 | `connector:write`, `connector:sync` | `pipeshub_add_web_source` |
+| `mcp:read` | `pipeshub_mcp_servers` |
+| `agent:execute` | `pipeshub_run_mcp_tool` |
 | `user:read`, `team:read`, `usergroup:read` | `pipeshub_directory` |
 | `code:read` | The `pipeshub_code_*` tools |
 

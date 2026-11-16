@@ -36,6 +36,8 @@ const CURATED = [
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
   "pipeshub_add_web_source",
+  "pipeshub_mcp_servers",
+  "pipeshub_run_mcp_tool",
   "pipeshub_chat",
   "pipeshub_agents",
 ];
