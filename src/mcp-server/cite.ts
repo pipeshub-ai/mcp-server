@@ -1,4 +1,4 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 
 // Cite codes: where a passage is, in one short string a model can copy.
 //
@@ -96,12 +96,15 @@ export const recordCite = (recordId: string) => `${recordId}....`;
  */
 export function withoutCitations(result: CallToolResult): CallToolResult {
   const { structuredContent } = result;
+  const structured = structuredContent && typeof structuredContent === "object" && !Array.isArray(structuredContent)
+    ? structuredContent as Record<string, unknown>
+    : undefined;
   return {
     ...result,
     content: result.content.map((c) => c.type === "text" ? { ...c, text: textWithoutCitations(c.text) } : c),
     // A read's structured form repeats its text, which must lose the same lines.
-    ...(structuredContent && typeof structuredContent["text"] === "string"
-      ? { structuredContent: { ...structuredContent, text: textWithoutCitations(structuredContent["text"]) } }
+    ...(structured && typeof structured["text"] === "string"
+      ? { structuredContent: { ...structured, text: textWithoutCitations(structured["text"]) } }
       : {}),
   };
 }

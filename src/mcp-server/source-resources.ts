@@ -8,7 +8,7 @@
 // name starts with its group ("Connector · ") and the list is sorted by group.
 // The client's search box then filters by group.
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/server";
 import { PipeshubCore } from "../core.js";
 import { listAllAgents, listAllSources, SourceItem } from "./tools/_helpers.js";
 
@@ -35,31 +35,36 @@ export function registerSourceResources(server: McpServer, getClient: () => Pipe
   server.registerResource(
     "PipesHub source",
     new ResourceTemplate(SOURCE_URI_TEMPLATE, {
-      list: async (extra) => ({
-        resources: (await sources(getClient(), extra.signal)).map((s) => ({
-          uri: uriFor(s),
-          name: label(s),
-          mimeType: "text/plain",
-          description: `Search only ${label(s)} in PipesHub.`,
-        })),
-      }),
+      list: async (ctx) => {
+        // A failed listing leaves the sources out, not every other resource with them.
+        const listed = await sources(getClient(), ctx.mcpReq.signal).catch(() => []);
+        return {
+          resources: listed.map((s) => ({
+            uri: uriFor(s),
+            name: label(s),
+            mimeType: "text/plain",
+            description: `Search ${label(s)} in PipesHub.`,
+          })),
+        };
+      },
     }),
     {
       mimeType: "text/plain",
-      description: "A PipesHub connector or collection to search in. Attach one to limit `pipeshub_search` to it.",
+      description: "A PipesHub connector or collection to search in. Attach one or more to limit `pipeshub_search` to them.",
     },
-    async (uri, vars, extra) => {
+    async (uri, vars, ctx) => {
       const id = decodeURIComponent(String(vars["id"]));
       // The URI comes from the client: answer only for a source this user can see.
-      const s = (await sources(getClient(), extra.signal)).find((x) => x.id === id);
+      const s = (await sources(getClient(), ctx.mcpReq.signal)).find((x) => x.id === id);
       if (!s || argFor(s) !== vars["arg"]) throw new Error(`No PipesHub source at ${uri.href}`);
       return {
         contents: [{
           uri: uri.href,
           mimeType: "text/plain",
           text: `The user chose this PipesHub source: ${label(s)}, id ${s.id}.\n`
-            + `On every \`pipeshub_search\` call, pass \`${argFor(s)}: ["${s.id}"]\` so the search `
-            + "covers only this source, until the user asks to search more widely.",
+            + `On every \`pipeshub_search\` call, include "${s.id}" in \`${argFor(s)}\` `
+            + "(with the ids of any other source the user chose), so the search covers only "
+            + "the chosen sources, until the user asks to search more widely.",
         }],
       };
     },
@@ -82,9 +87,9 @@ export function registerAgentResources(server: McpServer, getClient: () => Pipes
   server.registerResource(
     "PipesHub agent",
     new ResourceTemplate(AGENT_URI_TEMPLATE, {
-      list: async (extra) => {
+      list: async (ctx) => {
         // An agent list that fails leaves the agents out, not the sources with them.
-        const listed = await agents(getClient(), extra.signal).catch(() => []);
+        const listed = await agents(getClient(), ctx.mcpReq.signal).catch(() => []);
         return {
           resources: listed.map((a) => ({
             uri: `pipeshub://agent/${encodeURIComponent(a._key)}`,
@@ -99,10 +104,10 @@ export function registerAgentResources(server: McpServer, getClient: () => Pipes
       mimeType: "text/plain",
       description: "A PipesHub agent. Attach one to send your questions to it through `pipeshub_chat`.",
     },
-    async (uri, vars, extra) => {
+    async (uri, vars, ctx) => {
       const id = decodeURIComponent(String(vars["id"]));
       // The URI comes from the client: answer only for an agent this user can see.
-      const a = (await agents(getClient(), extra.signal)).find((x) => x._key === id);
+      const a = (await agents(getClient(), ctx.mcpReq.signal)).find((x) => x._key === id);
       if (!a) throw new Error(`No PipesHub agent at ${uri.href}`);
       return {
         contents: [{

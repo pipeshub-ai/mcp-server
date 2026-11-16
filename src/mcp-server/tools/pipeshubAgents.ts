@@ -64,7 +64,7 @@ specific agent is needed, use \`pipeshub_search\` and read the records. Use \`ag
   tool: async (client, args, ctx) => {
     const all = await listAllAgents(client, {
       search: args.search,
-      signal: ctx.signal,
+      signal: ctx.mcpReq.signal,
     });
     if (!all.ok) return all.result;
 

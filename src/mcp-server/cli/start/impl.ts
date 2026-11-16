@@ -3,8 +3,8 @@
  * to PIPESHUB_TOKEN and the `pipeshub login` sign-in.
  */
 
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { SSEServerTransport } from "@modelcontextprotocol/server-legacy/sse";
 import express from "express";
 import { LocalContext } from "../../cli.js";
 import {
@@ -126,22 +126,23 @@ async function stdioCredential(
 
 async function startStdio(flags: StartCommandFlags) {
   const logger = createConsoleLogger(flags["log-level"]);
-  const transport = new StdioServerTransport();
   const { security, serverURL } = await stdioCredential(flags, logger);
-  const { server } = createMCPServer({
-    logger,
-    allowedTools: flags.tool,
-    dynamic: flags.mode === "dynamic",
-    scopes: flags.scope,
-    security,
-    serverURL,
-    serverIdx: flags["server-index"],
-    instance_url: flags["instance-url"],
-  });
-  await server.connect(transport);
+  // Serves the 2025 protocol and 2026-07-28: the client's first message picks.
+  const stdio = serveStdio(() =>
+    createMCPServer({
+      logger,
+      allowedTools: flags.tool,
+      dynamic: flags.mode === "dynamic",
+      scopes: flags.scope,
+      security,
+      serverURL,
+      serverIdx: flags["server-index"],
+      instance_url: flags["instance-url"],
+    }).server
+  );
 
   const abort = async () => {
-    await server.close();
+    await stdio.close();
     process.exit(0);
   };
   process.on("SIGTERM", abort);

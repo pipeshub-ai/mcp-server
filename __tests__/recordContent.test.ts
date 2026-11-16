@@ -35,7 +35,7 @@ const run = (core: PipeshubCore, args: Record<string, unknown>) =>
   tool$pipeshubGetRecordContent.tool(
     core,
     args as never,
-    { signal: new AbortController().signal } as never,
+    { mcpReq: { signal: new AbortController().signal } } as never,
   );
 
 const textOf = (r: { content: Array<{ text?: string }> }) =>

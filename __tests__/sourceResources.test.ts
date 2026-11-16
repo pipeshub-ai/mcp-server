@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
@@ -14,7 +13,7 @@ const CONN = "33333333-3333-4333-8333-333333333333";
 
 const AGENT = "a-1";
 
-async function connect(grantedOAuthScopes?: string[], opts: { chat?: boolean; agentsFail?: boolean } = {}) {
+async function connect(grantedOAuthScopes?: string[], opts: { chat?: boolean; agentsFail?: boolean; sourcesFail?: boolean } = {}) {
   const fetcher = async (input: RequestInfo | URL) => {
     const path = new URL((input as Request).url).pathname;
     if (path.endsWith("/agents")) {
@@ -28,6 +27,7 @@ async function connect(grantedOAuthScopes?: string[], opts: { chat?: boolean; ag
       });
     }
     if (path.endsWith("/knowledge-hub/nodes")) {
+      if (opts.sourcesFail) return new Response("boom", { status: 500 });
       return Response.json({
         items: [
           { id: COLL, name: "HR", connector: "KB", hasChildren: true },
@@ -82,10 +82,16 @@ describe("source resources", () => {
     }
   });
 
+  test("when the source list fails, the agents still list", async () => {
+    const uris = (await (await connect(undefined, { sourcesFail: true })).listResources()).resources.map((r) => r.uri);
+    expect(uris).toContain(`pipeshub://agent/${AGENT}`);
+    expect(uris.some((u) => u.startsWith("pipeshub://source/"))).toBe(false);
+  });
+
   test("reading one names the search argument and the id", async () => {
     const out = await (await connect()).readResource({ uri: `pipeshub://source/apps/${CONN}` });
     const text = (out.contents[0] as { text: string }).text;
-    expect(text).toContain(`apps: ["${CONN}"]`);
+    expect(text).toContain(`include "${CONN}" in \`apps\``);
     expect(text).toContain("pipeshub_search");
   });
 

@@ -43,7 +43,7 @@ const run = (c: PipeshubCore) =>
   tool$pipeshubDirectory.tool(
     c,
     { action: "whoami" } as never,
-    { signal: new AbortController().signal } as never,
+    { mcpReq: { signal: new AbortController().signal } } as never,
   );
 
 const textOf = (r: { content: Array<{ text?: string }> }) =>
@@ -154,7 +154,7 @@ describe("pipeshub_directory get_user", () => {
     tool$pipeshubDirectory.tool(
       c,
       { action: "get_user", userId } as never,
-      { signal: new AbortController().signal } as never,
+      { mcpReq: { signal: new AbortController().signal } } as never,
     );
 
   test("a missing userId says where to get one instead of calling the API", async () => {
@@ -202,7 +202,7 @@ describe("pipeshub_directory listings", () => {
         tool$pipeshubDirectory.tool(
           c,
           { action, ...extra } as never,
-          { signal: new AbortController().signal } as never,
+          { mcpReq: { signal: new AbortController().signal } } as never,
         ),
     };
   };
@@ -233,7 +233,7 @@ describe("pipeshub_directory listings", () => {
       const out = await tool$pipeshubDirectory.tool(
         c,
         { action } as never,
-        { signal: new AbortController().signal } as never,
+        { mcpReq: { signal: new AbortController().signal } } as never,
       );
 
       expect(out.isError).toBe(true);

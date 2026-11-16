@@ -34,7 +34,7 @@ second collection. Returns \`{ collectionId, name, url }\`. Next:
     const r = await knowledgeBaseCreate(
       client,
       args.name,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     );
     if (!r.ok) return errorResult(`Create collection: ${r.error.message}`);
     const httpErr = await httpErrorResult(r.value, "Create collection");

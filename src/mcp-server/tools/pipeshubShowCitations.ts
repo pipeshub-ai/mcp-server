@@ -105,7 +105,7 @@ It shows no answer: write the full answer after it.`,
 
     const ids = [...new Set(located.map((l) => l.recordId))];
     const infos = new Map(await Promise.all(ids.map(async (id) =>
-      [id, await recordInfo(client, id, ctx.signal)] as const
+      [id, await recordInfo(client, id, ctx.mcpReq.signal)] as const
     )));
     const citations = located.map((loc, i) => ({
       number: i + 1,

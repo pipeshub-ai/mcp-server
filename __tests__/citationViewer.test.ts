@@ -1,8 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { beforeEach, describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import type { ClientCapabilities } from "@modelcontextprotocol/client";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { decodeCite, encodeCite, SHOW_CITATIONS_HINT, withoutCitations } from "../src/mcp-server/cite.js";
@@ -132,11 +131,11 @@ describe("a client without MCP Apps views", () => {
     expect(names).toContain("pipeshub_search");
     for (const name of CITATION_TOOLS) expect(names).not.toContain(name);
     expect(client.getInstructions()).not.toContain("pipeshub_show_citations");
-    const call = await client.callTool({
+    // Not listed, so not callable either.
+    await expect(client.callTool({
       name: "pipeshub_show_citations",
       arguments: { citations: [{ cite: `${RID}....` }] },
-    });
-    expect(call.isError).toBe(true);
+    })).rejects.toThrow("disabled");
   });
 
   test("a client that shows views keeps them, and the step", async () => {
@@ -236,7 +235,7 @@ describe("cite codes", () => {
 });
 
 describe("pipeshub_show_citations", () => {
-  const ctx = () => ({ signal: new AbortController().signal }) as never;
+  const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
   const header = "<record>\nRecord ID: R\nName: Contoso-Pentest-Report.pdf\nMIME Type: application/pdf\n"
     + "Web URL: https://pipeshub.test/record/R\n\nRecord blocks (sorted):\n\nName: not a header line";
 
@@ -309,7 +308,7 @@ describe("pipeshub_show_citations", () => {
 });
 
 describe("pipeshub_preview_record", () => {
-  const ctx = () => ({ signal: new AbortController().signal }) as never;
+  const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
   beforeEach(() => clearPreviewCache());
 
   /** A backend serving `file`, counting downloads; `token` is the caller's credential. */

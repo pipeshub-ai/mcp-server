@@ -126,7 +126,7 @@ export const tool$pipeshubPreviewRecord: ToolDefinition<typeof args> = {
   tool: async (client, args, ctx) => {
     let stored: StoredFile;
     try {
-      stored = await previewFile(client, args.recordId, ctx.signal);
+      stored = await previewFile(client, args.recordId, ctx.mcpReq.signal);
     } catch (err) {
       return errorResult((err as Error).message);
     }

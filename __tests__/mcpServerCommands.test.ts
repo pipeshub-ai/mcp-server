@@ -4,13 +4,12 @@ import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildApplication, run, type Command, type CommandContext } from "@stricli/core";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { Client, SSEClientTransport, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import type { Transport } from "@modelcontextprotocol/client";
 import { serveCommand } from "../src/mcp-server/cli/serve/command.js";
 import { startCommand } from "../src/mcp-server/cli/start/command.js";
+import { RESOURCE_LIST_TTL_MS } from "../src/mcp-server/server.js";
 
 // `npx @pipeshub-ai/mcp start` is what README, server.json and the Claude
 // Desktop manifest all tell people to run, and `serve` is the HTTP variant.
@@ -169,8 +168,13 @@ async function launch(cmd: typeof serveCommand | typeof startCommand, argv: stri
   return { port, host, terminate };
 }
 
-async function httpClient(port: number, headers: Record<string, string> = {}): Promise<Client> {
-  const c = new Client({ name: "test", version: "1" });
+/** `modern`: a 2026-07-28 client, which probes `server/discover` instead of `initialize`. */
+async function httpClient(
+  port: number,
+  headers: Record<string, string> = {},
+  modern = false,
+): Promise<Client> {
+  const c = new Client({ name: "test", version: "1" }, modern ? { versionNegotiation: { mode: "auto" } } : {});
   // The same cast serve/impl.ts makes: the SDK's transport classes do not
   // satisfy its own Transport type under exactOptionalPropertyTypes.
   await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
@@ -194,6 +198,22 @@ describe("serve", () => {
 
     await c.close();
     expect(await s.terminate()).toBe(0);
+  });
+
+  test("a 2026-07-28 client gets the same tools, and a resource list it may keep for two minutes", async () => {
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`, "--bearer-auth", BEARER]);
+    const c = await httpClient(s.port, {}, true);
+
+    expect(c.getNegotiatedProtocolVersion()).toBe("2026-07-28");
+    expect((await c.listTools()).tools.map((t) => t.name)).toEqual(CURATED);
+    const listed = await c.listResources(undefined, { cache: "bypass" });
+    expect(listed).toMatchObject({ ttlMs: RESOURCE_LIST_TTL_MS, cacheScope: "private" });
+    apiCalls.length = 0;
+    const r = await whoami(c);
+    expect(JSON.parse(textOf(r))).toMatchObject({ userId: USER_ID, identityVerified: true });
+    expect(apiCalls).toEqual([{ path: `/api/v1/users/${USER_ID}`, authorization: `Bearer ${BEARER}` }]);
+
+    await c.close();
   });
 
   test("a caller's bearerAuth header wins over the operator's flag", async () => {
@@ -356,8 +376,9 @@ describe("flag validation", () => {
 async function stdioClient(
   args: string[],
   env: Record<string, string> = {},
+  modern = false,
 ): Promise<Client> {
-  const c = new Client({ name: "test", version: "1" });
+  const c = new Client({ name: "test", version: "1" }, modern ? { versionNegotiation: { mode: "auto" } } : {});
   await c.connect(new StdioClientTransport({
     command: process.execPath,
     args: [join(import.meta.dir, "..", "src", "mcp-server", "mcp-server.ts"), "start", ...args],
@@ -509,6 +530,19 @@ describe("start (stdio)", () => {
       const r = await whoami(c);
       expect(JSON.parse(textOf(r))).toMatchObject({ userId: USER_ID, identityVerified: true });
       expect(apiCalls).toEqual([{ path: `/api/v1/users/${USER_ID}`, authorization: `Bearer ${BEARER}` }]);
+    } finally {
+      await c.close();
+    }
+  }, 20_000);
+
+  test("a 2026-07-28 client gets the curated tools too", async () => {
+    const c = await stdioClient(["--server-url", `${apiOrigin}/api/v1`, "--bearer-auth", BEARER], {}, true);
+    try {
+      expect(c.getNegotiatedProtocolVersion()).toBe("2026-07-28");
+      expect((await c.listTools()).tools.map((t) => t.name)).toEqual(CURATED);
+      apiCalls.length = 0;
+      const r = await whoami(c);
+      expect(JSON.parse(textOf(r))).toMatchObject({ userId: USER_ID, identityVerified: true });
     } finally {
       await c.close();
     }

@@ -77,7 +77,7 @@ sources and models change infrequently.`,
   args,
   outputSchema,
   tool: async (client, args, ctx) => {
-    const fetchOptions = { signal: ctx.signal };
+    const fetchOptions = { signal: ctx.mcpReq.signal };
     const include = args.include
       ?? (["sources", "llmModels"] as const);
     const want = (s: string) => (include as readonly string[]).includes(s);
@@ -86,12 +86,12 @@ sources and models change infrequently.`,
     const notes: string[] = [];
 
     if (want("sources")) {
-      const listed = await listAllSources(client, { signal: ctx.signal });
+      const listed = await listAllSources(client, { signal: ctx.mcpReq.signal });
       if (!listed.ok) return listed.result;
       const { coverage, notes: coverageNotes } = await listSourceCoverage(
         client,
         listed.sources,
-        { signal: ctx.signal },
+        { signal: ctx.mcpReq.signal },
       );
       result["sources"] = listed.sources.map((s) => {
         const c = coverage.get(s.id);

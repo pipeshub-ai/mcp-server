@@ -1,4 +1,4 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
 import { type ToolDefinition, withStructuredContent } from "../tools.js";
 
 /**
@@ -45,20 +45,16 @@ export function resultFormatFromEnv(env: NodeJS.ProcessEnv = process.env): Resul
 /** Sent by every `pipeshub` CLI release (src/cli/client.ts), which parses JSON. */
 const CLI_REQUEST_ID_HEADER = "x-pipeshub-request-id";
 
-type Headers = Record<string, string | string[] | undefined>;
-
 /**
  * Whether the caller gets JSON: a format header decides when sent; else the
  * CLI's request id means JSON; else the server's setting (text by default).
+ * The headers are the HTTP request's (`ctx.http.req`); stdio has none.
  */
 export function wantsJson(extra: unknown, serverFormat: ResultFormat = "text"): boolean {
-  const headers = (extra as { requestInfo?: { headers?: Headers } } | undefined)
-    ?.requestInfo?.headers;
+  const headers = (extra as { http?: { req?: { headers?: Headers } } } | undefined)
+    ?.http?.req?.headers;
   if (!headers) return serverFormat === "json";
-  const get = (name: string) => {
-    const v = headers[name] ?? headers[name.toLowerCase()];
-    return Array.isArray(v) ? v[0] : v;
-  };
+  const get = (name: string) => headers.get(name) ?? undefined;
   const format = get(RESULT_FORMAT_HEADER);
   if (typeof format === "string" && format.trim() !== "") {
     return format.trim().toLowerCase() === "json";
