@@ -46,6 +46,8 @@ import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.
 import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "./tools/pipeshubIndexingStatus.js";
 import { tool$pipeshubConnectSource } from "./tools/pipeshubConnectSource.js";
+import { tool$pipeshubMcpServers } from "./tools/pipeshubMcpServers.js";
+import { tool$pipeshubRunMcpTool } from "./tools/pipeshubRunMcpTool.js";
 import { createPipeshubAssistantPrompt } from "./prompts/pipeshubAssistant.js";
 
 /**
@@ -271,6 +273,11 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubIndexingStatus);   // 8. wait until they are searchable
   mount(tool$pipeshubConnectSource);    // 9. link for the human to connect a tool
   mount(tool$pipeshubAddWebSource);     // 10. crawl a website (`connect` scope)
+  // The user's external MCP servers from PipesHub's catalog. Running one of
+  // their tools acts in another system, so it follows the same switch as
+  // chat's connected actions.
+  mount(tool$pipeshubMcpServers);       // list servers, sign-in state, tools
+  if (actions) mount(tool$pipeshubRunMcpTool); // run one of those tools
   if (chat) {
     tool(cited(createChatTool({ actions }))); // 11. optional: PipesHub's assistant
     tool(tool$pipeshubAgents);          // 12. discover org agents (for chat)

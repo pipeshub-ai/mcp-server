@@ -12,10 +12,10 @@ const logger = createConsoleLogger("error");
 // The scopes these tools require: the server's McpToolScopes less
 // offline_access, code:read (the code tools are the server's own),
 // config:read (only the model listing in pipeshub_sources uses it, and that
-// tool answers without it) and agent:execute (it gates chat's actions and
-// agent turns, not whether chat is offered).
+// tool answers without it). agent:execute gates chat's actions and agent
+// turns, not whether chat is offered, but pipeshub_run_mcp_tool needs it.
 const TOOL_SCOPES = [
-  "semantic:write", "conversation:chat", "agent:read",
+  "semantic:write", "conversation:chat", "agent:read", "agent:execute", "mcp:read",
   "kb:read", "kb:write", "kb:upload", "connector:read", "connector:write",
   "connector:sync", "user:read", "team:read", "usergroup:read",
 ];

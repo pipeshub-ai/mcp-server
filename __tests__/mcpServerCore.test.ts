@@ -28,6 +28,8 @@ const CURATED = [
   "pipeshub_indexing_status",
   "pipeshub_connect_source",
   "pipeshub_add_web_source",
+  "pipeshub_mcp_servers",
+  "pipeshub_run_mcp_tool",
   "pipeshub_chat",
   "pipeshub_agents",
   "pipeshub_show_citations",
@@ -105,6 +107,7 @@ describe("createMCPServer tool registration", () => {
     expect(tools.map((t) => t.name)).toEqual(
       CURATED.filter((n) =>
         n !== "pipeshub_create_collection" && n !== "pipeshub_upload" && n !== "pipeshub_add_web_source"
+          && n !== "pipeshub_run_mcp_tool"
       ),
     );
   });

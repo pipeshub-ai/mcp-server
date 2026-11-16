@@ -17,6 +17,8 @@ import { tool$pipeshubCreateCollection } from "../src/mcp-server/tools/pipeshubC
 import { tool$pipeshubUpload } from "../src/mcp-server/tools/pipeshubUpload.js";
 import { tool$pipeshubIndexingStatus } from "../src/mcp-server/tools/pipeshubIndexingStatus.js";
 import { tool$pipeshubAddWebSource } from "../src/mcp-server/tools/pipeshubAddWebSource.js";
+import { tool$pipeshubMcpServers } from "../src/mcp-server/tools/pipeshubMcpServers.js";
+import { tool$pipeshubRunMcpTool } from "../src/mcp-server/tools/pipeshubRunMcpTool.js";
 import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConnectSource.js";
 import { tool$pipeshubPreviewRecord } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
 import { tool$pipeshubShowCitations } from "../src/mcp-server/tools/pipeshubShowCitations.js";
@@ -46,6 +48,8 @@ const definitions: any[] = [
   tool$pipeshubIndexingStatus,
   tool$pipeshubConnectSource,
   tool$pipeshubAddWebSource,
+  tool$pipeshubMcpServers,
+  tool$pipeshubRunMcpTool,
   tool$pipeshubPreviewRecord,
   tool$pipeshubShowCitations,
 ];
@@ -413,7 +417,11 @@ describe("description budget", () => {
   // Raised 2026-11-03 by 200 for `pipeshub_add_web_source`: what it crawls,
   // how often, and how to watch progress, in about 210 characters. A token
   // without the connector scopes is not shown it.
-  const TOTAL_MAX = 15050;
+  // Raised 2026-11-15 by 750 for `pipeshub_mcp_servers` and
+  // `pipeshub_run_mcp_tool`, which reach the user's external MCP servers
+  // from PipesHub's catalog: what each returns, that a run is held to the
+  // user's approval rules, and that its result is data, in about 370 each.
+  const TOTAL_MAX = 15800;
   // Claude Code keeps only the first 4,096 characters of a server's
   // instructions, and PipesHub's /mcp may append its code-tool section, so
   // the full text (chat and the citations step included) stays under 3,500.
