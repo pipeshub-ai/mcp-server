@@ -85,6 +85,7 @@ const textOf = (r: Awaited<ReturnType<typeof whoami>>): string =>
 
 interface Launched {
   port: number;
+  host: string;
   /** Deliver SIGTERM to the handlers this launch registered; resolves to the exit code. */
   terminate(): Promise<number>;
 }
@@ -128,9 +129,10 @@ async function launch(cmd: typeof serveCommand | typeof startCommand, argv: stri
   await run(app(cmd), [...argv, "--port", "0"], ctx);
 
   let port = 0;
+  let host = "";
   for (let i = 0; i < 200 && port === 0; i++) {
-    const m = logs.join("\n").match(/server started.* host=[^\s]*:(\d+)/);
-    if (m?.[1]) port = Number(m[1]);
+    const m = logs.join("\n").match(/server started.* host=([^\s]*):(\d+)/);
+    if (m?.[2]) [host, port] = [m[1] ?? "", Number(m[2])];
     else await Bun.sleep(5);
   }
   if (port === 0) throw new Error(`server did not start: ${out.join("")}`);
@@ -164,7 +166,7 @@ async function launch(cmd: typeof serveCommand | typeof startCommand, argv: stri
     errSpy.mockRestore();
   });
 
-  return { port, terminate };
+  return { port, host, terminate };
 }
 
 async function httpClient(port: number, headers: Record<string, string> = {}): Promise<Client> {
@@ -220,12 +222,42 @@ describe("serve", () => {
     await c.close();
   });
 
-  test("answers CORS preflight without reaching the MCP handler", async () => {
+  test("answers CORS preflight for a loopback origin only, never with *", async () => {
     const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`]);
-    const res = await fetch(`http://127.0.0.1:${s.port}/mcp`, { method: "OPTIONS" });
+    const res = await fetch(`http://127.0.0.1:${s.port}/mcp`, {
+      method: "OPTIONS",
+      headers: { origin: "http://localhost:6274" },
+    });
     expect(res.status).toBe(204);
-    expect(res.headers.get("access-control-allow-origin")).toBe("*");
-    expect(res.headers.get("access-control-allow-methods")).toBe("GET, POST, OPTIONS");
+    expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:6274");
+    expect(res.headers.get("access-control-allow-headers")).not.toContain("*");
+    const bare = await fetch(`http://127.0.0.1:${s.port}/mcp`, { method: "OPTIONS" });
+    expect(bare.status).toBe(204);
+    expect(bare.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  test("a request from a non-loopback Origin is refused with 403", async () => {
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`, "--bearer-auth", BEARER]);
+    for (const origin of ["https://evil.example", "http://localhost.evil.example", "null"]) {
+      apiCalls.length = 0;
+      const res = await fetch(`http://127.0.0.1:${s.port}/mcp`, {
+        method: "POST",
+        headers: { origin, "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      });
+      expect(res.status).toBe(403);
+      expect(apiCalls).toEqual([]);
+    }
+    for (const origin of ["http://127.0.0.1:5173", "https://[::1]"]) {
+      const c = await httpClient(s.port, { origin });
+      expect((await c.listTools()).tools.length).toBeGreaterThan(0);
+      await c.close();
+    }
+  });
+
+  test("listens on loopback by default", async () => {
+    const s = await launch(serveCommand, ["--server-url", `${apiOrigin}/api/v1`]);
+    expect(s.host).toBe("127.0.0.1");
   });
 
   test("GET and DELETE /mcp get 405 with Allow: POST", async () => {

@@ -185,7 +185,7 @@ export function createBridge(opts: BridgeOptions): Server {
       for (const folder of folders) {
         try {
           say(`Indexing ${folder} ...`);
-          results.push({ folder, ok: true, ...(await indexRepo(folder, { origin: auth.origin, token: await auth.token() }, say, wait)) });
+          results.push({ folder, ok: true, ...(await indexRepo(folder, async () => ({ origin: auth.origin, token: await auth.token() }), say, wait)) });
         } catch (e) {
           results.push({ folder, ok: false, error: e instanceof CliError ? e.message : (e as Error).message });
         }

@@ -440,6 +440,21 @@ describe("init indexes the repository it is run in", () => {
     expect(r.stdout).not.toMatch(/^Code:/m);
   }, 30_000);
 
+  test("--yes never sends the repository to a host that is not this computer (it takes the default, no)", async () => {
+    const w = await repoWorld("yes-remote", true);
+    // "localhost." resolves to this computer but is not on the loopback list, so it stands in for a remote host; the sign-in is stored already.
+    const remote = fake.origin.replace("127.0.0.1", "localhost.");
+    await mkdir(join(w.home, ".config", "pipeshub"), { recursive: true });
+    await writeFile(join(w.home, ".config", "pipeshub", "credentials.json"), JSON.stringify({
+      origin: remote, clientId: "c", tokenEndpoint: `${remote}/api/v1/oauth2/token`,
+      accessToken: fake.issuedToken, refreshToken: "r", expiresAt: Date.now() + 3_600_000,
+    }), { mode: 0o600 });
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--url", remote], ceiling());
+    expect(r.code, r.stderr).toBe(0);
+    expect(pushed()).toEqual([]);
+    expect(r.stdout).toContain("not indexed");
+  }, 30_000);
+
   test("--no-index leaves the repository alone and keeps the hint", async () => {
     const w = await repoWorld("opt-out", true);
     const r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--no-index", "--url", fake.origin], ceiling());
@@ -495,4 +510,42 @@ describe("the first account is created only on a stack init can show is its own"
     expect(r.code).toBe(0);
     expect(r.stdout).toContain("created the first account");
   }, 30_000);
+});
+
+describe("the origin from the environment", () => {
+  freshStack();
+
+  test("one that is not on this computer does not replace the local stack, and says it was ignored", async () => {
+    const w = await world("env-remote", [".cursor"]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--dry-run", "--no-index"], { PIPESHUB_BASE_URL: "https://pipeshub.example.invalid" });
+    expect(r.stdout).not.toContain("using https://pipeshub.example.invalid");
+    expect(r.stdout).toContain("ignored it");
+    expect(r.stdout).not.toContain("pipeshub.example.invalid/mcp");
+  }, 30_000);
+
+  test("a loopback one is used", async () => {
+    const w = await world("env-loop", [".cursor"]);
+    const r = await cli(w.home, w.cwd, ["init", "--local", "--dry-run", "--no-index"], { PIPESHUB_BASE_URL: fake.origin });
+    expect(r.stdout).toContain(`using ${fake.origin}`);
+  }, 30_000);
+});
+
+describe("the stored account's password", () => {
+  beforeEach(() => { fake = startFakeLocal({ deviceExpiresIn: 2 }); }); // nobody approves the browser code in the foreign run: it expires
+  afterEach(() => fake.stop());
+
+  test("is never sent to a listener that is no longer the stack dev up started (a foreign process on the same port)", async () => {
+    const w = await world("foreign", [".cursor"]);
+    // 1. our stack: the account is created and stored
+    let r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--no-index", "--url", fake.origin]);
+    expect(r.code).toBe(0);
+    expect(fake.password).not.toBeNull();
+    // 2. 'dev down', then something else answers on that port: the sign-in is gone and docker no longer shows our container
+    await rm(join(w.home, ".config", "pipeshub", "credentials.json"));
+    fake.log.length = 0;
+    const docker = join(root, "foreign", "docker-none");
+    await writeFile(docker, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    r = await cli(w.home, w.cwd, ["init", "--local", "--yes", "--no-index", "--url", fake.origin], { NOT_OURS: "1", PIPESHUB_DOCKER: docker });
+    expect(fake.log.filter((l) => l.includes("authenticate") || l.includes("initAuth"))).toEqual([]);
+  }, 60_000);
 });

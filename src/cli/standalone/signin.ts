@@ -113,7 +113,8 @@ export async function localSignIn(
   // Only this computer's own PipesHub may have an account made or a code approved for the person.
   const local = isLoopback(origin);
   let account = local ? await readAccount(env) : null;
-  if (account && account.origin !== origin) account = null;
+  // The password goes only to a stack this command can show is its own (state.json plus Docker), not to whatever listens on the port now.
+  if (account && (account.origin !== origin || !(await ownsOrigin(origin, env)))) account = null;
   let created = false;
   if (!account && local) {
     account = await createFirstAccount(origin, opts.email, env);

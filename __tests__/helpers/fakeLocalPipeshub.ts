@@ -19,7 +19,7 @@ export interface FakeLocal {
   log: string[];
   /** What `/mcp` lists, and every tools/call it received. */
   mcp: { tools: Record<string, unknown>[]; calls: { name: string; args: unknown; authorization: string | null }[]; status: number; hang: boolean; reply: ((tool: string) => string | null) | null };
-  repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[]; status: string | null; error: string | null; maxManifestEntries: number; getDelayMs: number; refuse: string[] };
+  repo: { name: string | null; files: Map<string, string>; commits: number; deleted: string[]; status: string | null; error: string | null; maxManifestEntries: number; getDelayMs: number; refuse: string[]; unavailable: number };
   stop(): void;
 }
 
@@ -34,7 +34,7 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
     rotate: null,
     log: [],
     mcp: { tools: [], calls: [], status: 200, hang: false, reply: null },
-    repo: { name: null, files: new Map(), commits: 0, deleted: [], status: null, error: null, maxManifestEntries: 20000, getDelayMs: 0, refuse: [] },
+    repo: { name: null, files: new Map(), commits: 0, deleted: [], status: null, error: null, maxManifestEntries: 20000, getDelayMs: 0, refuse: [], unavailable: 0 },
     stop: () => server.stop(true),
   };
   let org = opts.orgExists ?? false;
@@ -130,6 +130,8 @@ export function startFakeLocal(opts: { orgExists?: boolean; deviceExpiresIn?: nu
 
       // local repositories
       if (p.startsWith("/api/v1/local-repos")) {
+        // the connectors service is still starting: the API answers 503 for this many calls
+        if (state.repo.unavailable > 0) { state.repo.unavailable--; return json({ error: { code: "HTTP_SERVICE_UNAVAILABLE" } }, 503); }
         if (bearer !== state.issuedToken) return json({ detail: "no" }, 401);
         const rest = p.slice("/api/v1/local-repos".length).split("/").filter(Boolean);
         const limits = { maxFiles: 20000, maxFileBytes: 1048576, maxBatchFiles: 100, maxBatchBytes: 4194304, maxManifestEntries: state.repo.maxManifestEntries };

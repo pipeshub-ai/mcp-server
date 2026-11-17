@@ -13,6 +13,7 @@ import {
 } from "../../console-logger.js";
 import { MCPServerFlags } from "../../flags.js";
 import { createMCPServer } from "../../server.js";
+import { loopbackOriginOnly } from "../loopback.js";
 
 import { landingPageExpress } from "../../../landing-page.js";
 import { assertTransport, resolveOrigin, resolveToken } from "../../../cli/config.js";
@@ -25,6 +26,7 @@ import { SDKOptions } from "../../../lib/config.js";
 interface StartCommandFlags extends MCPServerFlags {
   readonly transport: "stdio" | "sse";
   readonly port: number;
+  readonly host: string;
   readonly "log-level": ConsoleLoggerLevel;
   readonly env?: [string, string][];
 }
@@ -200,6 +202,8 @@ async function startSSE(cliFlags: StartCommandFlags) {
   const sessions = new Map<string, Session>();
   const controller = new AbortController();
 
+  app.use(loopbackOriginOnly);
+
   app.get("/sse", async (req, res) => {
     const sessionId = crypto.randomUUID();
 
@@ -310,7 +314,7 @@ async function startSSE(cliFlags: StartCommandFlags) {
 
   app.get("/", landingPageExpress);
 
-  const httpServer = app.listen(cliFlags.port, "0.0.0.0", () => {
+  const httpServer = app.listen(cliFlags.port, cliFlags.host, () => {
     const ha = httpServer.address();
     const host = typeof ha === "string" ? ha : `${ha?.address}:${ha?.port}`;
     logger.info("MCP HTTP server started", { host });

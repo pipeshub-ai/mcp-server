@@ -1,5 +1,6 @@
 import { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
+  CallToolRequest,
   CallToolResult,
   InitializeRequest,
   InitializeRequestSchema,
@@ -21,7 +22,8 @@ import {
 } from "./resources.js";
 import { MCPScope } from "./scopes.js";
 import { createRegisterTool, registerDynamicTools, ToolDefinition } from "./tools.js";
-import { tool$pipeshubChat } from "./tools/pipeshubChat.js";
+import { createChatTool, tool$pipeshubChat } from "./tools/pipeshubChat.js";
+import { requiredOAuthScopes } from "./oauth-scopes.js";
 import { tool$pipeshubSearch } from "./tools/pipeshubSearch.js";
 import { type ResultFormat, resultFormatFromEnv, searchAsText } from "./tools/_searchText.js";
 import { tool$pipeshubDownloadRecord } from "./tools/pipeshubDownloadRecord.js";
@@ -55,6 +57,53 @@ import { createPipeshubAssistantPrompt } from "./prompts/pipeshubAssistant.js";
  */
 export const DEFAULT_MAX_TOOL_INPUT_ELEMENTS = 10_000;
 
+/** What `onToolCall` is told about one tool call. Never the arguments' values. */
+export interface ToolCallEvent {
+  tool: string;
+  durationMs: number;
+  isError: boolean;
+  argumentNames: string[];
+}
+
+/**
+ * Report every `tools/call` to `onToolCall`, including calls refused before a
+ * handler runs (unknown tool, invalid arguments) and tools a host registers
+ * on this server later. The report is queued after the call, and nothing it
+ * throws or rejects with reaches the call.
+ */
+function observeToolCalls(server: McpServer, onToolCall: (e: ToolCallEvent) => void) {
+  const handlers = (server.server as unknown as {
+    _requestHandlers: Map<string, (request: CallToolRequest, extra: unknown) => Promise<unknown>>;
+  })._requestHandlers;
+  const call = handlers.get("tools/call");
+  if (!call) return;
+  handlers.set("tools/call", async (request, extra) => {
+    const started = performance.now();
+    let isError = true;
+    try {
+      const result = await call(request, extra);
+      isError = (result as CallToolResult | undefined)?.isError === true;
+      return result;
+    } finally {
+      // A malformed request may have no params; the SDK's own error must stand.
+      const params = (request as { params?: CallToolRequest["params"] }).params;
+      const event: ToolCallEvent = {
+        tool: String(params?.name),
+        durationMs: performance.now() - started,
+        isError,
+        argumentNames: Object.keys(params?.arguments ?? {}),
+      };
+      queueMicrotask(() => {
+        try {
+          void Promise.resolve(onToolCall(event)).catch(() => {});
+        } catch {
+          // a failing observer must not fail the call
+        }
+      });
+    }
+  });
+}
+
 export function createMCPServer(deps: {
   logger: ConsoleLogger;
   allowedTools?: string[] | undefined;
@@ -82,13 +131,39 @@ export function createMCPServer(deps: {
    */
   maxToolInputElements?: number | undefined;
   /**
+   * The PipesHub OAuth scopes the caller's token holds. When given, only the
+   * tools whose `requiredOAuthScopes` are all held are registered, so
+   * `tools/list` offers nothing that would answer 403. Unset: every tool.
+   */
+  grantedOAuthScopes?: readonly string[] | undefined;
+  /**
+   * Whether `pipeshub_chat` may run the user's connected actions (create a
+   * ticket, send an email), in plain and agent chats. Defaults to true. False
+   * sends no tools with any turn and says so in its description.
+   */
+  allowChatActions?: boolean | undefined;
+  /**
+   * Called once after every tool call, whether it succeeded, returned an
+   * error result or threw. It runs after the call and cannot fail it.
+   */
+  onToolCall?: ((e: ToolCallEvent) => void) | undefined;
+  /**
    * How `pipeshub_search` answers a caller that sends no format header:
    * text (for agents) or JSON (for programs on stdio). Defaults to the
    * `PIPESHUB_MCP_RESULT_FORMAT` environment variable, which defaults to text.
    */
   resultFormat?: ResultFormat | undefined;
 }) {
-  const chat = deps.chat ?? chatEnabledFromEnv();
+  const granted = deps.grantedOAuthScopes && new Set(deps.grantedOAuthScopes);
+  const permitted = (name: string): boolean => {
+    if (!granted) return true;
+    // A tool with no scope entry is left out rather than offered unchecked.
+    const needs = requiredOAuthScopes(name);
+    return needs !== undefined && needs.every((s) => granted.has(s));
+  };
+  // A token that cannot chat gets the server without chat, so no text points at it.
+  const chat = (deps.chat ?? chatEnabledFromEnv()) && permitted(tool$pipeshubChat.name);
+  const actions = deps.allowChatActions ?? true;
   const resultFormat = deps.resultFormat ?? resultFormatFromEnv();
   const server = new McpServer(
     {
@@ -96,7 +171,7 @@ export function createMCPServer(deps: {
       version: "0.0.4",
     },
     {
-      instructions: pipeshubInstructions({ chat }),
+      instructions: pipeshubInstructions({ chat, actions }),
       maxToolInputElements:
         deps.maxToolInputElements ?? DEFAULT_MAX_TOOL_INPUT_ELEMENTS,
     },
@@ -121,7 +196,7 @@ export function createMCPServer(deps: {
   const scopes = new Set(deps.scopes);
 
   const allowedTools = deps.allowedTools && new Set(deps.allowedTools);
-  const [tool, tools, toolMap] = createRegisterTool(
+  const [registerTool, tools, toolMap] = createRegisterTool(
     deps.logger,
     server,
     getClient,
@@ -129,6 +204,9 @@ export function createMCPServer(deps: {
     allowedTools,
     deps.dynamic,
   );
+  const tool: typeof registerTool = (def) => {
+    if (permitted(def.name)) registerTool(def);
+  };
   const resource = createRegisterResource(
     deps.logger,
     server,
@@ -194,7 +272,7 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubConnectSource);    // 9. link for the human to connect a tool
   mount(tool$pipeshubAddWebSource);     // 10. crawl a website (`connect` scope)
   if (chat) {
-    tool(cited(tool$pipeshubChat));     // 11. optional: PipesHub's assistant
+    tool(cited(createChatTool({ actions }))); // 11. optional: PipesHub's assistant
     tool(tool$pipeshubAgents);          // 12. discover org agents (for chat)
   }
   // The answer's sources, shown before it: the model passes the cite codes
@@ -229,11 +307,24 @@ export function createMCPServer(deps: {
   });
 
   // Curated prompt: user-invokable tool-routing guidance.
-  prompt(createPipeshubAssistantPrompt({ chat, showsApps }));
+  prompt(createPipeshubAssistantPrompt({ chat, actions, showsApps }));
 
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);
   }
+
+  if (deps.onToolCall) observeToolCalls(server, deps.onToolCall);
+
+  // The SDK advertises listChanged as soon as anything is registered, but
+  // this server never sends the notifications: every tool is registered
+  // before connect, and the citation tools follow `initialize` without one.
+  // PipesHub's /mcp also builds a server per request, which could not send
+  // one at all. So no client should wait for them.
+  server.server.registerCapabilities({
+    tools: { listChanged: false },
+    prompts: { listChanged: false },
+    resources: { listChanged: false },
+  });
 
   return { server, tools };
 }

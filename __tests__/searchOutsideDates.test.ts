@@ -3,6 +3,7 @@ import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { forgetSearches, OUTSIDE_DATES_MAX_CHARS } from "../src/mcp-server/tools/_searchResults.js";
 import {
+  NO_RESULTS_NOTE,
   shapeOutsideDates,
   tool$pipeshubSearch,
 } from "../src/mcp-server/tools/pipeshubSearch.js";
@@ -193,5 +194,23 @@ describe("pipeshub_search outsideDates", () => {
   test("the field says what it is and how to read it", () => {
     expect(shapeOutsideDates({ searchResults: hits([release]), records: [release] })?.note)
       .toContain("read it with `pipeshub_get_record_content`");
+  });
+});
+
+describe("pipeshub_search with no matches", () => {
+  test("says so in a note, and only then", async () => {
+    const empty = await tool$pipeshubSearch.tool(
+      client({ searchResponse: { searchResults: [], records: [] } }),
+      { query: "nothing like this" } as never,
+      ctx(),
+    );
+    expect(JSON.parse(textOf(empty)).notes).toEqual([NO_RESULTS_NOTE]);
+
+    const found = await tool$pipeshubSearch.tool(
+      client({ searchResponse: { searchResults: hits([standup]), records: [standup] } }),
+      { query: "standup" } as never,
+      ctx(),
+    );
+    expect(JSON.parse(textOf(found)).notes).toBeUndefined();
   });
 });

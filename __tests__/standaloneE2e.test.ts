@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { postMcp } from "../src/cli/client.js";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -14,7 +14,7 @@ import { join } from "node:path";
 // Needs Docker, the built bridge (npm run build) and the slim images. It runs
 // only when PIPESHUB_E2E=1 (npm run test:e2e), and then a missing dependency
 // FAILS the run rather than skipping. Image names come from the environment the
-// compose file reads: PIPESHUB_IMAGE, IMAGE_TAG, PG_IMAGE, PG_TAG.
+// compose file reads: PIPESHUB_IMAGE, IMAGE_TAG, PG_IMAGE, PG_TAG, PIPESHUB_MIGRATE_IMAGE, MIGRATE_TAG.
 // This repo's CI runs `bun test` without Docker, so this is skipped there on purpose.
 
 const RUN = process.env["PIPESHUB_E2E"] === "1";
@@ -34,7 +34,7 @@ let firstAnswerSeconds = 0;
 
 async function cli(args: string[], timeoutMs = 120_000) {
   const env: Record<string, string> = { PATH: "/usr/bin:/bin:/usr/local/bin", HOME: home, PIPESHUB_PROJECT: PROJECT };
-  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_TAG", "APP_MEMORY_LIMIT"]) {
+  for (const k of ["PIPESHUB_IMAGE", "IMAGE_TAG", "PG_IMAGE", "PG_TAG", "PIPESHUB_MIGRATE_IMAGE", "MIGRATE_TAG", "APP_MEMORY_LIMIT"]) {
     if (process.env[k]) env[k] = process.env[k]!;
   }
   const proc = Bun.spawn([process.execPath, CLI, ...args], { cwd: project, env, stdout: "pipe", stderr: "pipe" });
@@ -58,7 +58,7 @@ async function files(dir: string): Promise<string[]> {
 async function bridge(): Promise<Client> {
   // The entry exactly as the agent's config has it; only `npx -y @pipeshub-ai/mcp@...` is swapped for this checkout's build.
   const e = JSON.parse(await readFile(join(home, ".cursor", "mcp.json"), "utf8")).mcpServers.pipeshub as { command: string; args: string[]; env: Record<string, string> };
-  expect(e.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.10.0"]);
+  expect(e.args.slice(0, 2)).toEqual(["-y", "@pipeshub-ai/mcp@>=4.11.0"]);
   const t = new StdioClientTransport({
     command: "node",
     args: [BRIDGE, ...e.args.slice(2)],
@@ -181,6 +181,33 @@ describe.skipIf(!RUN)("standalone init on a real slim stack", () => {
       await c.close();
     }
   }, 600_000);
+
+  test("a local folder indexed with pipeshub index is found by a search through the bridge, with its record cited", async () => {
+    const repo = join(base, "notes-repo");
+    const word = "copperwren" + Math.random().toString(36).slice(2, 8);
+    await mkdir(repo, { recursive: true });
+    await writeFile(join(repo, "oncall.md"), `# On-call handbook\n\nPage the release captain through the ${word} channel. Escalate after 15 minutes.\n`);
+    for (const args of [["init", "-q"], ["add", "."], ["-c", "user.name=e2e", "-c", "user.email=e2e@example.invalid", "commit", "-qm", "notes"]]) {
+      expect(Bun.spawnSync(["git", ...args], { cwd: repo }).exitCode).toBe(0);
+    }
+    const r = await cli(["index", repo], 600_000);
+    expect(r.code).toBe(0);
+    const c = await bridge();
+    try {
+      let text = "";
+      for (let i = 0; i < 100 && !text.includes(word); i++) {
+        const res = await c.callTool({ name: "pipeshub_search", arguments: { query: `release captain ${word} channel`, limit: 5 } });
+        text = JSON.stringify(res);
+        if (!text.includes(word)) await new Promise((res) => setTimeout(res, 3000));
+      }
+      expect(text).toContain(word);
+      // cited: the hit names its record and the file it came from
+      expect(text).toMatch(/recordId|virtualRecordId/);
+      expect(text).toContain("oncall.md");
+    } finally {
+      await c.close();
+    }
+  }, 900_000);
 
   test("no secret is in any agent file: not the token, not the account password", async () => {
     const creds = JSON.parse(await readFile(join(home, ".config/pipeshub/credentials.json"), "utf8"));

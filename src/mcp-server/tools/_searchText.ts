@@ -1,5 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { ToolDefinition } from "../tools.js";
+import { type ToolDefinition, withStructuredContent } from "../tools.js";
 
 /**
  * `pipeshub_search` results as plain text for the agent, instead of JSON.
@@ -176,11 +176,15 @@ export function searchResultText(result: any): string {
   return out.join("\n");
 }
 
-/** The JSON text a tool returned, as the search text; anything else as it was. */
+/**
+ * The JSON text a tool returned, as the search text; anything else as it was.
+ * `structuredContent` keeps the JSON object, so a client reading it gets the
+ * same result either way.
+ */
 function resultAsText(result: CallToolResult): CallToolResult {
   if (result.isError) return result;
   return {
-    ...result,
+    ...withStructuredContent(result),
     content: result.content.map((c) => {
       if (c.type !== "text" || !c.text.startsWith("{")) return c;
       try {
