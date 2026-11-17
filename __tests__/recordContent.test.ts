@@ -89,7 +89,7 @@ describe("content mode", () => {
 
     expect(out.isError).toBe(true);
     expect(textOf(out)).toContain("403");
-    expect(textOf(out)).toContain("no access");
+    expect(textOf(out)).toContain("Not found");
   });
 });
 

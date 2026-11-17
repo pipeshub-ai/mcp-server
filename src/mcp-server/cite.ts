@@ -95,9 +95,14 @@ export const recordCite = (recordId: string) => `${recordId}....`;
  * record read's closing `Cite:` line.
  */
 export function withoutCitations(result: CallToolResult): CallToolResult {
+  const { structuredContent } = result;
   return {
     ...result,
     content: result.content.map((c) => c.type === "text" ? { ...c, text: textWithoutCitations(c.text) } : c),
+    // A read's structured form repeats its text, which must lose the same lines.
+    ...(structuredContent && typeof structuredContent["text"] === "string"
+      ? { structuredContent: { ...structuredContent, text: textWithoutCitations(structuredContent["text"]) } }
+      : {}),
   };
 }
 

@@ -31,6 +31,17 @@ export const PARTIAL_COVERAGE_NOTE =
   + "`pipeshub_get_record_content` `mode:\"lookup\"`, and tell the user which "
   + "content could not be searched.";
 
+const outputSchema = {
+  sources: z.array(z.looseObject({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    kind: z.enum(["connector", "knowledgeBase"]).optional(),
+  })).optional(),
+  llmModels: z.array(z.looseObject({ modelKey: z.string().optional() })).optional(),
+  embeddingModels: z.array(z.looseObject({ modelKey: z.string().optional() })).optional(),
+  notes: z.array(z.string()).optional(),
+};
+
 export const tool$pipeshubSources: ToolDefinition<typeof args> = {
   name: "pipeshub_sources",
   description:
@@ -64,6 +75,7 @@ sources and models change infrequently.`,
     readOnlyHint: true,
   },
   args,
+  outputSchema,
   tool: async (client, args, ctx) => {
     const fetchOptions = { signal: ctx.signal };
     const include = args.include

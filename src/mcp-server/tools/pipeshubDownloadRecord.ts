@@ -1,7 +1,67 @@
 import * as z from "zod";
 import { recordsStreamRecordBuffer } from "../../funcs/recordsStreamRecordBuffer.js";
-import { formatResult, ToolDefinition } from "../tools.js";
-import { errorResult } from "./_helpers.js";
+import { formatResult, isTextMime, ToolDefinition } from "../tools.js";
+import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { errorResult, httpErrorResult } from "./_helpers.js";
+
+/**
+ * The most characters (text, or base64 for a binary file) one download
+ * returns: about 25k tokens, Claude Code's tool-output cap.
+ */
+export const DOWNLOAD_MAX_CHARS = 100_000;
+
+const readInstead = (recordId: string) =>
+  `Read its text in parts with \`pipeshub_get_record_content\` `
+  + `\`mode:"content"\` and \`recordId:"${recordId}"\`.`;
+
+/**
+ * Keep `result` under `max`: cut text for a read, and refuse a file too big to
+ * send whole. A caller that set `maxChars` is saving the file, so its text is
+ * refused rather than cut, too.
+ */
+function capped(
+  result: CallToolResult,
+  recordId: string,
+  max: number,
+  cutText: boolean,
+): CallToolResult {
+  const [item] = result.content;
+  if (result.content.length !== 1 || !item) return result;
+  if (item.type === "text" && cutText && item.text.length > max) {
+    return {
+      content: [
+        { type: "text", text: item.text.slice(0, max) },
+        {
+          type: "text",
+          text: `[Cut at ${max.toLocaleString("en-US")} of `
+            + `${item.text.length.toLocaleString("en-US")} characters. `
+            + `${readInstead(recordId)}]`,
+        },
+      ],
+    };
+  }
+  const size = item.type === "text"
+    ? item.text.length
+    : item.type === "resource" && "blob" in item.resource
+    ? item.resource.blob.length
+    : item.type === "image" || item.type === "audio"
+    ? item.data.length
+    : 0;
+  if (size <= max) return result;
+  return tooBig(item.type === "text" ? size : size * 3 / 4, recordId);
+}
+
+// An error, so a client saving the file (an older `pipeshub get --out`)
+// fails loudly rather than writing this note as the file.
+const tooBig = (bytes: number, recordId: string): CallToolResult => ({
+  isError: true,
+  content: [{
+    type: "text",
+    text: `The file is about ${Math.round(bytes / 1024).toLocaleString("en-US")} KB, `
+      + "more than one tool result can carry, so it was not returned. "
+      + `${readInstead(recordId)} Or open it in PipesHub.`,
+  }],
+});
 
 const args = {
   recordId: z.string().min(1).describe(
@@ -16,6 +76,12 @@ const args = {
       + "stored. Does not parse the document — use "
       + "`pipeshub_get_record_content` `mode:\"content\"` for that.",
   ),
+  maxChars: z.number().int().min(1).optional().describe(
+    `Most characters to return (text, or base64 for a file). Default `
+      + `${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")}, about 25k tokens. Raise it `
+      + "only to save the file to disk, never to read it. With it set, a text "
+      + "file over the cap is refused rather than cut.",
+  ),
 };
 
 export const tool$pipeshubDownloadRecord: ToolDefinition<typeof args> = {
@@ -25,14 +91,14 @@ export const tool$pipeshubDownloadRecord: ToolDefinition<typeof args> = {
 content, metadata header, or summary.
 
 Use this when the user wants the file itself (download, attach, open).
-Get \`recordId\` from a chat citation or a \`pipeshub_search\` hit.
 
 Do not use this to read, summarize, or answer "what does this doc
 say?" regardless of format. That is \`pipeshub_get_record_content\`
 \`mode:"content"\`. Text formats come back inline; images, audio, and
 binary as base64.
 
-\`convertTo\` accepts only \`application/pdf\`; anything else is ignored.`,
+\`convertTo\` accepts only \`application/pdf\`; anything else is ignored.
+At most ${DOWNLOAD_MAX_CHARS.toLocaleString("en-US")} characters come back.`,
   scopes: ["read"],
   annotations: {
     title: "Download a document by record id",
@@ -48,7 +114,35 @@ binary as base64.
       convertTo: args.convertTo,
     }, { fetchOptions: { signal: ctx.signal } }).$inspect();
     if (!result.ok) return errorResult(result.error.message);
+    const httpErr = await httpErrorResult(result.value, "Download");
+    if (httpErr) return httpErr;
 
-    return formatResult(result.value);
+    // PipesHub's own parsed form of a page or message, not a file anyone stored.
+    const type = result.value.headers.get("content-type") ?? "";
+    if (type.split(";")[0]?.trim().toLowerCase() === "application/blocks") {
+      await result.value.body?.cancel();
+      // An error, so a client saving the file does not write this note as it.
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: "This record has no stored file, only PipesHub's parsed "
+            + `content. ${readInstead(args.recordId)}`,
+        }],
+      };
+    }
+    const max = args.maxChars ?? DOWNLOAD_MAX_CHARS;
+    const cutText = args.maxChars === undefined;
+    // Refuse a file its Content-Length already puts over the cap, unread. Text
+    // is at most 3 UTF-8 bytes a character; base64 is longer than the bytes.
+    // shortcut: a body without Content-Length, or text a read cuts, is still
+    // read whole; count bytes while reading if server memory becomes a concern.
+    const length = Number(result.value.headers.get("content-length"));
+    const text = isTextMime(type);
+    if (!(text && cutText) && length > (text ? 3 * max : max)) {
+      await result.value.body?.cancel();
+      return tooBig(length, args.recordId);
+    }
+    return capped(await formatResult(result.value), args.recordId, max, cutText);
   },
 };

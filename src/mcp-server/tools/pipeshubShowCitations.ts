@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
+import { headerField } from "./pipeshubGetRecordContent.js";
 import { PipeshubCore } from "../../core.js";
 import { CiteLocation, decodeCite } from "../cite.js";
 import {
@@ -26,12 +27,13 @@ type RecordInfo = {
   recordName?: string;
   mimeType?: string;
   extension?: string;
+  connector?: string;
   webUrl?: string;
 };
 
 /**
  * A record's name, type and link, from the metadata header a short read
- * starts with (`Name:`, `MIME Type:`, `Web URL:` lines). Empty when the read
+ * starts with (`Name:`, `Connector:`, `MIME Type:`, `Web URL:` lines). Empty when the read
  * fails: the citation still opens, under a generic name.
  */
 async function recordInfo(
@@ -45,17 +47,17 @@ async function recordInfo(
   if (!result.ok) return {};
   const parsed = await readJson<{ content?: string }>(result.value);
   if (!parsed.ok || typeof parsed.value?.content !== "string") return {};
-  // The header ends at the first blank line; the record's own text follows.
-  const header = parsed.value.content.split("\n\n")[0] ?? "";
-  const field = (name: string) =>
-    new RegExp(`^${name}: (.+)$`, "m").exec(header)?.[1]?.trim();
+  const content = parsed.value.content;
+  const field = (name: string) => headerField(content, name);
   const recordName = field("Name");
   const extension = /\.([A-Za-z0-9]{1,5})$/.exec(recordName ?? "")?.[1]?.toLowerCase();
   const webUrl = field("Web URL");
   const mimeType = field("MIME Type");
+  const connector = field("Connector");
   return {
     ...(recordName ? { recordName } : {}),
     ...(mimeType ? { mimeType } : {}),
+    ...(connector ? { connector } : {}),
     ...(extension ? { extension } : {}),
     ...(webUrl && /^https?:\/\//.test(webUrl) ? { webUrl } : {}),
   };

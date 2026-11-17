@@ -414,17 +414,11 @@ describe("description budget", () => {
   // how often, and how to watch progress, in about 210 characters. A token
   // without the connector scopes is not shown it.
   const TOTAL_MAX = 15050;
-  // Raised 2026-11-01 by 900, deliberately, for "Say only what you read"
-  // (about 1,070 characters, of which the old ceiling had room for 249). In
-  // an evaluation on public Apache data, most real wrong claims in answers
-  // that used PipesHub came from the agent going past what it had read:
-  // saying a record did not mention something it had not read to the end,
-  // finishing a passage cut off mid-sentence, taking an older page over a
-  // later decision, or repeating a detail from a model-written summary.
-  // Raised 2026-11-02 by 150 when merged with the `pipeshub_show_citations`
-  // step (about 140 characters), which took the headroom the raise above
-  // counted on. Clients without MCP Apps get the instructions without it.
-  const INSTRUCTIONS_MAX = 9050;
+  // Claude Code keeps only the first 4,096 characters of a server's
+  // instructions, and PipesHub's /mcp may append its code-tool section, so
+  // the full text (chat and the citations step included) stays under 3,500.
+  // Cut from 7,751 on 2026-11-03, keeping every rule that changes behaviour.
+  const INSTRUCTIONS_MAX = 3500;
 
   test.each([...byName.entries()])("%s stays under the per-tool ceiling", (name, desc) => {
     expect({ name, chars: desc.length <= PER_TOOL_MAX })
@@ -436,7 +430,10 @@ describe("description budget", () => {
     expect(total).toBeLessThanOrEqual(TOTAL_MAX);
   });
 
-  test("the instructions block holds", () => {
-    expect(PIPESHUB_INSTRUCTIONS.length).toBeLessThanOrEqual(INSTRUCTIONS_MAX);
+  test("the instructions block holds, and opens with what PipesHub is for", () => {
+    for (const chat of [true, false]) {
+      expect(pipeshubInstructions({ chat }).length).toBeLessThanOrEqual(INSTRUCTIONS_MAX);
+    }
+    expect(PIPESHUB_INSTRUCTIONS).toMatch(/^PipesHub searches the user's company/);
   });
 });
