@@ -344,7 +344,7 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
     ...(indexedHere
       ? ['Then ask it about this repository, e.g. "what calls <a function>?" or "search PipesHub for our deployment process".']
       : ['Then ask it a question about what your team knows, e.g. "search PipesHub for our deployment process".']),
-    "Put documents in: " + join(env["HOME"] || homedir(), ".pipeshub", "standalone", "workspace") + " (or connect a source at " + origin + ").",
+    `Connect your team's sources (docs, tickets, chat) at ${origin}.`,
     ...(indexedHere || (o.dryRun && repoRoot !== null) ? [`Undo everything with: ${cmd} uninstall`]
       : inRepo !== null ? [`Index this repository's code: ${cmd} index   (undo everything with: ${cmd} uninstall)`]
       : [`Index a repository's code: cd <repository> && ${cmd} index   (undo everything with: ${cmd} uninstall)`]),

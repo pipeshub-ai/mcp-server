@@ -114,7 +114,7 @@ test("an .env line is read whatever case or digits its name has", () => {
   expect(parseEnvFile("SECRET_KEY=a\nPg2_x=b\n_lead=c\n9bad=d\n# note\n")).toEqual({ SECRET_KEY: "a", Pg2_x: "b", _lead: "c" });
 });
 
-test("dev status reports the graph database's health", async () => {
+test("dev status reports the database's health", async () => {
   const dir = await mkdtemp(join(tmpdir(), "standalone-status-"));
   await writeFile(join(dir, "docker"), `#!/bin/sh\ncase "$*" in *" ps "*) echo healthy ;; esac\nexit 0\n`);
   await chmod(join(dir, "docker"), 0o755);
@@ -122,6 +122,6 @@ test("dev status reports the graph database's health", async () => {
   await mkdir(join(home, ".pipeshub", "standalone"), { recursive: true });
   await writeFile(join(home, ".pipeshub", "standalone", "state.json"), JSON.stringify({ project: "p", port: 65199, origin: "http://127.0.0.1:65199" }));
   const status = await devStatus({ HOME: home, PATH: `${dir}:/usr/bin:/bin` });
-  expect(status).toMatchObject({ configured: true, neo4j: "healthy" });
+  expect(status).toMatchObject({ configured: true, database: "healthy" });
   await rm(dir, { recursive: true, force: true });
 });

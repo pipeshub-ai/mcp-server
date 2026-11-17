@@ -90,14 +90,12 @@ export const parseEnvFile = (text: string) =>
 /** Write the compose file and the .env (secrets generated once, never rewritten). */
 async function prepare(port: number, project: string, env: NodeJS.ProcessEnv): Promise<string> {
   const dir = standaloneDir(env);
-  await mkdir(join(dir, "workspace"), { recursive: true, mode: 0o700 });
   await writeAtomic(join(dir, "docker-compose.yml"), composeFile(await cliVersion()), 0o600);
   await writeAtomic(join(dir, "seccomp-browser.json"), SECCOMP_PROFILE, 0o600);
   const have = parseEnvFile(await readFile(join(dir, ".env"), "utf8").catch(() => ""));
   for (const name of SECRET_NAMES) have[name] ||= randomBytes(24).toString("hex");
   have["PIPESHUB_PORT"] = String(port);
   have["PIPESHUB_PROJECT"] = project;
-  have["PIPESHUB_WORKSPACE"] = join(dir, "workspace");
   await writeAtomic(join(dir, ".env"), Object.entries(have).map(([k, v]) => `${k}=${v}`).join("\n") + "\n", 0o600);
   return dir;
 }
@@ -191,12 +189,12 @@ export async function devDown(volumes: boolean, env: NodeJS.ProcessEnv = process
   return { stopped: true, project: state.project };
 }
 
-/** Docker's health of the graph database container: healthy, unhealthy, starting, or unknown when it is not running. */
-function neo4jHealth(state: StackState, env: NodeJS.ProcessEnv): string {
+/** Docker's health of the database container: healthy, unhealthy, starting, or unknown when it is not running. */
+function databaseHealth(state: StackState, env: NodeJS.ProcessEnv): string {
   const dir = standaloneDir(env);
   const r = spawnSync(
     dockerBin(env),
-    ["compose", "-p", state.project, "--env-file", join(dir, ".env"), "-f", join(dir, "docker-compose.yml"), "ps", "--format", "{{.Health}}", "neo4j"],
+    ["compose", "-p", state.project, "--env-file", join(dir, ".env"), "-f", join(dir, "docker-compose.yml"), "ps", "--format", "{{.Health}}", "postgres"],
     { env, encoding: "utf8", timeout: 15_000 },
   );
   return r.status === 0 && r.stdout.trim() !== "" ? r.stdout.trim() : "unknown";
@@ -208,7 +206,7 @@ export async function devStatus(env: NodeJS.ProcessEnv = process.env) {
   return {
     docker: problem === null ? "ok" : problem,
     configured: state !== null,
-    ...(state ? { project: state.project, origin: state.origin, healthy: await healthy(state.origin), neo4j: problem === null ? neo4jHealth(state, env) : "unknown" } : {}),
+    ...(state ? { project: state.project, origin: state.origin, healthy: await healthy(state.origin), database: problem === null ? databaseHealth(state, env) : "unknown" } : {}),
   };
 }
 

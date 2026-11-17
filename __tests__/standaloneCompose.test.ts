@@ -9,27 +9,15 @@ import { SECRET_NAMES, composeFile } from "../src/cli/standalone/assets.js";
 describe("the pinned compose file", () => {
   const text = composeFile("4.10.0");
 
-  test("the graph runs on Neo4j: a service with no published port, its password only from .env, and the app waits for it", () => {
-    const neo4j = text.slice(text.indexOf("\n  neo4j:"), text.indexOf("\nvolumes:"));
-    expect(neo4j).toContain("image: ${NEO4J_IMAGE:-neo4j}:${NEO4J_TAG:-5.26.0}");
-    expect(neo4j).toContain("NEO4J_PLUGINS: '[\"apoc\"]'");
-    expect(neo4j).toContain("NEO4J_server_memory_heap_max__size: 512m");
-    expect(neo4j).toContain("NEO4J_server_memory_pagecache_size: 256m");
-    expect(neo4j).toContain("pipeshub-neo4j:/data");
-    // Neo4j reads every NEO4J_* variable as a setting and refuses to start on an unknown one, so the password is only in NEO4J_AUTH.
-    expect(neo4j).toContain("cypher-shell -u neo4j -p \\\"$${NEO4J_AUTH#neo4j/}\\\" 'RETURN 1'");
-    expect(neo4j).not.toContain("ports:");
-    expect(text).toContain("\n  pipeshub-neo4j:\n");
-    expect(text).toContain("DATA_STORE: neo4j");
-    expect(text).not.toContain("DATA_STORE: postgres");
-    expect(text).toContain("NEO4J_URI: bolt://neo4j:7687");
-    expect(text).toMatch(/depends_on:[\s\S]*neo4j:\s+condition: service_healthy/);
-    // every password is a reference to .env, never a value
-    expect(text.match(/NEO4J_(PASSWORD|AUTH): .*/g)).toEqual([
-      "NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}", "NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?}",
-    ]);
-    expect(SECRET_NAMES).toContain("NEO4J_PASSWORD");
-    expect(text.split("\n")[1]).toContain("until the PostgreSQL graph store is complete");
+  test("every store runs on PostgreSQL: no Neo4j, Redis or other database service, and no Neo4j password", () => {
+    expect(text).toContain("DATA_STORE: postgres");
+    for (const v of ["DOC_STORE", "KV_STORE_TYPE", "MESSAGE_BROKER", "REDIS_MODE", "CRAWL_SCHEDULER"]) expect(text).toContain(`${v}: postgres`);
+    expect(text).toContain("VECTOR_DB_TYPE: pgvector");
+    expect([...text.matchAll(/^ {2}([a-z0-9-]+):\n {4}image:/gm)].map((m) => m[1])).toEqual(["pipeshub-slim", "postgres", "pipeshub-migrate", "pipeshub-placement"]);
+    expect(text).not.toMatch(/neo4j|redis:|mongo|qdrant/i);
+    expect(SECRET_NAMES).not.toContain("NEO4J_PASSWORD" as never);
+    // LISTEN needs a session of its own: direct to PostgreSQL, as the key-value login
+    expect(text).toContain("PG_LISTEN_URL: postgresql://pipeshub_kv_login:${PG_KV_PASSWORD:?}@postgres:5432/pipeshub");
   });
 
   test("the header names the CLI version, not an internal branch", () => {
@@ -49,7 +37,7 @@ describe("the pinned compose file", () => {
   });
 
   test("a placement worker runs from the migration image, as the migrate and jobs logins, once the migration is done", () => {
-    const w = text.slice(text.indexOf("\n  pipeshub-placement:"), text.indexOf("\n  neo4j:"));
+    const w = text.slice(text.indexOf("\n  pipeshub-placement:"), text.indexOf("\nvolumes:"));
     expect(w).toContain("image: ${PIPESHUB_MIGRATE_IMAGE:-pipeshubai/pipeshub-migrate}:${MIGRATE_TAG:-latest}");
     expect(w).toContain('command: ["python", "-m", "db.maintain", "placement", "--watch", "1"]');
     expect(w).toContain("PG_MIGRATE_URL: postgresql+psycopg://pipeshub_migrate:");

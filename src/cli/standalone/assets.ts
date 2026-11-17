@@ -3,13 +3,13 @@
 // turned into `${VAR}` below, so they are not read as template-literal holes.
 
 /**
- * The slim stack: the app, PostgreSQL with pgvector (the image the repository's Compose install uses, plus its migration job), and Neo4j for the graph. No repository checkout is needed, and the image names are overridable from the environment.
+ * The slim stack: the app and PostgreSQL alone (documents, graph, vectors, configuration, queue and scheduler), on the image the repository's
+ * PostgreSQL-only Compose install uses, plus its migration job. No repository checkout is needed, and the image names are overridable from the environment.
  *
  * shortcut: the default image tag of the app is not published yet. Pin the published tag here (or set PIPESHUB_IMAGE/IMAGE_TAG/
  * PG_IMAGE/PG_TAG, PIPESHUB_MIGRATE_IMAGE/MIGRATE_TAG) before the package is published.
  */
-const COMPOSE = `# PipesHub standalone (slim): the app, PostgreSQL (with its migration job) and Neo4j. Written by 'pipeshub dev up' (CLI version @{REVISION}).
-# The graph runs on Neo4j until the PostgreSQL graph store is complete.
+const COMPOSE = `# PipesHub standalone (slim): the app and PostgreSQL (with its migration job). Written by 'pipeshub dev up' (CLI version @{REVISION}).
 # Secrets are in .env next to this file (mode 0600). Ports bind to loopback only.
 name: @{PIPESHUB_PROJECT:-pipeshub-standalone}
 
@@ -21,13 +21,12 @@ services:
     depends_on:
       pipeshub-migrate:
         condition: service_completed_successfully
-      neo4j:
-        condition: service_healthy
+      pipeshub-placement:
+        condition: service_started
     ports:
       - "127.0.0.1:@{PIPESHUB_PORT:-3000}:3000"
     volumes:
       - pipeshub-data:/data/pipeshub
-      - @{PIPESHUB_WORKSPACE:-./workspace}:/workspace:ro
     mem_limit: @{APP_MEMORY_LIMIT:-4g}
     # The web browser pack runs Chromium with its own sandbox, which needs user namespaces (see seccomp.ts).
     security_opt:
@@ -50,10 +49,7 @@ services:
       CONNECTOR_BACKEND: http://localhost:8088
       INDEXING_BACKEND: http://localhost:8091
       EMBEDDING_SERVER_URL: http://localhost:8002
-      DATA_STORE: neo4j
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USERNAME: neo4j
-      NEO4J_PASSWORD: @{NEO4J_PASSWORD:?}
+      DATA_STORE: postgres
       DOC_STORE: postgres
       VECTOR_DB_TYPE: pgvector
       KV_STORE_TYPE: postgres
@@ -64,14 +60,17 @@ services:
       PG_POOLER: none
       PG_NODE_URL: postgresql://pipeshub_node_login:@{PG_NODE_PASSWORD:?}@postgres:5432/pipeshub
       PG_JOBS_URL: postgresql://pipeshub_jobs:@{PG_JOBS_PASSWORD:?}@postgres:5432/pipeshub
+      # The processes that only read configuration log in as the key-value role.
       PG_CORE_URL: postgresql://pipeshub_kv_login:@{PG_KV_PASSWORD:?}@postgres:5432/pipeshub
+      PG_RUNTIME_SERVICE: kv
+      # Configuration and records-cache changes are pushed between processes over LISTEN; the login only listens.
+      PG_LISTEN_URL: postgresql://pipeshub_kv_login:@{PG_KV_PASSWORD:?}@postgres:5432/pipeshub
       PG_CORE_CONNECTORS_URL: postgresql://pipeshub_connectors_login:@{PG_CONNECTORS_PASSWORD:?}@postgres:5432/pipeshub
       PG_CORE_INDEXING_URL: postgresql://pipeshub_indexing_login:@{PG_INDEXING_PASSWORD:?}@postgres:5432/pipeshub
       PG_CORE_QUERY_URL: postgresql://pipeshub_query_login:@{PG_QUERY_PASSWORD:?}@postgres:5432/pipeshub
       # The vector store logs in as each service's own login (the image derives it from the PG_CORE_*_URL above); the jobs login creates collections.
       PGVECTOR_POOLER: none
       PGVECTOR_JOBS_DSN: postgresql://pipeshub_jobs:@{PG_JOBS_PASSWORD:?}@postgres:5432/pipeshub
-      PIPESHUB_FOLDER_ROOTS: /workspace
       EMBEDDING_BACKEND: fastembed
       DEFAULT_EMBEDDING_MODEL: @{DEFAULT_EMBEDDING_MODEL:-BAAI/bge-base-en-v1.5}
       # Chunks per ONNX run: bge-base grows the process by 880 MiB at 16, 156 MiB at 4 and 25 MiB at 1.
@@ -160,41 +159,19 @@ services:
       PG_MIGRATE_URL: postgresql+psycopg://pipeshub_migrate:@{PG_MIGRATE_PASSWORD:?}@postgres:5432/pipeshub
       PG_JOBS_URL: postgresql://pipeshub_jobs:@{PG_JOBS_PASSWORD:?}@postgres:5432/pipeshub
 
-  neo4j:
-    image: @{NEO4J_IMAGE:-neo4j}:@{NEO4J_TAG:-5.26.0}
-    restart: unless-stopped
-    mem_limit: @{NEO4J_MEMORY_LIMIT:-1536m}
-    # No published port: only the app reaches it, over the compose network.
-    environment:
-      NEO4J_AUTH: neo4j/@{NEO4J_PASSWORD:?}
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_dbms_security_procedures_unrestricted: apoc.*
-      NEO4J_server_memory_heap_initial__size: 512m
-      NEO4J_server_memory_heap_max__size: 512m
-      NEO4J_server_memory_pagecache_size: 256m
-    volumes:
-      - pipeshub-neo4j:/data
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \\"$@{NEO4J_AUTH#neo4j/}\\" 'RETURN 1' >/dev/null"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
-      start_period: 30s
-
 volumes:
   pipeshub-data:
   pipeshub-pg:
   pipeshub-pg-auth:
-  pipeshub-neo4j:
 `.replaceAll("@{", "${");
 
 export const composeFile = (cliVersion: string): string => COMPOSE.replace("${REVISION}", cliVersion);
 
-/** Names the .env must define (14 secrets); `dev up` generates each once and never rewrites it. */
+/** Names the .env must define (13 secrets); `dev up` generates each once and never rewrites it. */
 export const SECRET_NAMES = [
   "SECRET_KEY", "JWT_SECRET", "SCOPED_JWT_SECRET", "COOKIE_SECRET",
   "PG_ADMIN_PASSWORD", "PG_NODE_PASSWORD", "PG_CONNECTORS_PASSWORD", "PG_INDEXING_PASSWORD",
-  "PG_QUERY_PASSWORD", "PG_KV_PASSWORD", "PG_JOBS_PASSWORD", "PG_MIGRATE_PASSWORD", "PG_BACKUP_PASSWORD", "NEO4J_PASSWORD",
+  "PG_QUERY_PASSWORD", "PG_KV_PASSWORD", "PG_JOBS_PASSWORD", "PG_MIGRATE_PASSWORD", "PG_BACKUP_PASSWORD",
 ] as const;
 
 /** Written into a file that is wholly ours; uninstall deletes only files that carry it. */
