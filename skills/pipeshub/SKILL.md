@@ -193,6 +193,21 @@ searchable, fill it instead of scaffolding a RAG stack:
 5. For Slack, Drive, Jira and other tools, `pipeshub_connect_source` gives the
    link the user signs in on. You cannot connect a source for them.
 
+## This repository's code
+
+To make the git repository the user works in searchable (definitions, callers,
+impact, through the `pipeshub_code_*` tools), run `pipeshub index` from it, or
+`npx -y @pipeshub-ai/standalone index` when `pipeshub --help` lists no
+`index [path]` (`--watch` keeps it current). With the Claude Code plugin,
+`/pipeshub:index` does this. It sends the tracked and untracked files
+(`.gitignore` respected, likely secrets never sent) to the PipesHub the CLI is
+signed in to, so ask first when that is not on this computer. If neither
+command exists, the local runtime is not installed: tell the user to run
+`npx @pipeshub-ai/standalone init --local` (Docker), which starts PipesHub on
+this computer, signs in, sets up their agents and indexes the repository. If
+it says PipesHub cannot be reached, relay its next step (`pipeshub dev up`).
+Cite code as repo, file path and line range.
+
 ## Which tool
 
 | The person says | Use |
