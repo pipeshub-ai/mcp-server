@@ -436,6 +436,15 @@ async function run(argv: string[]): Promise<number> {
     return EXIT.OK;
   }
 
+  // The MCP bridge an agent spawns: the same code as `@pipeshub-ai/mcp start`, so a launcher install needs no Node.
+  // Before the origin check: --server-url wins, and startStdio logs a bad environment URL instead of exiting.
+  if (command === "start") {
+    const { startStdio } = await import("../mcp-server/cli/start/impl.js");
+    await startStdio({ transport: "stdio", port: 0, "log-level": "info", ...(flags.url ? { "server-url": flags.url } : {}) } as Parameters<typeof startStdio>[0]);
+    await new Promise((done) => process.stdin.once("end", done)); // serve until the agent closes stdin, then exit 0
+    return EXIT.OK;
+  }
+
   let token = resolveToken();
   const isLogin = command === "login" || (command === "auth" && sub === "login");
   const takesUrl = isLogin || command === "init" || (command === "mcp" && sub === "install");
@@ -488,13 +497,6 @@ async function run(argv: string[]): Promise<number> {
     });
     await emit(outcome, flags.json);
     return outcome.exit;
-  }
-
-  // The MCP bridge an agent spawns: the same code as `@pipeshub-ai/mcp start`, so a launcher install needs no Node.
-  if (command === "start") {
-    const { startStdio } = await import("../mcp-server/cli/start/impl.js");
-    await startStdio({ transport: "stdio", port: 0, "log-level": "info", ...(flags.url ? { "server-url": flags.url } : {}) } as Parameters<typeof startStdio>[0]);
-    await new Promise<never>(() => undefined); // the transport keeps the process alive; it exits when the agent closes stdin
   }
 
   // Scaffolding is an admin task performed before any credential exists, so it

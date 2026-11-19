@@ -137,13 +137,28 @@ describe("a dry run does not wait on Docker", () => {
   }, 20_000);
 });
 
+describe("start", () => {
+  test("--server-url wins over an environment URL that does not parse, and it exits when stdin closes", async () => {
+    const proc = Bun.spawn([process.execPath, ENTRY, "start", "--server-url", "http://127.0.0.1:9"], {
+      cwd: home,
+      env: { PATH: "/usr/bin:/bin", HOME: home, PIPESHUB_BASE_URL: "not-a-url" },
+      stdin: "ignore", // closed at once, so the test cannot hang on a server waiting for input
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+    expect(stderr).not.toContain("is not a valid URL");
+    expect(code).toBe(0);
+  });
+});
+
 describe("every command in the usage text dispatches", () => {
   test("none of them is reported as unknown", async () => {
     const help = (await cli(["--help"])).stdout;
     const section = help.split("COMMANDS\n")[1]!.split("\nOPTIONS")[0]!;
     const words = [...new Set(section.split("\n").map((l) => /^  ([a-z][a-z-]*)\b/.exec(l)?.[1]).filter((w): w is string => !!w))];
     expect(words).toContain("add-web");
-    for (const w of words.filter((x) => x !== "start")) { // `start` serves MCP on stdin until it closes
+    for (const w of words) { // `start` serves MCP until stdin closes; here stdin is empty, so it returns at once
       // Nothing listens on port 9, so a command that does get dispatched fails fast and offline.
       const r = await cli([w, "--url", "http://127.0.0.1:9"], { PIPESHUB_BASE_URL: "http://127.0.0.1:9" });
       expect(r.stderr).not.toContain("unknown command");
