@@ -73,7 +73,8 @@ describe("--dry-run needs no credential", () => {
   });
 
   test("init --dry-run and uninstall --dry-run run with nothing set and change nothing", async () => {
-    const a = await cli(["init", "--local", "--dry-run", "--no-start", "--client", "cursor"]);
+    // No real Docker: on a runner whose daemon is slow, its two probes alone outlast the 5 s test timeout.
+    const a = await cli(["init", "--local", "--dry-run", "--no-start", "--client", "cursor"], { PIPESHUB_DOCKER: join(home, "no-docker") });
     expect(a.code).toBe(0);
     expect(a.stdout).toContain("Dry run: nothing was changed.");
     expect(a.stdout).toContain(join(home, ".cursor", "mcp.json"));
