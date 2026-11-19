@@ -18,6 +18,8 @@ const json = (p: string) => JSON.parse(read(p));
 const SCRIPT = join(root, "scripts", "pipeshub-local.mjs");
 const NODE = Bun.which("node") ?? process.execPath;
 const HELP_WITH_INDEX = "COMMANDS\n  index [path]                push a git repository into the code graph";
+// The fixtures are extensionless sh scripts; on Windows the helper only looks for .exe and .cmd.
+const posix = test.skipIf(process.platform === "win32");
 
 describe("pipeshub-local.mjs", () => {
   let bin = "";
@@ -44,13 +46,16 @@ describe("pipeshub-local.mjs", () => {
   };
   const calls = async () => (await readFile(join(bin, "calls"), "utf8").catch(() => "")).trim().split("\n").filter(Boolean);
 
-  test("with no CLI at all, it says to install the local runtime first", () => {
+  test("with no CLI at all, it says the runtime is missing and points at self-hosting", () => {
     const r = run(["index"]);
     expect(r.code).toBe(1);
-    expect(r.stderr).toContain("Install the local runtime first: npx @pipeshub-ai/standalone init --local");
+    // Never "run npx @pipeshub-ai/standalone": npm just failed to provide it. Point at self-hosting instead.
+    expect(r.stderr).toContain("npm could not run '@pipeshub-ai/standalone'");
+    expect(r.stderr).toContain("https://docs.pipeshub.com/for-agents-local-demo.md");
+    expect(r.stderr).not.toContain("npx @pipeshub-ai/standalone");
   });
 
-  test("an older pipeshub without index, and the runtime not on npm, is the same clear message", async () => {
+  posix("an older pipeshub without index, and the runtime not on npm, is the same clear message", async () => {
     await fake("pipeshub", "COMMANDS\n  search <query>   locate records");
     await fake("npx", null);
     const r = run(["setup"]);
@@ -60,7 +65,7 @@ describe("pipeshub-local.mjs", () => {
     expect(await calls()).toEqual(["pipeshub --help", "npx -y @pipeshub-ai/standalone --help"]);
   });
 
-  test("index runs the CLI's own index and passes its output and exit code through", async () => {
+  posix("index runs the CLI's own index and passes its output and exit code through", async () => {
     // What the CLI does when no PipesHub answers: it names the next step and fails.
     await fake("pipeshub", HELP_WITH_INDEX, 1, "could not reach http://localhost:3000: connection refused. Start it with pipeshub dev up");
     const r = run(["index", "/repo"]);
@@ -70,19 +75,25 @@ describe("pipeshub-local.mjs", () => {
     expect(await calls()).toEqual(["pipeshub --help", "pipeshub index /repo"]);
   });
 
-  test("setup runs init --local for Claude Code", async () => {
+  posix("setup runs init --local for Claude Code", async () => {
     await fake("pipeshub", HELP_WITH_INDEX);
     expect(run(["setup"]).code).toBe(0);
     expect((await calls()).at(-1)).toBe("pipeshub init --local --client claude-code");
   });
 
-  test("without a global pipeshub it uses the runtime package through npx", async () => {
+  posix("status runs auth status on the same CLI, so index's origin can be checked first", async () => {
+    await fake("pipeshub", HELP_WITH_INDEX);
+    expect(run(["status"]).code).toBe(0);
+    expect((await calls()).at(-1)).toBe("pipeshub auth status");
+  });
+
+  posix("without a global pipeshub it uses the runtime package through npx", async () => {
     await fake("npx", HELP_WITH_INDEX, 0);
     expect(run(["index"]).code).toBe(0);
     expect((await calls()).at(-1)).toBe("npx -y @pipeshub-ai/standalone index");
   });
 
-  test("POSIX: a repository path with spaces and quotes reaches the CLI as one argument, unchanged", async () => {
+  posix("POSIX: a repository path with spaces and quotes reaches the CLI as one argument, unchanged", async () => {
     const path = `${bin}/my repo "odd" it's & $HOME *`;
     // Writes each argument NUL-terminated, so a split or rewritten argument shows.
     await writeFile(join(bin, "pipeshub"), [
@@ -136,6 +147,13 @@ describe("plugin manifests", () => {
       expect(text, f).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/pipeshub-local.mjs"');
     }
     expect(existsSync(SCRIPT)).toBe(true);
+  });
+
+  test("/pipeshub:index never puts the raw argument text into the shell command", () => {
+    // Claude Code substitutes $ARGUMENTS verbatim, so in a shell line a path with spaces would split.
+    const shell = [...read("commands/index.md").matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).join("");
+    expect(shell).toContain("pipeshub-local.mjs\" index");
+    expect(shell).not.toContain("$ARGUMENTS");
   });
 
   test("Codex installs the repository root as a portable plugin from the Claude marketplace file", () => {

@@ -28,7 +28,7 @@ Mode: "$ARGUMENTS". If it is neither `cloud` nor `local`, ask the user which the
    ```
 
    It runs `pipeshub init --local --client claude-code`: it starts PipesHub with Docker (or uses the one already running), signs in on this computer, adds a `pipeshub` MCP server to Claude Code, and indexes this repository. If it prints a link and a code, give both to the user.
-2. If it says the local runtime is not installed, tell the user that, with the install command it printed, and stop. If it fails for another reason, relay the error and its next step.
+2. If it says the local runtime is not installed, tell the user that, with the self-hosting guide it names, and stop. If it fails for another reason, relay the error and its next step.
 3. On success, tell the user to restart Claude Code. The plugin's Cloud server (`plugin:pipeshub:pipeshub` in `/mcp`) needs `PIPESHUB_MCP_TOKEN`; without it, it shows as failed, and they can turn it off in `/mcp`. After a restart, `/pipeshub:ask` answers from PipesHub and `/pipeshub:index` re-indexes this repository after big changes.
 
 Full guide: https://docs.pipeshub.com/for-agents.md

@@ -201,10 +201,10 @@ impact, through the `pipeshub_code_*` tools), run `pipeshub index` from it, or
 `index [path]` (`--watch` keeps it current). With the Claude Code plugin,
 `/pipeshub:index` does this. It sends the tracked and untracked files
 (`.gitignore` respected, likely secrets never sent) to the PipesHub the CLI is
-signed in to, so ask first when that is not on this computer. If neither
-command exists, the local runtime is not installed: tell the user to run
-`npx @pipeshub-ai/standalone init --local` (Docker), which starts PipesHub on
-this computer, signs in, sets up their agents and indexes the repository. If
+signed in to (`auth status` prints it as `baseUrl`), so ask first when that
+is not on this computer. If neither command exists, npm does not have the
+local runtime yet: tell the user, and point them to
+https://docs.pipeshub.com/for-agents-local-demo.md to self-host instead. If
 it says PipesHub cannot be reached, relay its next step (`pipeshub dev up`).
 Cite code as repo, file path and line range.
 

@@ -5,6 +5,7 @@
 //
 //   node pipeshub-local.mjs setup          -> pipeshub init --local --client claude-code
 //   node pipeshub-local.mjs index [path]   -> pipeshub index [path]
+//   node pipeshub-local.mjs status         -> pipeshub auth status (its baseUrl is where index sends the files)
 //
 // Exit codes: the CLI's own, or 1 when no such CLI is found, 2 on a usage error.
 
@@ -14,6 +15,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const PACKAGE = "@pipeshub-ai/standalone";
+const SELF_HOST = "https://docs.pipeshub.com/for-agents-local-demo.md";
 
 // cmd.exe metacharacters, as cross-spawn escapes them (lib/util/escape.js).
 const META = /([()\][%!^"`<>&|;, *?])/g;
@@ -54,9 +56,10 @@ function main(argv) {
   const [action, ...rest] = argv;
   const args = action === "index" ? ["index", ...rest]
     : action === "setup" ? ["init", "--local", "--client", "claude-code", ...rest]
+    : action === "status" ? ["auth", "status"]
     : null;
   if (args === null) {
-    process.stderr.write("usage: pipeshub-local.mjs setup | index [path]\n");
+    process.stderr.write("usage: pipeshub-local.mjs setup | index [path] | status\n");
     return 2;
   }
 
@@ -69,9 +72,10 @@ function main(argv) {
   if (runtime === undefined) {
     process.stderr.write(
       "PipesHub's local runtime is not installed: no 'pipeshub' command with 'init --local' and 'index' was found, "
-        + `and 'npx ${PACKAGE}' is not available.\n`
-        + `Install the local runtime first: npx ${PACKAGE} init --local\n`
-        + "(it needs Docker and Node 20 or later; it starts PipesHub on this computer, signs in and indexes this repository).\n",
+        + `and npm could not run '${PACKAGE}'.\n`
+        // Not "run npx <package>": that is the command that just failed.
+        + `Local mode and indexing need that package. Until npm has it, self-host PipesHub with ${SELF_HOST}\n`
+        + "and connect to it with /pipeshub:setup cloud.\n",
     );
     return 1;
   }
