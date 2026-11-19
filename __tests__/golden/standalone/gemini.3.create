@@ -1,0 +1,3 @@
+# managed by pipeshub init
+description = "Ask about this repository's code with PipesHub"
+prompt = "Answer this question about the code in the current repository with the `pipeshub_code_*` tools of the `pipeshub` MCP server: {{args}}. Call `index_workspace` first if the repository is not indexed. Keep calls small and cite repo, file path and line range."

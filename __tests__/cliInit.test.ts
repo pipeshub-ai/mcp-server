@@ -87,6 +87,22 @@ async function storeLogin(value: Record<string, unknown>) {
 }
 
 describe("pipeshub init", () => {
+  test("without --local it takes the trial path and asks the instance for a workspace", async () => {
+    const r = await cli(["init", "--url", origin]);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ workspaceId: "ws-1" });
+    expect(seen.length).toBe(1);
+  });
+
+  test("local-only flags without --local are refused and name --local", async () => {
+    for (const flag of [["--port", "3001"], ["--no-start"], ["--no-index"], ["--project"]]) {
+      const r = await cli(["init", "--url", origin, ...flag]);
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("--local");
+    }
+    expect(seen.length).toBe(0);
+  });
+
   test("creates a trial workspace, stores its token 0600, and never prints it", async () => {
     const r = await cli(["init", "--url", origin]);
     expect(r.code).toBe(0);

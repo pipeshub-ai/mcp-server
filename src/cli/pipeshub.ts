@@ -37,6 +37,12 @@ import {
   type Outcome,
 } from "./commands.js";
 import { addWebSource, collectionCreate, connectSource, indexingStatus, upload } from "./write-commands.js";
+import { packsAdd, packsEmbedding, packsList, packsRemove } from "./packs.js";
+import { init as initLocal, renderReport } from "./standalone/init.js";
+import { indexCommand } from "./standalone/index.js";
+import { forgetAccount } from "./standalone/signin.js";
+import { DEFAULT_PORT, DEFAULT_PROJECT, devDown, devStatus, devUp } from "./standalone/stack.js";
+import { CLIENT_IDS } from "./standalone/clients.js";
 import {
   CLOUD_ORIGIN,
   credentialsPath,
@@ -75,6 +81,17 @@ COMMANDS
   add-web <url>               index a website: crawl it now and daily
   mcp install --client <name> add PipesHub to an MCP client, with no token in its config:
                               claude-code, cursor, codex, gemini, claude-desktop
+  init --local                set up PipesHub on this computer for your coding agents:
+                              start the local stack (Docker), sign in on loopback, and
+                              write each detected agent's MCP entry and instructions
+  uninstall                   undo init --local (same as init --local --uninstall)
+  dev up|down|status          start, stop or inspect the local PipesHub (Docker Compose);
+                              to also set up your agents, run init --local
+  index [path]                push a git repository into the code graph (--watch to follow it)
+  packs list                  optional packs (web browser, document converter, embedding models) and their state
+  packs add <id>              install a pack; --wait follows the download (the default in a terminal)
+  packs remove <id>           remove a pack (asks first in a terminal; --yes skips it)
+  packs embedding [<model>]   show the embedding model, or switch to <model> (--builtin: the built-in one)
 
 OPTIONS
   --json                      JSON output (default)
@@ -94,10 +111,22 @@ OPTIONS
                               mcp install: replace an existing pipeshub entry;
                               init: replace the stored sign-in
   --client <name>             mcp install, init: the client to configure
-  --dry-run                   mcp install: show what would change, change nothing
+  --dry-run                   mcp install, init --local: show what would change, change nothing
+  --yes, -y                   init --local: never ask; take the defaults (never sends code to a host outside this computer)
+  --uninstall                 init --local: remove everything init added
+  --project                   init --local: also write this repository's AGENTS.md / CLAUDE.md block and rule files
+  --port <n>                  init --local, dev up: port of the local stack (default 3000)
+  --no-start                  init --local: do not start the stack; fail if none is running
+  --no-index                  init --local: do not index the git repository it is run in
+  --local                     init: set up the local stack instead of creating a trial workspace
+  --volumes                   dev down: also delete the stack's data
+  --watch                     index: keep the index current as files change
   --url <origin>              login, init, mcp install: the PipesHub to use
   --no-wait                   login: print the code and link, then exit
-  --wait                      login: finish a sign-in started with --no-wait
+  --wait                      login: finish a sign-in started with --no-wait; packs: follow progress
+  --file <name>               packs add: install from an archive of this name in the server's packs import folder (packs/offline)
+  --use                       packs add: after installing an embedding pack, switch search to it
+  --builtin                   packs embedding: switch back to the built-in model
 
 ENVIRONMENT
   PIPESHUB_TOKEN     preferred over a stored login; PIPESHUB_MCP_TOKEN also accepted
@@ -127,7 +156,23 @@ interface Flags {
   url: string | null;
   wait: boolean | null;
   client: string | null;
+  /** Every --client given (init takes several). */
+  clients: string[];
   dryRun: boolean;
+  /** --json / --text was typed, as opposed to the default. */
+  formatChosen: boolean;
+  yes: boolean;
+  uninstall: boolean;
+  project: boolean;
+  port: number;
+  noStart: boolean;
+  noIndex: boolean;
+  volumes: boolean;
+  watch: boolean;
+  file: string | null;
+  use: boolean;
+  builtin: boolean;
+  local: boolean;
   maxPages: number | null;
   name: string | null;
 }
@@ -148,7 +193,21 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     url: null,
     wait: null,
     client: null,
+    clients: [],
     dryRun: false,
+    formatChosen: false,
+    yes: false,
+    uninstall: false,
+    project: false,
+    port: DEFAULT_PORT,
+    noStart: false,
+    noIndex: false,
+    volumes: false,
+    watch: false,
+    file: null,
+    use: false,
+    builtin: false,
+    local: false,
     maxPages: null,
     name: null,
   };
@@ -165,14 +224,26 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
     const a = argv[i];
     if (a === undefined) continue;
     switch (a) {
-      case "--json": flags.json = true; break;
-      case "--text": flags.json = false; break;
+      case "--json": flags.json = true; flags.formatChosen = true; break;
+      case "--text": flags.json = false; flags.formatChosen = true; break;
+      case "--yes": case "-y": flags.yes = true; break;
+      case "--uninstall": flags.uninstall = true; break;
+      case "--project": flags.project = true; break;
+      case "--no-start": flags.noStart = true; break;
+      case "--no-index": flags.noIndex = true; break;
+      case "--volumes": flags.volumes = true; break;
+      case "--watch": flags.watch = true; break;
+      case "--use": flags.use = true; break;
+      case "--builtin": flags.builtin = true; break;
+      case "--local": flags.local = true; break;
+      case "--file": flags.file = needValue(a, argv[++i]); break;
+      case "--port": flags.port = Number(needValue(a, argv[++i])); break;
       case "--insecure-http": flags.insecureHttp = true; break;
       case "--force": flags.force = true; break;
       case "--wait": flags.wait = true; break;
       case "--no-wait": flags.wait = false; break;
       case "--url": flags.url = needValue(a, argv[++i]); break;
-      case "--client": flags.client = needValue(a, argv[++i]); break;
+      case "--client": flags.client = needValue(a, argv[++i]); flags.clients.push(...flags.client.split(",").filter(Boolean)); break;
       case "--dry-run": flags.dryRun = true; break;
       case "--max-pages": flags.maxPages = Number(needValue(a, argv[++i])); break;
       case "--name": flags.name = needValue(a, argv[++i]); break;
@@ -199,6 +270,9 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
   }
   if (!Number.isInteger(flags.offset) || flags.offset < 0) {
     throw new CliError("--offset must be a whole number of 0 or more", EXIT.USAGE);
+  }
+  if (!Number.isInteger(flags.port) || flags.port < 1 || flags.port > 65535) {
+    throw new CliError("--port must be a whole number from 1 to 65535", EXIT.USAGE);
   }
   if (!Number.isFinite(flags.maxChars) || flags.maxChars <= 0) {
     throw new CliError("--max-chars must be a positive number", EXIT.USAGE);
@@ -238,6 +312,24 @@ function emit(outcome: Outcome, json: boolean): Promise<void> {
   );
 }
 
+/** Every command word. An unknown one is a usage error before any credential or sandbox check, so a typo never looks like an auth problem. */
+export const COMMANDS = [
+  "login", "logout", "auth", "init-qm", "sources", "search", "ask", "get", "collection", "upload", "status",
+  "mcp", "connect", "add-web", "directory", "init", "uninstall", "dev", "index", "packs",
+] as const;
+
+/** y/N on stderr, read from stdin. */
+async function confirm(question: string): Promise<boolean> {
+  const rl = (await import("node:readline/promises")).createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } finally {
+    rl.close();
+  }
+}
+
+const progress = (s: string) => writeFlushed(process.stderr, s + "\n");
+
 async function run(argv: string[]): Promise<number> {
   if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h" || argv[0] === "help") {
     await writeFlushed(process.stdout, USAGE + "\n");
@@ -260,7 +352,89 @@ async function run(argv: string[]): Promise<number> {
     return EXIT.USAGE;
   }
 
+  if (!(COMMANDS as readonly string[]).includes(command)) {
+    throw new CliError(`unknown command: ${command}. Run 'pipeshub --help' for the list.`, EXIT.USAGE);
+  }
+
   const requestId = newRequestId();
+
+  // These need no credential (or make their own), so they run before the check below.
+  // --uninstall only exists for the local setup, and the files it removes say 'pipeshub init --uninstall'.
+  if (command === "uninstall" || (command === "init" && (flags.local || flags.uninstall))) {
+    const { exit, report } = await initLocal({
+      dryRun: flags.dryRun,
+      yes: flags.yes,
+      uninstall: flags.uninstall || command === "uninstall",
+      force: flags.force,
+      project: flags.project,
+      clients: flags.clients,
+      url: flags.url,
+      port: flags.port,
+      noStart: flags.noStart,
+      index: !flags.noIndex,
+      email: "developer@pipeshub.local",
+      cwd: process.cwd(),
+    }, process.env, (s) => void progress(s));
+    await writeFlushed(process.stdout, flags.formatChosen && flags.json
+      ? JSON.stringify({ requestId, ...report }, null, 2) + "\n"
+      : renderReport(report) + "\n");
+    return exit;
+  }
+  if (command === "dev") {
+    if (sub === "status") {
+      await writeFlushed(process.stdout, JSON.stringify({ requestId, ...(await devStatus()) }, null, 2) + "\n");
+      return EXIT.OK;
+    }
+    if (sub === "up") {
+      const state = await devUp({ port: flags.port, project: process.env["PIPESHUB_PROJECT"] || DEFAULT_PROJECT, waitSeconds: 600 }, process.env, (s) => void progress(s));
+      await writeFlushed(process.stdout, JSON.stringify({ requestId, ...state, next: "pipeshub init --local" }, null, 2) + "\n");
+      return EXIT.OK;
+    }
+    if (sub === "down") {
+      const out = await devDown(flags.volumes);
+      if (flags.volumes && out.stopped) await forgetAccount(); // the account lived in the volumes just deleted
+      await writeFlushed(process.stdout, JSON.stringify({ requestId, ...out }, null, 2) + "\n");
+      return EXIT.OK;
+    }
+    throw new CliError("usage: pipeshub dev up|down|status", EXIT.USAGE);
+  }
+  if (command === "index") {
+    const out = await indexCommand({ path: positional[1] ?? ".", watch: flags.watch }, process.env, (s) => void progress(s));
+    await writeFlushed(process.stdout, JSON.stringify({ requestId, ...out.payload }, null, 2) + "\n");
+    return out.exit;
+  }
+  // `mcp install` writes a config file: it needs the origin to point at, but never a token, and --dry-run touches nothing.
+  if (command === "mcp") {
+    if (sub !== "install" || flags.client === null) {
+      throw new CliError(`usage: pipeshub mcp install --client <${MCP_CLIENTS.join("|")}>`, EXIT.USAGE);
+    }
+    if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
+      const more = (CLIENT_IDS as readonly string[]).includes(flags.client)
+        ? ` (${flags.client} is set up by 'pipeshub init --local --client ${flags.client}')` : "";
+      throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}${more}`, EXIT.USAGE);
+    }
+    const origin = flags.url !== null
+      ? resolveOrigin({ PIPESHUB_BASE_URL: flags.url })
+      : resolveOrigin() ?? (await storedLogin(null, flags.insecureHttp))?.origin ?? null;
+    if (origin === null) {
+      throw new CliError("no PipesHub address: set PIPESHUB_BASE_URL or --url, or run 'pipeshub init --local' or 'pipeshub login --url <origin>'.", EXIT.USAGE);
+    }
+    assertClientTransport(origin, "Serve the instance over HTTPS first.");
+    const signedIn = resolveToken() === null && (await storedLogin(origin, flags.insecureHttp)) !== null;
+    const result = await mcpInstall(flags.client as McpClient, origin, { force: flags.force, dryRun: flags.dryRun });
+    await emit({
+      exit: EXIT.OK,
+      payload: {
+        requestId,
+        ...result,
+        ...(signedIn ? {} : { note: "This entry carries no token. It works once you run 'pipeshub login' for this origin." }),
+      },
+      text: `${flags.dryRun ? "Would add" : "Added"} PipesHub to ${flags.client}`
+        + `${result.wrote ? ` (${result.wrote})` : ""}. ${result.next}.`,
+    }, flags.json);
+    return EXIT.OK;
+  }
+
   let token = resolveToken();
   const isLogin = command === "login" || (command === "auth" && sub === "login");
   const takesUrl = isLogin || command === "init" || (command === "mcp" && sub === "install");
@@ -282,6 +456,8 @@ async function run(argv: string[]): Promise<number> {
 
   if (isLogin) return login(origin, flags, requestId, envOrigin);
   if (command === "init") {
+    const localOnly = ["--port", "--no-start", "--no-index", "--project"].filter((n) => argv.some((a) => a === n || a.startsWith(`${n}=`)));
+    if (localOnly.length) throw new CliError(`${localOnly.join(", ")} only apply to the local setup: add --local ('pipeshub init --local').`, EXIT.USAGE);
     if (positional.length > 1) throw new CliError("usage: pipeshub init [--url <origin>] [--client <name>]", EXIT.USAGE);
     if (flags.dryRun) throw new CliError("init has no --dry-run; it creates a real workspace.", EXIT.USAGE);
     return init(origin ?? CLOUD_ORIGIN, flags, requestId, token !== null, envOrigin);
@@ -388,6 +564,7 @@ async function run(argv: string[]): Promise<number> {
   };
 
   let outcome: Outcome;
+  let packsJson = false;
   switch (command) {
     case "auth":
       if (sub !== "status") {
@@ -454,31 +631,6 @@ async function run(argv: string[]): Promise<number> {
       outcome = await indexingStatus(ctx, collectionId);
       break;
     }
-    case "mcp": {
-      if (sub !== "install" || flags.client === null) {
-        throw new CliError(`usage: pipeshub mcp install --client <${MCP_CLIENTS.join("|")}>`, EXIT.USAGE);
-      }
-      if (!(MCP_CLIENTS as readonly string[]).includes(flags.client)) {
-        throw new CliError(`unknown --client ${flags.client}; one of ${MCP_CLIENTS.join(", ")}`, EXIT.USAGE);
-      }
-      // Every origin, not only with --insecure-http: a stored trial or PIPESHUB_TOKEN can carry a public http one.
-      assertClientTransport(ctx.origin, "Serve the instance over HTTPS first.");
-      const result = await mcpInstall(flags.client as McpClient, ctx.origin, { force: flags.force, dryRun: flags.dryRun });
-      outcome = {
-        exit: EXIT.OK,
-        payload: {
-          requestId,
-          ...result,
-          // The client starts the server without this shell's environment.
-          ...(ctx.tokenSource === "pipeshub login"
-            ? {}
-            : { note: "This entry carries no token. It works once you run 'pipeshub login' for this origin." }),
-        },
-        text: `${flags.dryRun ? "Would add" : "Added"} PipesHub to ${flags.client}`
-          + `${result.wrote ? ` (${result.wrote})` : ""}. ${result.next}.`,
-      };
-      break;
-    }
     case "connect":
       outcome = await connectSource(ctx, positional.slice(1).join(" ").trim() || undefined);
       break;
@@ -500,11 +652,25 @@ async function run(argv: string[]): Promise<number> {
       }
       outcome = await directoryWhoami(ctx);
       break;
+    case "packs": {
+      // Text by default, like init; --json prints the API's answer.
+      packsJson = flags.formatChosen && flags.json;
+      const tty = process.stdout.isTTY === true;
+      const o = { say: (s: string) => void progress(s), confirm, wait: flags.wait ?? tty };
+      const id = positional[2] ?? "";
+      if (sub === "list" || sub === "ls") outcome = await packsList(ctx);
+      else if (sub === "add" || sub === "remove" || sub === "rm") {
+        if (id === "") throw new CliError(`usage: pipeshub packs ${sub} <id>`, EXIT.USAGE);
+        outcome = sub === "add" ? await packsAdd(ctx, id, flags.file, flags.use, o) : await packsRemove(ctx, id, flags.yes || !tty, o);
+      } else if (sub === "embedding") outcome = await packsEmbedding(ctx, positional[2] ?? null, flags.builtin, o);
+      else throw new CliError("usage: pipeshub packs list|add <id>|remove <id>|embedding [<model>|--builtin]", EXIT.USAGE);
+      break;
+    }
     default:
       throw new CliError(`unknown command: ${command}`, EXIT.USAGE);
   }
 
-  await emit(outcome, flags.json);
+  await emit(outcome, command === "packs" ? packsJson : flags.json);
   return outcome.exit;
 }
 
