@@ -1,0 +1,100 @@
+name: PyPI launcher
+
+# `uvx pipeshub init --local`: the CLI compiled per platform, shipped in wheels (python/).
+# Publishing runs only on a tag named pypi-v<version> and uses PyPI trusted
+# publishing (OIDC): no token is stored in this repository.
+
+on:
+  push:
+    tags: ["pypi-v*"]
+  pull_request:
+    paths: ["python/**", "src/cli/**", "standalone/package.json", ".github/workflows/pypi.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Linux and Windows binaries cross-compile fine on Linux. The macOS ones must be built and signed on a Mac.
+  build:
+    strategy:
+      matrix:
+        include:
+          - name: linux-windows
+            os: ubuntu-latest
+            targets: linux-x64 linux-arm64 linux-x64-musl linux-arm64-musl windows-x64
+          - name: macos
+            os: macos-15
+            targets: darwin-arm64 darwin-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: bun install
+      - run: python3 python/build_wheels.py ${{ matrix.targets }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.name }}
+          path: python/dist/*.whl
+          if-no-files-found: error
+
+  # Install the wheel pip picks for each runner and run it with a fake home.
+  # shortcut: the musl wheels are built but not run here; add an alpine
+  # container job if musl users report problems.
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - run: python3 -m unittest discover -s python/tests -v
+      - run: |
+          python3 -m venv venv
+          if [ -d venv/Scripts ]; then BIN=venv/Scripts; else BIN=venv/bin; fi
+          $BIN/pip install --no-index --find-links dist pipeshub
+          $BIN/pipeshub --version
+          # build_wheels.py signs the macOS binaries on the Mac that built them; fail here if the signature is not valid.
+          if [ "$RUNNER_OS" = macOS ]; then codesign --verify --verbose venv/lib/python3.12/site-packages/pipeshub/bin/pipeshub; fi
+          $BIN/pipeshub --help
+          FAKE="$RUNNER_TEMP/home"
+          mkdir -p "$FAKE/.claude" "$FAKE/.cursor"
+          HOME="$FAKE" USERPROFILE="$FAKE" $BIN/pipeshub init --local --dry-run | tee out.txt
+          grep -q "Dry run: nothing was changed" out.txt
+          # ls -A prints a header per directory when given two, even empty ones.
+          test -z "$(find "$FAKE/.claude" "$FAKE/.cursor" -mindepth 1)"
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/pypi-v')
+    needs: smoke
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - name: Tag matches the wheel version
+        run: |
+          v="${GITHUB_REF_NAME#pypi-v}"
+          ls dist | grep -q "^pipeshub-$v-" || { echo "tag $GITHUB_REF_NAME does not match the wheels:"; ls dist; exit 1; }
+      - uses: pypa/gh-action-pypi-publish@release/v1

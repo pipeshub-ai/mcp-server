@@ -182,6 +182,20 @@ describe("what is written", () => {
     expect(bridgeEntry("http://127.0.0.1:64600").args.at(-1)).toBe("http://127.0.0.1:64600");
   });
 
+  test("a launcher install writes its own bridge command, never npx", () => {
+    const o = "http://127.0.0.1:3000";
+    const tail = ["--server-url", o];
+    expect(bridgeEntry(o, { PIPESHUB_LAUNCHER: "uvx" })).toEqual({ command: "uvx", args: ["--from", "pipeshub>=0.1.0", "pipeshub", "start", ...tail], env: { PIPESHUB_MCP_CHAT: "off" } });
+    expect(bridgeEntry(o, { PIPESHUB_LAUNCHER: "pip", PIPESHUB_LAUNCHER_COMMAND: "/v/bin/pipeshub" })).toEqual({ command: "/v/bin/pipeshub", args: ["start", ...tail], env: { PIPESHUB_MCP_CHAT: "off" } });
+    // switching between npx and a launcher updates the entry in place instead of reporting a conflict
+    const t = targets("cursor", ctx("cursor"), bridgeEntry(o)).find((x) => x.what === "mcp")!;
+    const uv = bridgeEntry(o, { PIPESHUB_LAUNCHER: "uvx" });
+    const written = edit({ ...t, entry: uv }, null, "add").after!;
+    expect(edit(t, written, "add").status).toBe("updated");
+    expect(edit(t, written, "remove").status).toBe("deleted");
+    expect(bridgeEntry(o, { PIPESHUB_LAUNCHER: "pip" }).command).toBe("npx"); // no command named: keep the npx entry
+  });
+
   test("project files are marked project, user files are not", () => {
     for (const { t } of all) {
       if (t.what === "mcp") expect(t.project).toBe(false);

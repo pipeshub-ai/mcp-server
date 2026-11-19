@@ -332,6 +332,14 @@ describe("the next steps name a command the person can type", () => {
     const plain = await cli(installed.home, installed.cwd, ["init", "--local", "--yes", "--url", fake.origin]);
     expect(plain.stdout).toContain("pipeshub index");
     expect(plain.stdout).not.toContain("npx @pipeshub-ai/standalone index");
+
+    // uvx installs no `pipeshub` command either.
+    fake.stop();
+    fake = startFakeLocal();
+    const viaUvx = await world("hint-uvx", [".cursor"]);
+    const uvx = await cli(viaUvx.home, viaUvx.cwd, ["init", "--local", "--yes", "--url", fake.origin], { PIPESHUB_LAUNCHER: "uvx" });
+    expect(uvx.stdout).toContain("uvx pipeshub uninstall");
+    expect(uvx.stdout).not.toMatch(/: pipeshub (index|uninstall)/);
   }, 30_000);
 });
 

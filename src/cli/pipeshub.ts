@@ -67,7 +67,8 @@ COMMANDS
   logout                      sign out and forget the stored sign-in
   auth status                 show connection, user, org, scopes, expiry
   auth connect-help           print the keychain setup steps
-  init-qm <dir>               scaffold the QM deployment-layer bundle (admin)
+  init-qm <dir>               scaffold the QM deployment-layer bundle (admin; needs the npm package)
+  start --server-url <origin> the stdio MCP bridge a coding agent runs (what init writes into its config)
   sources                     list searchable sources (ids for --app / --kb)
   search <query>              locate records
   ask <question>              ask a grounded question; returns citations
@@ -242,7 +243,7 @@ function parseFlags(argv: string[]): { positional: string[]; flags: Flags } {
       case "--force": flags.force = true; break;
       case "--wait": flags.wait = true; break;
       case "--no-wait": flags.wait = false; break;
-      case "--url": flags.url = needValue(a, argv[++i]); break;
+      case "--url": case "--server-url": flags.url = needValue(a, argv[++i]); break;
       case "--client": flags.client = needValue(a, argv[++i]); flags.clients.push(...flags.client.split(",").filter(Boolean)); break;
       case "--dry-run": flags.dryRun = true; break;
       case "--max-pages": flags.maxPages = Number(needValue(a, argv[++i])); break;
@@ -315,7 +316,7 @@ function emit(outcome: Outcome, json: boolean): Promise<void> {
 /** Every command word. An unknown one is a usage error before any credential or sandbox check, so a typo never looks like an auth problem. */
 export const COMMANDS = [
   "login", "logout", "auth", "init-qm", "sources", "search", "ask", "get", "collection", "upload", "status",
-  "mcp", "connect", "add-web", "directory", "init", "uninstall", "dev", "index", "packs",
+  "mcp", "connect", "add-web", "directory", "init", "uninstall", "dev", "index", "packs", "start",
 ] as const;
 
 /** y/N on stderr, read from stdin. */
@@ -432,6 +433,15 @@ async function run(argv: string[]): Promise<number> {
       text: `${flags.dryRun ? "Would add" : "Added"} PipesHub to ${flags.client}`
         + `${result.wrote ? ` (${result.wrote})` : ""}. ${result.next}.`,
     }, flags.json);
+    return EXIT.OK;
+  }
+
+  // The MCP bridge an agent spawns: the same code as `@pipeshub-ai/mcp start`, so a launcher install needs no Node.
+  // Before the origin check: --server-url wins, and startStdio logs a bad environment URL instead of exiting.
+  if (command === "start") {
+    const { startStdio } = await import("../mcp-server/cli/start/impl.js");
+    await startStdio({ transport: "stdio", port: 0, "log-level": "info", ...(flags.url ? { "server-url": flags.url } : {}) } as Parameters<typeof startStdio>[0]);
+    await new Promise((done) => process.stdin.once("end", done)); // serve until the agent closes stdin, then exit 0
     return EXIT.OK;
   }
 
