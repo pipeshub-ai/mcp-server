@@ -196,7 +196,7 @@ const GUIDANCE = `PipesHub runs on this computer and is connected as the MCP ser
 
 Keep calls small: set \`limit\`, use \`depth\` 1 or 2, outline before read, a symbol or line range, not a whole file.
 Cite what you found as repo, file path and line range. If a result has a \`coverage\` note, say the answer may be incomplete.
-If a tool says PipesHub is not reachable, tell the user to run \`npx @pipeshub-ai/standalone dev up\`.`;
+If a tool says PipesHub is not reachable, tell the user to run \`dev up\` the way they ran \`init --local\`: \`npx @pipeshub-ai/standalone dev up\`, \`uvx pipeshub dev up\` or \`pipeshub dev up\`.`;
 
 /** The text between the markers of an AGENTS.md / CLAUDE.md / GEMINI.md / .rules block. */
 export const blockBody = (): string => `## PipesHub\n\n${GUIDANCE}`;
@@ -227,7 +227,8 @@ export function ruleFile(kind: "skill" | "cursor" | "windsurf" | "vscode" | "cli
 const INDEX_PROMPT =
   "Call the `index_workspace` tool of the `pipeshub` MCP server for the current working directory (pass it as `path`). "
   + "Report the files sent, the state and whether the `pipeshub_code_*` tools are listed now. "
-  + "On an error, show it and suggest running `npx @pipeshub-ai/standalone index` in the repository.";
+  + "On an error, show it and suggest running `index` in the repository the way they ran `init --local`: "
+  + "`npx @pipeshub-ai/standalone index`, `uvx pipeshub index` or `pipeshub index`.";
 const CODE_PROMPT =
   "Answer this question about the code in the current repository with the `pipeshub_code_*` tools of the `pipeshub` MCP server: ";
 const CODE_TAIL =

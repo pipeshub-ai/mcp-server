@@ -296,7 +296,10 @@ export async function init(o: InitOptions, env: NodeJS.ProcessEnv, say: (s: stri
     await writeAtomic(manifestPath(env), JSON.stringify(m, null, 2) + "\n", 0o600);
   }
 
-  const cmd = env["npm_command"] === "exec" ? "npx @pipeshub-ai/standalone" : "pipeshub";
+  // The command the person ran this as, so the hints work without a `pipeshub` on the PATH.
+  const cmd = env["PIPESHUB_LAUNCHER"] === "uvx" ? "uvx pipeshub"
+    : env["PIPESHUB_LAUNCHER"] === "pip" && env["PIPESHUB_LAUNCHER_COMMAND"] ? env["PIPESHUB_LAUNCHER_COMMAND"]
+    : env["npm_command"] === "exec" ? "npx @pipeshub-ai/standalone" : "pipeshub";
 
   // 5. The repository init was run in: one command sets up the agents and indexes the code.
   const inRepo = gitRoot(o.cwd);

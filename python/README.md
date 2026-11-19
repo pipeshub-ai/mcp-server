@@ -6,7 +6,7 @@ Run PipesHub on your own computer and connect it to your coding agents, without 
 uvx pipeshub init --local          # or: pipx install pipeshub && pipeshub init --local
 ```
 
-`init --local` starts PipesHub in Docker, creates your first account, signs in on this computer, adds PipesHub to the coding agents it finds (Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Zed, Cline and others), and indexes the current folder. `pipeshub uninstall` removes exactly what it wrote. Run `pipeshub` with no arguments for every command; plain `pipeshub init` creates a hosted trial workspace instead.
+`init --local` starts PipesHub in Docker, creates your first account, signs in on this computer, adds PipesHub to the coding agents it finds (Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Zed, Cline and others), and indexes the current folder. `uvx pipeshub uninstall` (or `pipeshub uninstall` after a pipx install) removes exactly what it wrote. `uvx` installs no `pipeshub` command, so prefix every command with `uvx` there. Run `pipeshub` with no arguments for every command; plain `pipeshub init` creates a hosted trial workspace instead.
 
 This package is the same program as `npx @pipeshub-ai/standalone`, compiled to one file per platform and shipped inside the wheel. The Python part only finds that file and runs it; it has no dependencies. The version matches the npm package.
 

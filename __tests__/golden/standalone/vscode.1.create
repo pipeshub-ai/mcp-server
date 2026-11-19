@@ -19,4 +19,4 @@ PipesHub runs on this computer and is connected as the MCP server `pipeshub`.
 
 Keep calls small: set `limit`, use `depth` 1 or 2, outline before read, a symbol or line range, not a whole file.
 Cite what you found as repo, file path and line range. If a result has a `coverage` note, say the answer may be incomplete.
-If a tool says PipesHub is not reachable, tell the user to run `npx @pipeshub-ai/standalone dev up`.
+If a tool says PipesHub is not reachable, tell the user to run `dev up` the way they ran `init --local`: `npx @pipeshub-ai/standalone dev up`, `uvx pipeshub dev up` or `pipeshub dev up`.
