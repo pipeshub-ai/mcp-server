@@ -66,7 +66,11 @@ import { Result } from "../types/fp.js";
  * `GET /connectors/record/{recordId}/content` to read it.
  *
  * **Paging and depth:** results are paginated; `pagination.has_next`
- * tells you whether to request the next `page`. `depth` above 1 returns
+ * tells you whether there is a next page. Request it by passing
+ * `pagination.next_cursor` as `cursor`: a cursor resumes after the last
+ * row of the page it came with, while `page` numbers stop at 50.
+ * `pagination.total` is a lower bound when `pagination.total_capped` is
+ * `true`. `depth` above 1 returns
  * all descendants down to that level as one flat list, each row carrying
  * its own `level`, instead of only direct children.
  *
@@ -147,6 +151,7 @@ async function $do(
   const query$ = encodeFormQuery({
     "createdAfter": payload$?.createdAfter,
     "createdBefore": payload$?.createdBefore,
+    "cursor": payload$?.cursor,
     "depth": payload$?.depth,
     "limit": payload$?.limit,
     "modifiedAfter": payload$?.modifiedAfter,

@@ -145,7 +145,14 @@ const args = {
       + "key such as `PA-1787` also works: it is resolved to its record "
       + "automatically, so no separate lookup is needed.",
   ),
-  page: z.int().min(1).default(1).describe("Page number, 1-indexed."),
+  page: z.int().min(1).default(1).describe(
+    "Page number, 1-indexed. Numbers stop at 50; past that, use `cursor`.",
+  ),
+  cursor: z.string().min(1).max(4096).optional().describe(
+    "The `cursor` a previous page's `Next:` line names, copied exactly, with "
+      + "the same `nodeId` and `depth`. It chooses the next page and keeps "
+      + "that listing's filters; `page` is then ignored.",
+  ),
   limit: z.int().min(50).max(200).default(50).describe(
     "Children per page. The minimum is 50 — smaller values are rejected "
       + "rather than silently raised.",
@@ -256,9 +263,9 @@ re-call with \`mode:"content"\`.
 
 Returns \`Path\` breadcrumbs, the current node's metadata, a children listing
 carrying \`record_id=\` or \`node_id=\` per row plus the group's total
-(\`Children 1-50 of 61\`), \`Related\` cross-references, and a \`Next:\` line.
-One page is usually every child, so only pass \`page:2\` when that \`Next:\`
-line says more exist.
+(\`Children 1-50 of 61\`; \`of at least N\` if capped), \`Related\`
+cross-references, and a \`Next:\` line. One page is usually every child;
+when \`Next:\` says more exist, pass its \`cursor\`.
 
 \`Related\` lists only links recorded inside a source (Jira issue links,
 GitHub blocked-by), not Slack messages or pages that mention the record. To
@@ -304,6 +311,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
       const [r] = await connectorNavigateKnowledgeGraph(client, {
         nodeId: args.nodeId,
         page: args.page,
+        cursor: args.cursor,
         limit: args.limit,
         depth: args.depth,
         nodeTypes: args.nodeTypes,
