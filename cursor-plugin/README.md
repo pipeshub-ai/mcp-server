@@ -12,13 +12,14 @@ A Cursor team admin imports this repository as a team marketplace: Dashboard →
 
 ## PipesHub MCP URL
 
-The plugin asks for one value on install, `PIPESHUB_MCP_URL`: `<pipeshub-instanceurl>/mcp`. Use `https://app.pipeshub.com/mcp` for PipesHub Cloud, or `https://<your-instance>/mcp` when self-hosted. It has no default. A team admin sets it in the Cursor dashboard under Plugins, when installing or later with **Configure**, and every developer on the team connects to that instance.
+The plugin needs one value, `PIPESHUB_MCP_URL`: `<pipeshub-instanceurl>/mcp`. Use `https://app.pipeshub.com/mcp` for PipesHub Cloud, or `https://<your-instance>/mcp` when self-hosted. It has no default.
+
+- **Individual install:** Cursor does not ask on install, so `pipeshub` shows **Error** at first. Open Customize → PipesHub → **Configure**, enter **PipesHub MCP URL** (the ⓘ next to the field shows the format), and click **Save**. Cursor keeps the value across restarts.
+- **Team install:** a team admin sets it in the Cursor dashboard under Plugins, when installing or later with **Configure**, and every developer on the team connects to that instance.
 
 ## Sign in
 
-No token goes into any config file. After installing, open Cursor Settings → Tools & MCP, find `pipeshub`, and click **Connect**. Cursor registers itself with PipesHub (dynamic client registration), opens the PipesHub sign-in and consent page, and keeps and refreshes the token itself. The `setup` command walks through this.
-
-Until you connect, the `pipeshub` server shows as needing authentication and lists no tools.
+No token goes into any config file. With the URL set, `pipeshub` shows **Needs authentication** and lists no tools. Click **Authenticate**: Cursor registers itself with PipesHub (dynamic client registration), opens the PipesHub consent page (it names the app "Cursor" and notes that it registered itself), and after **Allow** it keeps and refreshes the token itself. The tools then appear, and the server's settings show **Logout**. The `setup` command walks through this.
 
 ## Self-hosted
 
