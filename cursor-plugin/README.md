@@ -2,7 +2,7 @@
 
 Permissioned search and cited answers over your workplace sources (Slack, Drive, Gmail, Jira, Confluence, and more), from inside Cursor. The plugin adds:
 
-- the `pipeshub` MCP server (the local `@pipeshub-ai/mcp` stdio server),
+- the `pipeshub` MCP server (PipesHub Cloud's remote server, `https://app.pipeshub.com/mcp`, signed in with OAuth),
 - `pipeshub-docs`, the PipesHub documentation search server,
 - the `pipeshub` skill, and the `ask` and `setup` commands.
 
@@ -12,19 +12,20 @@ A Cursor team admin imports this repository as a team marketplace: Dashboard →
 
 ## Sign in
 
-No token goes into Cursor's MCP configuration: `pipeshub login` keeps its sign-in in `~/.config/pipeshub/credentials.json` (mode 0600) and refreshes it. Run the `setup` command in Cursor, or yourself:
+No token goes into any config file. After installing, open Cursor Settings → Tools & MCP, find `pipeshub`, and click **Connect**. Cursor registers itself with PipesHub (dynamic client registration), opens the PipesHub sign-in and consent page, and keeps and refreshes the token itself. The `setup` command walks through this.
 
-```bash
-npx -y -p @pipeshub-ai/mcp pipeshub login --no-wait   # prints a link and a code; open it and approve
-npx -y -p @pipeshub-ai/mcp pipeshub login --wait
-```
-
-Then reload the Cursor window. The server uses that sign-in, and talks to the instance you signed in to (PipesHub Cloud by default).
+Until you connect, the `pipeshub` server shows as needing authentication and lists no tools.
 
 ## Self-hosted
 
-Sign in with `pipeshub login --url https://<your-instance> --no-wait` (then `--wait`). The server follows the sign-in's address, so the plugin config needs no change.
+The plugin's server points at PipesHub Cloud. For your own instance, add an entry to your user config, `~/.cursor/mcp.json` (plugin updates never touch it):
 
-To use a personal access token instead, export `PIPESHUB_TOKEN` and `PIPESHUB_BASE_URL=https://<your-instance>` in the shell Cursor starts from. Never paste a token into chat.
+```json
+{ "mcpServers": { "pipeshub": { "url": "https://<your-instance>/mcp" } } }
+```
+
+Then choose it as the source for `pipeshub` in that server's settings (or turn the plugin's `pipeshub` server off) and click **Connect**. Your instance must allow dynamic client registration, which is on by default (`PIPESHUB_ENABLE_DCR=false` turns it off). With it off, use a static OAuth app as described in the [main README](../README.md).
+
+To run the local stdio server instead (`pipeshub login` plus `npx @pipeshub-ai/mcp start`), use `pipeshub mcp install --client cursor`.
 
 Docs: https://docs.pipeshub.com/for-agents
