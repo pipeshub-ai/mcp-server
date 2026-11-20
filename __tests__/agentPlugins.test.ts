@@ -156,6 +156,12 @@ describe("plugin manifests", () => {
     expect(shell).not.toContain("$ARGUMENTS");
   });
 
+  test("/pipeshub:index uploads to the origin it checked, not whatever the sign-in says later", () => {
+    const shell = [...read("commands/index.md").matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).join("");
+    expect(shell).toMatch(/^\s*PIPESHUB_BASE_URL='<baseUrl>' node .*pipeshub-local\.mjs" index$/m);
+    expect(read("cursor-plugin/commands/index.md")).toContain("`PIPESHUB_BASE_URL` set to the `baseUrl` from step 1");
+  });
+
   test("Codex installs the repository root as a portable plugin from the Claude marketplace file", () => {
     // Codex reads .claude-plugin/marketplace.json as a legacy-compatible marketplace and loads the
     // entry's root plugin.json, mcp.json and skills/ (checked with codex-cli 0.169.0).
