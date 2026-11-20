@@ -16,15 +16,17 @@ const args = {
  * is not mounted then.
  */
 export function createPipeshubAssistantPrompt(
-  { chat, actions = true, showsApps = () => true }: {
+  { chat, actions = true, showsApps = () => true, customInstructions }: {
     chat: boolean;
     /** Whether chat may run the user's connected actions. */
     actions?: boolean;
     /** Whether the client shows MCP Apps views; without them, no citations step. */
     showsApps?: () => boolean;
+    /** The workspace's own instructions, sent first as in the server instructions. */
+    customInstructions?: string | undefined;
   },
 ): PromptDefinition<typeof args> {
-  const all = pipeshubInstructions({ chat, actions });
+  const all = pipeshubInstructions({ chat, actions, customInstructions });
   const agentsHint = chat
     ? " (and listing agents via `pipeshub_agents` if unsure which route fits)"
     : "";
