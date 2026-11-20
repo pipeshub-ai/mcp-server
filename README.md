@@ -21,7 +21,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
 ## Prerequisites
 
 - A running PipesHub instance: [PipesHub Cloud](https://app.pipeshub.com) or self-hosted. To self-host, the [local Docker demo](https://docs.pipeshub.com/for-agents-local-demo.md) playbook covers install and first-run — do not scaffold LangChain. First-run (account + LLM) is still in the browser; search 500s until an LLM is configured.
-- An OAuth app created in PipesHub (see [Step 1](#step-1-create-an-oauth-app-in-pipeshub))
+- Depending on the client, an OAuth app created in PipesHub (see [Step 1](#step-1-create-an-oauth-app-in-pipeshub)) or a [personal access token](https://docs.pipeshub.com/developer/personal-access-tokens) (`phpat_…`). Claude Code takes a token directly; Claude.ai and the Claude Desktop custom connector need neither on PipesHub 1.2.0 and later (each person signs in, and Claude registers itself).
 
 ## Step 1: Create an OAuth App in PipesHub
 
@@ -164,6 +164,48 @@ If Cursor's internal browser fails to load the OAuth login page, copy the author
 
 <details>
 <summary><strong>Claude Code</strong></summary>
+
+### With a personal access token (recommended for your own use)
+
+No OAuth app and no admin needed, and results follow your own permissions.
+
+1. In PipesHub, open **Workspace settings → Developer settings → Personal access tokens → New token**, and copy the two lines it shows (they appear only once). Export them in your shell:
+
+   ```bash
+   export PIPESHUB_MCP_URL=https://your-instance/mcp
+   export PIPESHUB_MCP_TOKEN=phpat_...
+   ```
+
+2. Add the server:
+
+   ```bash
+   claude mcp add --transport http --scope user pipeshub "$PIPESHUB_MCP_URL" \
+     --header 'Authorization: Bearer ${PIPESHUB_MCP_TOKEN}'
+   ```
+
+   Keep the single quotes: Claude Code stores `${PIPESHUB_MCP_TOKEN}` as written and reads the token from its environment each time it connects, so the token never lands in its config. Start Claude Code from a shell where the variable is exported. Drop `--scope user` to add it to the current project only.
+
+3. Check it with `claude mcp list`; `pipeshub` should show as connected.
+
+For a checked-in `.mcp.json`, reference the variables instead of the token:
+
+```json
+{
+  "mcpServers": {
+    "pipeshub": {
+      "type": "http",
+      "url": "${PIPESHUB_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${PIPESHUB_MCP_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+The [Claude Code plugin](#connecting-mcp-clients-to-pipeshub-mcp-server) reads the same two variables.
+
+### With an OAuth app (shared or admin-managed setups)
 
 Claude Code supports remote HTTP MCP servers with static OAuth credentials via `--client-id`, `--client-secret`, and `--callback-port`.
 
@@ -392,60 +434,46 @@ codex mcp list
 <details>
 <summary><strong>Claude.ai (Web)</strong></summary>
 
-Claude.ai supports custom connectors via remote MCP servers. This lets you use PipesHub tools directly in the Claude.ai web interface without any local setup.
+Claude.ai supports custom connectors via remote MCP servers. This lets you use PipesHub tools directly in the Claude.ai web interface without any local setup. It needs **public HTTPS**: Claude connects from Anthropic's servers, so `localhost` won't work. Free plan users are limited to one custom connector. Full guide: [docs.pipeshub.com/mcp/claude-ai](https://docs.pipeshub.com/mcp/claude-ai).
 
-> **Note:** This feature is currently in beta. Free plan users are limited to one custom connector.
+The **Add custom connector** dialog asks how Claude authenticates:
 
-![Claude.ai Connectors Settings](./images/claude-1.png)
+| Option | What you need | Use it when |
+|---|---|---|
+| **Sign in now** (recommended) | Nothing. Claude registers itself with PipesHub (dynamic client registration, on by default from PipesHub 1.2.0). | Almost always. Each person signs in as themselves, and tokens refresh on their own. |
+| **No sign-in** + request header | A personal access token | Your own individual Claude account. |
+| **Sign in now** + OAuth app under **Advanced** | Client ID and Client Secret | Registration is off on your instance (`PIPESHUB_ENABLE_DCR=false`) or PipesHub is older than 1.2.0. |
 
-![Claude.ai Add Custom Connector Dialog](./images/claude-2.png)
+### Sign in with your PipesHub account
 
-### For Individual Users (Pro / Max Plans)
+- **Individual accounts (Free, Pro, Max):** open **Customize > Connectors**, click **+ > Add custom connector**, enter a name and `PIPESHUB_INSTANCE_URL/mcp`, choose **Sign in now**, and click **Add**. Approve the PipesHub sign-in and consent page that opens.
+- **Team / Enterprise:** an organization **Owner** opens **Organization settings > Connectors**, clicks **Add > Custom > Web**, enters the URL, chooses **Sign in now**, and clicks **Add**. Each member then opens **Customize > Connectors**, finds PipesHub (marked **Custom**), and clicks **Connect** to sign in as themselves.
 
-1. Go to [claude.ai](https://claude.ai) and navigate to **Settings > Connectors**
-2. Click **Add custom connector** at the bottom of the Connectors section
-3. Enter the MCP server URL:
-   ```
-   PIPESHUB_INSTANCE_URL/mcp
-   ```
-4. Click **Advanced settings** and enter your OAuth credentials:
-   - **OAuth Client ID**: `YOUR_CLIENT_ID`
-   - **OAuth Client Secret**: `YOUR_CLIENT_SECRET`
-5. Click **Add**
-6. You'll be redirected to PipesHub's login page to authenticate and grant permissions
-7. After authenticating, the connector will be active and PipesHub tools will be available in your Claude.ai conversations
+### With a personal access token
 
-### For Team / Enterprise Plans
+For an **individual** Claude account only:
 
-**Organization Owners** must first add the connector:
+1. Mint a token in PipesHub under **Workspace settings → Developer settings → Personal access tokens**.
+2. Add the custom connector with the URL, and under **Authentication** choose **No sign-in**.
+3. Under **Request headers**, pick `authorization` and enter the value `Bearer phpat_YOUR_TOKEN` (the word `Bearer`, one space, then the token; Claude sends the value exactly as typed). Keep **Required** ticked and click **Add**.
 
-1. Navigate to **Organization settings > Connectors**
-2. Click **Add custom connector**
-3. Enter the MCP server URL: `PIPESHUB_INSTANCE_URL/mcp`
-4. Click **Advanced settings** and enter the OAuth Client ID and Client Secret
-5. Click **Add**
+> **Warning:** don't do this on a Team or Enterprise organization connector. Claude sends the same header for every member, so everyone would search PipesHub as the token's owner. Request headers are a beta feature in Claude; if the section isn't there, use **Sign in now**. Claude doesn't let you view or edit the header later, so when the token expires, remove the connector and add it again.
 
-**Team members** can then connect:
+### With an OAuth app
 
-1. Go to **Settings > Connectors**
-2. Find the PipesHub connector (marked with a "Custom" label)
-3. Click **Connect** to authenticate via PipesHub's OAuth login
+Create the app as in [Step 1](#step-1-create-an-oauth-app-in-pipeshub) with the redirect URI `https://claude.ai/api/mcp/auth_callback`. When adding the connector, choose **Sign in now**, open **Advanced**, and enter the **OAuth Client ID** and **OAuth Client Secret**.
 
-### Redirect URI
+### Troubleshooting
 
-Claude.ai uses the following redirect URI for OAuth:
-
-```
-https://claude.ai/api/mcp/auth_callback
-```
-
-Register this as an allowed redirect URI in your PipesHub OAuth app.
+- **"Couldn't reach" the server:** `curl -X POST PIPESHUB_INSTANCE_URL/mcp` from outside your network should return `401`. If PipesHub is behind a firewall, WAF or bot protection (such as Cloudflare), allow Anthropic's outbound range `160.79.104.0/21` for `/mcp`, `/.well-known/*` and `/api/v1/oauth2/*`.
+- **Every call returns 401 with a token:** the header value must start with `Bearer `, and the token must not be expired or revoked.
 
 ### Security Notes
 
 - Only connect to trusted MCP servers
-- Review the permissions requested during the OAuth authentication flow
-- Claude.ai interacts with PipesHub on your behalf using the granted OAuth token — your password is never shared
+- Review the permissions requested on the PipesHub consent page
+- With **Sign in now**, Claude.ai acts on your behalf with an OAuth token — your password is never shared
+- A personal access token acts as you wherever it is used; revoke it from **Personal access tokens** if it leaks
 
 </details>
 
