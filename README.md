@@ -169,12 +169,15 @@ If Cursor's internal browser fails to load the OAuth login page, copy the author
 
 No OAuth app and no admin needed, and results follow your own permissions.
 
-1. In PipesHub, open **Workspace settings → Developer settings → Personal access tokens → New token**, and copy the two lines it shows (they appear only once). Export them in your shell:
+1. In PipesHub, open **Workspace settings → Developer settings → Personal access tokens → New token**, and copy the token (it appears only once). Export the URL and the token in your shell. `read -rs` takes the token without echoing it or saving it in your shell history:
 
    ```bash
    export PIPESHUB_MCP_URL=https://your-instance/mcp
-   export PIPESHUB_MCP_TOKEN=phpat_...
+   read -rs PIPESHUB_MCP_TOKEN   # paste the phpat_... token, then press Enter
+   export PIPESHUB_MCP_TOKEN
    ```
+
+   The URL must be `https://` unless PipesHub runs on your own machine (`http://localhost:3000/mcp` is fine): the token is sent as a bearer header on every request. To keep the token across sessions, load it from your OS keychain or a secrets manager in your shell profile rather than writing it there in plain text.
 
 2. Add the server:
 
@@ -442,7 +445,7 @@ The **Add custom connector** dialog asks how Claude authenticates:
 |---|---|---|
 | **Sign in now** (recommended) | Nothing. Claude registers itself with PipesHub (dynamic client registration, on by default from PipesHub 1.2.0). | Almost always. Each person signs in as themselves, and tokens refresh on their own. |
 | **No sign-in** + request header | A personal access token | Your own individual Claude account. |
-| **Sign in now** + OAuth app under **Advanced** | Client ID and Client Secret | Registration is off on your instance (`PIPESHUB_ENABLE_DCR=false`) or PipesHub is older than 1.2.0. |
+| **Sign in now** + your own OAuth app | Client ID and Client Secret | Registration is off on your instance (`PIPESHUB_ENABLE_DCR=false`) or PipesHub is older than 1.2.0. |
 
 ### Sign in with your PipesHub account
 
@@ -455,17 +458,17 @@ For an **individual** Claude account only:
 
 1. Mint a token in PipesHub under **Workspace settings → Developer settings → Personal access tokens**.
 2. Add the custom connector with the URL, and under **Authentication** choose **No sign-in**.
-3. Under **Request headers**, pick `authorization` and enter the value `Bearer phpat_YOUR_TOKEN` (the word `Bearer`, one space, then the token; Claude sends the value exactly as typed). Keep **Required** ticked and click **Add**.
+3. Under **Request headers** (inside **Advanced** if the dialog shows everything on one screen), pick `authorization` and enter the value `Bearer phpat_YOUR_TOKEN` (the word `Bearer`, one space, then the token; Claude sends the value exactly as typed). Keep **Required** ticked and click **Add**.
 
 > **Warning:** don't do this on a Team or Enterprise organization connector. Claude sends the same header for every member, so everyone would search PipesHub as the token's owner. Request headers are a beta feature in Claude; if the section isn't there, use **Sign in now**. Claude doesn't let you view or edit the header later, so when the token expires, remove the connector and add it again.
 
 ### With an OAuth app
 
-Create the app as in [Step 1](#step-1-create-an-oauth-app-in-pipeshub) with the redirect URI `https://claude.ai/api/mcp/auth_callback`. When adding the connector, choose **Sign in now**, open **Advanced**, and enter the **OAuth Client ID** and **OAuth Client Secret**.
+Create the app as in [Step 1](#step-1-create-an-oauth-app-in-pipeshub) with the redirect URI `https://claude.ai/api/mcp/auth_callback`. When adding the connector, choose **Sign in now**, then enter the client ID and client secret: in a two-step dialog (with a **Continue** button) under **OAuth client > Use your own OAuth client**, in a one-screen dialog under **Advanced**.
 
 ### Troubleshooting
 
-- **"Couldn't reach" the server:** `curl -X POST PIPESHUB_INSTANCE_URL/mcp` from outside your network should return `401`. If PipesHub is behind a firewall, WAF or bot protection (such as Cloudflare), allow Anthropic's outbound range `160.79.104.0/21` for `/mcp`, `/.well-known/*` and `/api/v1/oauth2/*`.
+- **"Couldn't reach" the server:** `curl -X POST PIPESHUB_INSTANCE_URL/mcp` from outside your network should return `401`. If PipesHub is behind a firewall, WAF or bot protection (such as Cloudflare), allow Anthropic's outbound ranges `160.79.104.0/21` and `153.61.208.0/20` for `/mcp`, `/.well-known/*` and `/api/v1/oauth2/*`. See [Anthropic's IP addresses](https://platform.claude.com/docs/en/api/ip-addresses) for the current list.
 - **Every call returns 401 with a token:** the header value must start with `Bearer `, and the token must not be expired or revoked.
 
 ### Security Notes
