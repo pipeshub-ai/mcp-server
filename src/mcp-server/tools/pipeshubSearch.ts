@@ -350,23 +350,18 @@ export function shapeTimeline(
 }
 
 /** Said on a search that matched nothing, so the model neither stops nor guesses. */
-export const SEARCH_DEGRADED_NOTE = "The search index could not finish this "
-  + "search in time, so it may have missed records. Search again before saying "
-  + "something does not exist.";
-
 /**
- * The server's own word that this search did not run in full (part of its
- * index failed, or it stopped short): then "no records" is not "nothing
- * matches". A server that only flags it (`searchDegraded`) gets this tool's
- * wording.
+ * The server's own sentence that this search did not run in full (part of its
+ * index failed, ran out of time, or hit a cap): then "no records" is not
+ * "nothing matches". The `searchDegraded` flag alone is not worded: it is also
+ * set for complete answers (an exact read), so it cannot say records were missed.
  */
 export function searchIncompleteNote(
-  sr: { searchIncomplete?: unknown; searchDegraded?: unknown },
+  sr: { searchIncomplete?: unknown },
 ): string | undefined {
-  if (typeof sr.searchIncomplete === "string" && sr.searchIncomplete) {
-    return sr.searchIncomplete;
-  }
-  return sr.searchDegraded === true ? SEARCH_DEGRADED_NOTE : undefined;
+  return typeof sr.searchIncomplete === "string" && sr.searchIncomplete
+    ? sr.searchIncomplete
+    : undefined;
 }
 
 export const NO_RESULTS_NOTE = "No records matched. Try other wording or "
@@ -510,7 +505,6 @@ again with \`offset\` set to \`nextOffset\`.`,
           status?: string;
           message?: string;
           searchIncomplete?: string;
-          searchDegraded?: boolean;
           timeline?: ServerTimeline;
           outsideDates?: ServerOutsideDates;
         };
