@@ -4,6 +4,7 @@ import { HTTPClient } from "../src/lib/http.js";
 import { forgetSearches } from "../src/mcp-server/tools/_searchResults.js";
 import {
   NO_RESULTS_NOTE,
+  SEARCH_AGAIN_NOTE,
   tool$pipeshubSearch,
 } from "../src/mcp-server/tools/pipeshubSearch.js";
 
@@ -34,8 +35,22 @@ describe("pipeshub_search on a search that did not run in full", () => {
       searchResponse: { searchResults: [], records: [], searchIncomplete: said, searchDegraded: true },
     });
     const notes = notesOf(await tool$pipeshubSearch.tool(core, { query: "q" } as never, ctx()) as never);
-    expect(notes).toContain(said);
+    expect(notes).toContain(`${said} ${SEARCH_AGAIN_NOTE}`);
     expect(notes).toContain(NO_RESULTS_NOTE);
+  });
+
+  test("tells the agent to search again when records came back too", async () => {
+    const said = "Part of this search could not run in full, so this search may have missed documents.";
+    const record = { id: "r1", recordName: "Plan", webUrl: "https://x.test/r1", connectorName: "KB" };
+    const core = client({
+      searchResponse: {
+        searchResults: [{ content: "plan", metadata: { recordId: "r1", recordName: "Plan", webUrl: "https://x.test/r1" } }],
+        records: [record],
+        searchIncomplete: said,
+      },
+    });
+    const notes = notesOf(await tool$pipeshubSearch.tool(core, { query: "q" } as never, ctx()) as never);
+    expect(notes).toContain(`${said} ${SEARCH_AGAIN_NOTE}`);
   });
 
   test("does not word a bare flag: it is also set for complete answers", async () => {

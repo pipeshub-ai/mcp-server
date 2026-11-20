@@ -360,9 +360,12 @@ export function searchIncompleteNote(
   sr: { searchIncomplete?: unknown },
 ): string | undefined {
   return typeof sr.searchIncomplete === "string" && sr.searchIncomplete
-    ? sr.searchIncomplete
+    ? `${sr.searchIncomplete} ${SEARCH_AGAIN_NOTE}`
     : undefined;
 }
+
+/** Added to the server's incomplete-search sentence, with or without records: what was missed may be the record asked for. */
+export const SEARCH_AGAIN_NOTE = "Search again before saying a record does not exist.";
 
 export const NO_RESULTS_NOTE = "No records matched. Try other wording or "
   + "fewer filters; an exact name, key or link can be looked up with "
