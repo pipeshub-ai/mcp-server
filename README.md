@@ -173,9 +173,10 @@ No OAuth app and no admin needed, and results follow your own permissions.
 
    ```bash
    export PIPESHUB_MCP_URL=https://your-instance/mcp
-   read -rs PIPESHUB_MCP_TOKEN   # paste the phpat_... token, then press Enter
-   export PIPESHUB_MCP_TOKEN
+   read -rsp 'PipesHub token: ' PIPESHUB_MCP_TOKEN && export PIPESHUB_MCP_TOKEN
    ```
+
+   Run the `read` line on its own, then paste the `phpat_...` token at the prompt and press Enter.
 
    The URL must be `https://` unless PipesHub runs on your own machine (`http://localhost:3000/mcp` is fine): the token is sent as a bearer header on every request. To keep the token across sessions, load it from your OS keychain or a secrets manager in your shell profile rather than writing it there in plain text.
 
@@ -468,7 +469,7 @@ Create the app as in [Step 1](#step-1-create-an-oauth-app-in-pipeshub) with the 
 
 ### Troubleshooting
 
-- **"Couldn't reach" the server:** `curl -X POST PIPESHUB_INSTANCE_URL/mcp` from outside your network should return `401`. If PipesHub is behind a firewall, WAF or bot protection (such as Cloudflare), allow Anthropic's outbound ranges `160.79.104.0/21` and `153.61.208.0/20` for `/mcp`, `/.well-known/*` and `/api/v1/oauth2/*`. See [Anthropic's IP addresses](https://platform.claude.com/docs/en/api/ip-addresses) for the current list.
+- **"Couldn't reach" the server:** `curl -s -o /dev/null -w '%{http_code}\n' -X POST PIPESHUB_INSTANCE_URL/mcp` from outside your network should print `401`. If PipesHub is behind a firewall, WAF or bot protection (such as Cloudflare), allow Anthropic's outbound ranges `160.79.104.0/21` and `153.61.208.0/20` for `/mcp`, `/.well-known/*` and `/api/v1/oauth2/*`. See [Anthropic's IP addresses](https://platform.claude.com/docs/en/api/ip-addresses) for the current list.
 - **Every call returns 401 with a token:** the header value must start with `Bearer `, and the token must not be expired or revoked.
 
 ### Security Notes
