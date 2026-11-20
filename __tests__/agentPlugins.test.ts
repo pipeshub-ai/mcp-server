@@ -162,6 +162,37 @@ describe("plugin manifests", () => {
     expect(read("cursor-plugin/commands/index.md")).toContain("`PIPESHUB_BASE_URL` set to the `baseUrl` from step 1");
   });
 
+  const ESCAPE = "writing each `'` in it as `'\\''`";
+  posix("/pipeshub:index quotes the baseUrl like the path, so neither can end the quotes", async () => {
+    const text = read("commands/index.md");
+    expect(text).toContain(`in place of \`<baseUrl>\`, ${ESCAPE}`);
+    expect(read("cursor-plugin/commands/index.md")).toContain("`PIPESHUB_BASE_URL`");
+    expect(read("cursor-plugin/commands/index.md")).toContain("write each `'` in it as `'\\''`");
+    // The rule itself: the snippet, filled in that way, hands both values over unchanged and runs nothing.
+    const shell = [...text.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).join("").trim();
+    const q = (v: string) => `'${v.replaceAll("'", "'\\''")}'`;
+    const origin = "http://x'$(touch pwned)'.local:3000";
+    const path = "/r/it's $(touch pwned) dir";
+    const bin = await mkdtemp(join(tmpdir(), "pipeshub-index-md-"));
+    const fakeNode = join(bin, "node");
+    await writeFile(fakeNode, `#!/bin/sh\nprintf '%s\\0' "$PIPESHUB_BASE_URL" "$@" > "${join(bin, "argv")}"\n`);
+    await chmod(fakeNode, 0o755);
+    const line = shell.replace("'<baseUrl>'", q(origin)) + " " + q(path);
+    const r = spawnSync("/bin/sh", ["-c", line], { cwd: bin, env: { PATH: bin, CLAUDE_PLUGIN_ROOT: "/plugin" } });
+    expect(r.status).toBe(0);
+    expect((await readFile(join(bin, "argv"), "utf8")).split("\0").slice(0, -1))
+      .toEqual([origin, "/plugin/scripts/pipeshub-local.mjs", "index", path]);
+    expect(existsSync(join(bin, "pwned"))).toBe(false);
+    await rm(bin, { recursive: true, force: true });
+  });
+
+  test("/pipeshub:index's watch hint keeps the indexed path, quoted the same way", () => {
+    const watch = read("commands/index.md").split("\n").find((l) => l.includes("index --watch")) ?? "";
+    expect(watch).toContain("`pipeshub index --watch`");
+    expect(watch).toContain("`npx -y @pipeshub-ai/standalone index --watch`");
+    expect(watch).toContain("If a path was given, put it after `index` in either form, quoted the same way as in step 2");
+  });
+
   test("Codex installs the repository root as a portable plugin from the Claude marketplace file", () => {
     // Codex reads .claude-plugin/marketplace.json as a legacy-compatible marketplace and loads the
     // entry's root plugin.json, mcp.json and skills/ (checked with codex-cli 0.169.0).
