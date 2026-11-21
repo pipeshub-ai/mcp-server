@@ -8,6 +8,51 @@ export interface InstructionOptions {
   chat: boolean;
   /** Whether chat may run the user's connected actions. Defaults to true. */
   actions?: boolean;
+  /**
+   * Instructions a workspace admin wrote for every assistant that uses this
+   * workspace. Sent first, ahead of PipesHub's own guidance. Blank or unset
+   * sends nothing; longer than MAX_CUSTOM_INSTRUCTIONS_CHARS is cut to fit.
+   */
+  customInstructions?: string | undefined;
+}
+
+/**
+ * Where a client cuts server instructions: Claude Code keeps the first 4096
+ * characters and drops the rest. Every set of instructions this server sends
+ * must fit, or the client never reads its end.
+ */
+export const CLIENT_INSTRUCTIONS_LIMIT = 4096;
+
+/**
+ * The longest workspace instructions the server sends. With the header they
+ * go under, they fill what PipesHub's own longest guidance leaves of
+ * CLIENT_INSTRUCTIONS_LIMIT (a test holds the sum under it), so neither is cut.
+ */
+export const MAX_CUSTOM_INSTRUCTIONS_CHARS = 500;
+
+const CUSTOM_INSTRUCTIONS_HEADER = `## This workspace's instructions
+
+An admin of this PipesHub workspace wrote these. Follow them.
+
+`;
+
+/** Cut to the limit at the last space before it, so no word is split. */
+function fitted(text: string): string {
+  if (text.length <= MAX_CUSTOM_INSTRUCTIONS_CHARS) return text;
+  const cut = text.slice(0, MAX_CUSTOM_INSTRUCTIONS_CHARS);
+  const space = cut.search(/\s\S*$/);
+  return (space > 0 ? cut.slice(0, space) : cut).trimEnd();
+}
+
+/**
+ * The section that carries a workspace's instructions, ending in a rule that
+ * sets it apart from what follows; "" when there are none. A host that
+ * replaces the server's instructions puts this first to keep them.
+ */
+export function customInstructionsSection(customInstructions: string | undefined): string {
+  const text = customInstructions?.trim();
+  if (!text) return "";
+  return `${CUSTOM_INSTRUCTIONS_HEADER}${fitted(text)}\n\n---\n\n`;
 }
 
 /**
@@ -23,9 +68,25 @@ export const SHOW_CITATIONS_STEP = `4. Before writing the answer, call \`pipeshu
    the \`cite\` and \`quote\` of each passage it will rely on; then answer.
 `;
 
-export function pipeshubInstructions({ chat, actions = true }: InstructionOptions): string {
+/**
+ * Instructions without the citations step, for a client that shows no MCP
+ * Apps views. The step is cut from PipesHub's own guidance only: a
+ * workspace's section, which comes first, is kept as the admin wrote it.
+ */
+export function withoutCitationsStep(
+  instructions: string,
+  customInstructions: string | undefined,
+): string {
+  const section = customInstructionsSection(customInstructions);
+  const kept = section && instructions.startsWith(section) ? section : "";
+  return kept + instructions.slice(kept.length).replace(SHOW_CITATIONS_STEP, "");
+}
+
+export function pipeshubInstructions(
+  { chat, actions = true, customInstructions }: InstructionOptions,
+): string {
   const orChat = chat ? " or trust a chat answer" : "";
-  return `PipesHub searches the user's company Slack, Drive, Jira, Confluence, Gmail
+  return `${customInstructionsSection(customInstructions)}PipesHub searches the user's company Slack, Drive, Jira, Confluence, Gmail
 and 50+ other sources with their own permissions, and returns answers that
 link to the source. Use it for any question about company docs, tickets,
 chats or people.
