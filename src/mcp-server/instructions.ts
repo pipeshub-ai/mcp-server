@@ -68,6 +68,20 @@ export const SHOW_CITATIONS_STEP = `4. Before writing the answer, call \`pipeshu
    the \`cite\` and \`quote\` of each passage it will rely on; then answer.
 `;
 
+/**
+ * Instructions without the citations step, for a client that shows no MCP
+ * Apps views. The step is cut from PipesHub's own guidance only: a
+ * workspace's section, which comes first, is kept as the admin wrote it.
+ */
+export function withoutCitationsStep(
+  instructions: string,
+  customInstructions: string | undefined,
+): string {
+  const section = customInstructionsSection(customInstructions);
+  const kept = section && instructions.startsWith(section) ? section : "";
+  return kept + instructions.slice(kept.length).replace(SHOW_CITATIONS_STEP, "");
+}
+
 export function pipeshubInstructions(
   { chat, actions = true, customInstructions }: InstructionOptions,
 ): string {

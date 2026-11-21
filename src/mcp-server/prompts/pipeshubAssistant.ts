@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { PromptDefinition } from "../prompts.js";
-import { pipeshubInstructions, SHOW_CITATIONS_STEP } from "../instructions.js";
+import { pipeshubInstructions, withoutCitationsStep } from "../instructions.js";
 
 const args = {
   query: z.string().optional().describe(
@@ -41,7 +41,7 @@ export function createPipeshubAssistantPrompt(
     scopes: ["read"],
     args,
     prompt: (_client, args, _extra) => {
-      const instructions = showsApps() ? all : all.replace(SHOW_CITATIONS_STEP, "");
+      const instructions = showsApps() ? all : withoutCitationsStep(all, customInstructions);
       const text = args.query
         ? `${instructions}\n\n---\n\nFollow the routing rules above to `
           + `handle this request, picking the right tool${agentsHint}:\n\n`

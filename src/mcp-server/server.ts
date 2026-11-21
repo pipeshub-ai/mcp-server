@@ -9,7 +9,7 @@ import {
 
 import { withoutChatMentions } from "./chat-mentions.js";
 import { chatEnabledFromEnv } from "./chat-setting.js";
-import { pipeshubInstructions, SHOW_CITATIONS_STEP } from "./instructions.js";
+import { pipeshubInstructions, withoutCitationsStep } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
 import { bindNewRequestId } from "../hooks/request-context.js";
 import { SDKOptions } from "../lib/config.js";
@@ -310,7 +310,7 @@ export function createMCPServer(deps: {
     }
     // Cut from the text sent, which a host may have added to.
     if (!showsApps() && result.instructions) {
-      result.instructions = result.instructions.replace(SHOW_CITATIONS_STEP, "");
+      result.instructions = withoutCitationsStep(result.instructions, deps.customInstructions);
     }
     return result;
   });

@@ -10,6 +10,7 @@ import {
   MAX_CUSTOM_INSTRUCTIONS_CHARS,
   pipeshubInstructions,
   SHOW_CITATIONS_STEP,
+  withoutCitationsStep,
 } from "../src/mcp-server/instructions.js";
 import { createMCPServer } from "../src/mcp-server/server.js";
 
@@ -47,6 +48,29 @@ describe("workspace instructions", () => {
     const r = await client.getPrompt({ name: "pipeshub-assistant", arguments: {} });
     const c = r.messages[0]?.content;
     expect(c?.type === "text" ? c.text : "").toBe(client.getInstructions()!);
+  });
+
+  test("that quote the citations step keep it; only PipesHub's own copy is cut", async () => {
+    // The test client shows no MCP Apps views, so the step is cut.
+    const quoting = `Always do this:\n${SHOW_CITATIONS_STEP}`;
+    const client = await connect(
+      createMCPServer({ logger, getSDK: sdk, customInstructions: quoting }).server,
+    );
+    const own = pipeshubInstructions({ chat: true }).replace(SHOW_CITATIONS_STEP, "");
+    const section = customInstructionsSection(quoting);
+    expect(section).toContain(SHOW_CITATIONS_STEP);
+    expect(client.getInstructions()).toBe(`${section}${own}`);
+
+    const r = await client.getPrompt({ name: "pipeshub-assistant", arguments: {} });
+    const c = r.messages[0]?.content;
+    expect(c?.type === "text" ? c.text : "").toBe(`${section}${own}`);
+  });
+
+  test("cutting the citations step leaves a host's other text alone", () => {
+    const own = pipeshubInstructions({ chat: true });
+    expect(withoutCitationsStep(own, undefined)).toBe(own.replace(SHOW_CITATIONS_STEP, ""));
+    // Text that does not start with the workspace's section is cut as before.
+    expect(withoutCitationsStep(own, ORG)).toBe(own.replace(SHOW_CITATIONS_STEP, ""));
   });
 
   test("unset, blank or whitespace sends exactly the guidance it sent before", () => {
