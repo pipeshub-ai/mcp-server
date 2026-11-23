@@ -90,6 +90,51 @@ export const SHOW_CITATIONS_HINT = "Before you write your answer, call `pipeshub
 export const recordCite = (recordId: string) => `${recordId}....`;
 
 /**
+ * The `Cite:` line of a Slack thread read. The thread joins several records
+ * (the message, each reply), and each shows its messages as numbered blocks
+ * (`[0]`, `[1]`, …), so a message's cite is its record's id with that block.
+ * Without this line an agent that answered from a thread had nothing to cite
+ * and made codes up. Slack messages are never previewable, hence `.n`.
+ */
+export function threadCiteLine(recordIds: readonly string[]): string | undefined {
+  const ids = [...new Set(recordIds)].filter((id) => RECORD_ID.test(id));
+  if (ids.length === 0) return undefined;
+  const message = (id: string, block: number | string) => `${id}..${block}...n`;
+  return `Cite: message [k] of record ${ids[0]} as ${message(ids[0]!, "k")} (so [1] is ${message(ids[0]!, 1)})`
+    + ids.slice(1).map((id) => `; of record ${id} as ${message(id, "k")}`).join("")
+    + ". ";
+}
+
+// Record ids as PipesHub issues them: a UUID, or a 24-digit hex id.
+const LOOSE_RECORD_ID = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24})(?![0-9a-z-])/i;
+
+/**
+ * A cite as an agent passed it back, which is not always as it was given:
+ * the codes are runs of dots, and agents add or drop one, wrap the code in
+ * backticks, or send the record id alone. An exact code decodes as before.
+ * Otherwise a code that starts with a record id stands for that whole record
+ * (`exact: false`), keeping only the "not previewable" mark; the caller
+ * should check the record exists, since the id may be made up too.
+ */
+export function decodeCiteLoosely(cite: string): { location: CiteLocation; exact: boolean } | undefined {
+  // Wrappers may sit around the whole `Cite: …` or around the code after it.
+  const unwrap = (x: string) => x.trim().replace(/^[`'"<[(]+|[`'">\])]+$/g, "").trim();
+  const s = unwrap(unwrap(cite).replace(/^cite:\s*/i, ""));
+  const exact = decodeCite(s);
+  if (exact) return { location: exact, exact: true };
+  const m = LOOSE_RECORD_ID.exec(s);
+  if (!m) return undefined;
+  const rest = s.slice(m[0].length);
+  return {
+    location: {
+      recordId: m[1]!,
+      ...(/^[.\d_]*\.n$/.test(rest) ? { previewRenderable: false as const } : {}),
+    },
+    exact: false,
+  };
+}
+
+/**
  * A result without what only the citations card uses, for a client that
  * shows no MCP Apps views: the `cite` codes, the hint to show them, and a
  * record read's closing `Cite:` line.
