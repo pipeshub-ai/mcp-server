@@ -9,7 +9,8 @@
 // it. A call the tool already degrades around is not counted: the model
 // listing in `pipeshub_sources` (config:read) and the coverage counts there
 // and in `pipeshub_indexing_status` (connector:read) are left out with a
-// note when the token lacks the scope.
+// note when the token lacks the scope, and `pipeshub_directory`'s
+// `list_groups` (usergroup:read) says only org admins can list groups.
 
 const TOOL_SCOPES: Readonly<Record<string, readonly string[]>> = {
   // GET /knowledgeBase/knowledge-hub/nodes (kb:read).
@@ -22,9 +23,10 @@ const TOOL_SCOPES: Readonly<Record<string, readonly string[]>> = {
   pipeshub_get_record_content: ["connector:read"],
   // GET /knowledgeBase/stream/record/:id (kb:read).
   pipeshub_download_record: ["kb:read"],
-  // GET /users, /users/:id (user:read), /userGroups (usergroup:read),
-  // /teams/user/teams (team:read): one per action.
-  pipeshub_directory: ["user:read", "usergroup:read", "team:read"],
+  // GET /users, /users/:id (user:read), /teams/user/teams (team:read).
+  // `list_groups` also calls GET /userGroups (usergroup:read), which is
+  // admin-only: a member's token need not carry that scope to look people up.
+  pipeshub_directory: ["user:read", "team:read"],
   // POST /knowledgeBase (kb:write).
   pipeshub_create_collection: ["kb:write"],
   // POST /knowledgeBase/:kbId/upload (kb:upload).

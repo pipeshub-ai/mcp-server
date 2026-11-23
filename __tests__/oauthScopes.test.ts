@@ -12,12 +12,13 @@ const logger = createConsoleLogger("error");
 // The scopes these tools require: the server's McpToolScopes less
 // offline_access, code:read (the code tools are the server's own),
 // config:read (only the model listing in pipeshub_sources uses it, and that
-// tool answers without it) and agent:execute (it gates chat's actions and
-// agent turns, not whether chat is offered).
+// tool answers without it), usergroup:read (only pipeshub_directory's
+// admin-only list_groups uses it) and agent:execute (it gates chat's actions
+// and agent turns, not whether chat is offered).
 const TOOL_SCOPES = [
   "semantic:write", "conversation:chat", "agent:read",
   "kb:read", "kb:write", "kb:upload", "connector:read", "connector:write",
-  "connector:sync", "user:read", "team:read", "usergroup:read",
+  "connector:sync", "user:read", "team:read",
 ];
 
 async function connect(deps: Omit<Parameters<typeof createMCPServer>[0], "logger"> = {}) {
@@ -81,6 +82,11 @@ describe("grantedOAuthScopes", () => {
     const client = await connect({ grantedOAuthScopes: ["kb:read", "semantic:write", "connector:read", "agent:read"] });
     expect(client.getInstructions()).not.toContain("pipeshub_chat");
     expect((await client.listTools()).tools.map((t) => t.name)).not.toContain("pipeshub_agents");
+  });
+
+  test("a member's token without usergroup:read still gets the directory", async () => {
+    const names = await listed({ grantedOAuthScopes: ["user:read", "team:read"] });
+    expect(names).toContain("pipeshub_directory");
   });
 
   test("a token that can chat but not act still gets chat", async () => {
