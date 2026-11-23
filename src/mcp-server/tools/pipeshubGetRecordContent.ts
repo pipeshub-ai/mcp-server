@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { recordCite, SHOW_CITATIONS_HINT } from "../cite.js";
+import { recordCite, SHOW_CITATIONS_HINT, threadCiteLine } from "../cite.js";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
@@ -385,9 +385,9 @@ it using the \`Web URL\` from its metadata header (when present).`,
     const parsed = await readJson<RecordRead>(result.value);
     if (!parsed.ok) return parsed.result;
     // A thread read joins several records' messages, so no one record's
-    // cite stands for it; their search passages carry their own.
+    // cite stands for it: it names how to cite each record's messages.
     const text = thread
-      ? renderRead(parsed.value, args.recordId, thread)
+      ? withThreadCite(renderRead(parsed.value, args.recordId, thread), parsed.value)
       : withRecordCite(
         renderRead(parsed.value, args.recordId, thread),
         parsed.value?.content,
@@ -410,6 +410,23 @@ export function withRecordCite(text: string, content: unknown, recordId: string)
   if (!body.trim() || /(^|\n)(No record found|Not indexed:)/.test(body)) return text;
   return `${text}\nCite: ${recordCite(recordId)} (this record; a search passage's own cite marks the passage). `
     + SHOW_CITATIONS_HINT;
+}
+
+/**
+ * A thread read's text with how to cite each of its records' messages and the
+ * reminder to show citations. The records are the ones this page showed; a
+ * server that does not list them still names each in a `Record ID:` line.
+ * An older server's single record (not a thread read) gets no line here.
+ */
+export function withThreadCite(text: string, read: RecordRead): string {
+  const body = typeof read.content === "string" ? read.content : "";
+  if (read.mode !== "thread" || !body.trim()) return text;
+  const listed = (read.records ?? []).map((r) => r.recordId).filter((id): id is string => !!id);
+  const ids = listed.length > 0
+    ? listed
+    : [...body.matchAll(/^Record ID: (\S+)/gm)].map((m) => m[1]!);
+  const line = threadCiteLine(ids);
+  return line ? `${text}\n${line}${SHOW_CITATIONS_HINT}` : text;
 }
 
 /** The fields a budgeted read adds beside `content`. A server that predates

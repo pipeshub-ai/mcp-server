@@ -5,7 +5,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
-import { decodeCite, encodeCite, SHOW_CITATIONS_HINT, withoutCitations } from "../src/mcp-server/cite.js";
+import { decodeCite, decodeCiteLoosely, encodeCite, SHOW_CITATIONS_HINT, threadCiteLine, withoutCitations } from "../src/mcp-server/cite.js";
 import { CITATION_VIEWER_URI, clearAppsMemory } from "../src/mcp-server/citation-viewer.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { SHOW_CITATIONS_STEP } from "../src/mcp-server/instructions.js";
@@ -170,6 +170,14 @@ describe("a client without MCP Apps views", () => {
     expect(JSON.parse(out[0]!)).toEqual({ records: [{ recordId: RID, passages: [{ text: "x" }] }] });
     expect(out[1]).toBe(`Record ID: ${RID}\n\nbody`);
   });
+
+  test("a thread read loses its Cite line and reminder too", () => {
+    const thread = `<record>\nRecord ID: ${RID}\n[0] hi\n</record>\n\nRead: the whole thread (1 record).\n`
+      + threadCiteLine([RID]) + SHOW_CITATIONS_HINT;
+    const [out] = withoutCitations({ content: [{ type: "text", text: thread }] }).content;
+    expect((out as { text: string }).text)
+      .toBe(`<record>\nRecord ID: ${RID}\n[0] hi\n</record>\n\nRead: the whole thread (1 record).`);
+  });
 });
 
 describe("cite codes", () => {
@@ -220,6 +228,49 @@ describe("cite codes", () => {
     `${"a".repeat(65)}....`,
   ])("rejects %p", (cite) => {
     expect(decodeCite(cite)).toBeUndefined();
+  });
+
+  test("read loosely, an exact cite decodes as before", () => {
+    expect(decodeCiteLoosely(`${RID}.1.2..144_171_906_321`)).toEqual({
+      location: decodeCite(`${RID}.1.2..144_171_906_321`)!, exact: true,
+    });
+    // Wrappers agents add are not part of the code.
+    expect(decodeCiteLoosely(` \`${RID}..7...n\` `)).toEqual({
+      location: { recordId: RID, blockNum: [7], previewRenderable: false }, exact: true,
+    });
+    expect(decodeCiteLoosely(`cite: ${RID}..7...n`)?.exact).toBe(true);
+  });
+
+  test.each([
+    [`${RID}....n`, { recordId: RID, previewRenderable: false }],
+    [`${RID}......n`, { recordId: RID, previewRenderable: false }],
+    [`${RID}..7..n`, { recordId: RID, previewRenderable: false }],
+    [`${RID}.1.2`, { recordId: RID }],
+    [RID, { recordId: RID }],
+    ["6ae460ea0b29ff7670d82c0b.43", { recordId: "6ae460ea0b29ff7670d82c0b" }],
+  ])("read loosely, %p stands for its whole record", (cite, location) => {
+    expect(decodeCiteLoosely(cite)).toEqual({ location, exact: false });
+  });
+
+  test.each([
+    "[1]",
+    "QE-12",
+    "rec-1",
+    `x${RID}`,
+    `https://productnest.slack.com/archives/C0B3U348DNU/p1795089495075859`,
+  ])("read loosely, %p is still not a cite", (cite) => {
+    expect(decodeCiteLoosely(cite)).toBeUndefined();
+  });
+
+  test("a thread read's Cite line gives each record's messages a cite that decodes", () => {
+    const line = threadCiteLine([RID, "6ae460ea0b29ff7670d82c0b", RID])!;
+    expect(line).toBe(
+      `Cite: message [k] of record ${RID} as ${RID}..k...n (so [1] is ${RID}..1...n)`
+        + "; of record 6ae460ea0b29ff7670d82c0b as 6ae460ea0b29ff7670d82c0b..k...n. ",
+    );
+    expect(decodeCite(`${RID}..1...n`)).toEqual({ recordId: RID, blockNum: [1], previewRenderable: false });
+    expect(threadCiteLine([])).toBeUndefined();
+    expect(threadCiteLine(["../etc/passwd"])).toBeUndefined();
   });
 
   test("search passages and chat citations carry their cite", () => {
@@ -297,14 +348,54 @@ describe("pipeshub_show_citations", () => {
     expect((out._meta as any)["pipeshub/citations"].citations[0].recordName).toBe("Source");
   });
 
-  test("a made-up cite is an error that names it, and nothing is fetched", async () => {
+  test("when every cite is made up, it is an error that names them, and nothing is fetched", async () => {
     const reads: string[] = [];
     const out = await tool$pipeshubShowCitations.tool(client(reads), {
-      citations: [{ cite: `${RID}.1...` }, { cite: "[1]" }],
+      citations: [{ cite: "[1]" }, { cite: "https://productnest.slack.com/archives/C0B3U348DNU/p1795089495075859" }],
     }, ctx());
     expect(out.isError).toBe(true);
-    expect((out.content[0] as any).text).toContain("Citation 2");
+    expect((out.content[0] as any).text).toContain("Citation 1, 2");
     expect(reads).toEqual([]);
+  });
+
+  // Seen on Claude: one answer's six cites were all off, and the card was an
+  // error instead of sources. A bad cite now costs only itself.
+  test("a made-up cite among good ones is left out and named; the rest are shown, renumbered", async () => {
+    const out = await tool$pipeshubShowCitations.tool(client([]), {
+      citations: [{ cite: `${RID}.1...` }, { cite: "[1]" }, { cite: `${RID}.4.15..`, quote: "q" }],
+    }, ctx());
+    expect(out.isError).toBeUndefined();
+    const text = (out.content[0] as any).text as string;
+    expect(text).toContain("Shown to the user: 2 citations from 1 record");
+    expect(text).toContain("[2] Contoso-Pentest-Report.pdf, page 4");
+    expect(text).toContain("Not shown: your citation 2,");
+    const data = (out._meta as any)["pipeshub/citations"].citations;
+    expect(data.map((c: any) => [c.number, c.pageNum?.[0], c.text])).toEqual([[1, 1, ""], [2, 4, "q"]]);
+  });
+
+  test("a mangled cite of a real record shows that record", async () => {
+    const reads: string[] = [];
+    const out = await tool$pipeshubShowCitations.tool(client(reads), {
+      // One dot short of `.....n`, then the bare record id.
+      citations: [{ cite: `${RID}....n` }, { cite: RID }],
+    }, ctx());
+    expect(out.isError).toBeUndefined();
+    expect(reads).toEqual([`/api/v1/connectors/record/${RID}/content`]);
+    const data = (out._meta as any)["pipeshub/citations"].citations;
+    expect(data).toHaveLength(2);
+    expect(data[0]).toMatchObject({ recordId: RID, recordName: "Contoso-Pentest-Report.pdf", previewRenderable: false });
+    expect(data[0].blockNum).toBeUndefined();
+    expect(data[1]).toMatchObject({ recordId: RID, recordName: "Contoso-Pentest-Report.pdf" });
+  });
+
+  test("a mangled cite of a record that cannot be read is left out, not shown as \"Source\"", async () => {
+    const out = await tool$pipeshubShowCitations.tool(client([], 404), {
+      citations: [{ cite: `${RID}.1...` }, { cite: `${RID}..1....n` }],
+    }, ctx());
+    const data = (out._meta as any)["pipeshub/citations"].citations;
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ number: 1, recordName: "Source", pageNum: [1] });
+    expect((out.content[0] as any).text).toContain("Not shown: your citation 2,");
   });
 });
 
