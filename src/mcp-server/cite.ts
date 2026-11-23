@@ -96,13 +96,45 @@ export const recordCite = (recordId: string) => `${recordId}....`;
  * Without this line an agent that answered from a thread had nothing to cite
  * and made codes up. Slack messages are never previewable, hence `.n`.
  */
-export function threadCiteLine(recordIds: readonly string[]): string | undefined {
+export function threadCiteLine(recordIds: readonly string[], content = ""): string | undefined {
   const ids = [...new Set(recordIds)].filter((id) => RECORD_ID.test(id));
   if (ids.length === 0) return undefined;
-  const message = (id: string, block: number | string) => `${id}..${block}...n`;
-  return `Cite: message [k] of record ${ids[0]} as ${message(ids[0]!, "k")} (so [1] is ${message(ids[0]!, 1)})`
-    + ids.slice(1).map((id) => `; of record ${id} as ${message(id, "k")}`).join("")
-    + ". ";
+  // Each message's own code, spelled out: given `R..k...n` to fill in, agents
+  // replaced the closing letter n with the number too (`R..1...1`), which
+  // loses the message. A thread longer than the cap names the rule instead.
+  const blocks = threadMessageBlocks(content);
+  let listed = 0;
+  const parts = ids.map((id) => {
+    const nums = blocks.get(id) ?? [];
+    if (nums.length > 0 && listed + nums.length <= MAX_LISTED_THREAD_CITES) {
+      listed += nums.length;
+      return `record ${id}: ${nums.map((k) => `[${k}] ${threadCite(id, k)}`).join(", ")}`;
+    }
+    return `record ${id}: message [k] is ${threadCite(id, "k")} with the number for k and the letter n kept last`
+      + ` (so [0] is ${threadCite(id, 0)})`;
+  });
+  return `Cite: each message by its own code, copied whole (it ends in the letter n): ${parts.join("; ")}. `;
+}
+
+/** Codes a thread's `Cite:` line spells out before it names the rule instead. */
+const MAX_LISTED_THREAD_CITES = 60;
+
+const threadCite = (id: string, block: number | string) => `${id}..${block}...n`;
+
+/**
+ * The numbered messages (`[0]`, `[1]`, …) of each record in a thread read's
+ * text, by record id: each record opens with a `Record ID:` line and shows
+ * its messages as numbered blocks.
+ */
+function threadMessageBlocks(content: string): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  const heads = [...content.matchAll(/^Record ID: (\S+)/gm)];
+  heads.forEach((h, i) => {
+    const body = content.slice(h.index!, heads[i + 1]?.index ?? content.length);
+    const nums = [...new Set([...body.matchAll(/^\[(\d{1,7})\] /gm)].map((m) => Number(m[1])))];
+    if (nums.length > 0) out.set(h[1]!, [...(out.get(h[1]!) ?? []), ...nums]);
+  });
+  return out;
 }
 
 // Record ids as PipesHub issues them: a UUID, or a 24-digit hex id.
@@ -125,6 +157,16 @@ export function decodeCiteLoosely(cite: string): { location: CiteLocation; exact
   const m = LOOSE_RECORD_ID.exec(s);
   if (!m) return undefined;
   const rest = s.slice(m[0].length);
+  // A thread message's code with its closing `n` turned into a number
+  // (`R..1...1`): agents filled in both letters of `R..k...n`. The message
+  // is the first number, and a Slack message is never previewable.
+  const misread = /^\.\.(\d{1,7})\.\.\.\d{1,7}$/.exec(rest);
+  if (misread) {
+    return {
+      location: { recordId: m[1]!, blockNum: [Number(misread[1])], previewRenderable: false },
+      exact: false,
+    };
+  }
   return {
     location: {
       recordId: m[1]!,
