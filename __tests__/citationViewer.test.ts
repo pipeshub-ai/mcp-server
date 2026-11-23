@@ -19,6 +19,7 @@ import {
   tool$pipeshubPreviewRecord,
 } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
 import { tool$pipeshubShowCitations } from "../src/mcp-server/tools/pipeshubShowCitations.js";
+import { visibleCitations } from "../src/mcp-app/collapse.js";
 
 // The citation viewer is the MCP Apps view a host such as Claude shows after
 // an answer: the model calls `pipeshub_show_citations` with the cite codes of
@@ -512,5 +513,23 @@ describe("pipeshub_preview_record", () => {
   test("a refused record is an error, not an empty file", async () => {
     const out = await tool$pipeshubPreviewRecord.tool(client(new Uint8Array(0), 403), { recordId: "r1", offset: 0 }, ctx());
     expect(out.isError).toBe(true);
+  });
+});
+
+describe("citations card: the first few, then +N more", () => {
+  const list = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+
+  test("lists the first three of a long answer's citations, with a +N more link", () => {
+    expect(visibleCitations(list(19), false)).toEqual({ shown: [1, 2, 3], toggle: "+16 more" });
+  });
+
+  test("lists every citation once opened, with a link back", () => {
+    expect(visibleCitations(list(19), true)).toEqual({ shown: list(19), toggle: "Show fewer" });
+  });
+
+  test("lists four citations in full rather than hide one behind a link", () => {
+    expect(visibleCitations(list(4), false)).toEqual({ shown: list(4) });
+    expect(visibleCitations(list(5), false)).toEqual({ shown: [1, 2, 3], toggle: "+2 more" });
+    expect(visibleCitations(list(0), false)).toEqual({ shown: [] });
   });
 });
