@@ -239,6 +239,9 @@ describe("cite codes", () => {
       location: { recordId: RID, blockNum: [7], previewRenderable: false }, exact: true,
     });
     expect(decodeCiteLoosely(`cite: ${RID}..7...n`)?.exact).toBe(true);
+    // Wrappers around the whole `Cite: …`, or around the code after the prefix.
+    expect(decodeCiteLoosely(`\`Cite: ${RID}..7...n\``)?.exact).toBe(true);
+    expect(decodeCiteLoosely(`Cite: \`${RID}..7...n\``)?.exact).toBe(true);
   });
 
   test.each([

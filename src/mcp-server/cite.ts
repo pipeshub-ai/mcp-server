@@ -117,10 +117,9 @@ const LOOSE_RECORD_ID = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
  * should check the record exists, since the id may be made up too.
  */
 export function decodeCiteLoosely(cite: string): { location: CiteLocation; exact: boolean } | undefined {
-  const s = cite.trim()
-    .replace(/^cite:\s*/i, "")
-    .replace(/^[`'"<[(]+|[`'">\])]+$/g, "")
-    .trim();
+  // Wrappers may sit around the whole `Cite: …` or around the code after it.
+  const unwrap = (x: string) => x.trim().replace(/^[`'"<[(]+|[`'">\])]+$/g, "").trim();
+  const s = unwrap(unwrap(cite).replace(/^cite:\s*/i, ""));
   const exact = decodeCite(s);
   if (exact) return { location: exact, exact: true };
   const m = LOOSE_RECORD_ID.exec(s);
