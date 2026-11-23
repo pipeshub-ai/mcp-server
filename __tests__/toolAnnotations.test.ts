@@ -22,13 +22,17 @@ const READ_ONLY = [
   "pipeshub_connect_source",
   "pipeshub_show_citations",
   "pipeshub_preview_record",
+  "pipeshub_mcp_servers",
 ];
 
 /** Tools that add to the user's own sources: they write, but never delete or overwrite. */
 const WRITES = ["pipeshub_create_collection", "pipeshub_upload", "pipeshub_add_web_source"];
 
-/** Tools that can act: chat runs the assistant, which may use the user's connected actions. */
-const ACTS = ["pipeshub_chat"];
+/**
+ * Tools that can act: chat runs the assistant, which may use the user's connected actions, and
+ * pipeshub_run_mcp_tool runs a tool on one of the user's external MCP servers.
+ */
+const ACTS = ["pipeshub_chat", "pipeshub_run_mcp_tool"];
 
 async function listedDefinitions() {
   const { server } = createMCPServer({ logger: createConsoleLogger("error") });

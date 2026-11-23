@@ -47,6 +47,11 @@ const TOOL_SCOPES: Readonly<Record<string, readonly string[]>> = {
   pipeshub_show_citations: ["connector:read"],
   // GET /knowledgeBase/stream/record/:id (kb:read).
   pipeshub_preview_record: ["kb:read"],
+  // GET /mcp-servers/my-mcp-servers (mcp:read).
+  pipeshub_mcp_servers: ["mcp:read"],
+  // POST /mcp-servers/instances/:id/tools/call (agent:execute, the scope
+  // chat's connected actions need).
+  pipeshub_run_mcp_tool: ["agent:execute"],
 };
 
 /**
