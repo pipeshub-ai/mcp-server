@@ -41,6 +41,9 @@ Cite `file:line` for claims about how PipesHub or QM behaves. Prefer stopping ov
 | --- | --- |
 | `src/cli/` | `pipeshub` binary |
 | `src/mcp-server/` | Speakeasy-generated MCP stdio server. Do not hand-edit generated files |
+| `src/cli/standalone/` | `pipeshub init --local` / `uninstall` / `dev up/down/status` / `index`: the local stack, loopback sign-in, per-client config writers (`clients.ts`, golden-tested), the JSONC editor. Part of the same CLI bundle |
+| `src/cli/bridge.ts` | What `start` runs over stdio: a proxy of the instance's `/mcp` (all its tools, chat hidden by `PIPESHUB_MCP_CHAT=off`) plus the local `index_workspace` tool. The per-tool generated server is the fallback for an instance with no `/mcp`, and for `--tool/--scope/--mode` |
+| `standalone/` | The `@pipeshub-ai/standalone` package (same CLI, bundled by `scripts/build-standalone.mts`; installed command `pipeshub`). Published by the owner, not by CI |
 | `qm/` | Deployment-layer bundle `pipeshub init-qm` copies (tools, skill, optional Dockerfile) |
 | `skills/pipeshub/` | Skill for *customer* repos. Not auto-loaded here |
 | `server.json` | Official MCP registry manifest |

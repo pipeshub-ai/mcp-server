@@ -8,7 +8,8 @@
 // variables still win, so a QM sandbox (PIPESHUB_TOKEN from its keychain)
 // behaves exactly as before.
 
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { chmod, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { describeFetchFailure } from "../lib/fetch-failure.js";
@@ -47,7 +48,7 @@ export interface PendingLogin extends Endpoints {
   expiresAt: number;
 }
 
-function configDir(env: NodeJS.ProcessEnv): string {
+export function configDir(env: NodeJS.ProcessEnv): string {
   const base = (env["XDG_CONFIG_HOME"] ?? "").trim() || join(env["HOME"] || homedir(), ".config");
   return join(base, "pipeshub");
 }
@@ -274,6 +275,43 @@ export async function storedLogin(
   const stored = await readStored(path);
   if (stored === null || (origin !== null && stored.origin !== origin)) return null;
   if (stored.expiresAt - REFRESH_MARGIN_MS > Date.now()) return stored;
+  // One refresh at a time: the server rotates refresh tokens, so of several processes (bridge, index, a watcher) refreshing together only
+  // the first can win. The others wait, then use what it wrote.
+  return withRefreshLock(`${path}.lock`, async () => {
+    const latest = await readStored(path);
+    if (latest !== null && latest.origin === stored.origin && latest.expiresAt - REFRESH_MARGIN_MS > Date.now()) return latest;
+    return refreshStored(latest ?? stored, insecureHttp, path);
+  });
+}
+
+const STALE_LOCK_MS = 120_000;
+
+async function withRefreshLock<T>(lock: string, fn: () => Promise<T>): Promise<T> {
+  await mkdir(dirname(lock), { recursive: true, mode: 0o700 });
+  const deadline = Date.now() + STALE_LOCK_MS + 10_000; // long enough to outlast a lock a dead process left
+  let held = false;
+  while (!held && Date.now() < deadline) {
+    try {
+      await (await open(lock, "wx", 0o600)).close();
+      held = true;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") break; // cannot lock here: refresh unlocked rather than not at all
+      const age = Date.now() - ((await stat(lock).catch(() => null))?.mtimeMs ?? Date.now());
+      // left by a process that died. Renamed away (not removed) so two waiters cannot both delete a lock the other just took.
+      if (age > STALE_LOCK_MS) {
+        const gone = `${lock}.stale.${process.pid}.${randomBytes(4).toString("hex")}`;
+        if (await rename(lock, gone).then(() => true, () => false)) await rm(gone, { force: true });
+      } else await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    if (held) await rm(lock, { force: true });
+  }
+}
+
+async function refreshStored(stored: StoredLogin, insecureHttp: boolean, path: string): Promise<StoredLogin> {
   // A trial token has no refresh token and is good until its expiry.
   if (stored.sandbox && stored.expiresAt > Date.now()) return stored;
   if (!stored.refreshToken || !stored.tokenEndpoint || !stored.clientId) throw signInAgain(stored);
