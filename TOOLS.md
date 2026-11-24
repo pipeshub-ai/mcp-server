@@ -1,6 +1,6 @@
 # PipesHub MCP Tools
 
-Reference for the tools exposed by the PipesHub MCP server. These tools let an AI client (Cursor, Claude Code, Gemini CLI, Claude.ai, LibreChat, etc.) talk to PipesHub — search and chat over the org's indexed documents, look up people and groups, and download files.
+Reference for the tools exposed by the PipesHub MCP server. These tools let an AI client (Cursor, Claude Code, Gemini CLI, Claude.ai, LibreChat, etc.) talk to PipesHub — search and chat over the org's indexed documents, look up people and teams, and download files.
 
 The server exposes hand-written tools that cover the common PipesHub workflows. Each one wraps several lower-level API calls so the LLM gets a single, well-shaped response.
 
@@ -146,24 +146,23 @@ Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *
 
 ### `pipeshub_directory`
 
-Look up people, groups, and teams in PipesHub. One tool with five `action`s. Not for documents or files — that is `pipeshub_search`.
+Look up people and teams in PipesHub. One tool with four `action`s. Not for documents or files — that is `pipeshub_search`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `action` | enum | yes | One of `whoami`, `list_users`, `get_user`, `list_groups`, `list_my_teams`. |
+| `action` | enum | yes | One of `whoami`, `list_users`, `get_user`, `list_my_teams`. |
 | `userId` | string | conditional | Required when `action` is `get_user`. 24-char ObjectId. From `whoami` or a `list_users` hit. |
 | `page` | number | no | 1-based page for `list_*`. Omit for page 1. |
 | `limit` | number (1–100) | no | Items per page for `list_*`. Omit for the per-action SDK default. |
-| `search` | string | no | Substring match on `list_users` (name / email), `list_groups` (name), and `list_my_teams` (name). |
+| `search` | string | no | Substring match on `list_users` (name / email) and `list_my_teams` (name). |
 
 **Actions:**
 - `whoami` — the authenticated user's identity. Errors if the credential is expired or revoked. No other args.
 - `list_users` — paginated list of org users.
 - `get_user` — full profile for one user (requires `userId`).
-- `list_groups` — paginated list of user groups, with `userCount`.
 - `list_my_teams` — teams the caller belongs to, with `canEdit` / `canDelete` / `canManageMembers` flags.
 
-`list_*` returns an empty `users` / `groups` / `teams` array when nothing matches — that is not an error. `pagination.hasNextPage` (teams: `hasNext`) says whether to request the next page.
+`list_*` returns an empty `users` / `teams` array when nothing matches — that is not an error. `pagination.hasNextPage` (teams: `hasNext`) says whether to request the next page.
 
 ---
 

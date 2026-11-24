@@ -49,9 +49,8 @@ reconfigure the person's other connectors and start or stop their syncs.
 
 Deliberately excluded: `agent:execute`, `agent:read`, `conversation:write`,
 `team:read`, `offline_access` (a PAT has no refresh token anyway), and the OIDC
-trio. `usergroup:read` is not merely excluded — it is absent from the stock
-`MCP_SCOPES` entirely, so directory group browsing cannot be minted on a default
-instance at all. v1 ships `directory whoami` only.
+trio. `usergroup:read` is not needed at all: no tool lists user groups. v1 ships
+`directory whoami` only.
 
 **`config:read` is not in the preset.** The model listing behind
 `pipeshub sources` needs it, so a preset token gets its sources with the model

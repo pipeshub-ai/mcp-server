@@ -1,14 +1,13 @@
-// (`pipeshub-list-users`, `pipeshub-get-user`, `pipeshub-list-user-groups`,
-// `pipeshub-list-my-teams`) plus a `whoami` action that decodes the bearer
-// JWT into a single tool.
+// (`pipeshub-list-users`, `pipeshub-get-user`, `pipeshub-list-my-teams`) plus a
+// `whoami` action that decodes the bearer JWT into a single tool. It lists no
+// user groups: `GET /userGroups` is open to org admins only, so the tool does
+// not ask for `usergroup:read`.
 
 import * as z from "zod";
 import { usersGetAllUsers } from "../../funcs/usersGetAllUsers.js";
 import { usersGetUserById } from "../../funcs/usersGetUserById.js";
-import { userGroupsGetAllUserGroups } from "../../funcs/userGroupsGetAllUserGroups.js";
 import { teamsGetUserTeams } from "../../funcs/teamsGetUserTeams.js";
 import { GetAllUsersRequest$zodSchema } from "../../models/getallusersop.js";
-import { GetAllUserGroupsRequest$zodSchema } from "../../models/getallusergroupsop.js";
 import { GetUserTeamsRequest$zodSchema } from "../../models/getuserteamsop.js";
 import { ToolDefinition } from "../tools.js";
 import {
@@ -30,7 +29,6 @@ function defaultLimit(
 }
 
 const listUsersLimit = defaultLimit(GetAllUsersRequest$zodSchema);
-const listGroupsLimit = defaultLimit(GetAllUserGroupsRequest$zodSchema);
 const listTeamsLimit = defaultLimit(GetUserTeamsRequest$zodSchema);
 
 const args = {
@@ -38,7 +36,6 @@ const args = {
     "whoami",
     "list_users",
     "get_user",
-    "list_groups",
     "list_my_teams",
   ]).describe(
     "What to do:\n"
@@ -48,8 +45,6 @@ const args = {
       + "`limit`, `search` (substring match against name or email).\n"
       + "- `get_user` — full profile for one user. Required `userId`. "
       + "Use `whoami` to find your own id first if needed.\n"
-      + "- `list_groups` — paginated list of user groups (with `userCount`). "
-      + "Optional `search` matches group name.\n"
       + "- `list_my_teams` — teams the authenticated user belongs to, with "
       + "capability flags. Optional `search` matches team name.",
   ),
@@ -62,36 +57,34 @@ const args = {
   ),
   limit: z.number().int().min(1).max(100).optional().describe(
     "Items per page for list_* (1–100). Omit for the action default: "
-      + `${listUsersLimit} users, ${listGroupsLimit} groups, `
-      + `${listTeamsLimit} teams.`,
+      + `${listUsersLimit} users, ${listTeamsLimit} teams.`,
   ),
   search: z.string().optional().describe(
-    "Substring match on list_users (name or email), list_groups (name), "
-      + "and list_my_teams (name). An empty list means no match, not an error.",
+    "Substring match on list_users (name or email) and list_my_teams "
+      + "(name). An empty list means no match, not an error.",
   ),
 };
 
 export const tool$pipeshubDirectory: ToolDefinition<typeof args> = {
   name: "pipeshub_directory",
   description:
-    `Look up people, groups, and teams in PipesHub. Five actions — pick
+    `Look up people and teams in PipesHub. Four actions — pick
 \`action\`. Not for documents or files: that is \`pipeshub_search\`.
 
 - \`whoami\` — the caller's id, email, full name. Use before \`get_user\`
   on yourself. Errors if the credential is expired or revoked.
 - \`list_users\` — page org users; \`search\` matches name or email.
 - \`get_user\` — full \`User\` for one \`userId\`.
-- \`list_groups\` — org groups with \`userCount\`; \`search\` matches name.
 - \`list_my_teams\` — teams the caller is on, with \`canEdit\` /
   \`canDelete\` / \`canManageMembers\`; \`search\` matches name.
 
 Omit \`page\`/\`limit\` for the first page (\`page\` 1). No match is an
-empty \`users\`/\`groups\`/\`teams\` array, not an error.
+empty \`users\`/\`teams\` array, not an error.
 \`pagination.hasNextPage\` (teams: \`hasNext\`) says whether to request
 the next page.`,
   scopes: ["read"],
   annotations: {
-    title: "PipesHub directory (users / groups / teams / whoami)",
+    title: "PipesHub directory (users / teams / whoami)",
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false,
@@ -202,18 +195,6 @@ the next page.`,
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
         const parsed = await readJson(result.value, "User lookup");
-        if (!parsed.ok) return parsed.result;
-        return jsonResult(parsed.value);
-      }
-
-      case "list_groups": {
-        const [result] = await userGroupsGetAllUserGroups(client, {
-          page: args.page,
-          limit: args.limit,
-          search: args.search,
-        }, { fetchOptions }).$inspect();
-        if (!result.ok) return errorResult(result.error.message);
-        const parsed = await readJson(result.value, "Group listing");
         if (!parsed.ok) return parsed.result;
         return jsonResult(parsed.value);
       }
