@@ -75,7 +75,7 @@ function client(searchResponse: unknown) {
   };
 }
 
-const ctx = () => ({ signal: new AbortController().signal }) as never;
+const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
 
 async function run(core: PipeshubCore, args: Record<string, unknown>) {
   const result: any = await tool$pipeshubSearch.tool(core, args as never, ctx());

@@ -33,7 +33,7 @@ function client(body: unknown, status = 200) {
   };
 }
 
-const ctx = () => ({ signal: new AbortController().signal }) as never;
+const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
 const textOf = (r: { content: Array<{ text?: string }> }) =>
   r.content.map((c) => c.text ?? "").join("");
 

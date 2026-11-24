@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
@@ -57,7 +56,7 @@ async function connect() {
   return client;
 }
 
-const ctx = () => ({ signal: new AbortController().signal }) as never;
+const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
 const textOf = (r: { content: unknown }) =>
   (r.content as Array<{ text?: string }>).map((c) => c.text ?? "").join("");
 

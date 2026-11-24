@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
+import { Client } from "@modelcontextprotocol/client";
 import { PipeshubCore } from "../src/core.js";
 import { CHAT_ENV, chatEnabledFromEnv } from "../src/mcp-server/chat-setting.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";

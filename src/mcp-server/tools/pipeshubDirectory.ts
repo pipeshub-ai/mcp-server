@@ -92,7 +92,7 @@ the next page.`,
   },
   args,
   tool: async (client, args, ctx) => {
-    const fetchOptions = { signal: ctx.signal };
+    const fetchOptions = { signal: ctx.mcpReq.signal };
 
     switch (args.action) {
       case "whoami": {

@@ -96,7 +96,7 @@ It shows no answer: write the full answer after it.`,
     const decoded = args.citations.map((c) => decodeCiteLoosely(c.cite));
     const ids = [...new Set(decoded.flatMap((d) => (d ? [d.location.recordId] : [])))];
     const infos = new Map(await Promise.all(ids.map(async (id) =>
-      [id, await recordInfo(client, id, ctx.signal)] as const
+      [id, await recordInfo(client, id, ctx.mcpReq.signal)] as const
     )));
     const kept: Array<{ location: CiteLocation; quote: string }> = [];
     const skipped: number[] = [];

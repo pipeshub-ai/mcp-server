@@ -462,7 +462,7 @@ again with \`offset\` set to \`nextOffset\`.`,
         client,
         args.apps,
         args.kb,
-        { signal: ctx.signal },
+        { signal: ctx.mcpReq.signal },
       );
 
       const [result] = await semanticSearchSearchWithDates(client, {
@@ -479,7 +479,7 @@ again with \`offset\` set to \`nextOffset\`.`,
         // older than the option ignores it and saves as before.
         saveHistory: false,
         ...(args.timeline ? { timeline: args.timeline } : {}),
-      }, { fetchOptions: { signal: ctx.signal } }).$inspect();
+      }, { fetchOptions: { signal: ctx.mcpReq.signal } }).$inspect();
       if (!result.ok) return errorResult(result.error.message);
 
       const parsed = await readJson<{

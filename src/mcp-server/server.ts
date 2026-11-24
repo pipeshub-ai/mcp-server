@@ -1,11 +1,13 @@
-import { McpServer, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
+import type {
   CallToolRequest,
   CallToolResult,
+  ClientCapabilities,
   InitializeRequest,
-  InitializeRequestSchema,
   InitializeResult,
-} from "@modelcontextprotocol/sdk/types.js";
+  RegisteredTool,
+  ServerContext,
+} from "@modelcontextprotocol/server";
+import { CLIENT_CAPABILITIES_META_KEY, McpServer } from "@modelcontextprotocol/server";
 
 import { withoutChatMentions } from "./chat-mentions.js";
 import { chatEnabledFromEnv } from "./chat-setting.js";
@@ -41,6 +43,7 @@ import {
   rememberApps,
 } from "./citation-viewer.js";
 import { withoutCitations } from "./cite.js";
+import { registerAgentResources, registerSourceResources } from "./source-resources.js";
 import { tool$pipeshubAddWebSource } from "./tools/pipeshubAddWebSource.js";
 import { tool$pipeshubCreateCollection } from "./tools/pipeshubCreateCollection.js";
 import { tool$pipeshubUpload } from "./tools/pipeshubUpload.js";
@@ -56,6 +59,14 @@ import { createPipeshubAssistantPrompt } from "./prompts/pipeshubAssistant.js";
  * and short lists of ids, so this leaves ample room.
  */
 export const DEFAULT_MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
+/**
+ * How long a client may keep the resource list (connectors, collections,
+ * agents) before asking again, on the 2026-07-28 protocol (`ttlMs`). A client
+ * that honors it picks up a new source without reconnecting. Older clients
+ * ignore it and keep the list they read when they connected.
+ */
+export const RESOURCE_LIST_TTL_MS = 120_000;
 
 /** What `onToolCall` is told about one tool call. Never the arguments' values. */
 export interface ToolCallEvent {
@@ -102,6 +113,19 @@ function observeToolCalls(server: McpServer, onToolCall: (e: ToolCallEvent) => v
       });
     }
   });
+}
+
+/** Run `seen` before every request handler registered so far. */
+function onEveryRequest(server: McpServer, seen: (ctx: ServerContext) => void) {
+  const handlers = (server.server as unknown as {
+    _requestHandlers: Map<string, (request: unknown, ctx: ServerContext) => Promise<unknown>>;
+  })._requestHandlers;
+  for (const [method, handler] of handlers) {
+    handlers.set(method, (request, ctx) => {
+      if (ctx?.mcpReq) seen(ctx);
+      return handler(request, ctx);
+    });
+  }
 }
 
 export function createMCPServer(deps: {
@@ -172,6 +196,10 @@ export function createMCPServer(deps: {
     },
     {
       instructions: pipeshubInstructions({ chat, actions }),
+      // The list differs per user, so only this client may cache it.
+      cacheHints: {
+        "resources/list": { ttlMs: RESOURCE_LIST_TTL_MS, cacheScope: "private" },
+      },
       maxToolInputElements:
         deps.maxToolInputElements ?? DEFAULT_MAX_TOOL_INPUT_ELEMENTS,
     },
@@ -234,8 +262,9 @@ export function createMCPServer(deps: {
 
   // Whether the client shows MCP Apps views. One that does not gets no
   // citation tools, no cite codes and no step asking for the card, so it
-  // makes no extra call. The host may say; else the client's `initialize`
-  // does, kept per caller for a stateless server's later requests.
+  // makes no extra call. The host may say; else the client does: in
+  // `initialize` (2025 protocol), kept per caller for a stateless server's
+  // later requests, or on every request (2026-07-28 protocol).
   let apps = deps.apps;
   let caller: string | undefined;
   // Looked up when a request needs it: a client may have no credential yet.
@@ -246,7 +275,14 @@ export function createMCPServer(deps: {
       return undefined;
     }
   };
-  const showsApps = () => apps ?? recallApps(caller ??= lookUpCaller()) ?? true;
+  // What the current 2026-07-28 request's client declared (see onEveryRequest).
+  let perRequest: boolean | undefined;
+  const declared = (): boolean | undefined => {
+    const caps: ClientCapabilities | undefined = server.server.getClientCapabilities();
+    return caps ? clientShowsApps(caps) : undefined;
+  };
+  const showsApps = () =>
+    apps ?? perRequest ?? declared() ?? recallApps(caller ??= lookUpCaller()) ?? true;
   const cited = <T extends ToolDefinition<any>>(def: T): T => {
     const run = def.tool as (...a: unknown[]) => Promise<CallToolResult>;
     return {
@@ -281,6 +317,10 @@ export function createMCPServer(deps: {
   mount(tool$pipeshubShowCitations);
   tool(tool$pipeshubPreviewRecord);
   registerCitationViewer(server);
+  // Same scope as listing sources.
+  if (permitted(tool$pipeshubSources.name)) registerSourceResources(server, getClient);
+  // Agents after sources, so they list last; only where chat can take the question.
+  if (chat && permitted(tool$pipeshubAgents.name)) registerAgentResources(server, getClient);
   // Listed, and callable, only for a client that shows views. A getter, so
   // it follows the client's answer without a list-changed notification.
   const registered = (server as unknown as {
@@ -290,21 +330,31 @@ export function createMCPServer(deps: {
     if (registered[name]) Object.defineProperty(registered[name], "enabled", { get: showsApps });
   }
 
-  const initialize = (server.server as unknown as {
+  // The instructions go out in `initialize` (2025 protocol) or
+  // `server/discover` (2026-07-28). Both are wrapped on the instance, so a
+  // serving entry that installs its own discover handler still calls these.
+  const internals = server.server as unknown as {
     _oninitialize(request: InitializeRequest): Promise<InitializeResult>;
-  })._oninitialize.bind(server.server);
-  server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+    _ondiscover(): { instructions?: string | undefined };
+  };
+  const initialize = internals._oninitialize.bind(server.server);
+  internals._oninitialize = async (request) => {
     const result = await initialize(request);
     if (deps.apps === undefined) {
       apps = clientShowsApps(request.params.capabilities);
       rememberApps(caller ??= lookUpCaller(), apps);
     }
-    // Cut from the text sent, which a host may have added to.
+    return withoutCitationsStep(result);
+  };
+  const discover = internals._ondiscover.bind(server.server);
+  internals._ondiscover = () => withoutCitationsStep(discover());
+  // Cut from the text sent, which a host may have added to.
+  function withoutCitationsStep<R extends { instructions?: string | undefined }>(result: R): R {
     if (!showsApps() && result.instructions) {
       result.instructions = result.instructions.replace(SHOW_CITATIONS_STEP, "");
     }
     return result;
-  });
+  }
 
   // Curated prompt: user-invokable tool-routing guidance.
   prompt(createPipeshubAssistantPrompt({ chat, actions, showsApps }));
@@ -313,13 +363,24 @@ export function createMCPServer(deps: {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);
   }
 
+  // A 2026-07-28 request carries its client's capabilities. Not every serving
+  // entry copies them onto the server (stdio does not), so read them here.
+  if (deps.apps === undefined) {
+    onEveryRequest(server, (ctx) => {
+      const envelope = ctx.mcpReq.envelope as Record<string, unknown> | undefined;
+      const caps = envelope?.[CLIENT_CAPABILITIES_META_KEY] as ClientCapabilities | undefined;
+      if (caps) perRequest = clientShowsApps(caps);
+    });
+  }
+
   if (deps.onToolCall) observeToolCalls(server, deps.onToolCall);
 
   // The SDK advertises listChanged as soon as anything is registered, but
   // this server never sends the notifications: every tool is registered
   // before connect, and the citation tools follow `initialize` without one.
   // PipesHub's /mcp also builds a server per request, which could not send
-  // one at all. So no client should wait for them.
+  // one at all. So no client should wait for them; a 2026-07-28 client
+  // re-reads the resource list when its `ttlMs` runs out instead.
   server.server.registerCapabilities({
     tools: { listChanged: false },
     prompts: { listChanged: false },

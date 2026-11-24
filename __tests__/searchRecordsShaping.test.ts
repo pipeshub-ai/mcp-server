@@ -49,7 +49,7 @@ function client(bodies: unknown[], token = "t") {
   };
 }
 
-const ctx = () => ({ signal: new AbortController().signal }) as never;
+const ctx = () => ({ mcpReq: { signal: new AbortController().signal } }) as never;
 const jsonOf = (r: { content: Array<{ text?: string }> }) =>
   JSON.parse(r.content.map((c) => c.text ?? "").join(""));
 

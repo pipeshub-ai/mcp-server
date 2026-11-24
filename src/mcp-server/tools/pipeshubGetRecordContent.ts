@@ -4,7 +4,7 @@ import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent
 import { connectorLookupRecordByIdentifier } from "../../funcs/connectorLookupRecordByIdentifier.js";
 import { connectorNavigateKnowledgeGraph } from "../../funcs/connectorNavigateKnowledgeGraph.js";
 import { ONE_TRY_HEADER, REQUEST_TIMEOUT_HEADER } from "../../hooks/transport-defaults.js";
-import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult } from "@modelcontextprotocol/server";
 import { ToolDefinition } from "../tools.js";
 import {
   citedRecordShape,
@@ -296,7 +296,7 @@ it using the \`Web URL\` from its metadata header (when present).`,
   args,
   outputSchema,
   tool: async (client, args, ctx) => {
-    const fetchOptions = { fetchOptions: { signal: ctx.signal } };
+    const fetchOptions = { fetchOptions: { signal: ctx.mcpReq.signal } };
 
     // Navigate / lookup return the rendered `text` view rather than the
     // `{ content: <string> }` envelope that content mode unwraps.

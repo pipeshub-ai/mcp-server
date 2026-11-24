@@ -3,7 +3,7 @@
 // without the folder placeholders a web crawl stores (they never index); two
 // filtered listings name the pending and failed records.
 
-import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult } from "@modelcontextprotocol/server";
 import * as z from "zod";
 import { PipeshubCore } from "../../core.js";
 import { connectorGetConnectorStats } from "../../funcs/connectorGetConnectorStats.js";
@@ -125,10 +125,10 @@ AUTO_INDEX_OFF and SKIPPED count in \`total\` only.`,
   outputSchema,
   tool: async (client, args, ctx) => {
     const [stats, pending, failed, syncing] = await Promise.all([
-      sourceStats(client, args.collectionId, ctx.signal),
-      listRecords(client, args.collectionId, MAX_LISTED, ctx.signal, PENDING),
-      listRecords(client, args.collectionId, MAX_LISTED, ctx.signal, FAILED),
-      stillSyncing(client, args.collectionId, ctx.signal),
+      sourceStats(client, args.collectionId, ctx.mcpReq.signal),
+      listRecords(client, args.collectionId, MAX_LISTED, ctx.mcpReq.signal, PENDING),
+      listRecords(client, args.collectionId, MAX_LISTED, ctx.mcpReq.signal, FAILED),
+      stillSyncing(client, args.collectionId, ctx.mcpReq.signal),
     ]);
     if (!stats.ok) return stats.result;
     if (!pending.ok) return pending.result;

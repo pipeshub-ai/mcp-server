@@ -136,7 +136,8 @@ describe("searchResultText", () => {
 });
 
 describe("wantsJson", () => {
-  const extra = (headers?: Record<string, string>) => (headers ? { requestInfo: { headers } } : {});
+  const extra = (headers?: Record<string, string>) =>
+    (headers ? { http: { req: new Request("http://localhost/mcp", { headers }) } } : {});
 
   test("the pipeshub CLI, which parses JSON, still gets it", () => {
     expect(wantsJson(extra({ "x-pipeshub-request-id": "abc" }))).toBe(true);
@@ -189,7 +190,7 @@ describe("pipeshub_search through searchAsText", () => {
   const signal = new AbortController().signal;
 
   test("an agent gets the records as text", async () => {
-    const out = await search.tool(core(), { query: "x" } as never, { signal } as never);
+    const out = await search.tool(core(), { query: "x" } as never, { mcpReq: { signal } } as never);
     const text = textOf(out);
     expect(text.startsWith("totalRecords: 1, best first")).toBe(true);
     expect(text).toContain("1. A\n   recordId: rec-1 · KB · score 0.9");
@@ -197,7 +198,10 @@ describe("pipeshub_search through searchAsText", () => {
   });
 
   test("the CLI gets the same JSON as before", async () => {
-    const extra = { signal, requestInfo: { headers: { "x-pipeshub-request-id": "r-1" } } };
+    const extra = {
+      mcpReq: { signal },
+      http: { req: new Request("http://localhost/mcp", { headers: { "x-pipeshub-request-id": "r-1" } }) },
+    };
     const viaText = textOf(await search.tool(core(), { query: "x" } as never, extra as never));
     const direct = textOf(await tool$pipeshubSearch.tool(core(), { query: "x" } as never, extra as never));
     expect(viaText).toBe(direct);
@@ -206,8 +210,8 @@ describe("pipeshub_search through searchAsText", () => {
 
   test("a stdio program gets JSON from a server set to JSON", async () => {
     const asJson = searchAsText(tool$pipeshubSearch, "json");
-    const viaSetting = textOf(await asJson.tool(core(), { query: "x" } as never, { signal } as never));
-    const direct = textOf(await tool$pipeshubSearch.tool(core(), { query: "x" } as never, { signal } as never));
+    const viaSetting = textOf(await asJson.tool(core(), { query: "x" } as never, { mcpReq: { signal } } as never));
+    const direct = textOf(await tool$pipeshubSearch.tool(core(), { query: "x" } as never, { mcpReq: { signal } } as never));
     expect(viaSetting).toBe(direct);
   });
 
@@ -217,7 +221,7 @@ describe("pipeshub_search through searchAsText", () => {
       security: { bearerAuth: "t" },
       httpClient: new HTTPClient({ fetcher: async () => Response.json({ error: "nope" }, { status: 500 }) }),
     });
-    const out = await search.tool(failing, { query: "x" } as never, { signal } as never);
+    const out = await search.tool(failing, { query: "x" } as never, { mcpReq: { signal } } as never);
     expect(out.isError).toBe(true);
     expect(textOf(out).startsWith("totalRecords")).toBe(false);
   });
