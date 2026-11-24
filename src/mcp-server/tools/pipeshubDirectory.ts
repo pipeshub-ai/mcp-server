@@ -49,7 +49,7 @@ const args = {
       + "- `get_user` — full profile for one user. Required `userId`. "
       + "Use `whoami` to find your own id first if needed.\n"
       + "- `list_groups` — paginated list of user groups (with `userCount`). "
-      + "Optional `search` matches group name.\n"
+      + "Org admins only. Optional `search` matches group name.\n"
       + "- `list_my_teams` — teams the authenticated user belongs to, with "
       + "capability flags. Optional `search` matches team name.",
   ),
@@ -82,6 +82,7 @@ export const tool$pipeshubDirectory: ToolDefinition<typeof args> = {
 - \`list_users\` — page org users; \`search\` matches name or email.
 - \`get_user\` — full \`User\` for one \`userId\`.
 - \`list_groups\` — org groups with \`userCount\`; \`search\` matches name.
+  Org admins only.
 - \`list_my_teams\` — teams the caller is on, with \`canEdit\` /
   \`canDelete\` / \`canManageMembers\`; \`search\` matches name.
 
@@ -213,6 +214,17 @@ the next page.`,
           search: args.search,
         }, { fetchOptions }).$inspect();
         if (!result.ok) return errorResult(result.error.message);
+        // GET /userGroups is admin-only, and a member's token may lack
+        // usergroup:read, which this tool does not require.
+        // New-token advice would not help a member: the route stays admin-only.
+        if (result.value.status === 403) {
+          await result.value.body?.cancel();
+          return errorResult(
+            "Group listing failed (HTTP 403). Only PipesHub org admins can "
+              + "list groups, with a token that carries `usergroup:read`. For "
+              + "the caller's own teams use `list_my_teams`.",
+          );
+        }
         const parsed = await readJson(result.value, "Group listing");
         if (!parsed.ok) return parsed.result;
         return jsonResult(parsed.value);
