@@ -1,6 +1,6 @@
 {
   "name": "@pipeshub-ai/mcp",
-  "version": "4.10.0",
+  "version": "4.11.0",
   "mcpName": "io.github.pipeshub-ai/mcp",
   "description": "PipesHub MCP: connect Claude Code, Codex, Cursor and other MCP clients to your company's permission-aware search and cited answers. Local stdio bridge to a PipesHub instance's remote /mcp endpoint, plus the pipeshub CLI.",
   "keywords": [

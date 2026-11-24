@@ -302,14 +302,50 @@ describe("a block too large for any budget", () => {
     expect(text).not.toContain("earlier ones were in earlier reads");
   });
 
-  test("a thread read carries no one record's cite: its messages are several records", async () => {
+  // An answer from a thread cites its messages: without a cite for them,
+  // agents made codes up and the citations card refused them all.
+  test("a thread read ends with how to cite each shown record's messages, then the reminder", async () => {
     const { core } = client({
-      content: "last reply", mode: "thread", threadRecordCount: 2, startRecord: 1,
+      content: "<record>\nRecord ID: t-1\n[0] **Ana**: first\n[1] **Bo**: second\n</record>\n"
+        + "<record>\nRecord ID: t-2\n[0] **Cy**: third\n</record>",
+      mode: "thread", threadRecordCount: 2, startRecord: 0,
       startBlock: 0, complete: true, nextStartRecord: null, givenUpBlocks: [],
-      records: [{ recordId: "t-1", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null }],
+      records: [
+        { recordId: "t-1", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null },
+        { recordId: "t-2", complete: true, truncatedBy: null, givenUpBlock: null, nextStartBlock: null },
+      ],
     });
 
-    const text = textOf(await run(core, { mode: "thread", recordId: REC, startRecord: 1 }));
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toEndWith(
+      "Read: the whole thread (2 records).\n"
+        + "Cite: each message by its own code, copied whole (it ends in the letter n): "
+        + "record t-1: [0] t-1..0...n, [1] t-1..1...n; record t-2: [0] t-2..0...n. "
+        + SHOW_CITATIONS_HINT,
+    );
+    // Not the whole-record cite of the record the call named.
+    expect(text).not.toContain(`${REC}....`);
+  });
+
+  test("a thread read from a server that lists no records cites the ones its text names", async () => {
+    const { core } = client({
+      content: "<record>\nRecord ID: t-7\n[0] **Ana**: hi\n</record>", mode: "thread",
+      threadRecordCount: 1, startRecord: 0, complete: true, nextStartRecord: null,
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
+
+    expect(text).toContain("record t-7: [0] t-7..0...n");
+  });
+
+  test("an empty thread read has nothing to cite", async () => {
+    const { core } = client({
+      content: "", mode: "thread", threadRecordCount: 0, startRecord: 0, complete: true,
+      nextStartRecord: null, records: [{ recordId: "t-1" }],
+    });
+
+    const text = textOf(await run(core, { mode: "thread", recordId: REC }));
 
     expect(text).not.toContain("Cite:");
   });

@@ -1,6 +1,6 @@
 {
   "name": "pipeshub",
-  "version": "4.10.0",
+  "version": "4.11.0",
   "description": "Permissioned search and cited answers across 30+ sources (Slack, Drive, Gmail, Jira, Confluence and more), from inside Claude Code.",
   "author": {
     "name": "PipesHub",

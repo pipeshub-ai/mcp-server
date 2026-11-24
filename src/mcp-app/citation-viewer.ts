@@ -11,6 +11,7 @@ import * as pdfjs from "pdfjs-dist";
 import * as XLSX from "xlsx";
 import * as docx from "docx-preview";
 import DOMPurify from "dompurify";
+import { COLLAPSED_CITATIONS, visibleCitations } from "./collapse.js";
 // The view's sandbox may not allow a worker, so pdf.js runs on the main
 // thread: it uses the worker module found on `globalThis.pdfjsWorker`.
 import * as pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs";
@@ -57,6 +58,8 @@ const app = new App(
 );
 
 let citations: Citation[] = [];
+/** The person asked to see every citation, not just the first few. */
+let allCitationsShown = false;
 
 // ─── Citations card ──────────────────────────────────────────────────────────
 // Claude writes the answer from the tool's text; the card adds only what
@@ -116,7 +119,8 @@ function showCitations() {
     : "";
   $("status").textContent = "PipesHub cited no sources for this answer.";
   $("status").classList.toggle("hidden", citations.length > 0);
-  $("citations").replaceChildren(...citations.map((c) => {
+  const { shown, toggle } = visibleCitations(citations, allCitationsShown);
+  $("citations").replaceChildren(...shown.map((c) => {
     const row = el("button", "row");
     row.dataset["cite"] = String(c.number);
     row.title = `Open ${c.recordName ?? "the source"}`;
@@ -129,6 +133,23 @@ function showCitations() {
     row.append(el("span", "num", String(c.number)), body, el("span", "go", "›"));
     return row;
   }));
+  if (toggle) {
+    // A text link, not a button-sized row: it should not take the space of a citation.
+    const link = el("button", "more-cites", toggle);
+    link.setAttribute("aria-expanded", String(allCitationsShown));
+    link.addEventListener("click", () => {
+      allCitationsShown = !allCitationsShown;
+      showCitations();
+      // The re-render dropped the focused link: keep a keyboard user in place,
+      // on the first citation just shown, or on the link that replaced this one.
+      const list = $("citations");
+      const next = allCitationsShown
+        ? list.querySelectorAll<HTMLElement>(".row")[COLLAPSED_CITATIONS]
+        : list.querySelector<HTMLElement>(".more-cites");
+      next?.focus();
+    });
+    $("citations").append(link);
+  }
 }
 
 document.addEventListener("click", (e) => {

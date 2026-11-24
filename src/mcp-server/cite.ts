@@ -90,6 +90,93 @@ export const SHOW_CITATIONS_HINT = "Before you write your answer, call `pipeshub
 export const recordCite = (recordId: string) => `${recordId}....`;
 
 /**
+ * The `Cite:` line of a Slack thread read. The thread joins several records
+ * (the message, each reply), and each shows its messages as numbered blocks
+ * (`[0]`, `[1]`, …), so a message's cite is its record's id with that block.
+ * Without this line an agent that answered from a thread had nothing to cite
+ * and made codes up. Slack messages are never previewable, hence `.n`.
+ */
+export function threadCiteLine(recordIds: readonly string[], content = ""): string | undefined {
+  const ids = [...new Set(recordIds)].filter((id) => RECORD_ID.test(id));
+  if (ids.length === 0) return undefined;
+  // Each message's own code, spelled out: given `R..k...n` to fill in, agents
+  // replaced the closing letter n with the number too (`R..1...1`), which
+  // loses the message. A thread longer than the cap names the rule instead.
+  const blocks = threadMessageBlocks(content);
+  let listed = 0;
+  const parts = ids.map((id) => {
+    const nums = blocks.get(id) ?? [];
+    if (nums.length > 0 && listed + nums.length <= MAX_LISTED_THREAD_CITES) {
+      listed += nums.length;
+      return `record ${id}: ${nums.map((k) => `[${k}] ${threadCite(id, k)}`).join(", ")}`;
+    }
+    return `record ${id}: message [k] is ${threadCite(id, "k")} with the number for k and the letter n kept last`
+      + ` (so [0] is ${threadCite(id, 0)})`;
+  });
+  return `Cite: each message by its own code, copied whole (it ends in the letter n): ${parts.join("; ")}. `;
+}
+
+/** Codes a thread's `Cite:` line spells out before it names the rule instead. */
+const MAX_LISTED_THREAD_CITES = 60;
+
+const threadCite = (id: string, block: number | string) => `${id}..${block}...n`;
+
+/**
+ * The numbered messages (`[0]`, `[1]`, …) of each record in a thread read's
+ * text, by record id: each record opens with a `Record ID:` line and shows
+ * its messages as numbered blocks.
+ */
+function threadMessageBlocks(content: string): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  const heads = [...content.matchAll(/^Record ID: (\S+)/gm)];
+  heads.forEach((h, i) => {
+    const body = content.slice(h.index!, heads[i + 1]?.index ?? content.length);
+    const nums = [...new Set([...body.matchAll(/^\[(\d{1,7})\] /gm)].map((m) => Number(m[1])))];
+    if (nums.length > 0) out.set(h[1]!, [...(out.get(h[1]!) ?? []), ...nums]);
+  });
+  return out;
+}
+
+// Record ids as PipesHub issues them: a UUID, or a 24-digit hex id.
+const LOOSE_RECORD_ID = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24})(?![0-9a-z-])/i;
+
+/**
+ * A cite as an agent passed it back, which is not always as it was given:
+ * the codes are runs of dots, and agents add or drop one, wrap the code in
+ * backticks, or send the record id alone. An exact code decodes as before.
+ * Otherwise a code that starts with a record id stands for that whole record
+ * (`exact: false`), keeping only the "not previewable" mark; the caller
+ * should check the record exists, since the id may be made up too.
+ */
+export function decodeCiteLoosely(cite: string): { location: CiteLocation; exact: boolean } | undefined {
+  // Wrappers may sit around the whole `Cite: …` or around the code after it.
+  const unwrap = (x: string) => x.trim().replace(/^[`'"<[(]+|[`'">\])]+$/g, "").trim();
+  const s = unwrap(unwrap(cite).replace(/^cite:\s*/i, ""));
+  const exact = decodeCite(s);
+  if (exact) return { location: exact, exact: true };
+  const m = LOOSE_RECORD_ID.exec(s);
+  if (!m) return undefined;
+  const rest = s.slice(m[0].length);
+  // A thread message's code with its closing `n` turned into a number
+  // (`R..1...1`): agents filled in both letters of `R..k...n`. The message
+  // is the first number, and a Slack message is never previewable.
+  const misread = /^\.\.(\d{1,7})\.\.\.\d{1,7}$/.exec(rest);
+  if (misread) {
+    return {
+      location: { recordId: m[1]!, blockNum: [Number(misread[1])], previewRenderable: false },
+      exact: false,
+    };
+  }
+  return {
+    location: {
+      recordId: m[1]!,
+      ...(/^[.\d_]*\.n$/.test(rest) ? { previewRenderable: false as const } : {}),
+    },
+    exact: false,
+  };
+}
+
+/**
  * A result without what only the citations card uses, for a client that
  * shows no MCP Apps views: the `cite` codes, the hint to show them, and a
  * record read's closing `Cite:` line.
