@@ -320,7 +320,8 @@ describe("a block too large for any budget", () => {
 
     expect(text).toEndWith(
       "Read: the whole thread (2 records).\n"
-        + "Cite: message [k] of record t-1 as t-1..k...n (so [1] is t-1..1...n); of record t-2 as t-2..k...n. "
+        + "Cite: each message by its own code, copied whole (it ends in the letter n): "
+        + "record t-1: [0] t-1..0...n, [1] t-1..1...n; record t-2: [0] t-2..0...n. "
         + SHOW_CITATIONS_HINT,
     );
     // Not the whole-record cite of the record the call named.
@@ -335,7 +336,7 @@ describe("a block too large for any budget", () => {
 
     const text = textOf(await run(core, { mode: "thread", recordId: REC }));
 
-    expect(text).toContain("Cite: message [k] of record t-7 as t-7..k...n");
+    expect(text).toContain("record t-7: [0] t-7..0...n");
   });
 
   test("an empty thread read has nothing to cite", async () => {
