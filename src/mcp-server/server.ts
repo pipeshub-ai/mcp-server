@@ -9,7 +9,7 @@ import {
 
 import { withoutChatMentions } from "./chat-mentions.js";
 import { chatEnabledFromEnv } from "./chat-setting.js";
-import { pipeshubInstructions, SHOW_CITATIONS_STEP } from "./instructions.js";
+import { pipeshubInstructions, withoutCitationsStep } from "./instructions.js";
 import { PipeshubCore } from "../core.js";
 import { bindNewRequestId } from "../hooks/request-context.js";
 import { SDKOptions } from "../lib/config.js";
@@ -153,6 +153,11 @@ export function createMCPServer(deps: {
    * `PIPESHUB_MCP_RESULT_FORMAT` environment variable, which defaults to text.
    */
   resultFormat?: ResultFormat | undefined;
+  /**
+   * Instructions a workspace admin wrote, sent ahead of PipesHub's own in the
+   * server instructions and the `pipeshub-assistant` prompt. Unset sends none.
+   */
+  customInstructions?: string | undefined;
 }) {
   const granted = deps.grantedOAuthScopes && new Set(deps.grantedOAuthScopes);
   const permitted = (name: string): boolean => {
@@ -171,7 +176,11 @@ export function createMCPServer(deps: {
       version: "0.0.4",
     },
     {
-      instructions: pipeshubInstructions({ chat, actions }),
+      instructions: pipeshubInstructions({
+        chat,
+        actions,
+        customInstructions: deps.customInstructions,
+      }),
       maxToolInputElements:
         deps.maxToolInputElements ?? DEFAULT_MAX_TOOL_INPUT_ELEMENTS,
     },
@@ -301,13 +310,18 @@ export function createMCPServer(deps: {
     }
     // Cut from the text sent, which a host may have added to.
     if (!showsApps() && result.instructions) {
-      result.instructions = result.instructions.replace(SHOW_CITATIONS_STEP, "");
+      result.instructions = withoutCitationsStep(result.instructions, deps.customInstructions);
     }
     return result;
   });
 
   // Curated prompt: user-invokable tool-routing guidance.
-  prompt(createPipeshubAssistantPrompt({ chat, actions, showsApps }));
+  prompt(createPipeshubAssistantPrompt({
+    chat,
+    actions,
+    showsApps,
+    customInstructions: deps.customInstructions,
+  }));
 
   if (deps.dynamic) {
     registerDynamicTools(deps.logger, server, getClient, toolMap, scopes);

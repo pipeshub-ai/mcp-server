@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { PromptDefinition } from "../prompts.js";
-import { pipeshubInstructions, SHOW_CITATIONS_STEP } from "../instructions.js";
+import { pipeshubInstructions, withoutCitationsStep } from "../instructions.js";
 
 const args = {
   query: z.string().optional().describe(
@@ -16,15 +16,17 @@ const args = {
  * is not mounted then.
  */
 export function createPipeshubAssistantPrompt(
-  { chat, actions = true, showsApps = () => true }: {
+  { chat, actions = true, showsApps = () => true, customInstructions }: {
     chat: boolean;
     /** Whether chat may run the user's connected actions. */
     actions?: boolean;
     /** Whether the client shows MCP Apps views; without them, no citations step. */
     showsApps?: () => boolean;
+    /** The workspace's own instructions, sent first as in the server instructions. */
+    customInstructions?: string | undefined;
   },
 ): PromptDefinition<typeof args> {
-  const all = pipeshubInstructions({ chat, actions });
+  const all = pipeshubInstructions({ chat, actions, customInstructions });
   const agentsHint = chat
     ? " (and listing agents via `pipeshub_agents` if unsure which route fits)"
     : "";
@@ -39,7 +41,7 @@ export function createPipeshubAssistantPrompt(
     scopes: ["read"],
     args,
     prompt: (_client, args, _extra) => {
-      const instructions = showsApps() ? all : all.replace(SHOW_CITATIONS_STEP, "");
+      const instructions = showsApps() ? all : withoutCitationsStep(all, customInstructions);
       const text = args.query
         ? `${instructions}\n\n---\n\nFollow the routing rules above to `
           + `handle this request, picking the right tool${agentsHint}:\n\n`
