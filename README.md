@@ -56,7 +56,7 @@ The `/.well-known/oauth-protected-resource/mcp` discovery endpoint lists the sco
 | `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_indexing_status` |
 | `kb:write`, `kb:upload` | `pipeshub_create_collection`, `pipeshub_upload` |
 | `connector:write`, `connector:sync` | `pipeshub_add_web_source` |
-| `user:read`, `team:read`, `usergroup:read` | `pipeshub_directory` |
+| `user:read`, `team:read` | `pipeshub_directory` |
 | `code:read` | The `pipeshub_code_*` tools |
 
 Discovery also lists `offline_access`. It is not a tool scope: it lets the client get a refresh token, so it stays signed in instead of signing in again when its access token expires.

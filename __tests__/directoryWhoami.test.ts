@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as z from "zod";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
 import { tool$pipeshubDirectory } from "../src/mcp-server/tools/pipeshubDirectory.js";
@@ -184,6 +185,21 @@ describe("pipeshub_directory get_user", () => {
   });
 });
 
+describe("pipeshub_directory actions", () => {
+  // Listing user groups is gone: GET /userGroups is for org admins only, and
+  // the tool no longer asks for usergroup:read.
+  test("list_groups is not an action, and nothing mentions groups", () => {
+    const schema = z.toJSONSchema(z.object(tool$pipeshubDirectory.args)) as {
+      properties: Record<string, { enum?: string[] }>;
+    };
+    expect(schema.properties["action"]?.enum).toEqual([
+      "whoami", "list_users", "get_user", "list_my_teams",
+    ]);
+    expect(JSON.stringify(schema)).not.toMatch(/group/i);
+    expect(tool$pipeshubDirectory.description).not.toMatch(/group/i);
+  });
+});
+
 describe("pipeshub_directory listings", () => {
   const listing = (action: string, extra: Record<string, unknown> = {}) => {
     const seen: { url?: string } = {};
@@ -207,7 +223,7 @@ describe("pipeshub_directory listings", () => {
     };
   };
 
-  for (const action of ["list_users", "list_groups", "list_my_teams"]) {
+  for (const action of ["list_users", "list_my_teams"]) {
     test(`${action} passes paging and search through to the server`, async () => {
       const { seen, run } = listing(action, { page: 3, limit: 25, search: "ada" });
 
@@ -222,7 +238,7 @@ describe("pipeshub_directory listings", () => {
 
     test(`${action} reports a failed listing rather than an empty one`, async () => {
       // An empty list is a valid answer, so a failure that reads as one tells
-      // the caller there are no users, no groups, or no teams.
+      // the caller there are no users or no teams.
       const fetcher = async () => Response.json({ message: "nope" }, { status: 500 });
       const c = new PipeshubCore({
         serverURL: "http://pipeshub.test/api/v1",
