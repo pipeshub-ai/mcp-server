@@ -425,7 +425,7 @@ export function withThreadCite(text: string, read: RecordRead): string {
   const ids = listed.length > 0
     ? listed
     : [...body.matchAll(/^Record ID: (\S+)/gm)].map((m) => m[1]!);
-  const line = threadCiteLine(ids);
+  const line = threadCiteLine(ids, body);
   return line ? `${text}\n${line}${SHOW_CITATIONS_HINT}` : text;
 }
 
