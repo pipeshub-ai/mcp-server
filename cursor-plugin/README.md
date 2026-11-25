@@ -12,7 +12,7 @@ A Cursor team admin imports this repository as a team marketplace: Dashboard →
 
 ## PipesHub MCP URL
 
-The plugin needs one value, `PIPESHUB_MCP_URL`: `<pipeshub-instanceurl>/mcp`. Use `https://app.pipeshub.com/mcp` for PipesHub Cloud, or `https://<your-instance>/mcp` when self-hosted. It has no default.
+The plugin needs one value, `PIPESHUB_MCP_URL`: `<pipeshub-instanceurl>/mcp`. It has no default.
 
 - **Individual install:** Cursor does not ask on install, so `pipeshub` shows **Error** at first. Open Customize → PipesHub → **Configure**, enter **PipesHub MCP URL** (the ⓘ next to the field shows the format), and click **Save**. Cursor keeps the value across restarts.
 - **Team install:** a team admin sets it in the Cursor dashboard under Plugins, when installing or later with **Configure**, and every developer on the team connects to that instance.

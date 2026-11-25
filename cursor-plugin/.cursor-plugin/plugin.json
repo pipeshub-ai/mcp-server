@@ -23,7 +23,7 @@
       "PIPESHUB_MCP_URL": {
         "type": "string",
         "title": "PipesHub MCP URL",
-        "description": "<pipeshub-instanceurl>/mcp, for example https://app.pipeshub.com/mcp (PipesHub Cloud) or https://pipeshub.example.com/mcp (self-hosted)."
+        "description": "<pipeshub-instanceurl>/mcp"
       }
     },
     "required": [
