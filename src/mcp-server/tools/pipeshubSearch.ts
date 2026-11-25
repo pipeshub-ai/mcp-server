@@ -350,6 +350,23 @@ export function shapeTimeline(
 }
 
 /** Said on a search that matched nothing, so the model neither stops nor guesses. */
+/**
+ * The server's own sentence that this search did not run in full (part of its
+ * index failed, ran out of time, or hit a cap): then "no records" is not
+ * "nothing matches". The `searchDegraded` flag alone is not worded: it is also
+ * set for complete answers (an exact read), so it cannot say records were missed.
+ */
+export function searchIncompleteNote(
+  sr: { searchIncomplete?: unknown },
+): string | undefined {
+  return typeof sr.searchIncomplete === "string" && sr.searchIncomplete
+    ? `${sr.searchIncomplete} ${SEARCH_AGAIN_NOTE}`
+    : undefined;
+}
+
+/** Added to the server's incomplete-search sentence, with or without records: what was missed may be the record asked for. */
+export const SEARCH_AGAIN_NOTE = "Search again before saying a record does not exist.";
+
 export const NO_RESULTS_NOTE = "No records matched. Try other wording or "
   + "fewer filters; an exact name, key or link can be looked up with "
   + "`pipeshub_get_record_content` `mode:\"lookup\"`. Not found here does not "
@@ -490,6 +507,7 @@ again with \`offset\` set to \`nextOffset\`.`,
           omittedPassages?: Record<string, unknown>;
           status?: string;
           message?: string;
+          searchIncomplete?: string;
           timeline?: ServerTimeline;
           outsideDates?: ServerOutsideDates;
         };
@@ -497,6 +515,8 @@ again with \`offset\` set to \`nextOffset\`.`,
       if (!parsed.ok) return parsed.result;
 
       const sr = parsed.value.searchResponse ?? {};
+      const incomplete = searchIncompleteNote(sr);
+      if (incomplete) notes.push(incomplete);
       let hits = sr.searchResults ?? [];
       let records = sr.records ?? [];
       const outside = new Set(
