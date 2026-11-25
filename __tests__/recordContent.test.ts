@@ -143,6 +143,18 @@ describe("navigate mode", () => {
     expect(textOf(out)).toContain("500");
   });
 
+  // Page numbers stop at 50, so the cursor a `Next:` line names must reach the
+  // endpoint unchanged or a large listing cannot be read to its end.
+  test("a cursor reaches the endpoint as given", async () => {
+    const { core, urls } = client({ text: "Children 51-100 of at least 10000:" });
+    const cursor = "eyJrIjoiYS9iPWMrZCJ9.sig";
+
+    const out = await run(core, { mode: "navigate", nodeId: "n-1", cursor });
+
+    expect(new URL(urls[0]!).searchParams.get("cursor")).toBe(cursor);
+    expect(textOf(out)).toContain("of at least 10000");
+  });
+
   test("each mode reaches a different endpoint", async () => {
     // One entry point, three destinations. If two modes ever resolved to the
     // same URL the mistake would look like a server bug, not a routing one.

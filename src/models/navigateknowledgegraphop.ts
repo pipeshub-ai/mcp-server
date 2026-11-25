@@ -12,6 +12,7 @@ import * as z from "zod";
 export type NavigateKnowledgeGraphRequest = {
   nodeId?: string | undefined;
   page?: number | undefined;
+  cursor?: string | undefined;
   limit?: number | undefined;
   depth?: number | undefined;
   nodeTypes?: Array<string> | undefined;
@@ -53,4 +54,7 @@ export const NavigateKnowledgeGraphRequest$zodSchema: z.ZodType<
     "Restrict children to these node types. Repeat the parameter for multiple types: `?nodeTypes=record&nodeTypes=folder`.",
   ).optional(),
   page: z.int().min(1).describe("Page number, 1-indexed.").optional(),
+  cursor: z.string().min(1).max(4096).describe(
+    "`pagination.next_cursor` from the previous page, copied exactly, with the same `nodeId` and `depth`. It chooses the page and keeps that listing's filters; `page` is then ignored.",
+  ).optional(),
 });

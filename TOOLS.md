@@ -119,6 +119,7 @@ Four operations on records, selected by `mode`.
 | `startRecord` | number | no | `thread` only. Continue a long thread from this record, with the `startBlock` given beside it in the `Next:` line. |
 | `nodeId` | string | no | `navigate` only. The node to open; omit for a flat listing of everything reachable, newest first. A URL or issue key resolves automatically. |
 | `page` / `limit` | number | no | `navigate` only. 1-based page, 50–200 children per page (default 50). A `limit` under 50 is rejected, not raised. |
+| `cursor` | string | no | `navigate` only. The cursor a previous page's `Next:` line names (`pagination.next_cursor`), copied exactly, with the same `nodeId` and `depth`. It resumes after that page's last row and keeps that listing's filters; `page` is then ignored. Page numbers stop at 50; a cursor does not. |
 | `depth` | number (1–3) | no | `navigate` only. Above 1 the listing flattens to all descendants down to that level, each row carrying its own `level`. Default 1. |
 | `nodeTypes` | string[] | no | `navigate` only. Restrict children to these node types, e.g. `["record", "folder"]`. |
 | `createdAfter` / `createdBefore` | string | no | `navigate` only. Filter children by source creation time. ISO 8601 `YYYY-MM-DD` (inclusive of the whole day), or a full datetime that **must** carry a timezone offset. |
@@ -136,7 +137,7 @@ Four operations on records, selected by `mode`.
 
 `Related` lists only links recorded inside a source (Jira issue links, GitHub blocked-by), not Slack messages or pages that mention the record. To find discussion of a PR or ticket, `pipeshub_search` for its number or URL with the Slack connector id in `apps`.
 
-Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *and* their subtasks — instead of one call per level; use it whenever the question needs a hierarchy overview rather than a single node. One page is usually every child, so only pass `page: 2` when the `Next:` line says more exist.
+Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *and* their subtasks — instead of one call per level; use it whenever the question needs a hierarchy overview rather than a single node. One page is usually every child; when the `Next:` line says more exist, pass the `cursor` it names. A total that stopped counting at a cap reads `of at least N` (`pagination.total_capped`): more children exist, so page on with the cursor rather than trusting the number.
 
 **`mode: "lookup"`** — resolve an external reference (Jira key or URL, Confluence/Drive/Slack link, bare external ID) to a recordId plus that record's metadata. Searches all connectors the caller can access, regardless of any source filter used elsewhere. A miss is a 200 with empty `matches` and the input echoed in `not_found_identifiers` — which may mean no-access rather than non-existence.
 

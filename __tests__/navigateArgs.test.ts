@@ -58,6 +58,14 @@ describe("pipeshub_get_record_content navigate args", () => {
     expect(parsed.modifiedAfter).toBe("2026-07-01T00:00:00+05:30");
   });
 
+  // The endpoint takes a cursor of 1-4096 characters and 400s outside that.
+  test("cursor holds to the endpoint's 1-4096 length", () => {
+    expect(schema.safeParse({ mode: "navigate", cursor: "c" }).success).toBe(true);
+    expect(schema.safeParse({ mode: "navigate", cursor: "" }).success).toBe(false);
+    expect(schema.safeParse({ mode: "navigate", cursor: "x".repeat(4097) }).success)
+      .toBe(false);
+  });
+
   // nodeId is deliberately not UUID-constrained — the endpoint resolves a URL
   // or issue key to its record before navigating.
   test("nodeId accepts a URL and an issue key", () => {
