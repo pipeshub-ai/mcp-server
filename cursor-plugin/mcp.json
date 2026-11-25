@@ -1,8 +1,10 @@
 {
   "mcpServers": {
     "pipeshub": {
-      "command": "npx",
-      "args": ["-y", "@pipeshub-ai/mcp@>=4.9.0", "start"]
+      "url": "${PIPESHUB_MCP_URL}",
+      "headers": {
+        "X-PipesHub-Channel": "cursor-plugin"
+      }
     },
     "pipeshub-docs": {
       "url": "https://docs.pipeshub.com/mcp"

@@ -16,5 +16,18 @@
     "rag",
     "knowledge"
   ],
-  "logo": "assets/logo.svg"
+  "logo": "assets/logo.svg",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "PIPESHUB_MCP_URL": {
+        "type": "string",
+        "title": "PipesHub MCP URL",
+        "description": "<pipeshub-instanceurl>/mcp"
+      }
+    },
+    "required": [
+      "PIPESHUB_MCP_URL"
+    ]
+  }
 }
