@@ -24,7 +24,7 @@ The plugin's server points at PipesHub Cloud. For your own instance, add an entr
 { "mcpServers": { "pipeshub": { "url": "https://<your-instance>/mcp" } } }
 ```
 
-Then choose it as the source for `pipeshub` in that server's settings (or turn the plugin's `pipeshub` server off) and click **Connect**. Your instance must allow dynamic client registration, which is on by default (`PIPESHUB_ENABLE_DCR=false` turns it off). With it off, use a static OAuth app as described in the [main README](../README.md).
+Then choose it as the source for `pipeshub` in that server's settings (or turn the plugin's `pipeshub` server off) and click **Connect**. Your instance must allow dynamic client registration. PipesHub v1.1.0 and older have it off unless `PIPESHUB_ENABLE_DCR=true` is set; later releases have it on unless `PIPESHUB_ENABLE_DCR=false`. With it off, Connect fails with 403 `dynamic client registration is disabled`; use a static OAuth app as described in the [main README](../README.md).
 
 To run the local stdio server instead (`pipeshub login` plus `npx @pipeshub-ai/mcp start`), use `pipeshub mcp install --client cursor`.
 
