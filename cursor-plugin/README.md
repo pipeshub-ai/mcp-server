@@ -19,7 +19,9 @@ The plugin needs one value, `PIPESHUB_MCP_URL`: `<pipeshub-instanceurl>/mcp`. Us
 
 ## Sign in
 
-No token goes into any config file. With the URL set, `pipeshub` shows **Needs authentication** and lists no tools. Click **Authenticate**: Cursor registers itself with PipesHub (dynamic client registration), opens the PipesHub consent page (it names the app "Cursor" and notes that it registered itself), and after **Allow** it keeps and refreshes the token itself. The tools then appear, and the server's settings show **Logout**. The `setup` command walks through this.
+No token goes into any config file. With the URL set, `pipeshub` shows **Needs authentication** and lists no tools. Click **Authenticate**: Cursor registers itself with PipesHub (dynamic client registration), opens the PipesHub consent page (it names the app "Cursor" and notes that it registered itself), and after **Allow** it keeps and refreshes the token itself. The tools then appear, and the server's settings show **Sign out**. The `setup` command walks through this.
+
+If `pipeshub` shows **Error · Unauthorized** after you sign in, the stored token was refused. Open the server's settings (Customize → PipesHub → `pipeshub`), click **Sign out**, and **Authenticate** again; **Reload** can also clear it.
 
 ## Self-hosted
 
