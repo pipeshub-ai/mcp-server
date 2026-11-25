@@ -35,7 +35,7 @@ test("cursor plugin matches the marketplace, package version and Cursor's valida
   expect(Object.keys(servers)).toEqual(["pipeshub", "pipeshub-docs"]);
   // The plugin uses the remote server over OAuth (Cursor self-registers via DCR), so no
   // credential, command or token belongs in it.
-  // The URL is asked for on install (no default), with <pipeshub-instanceurl>/mcp as the hint.
+  // The URL is a required variable set under Configure (no default), with <pipeshub-instanceurl>/mcp as the hint.
   expect(servers.pipeshub.url).toBe("${PIPESHUB_MCP_URL}");
   const vars = plugin.variables;
   expect(vars.type).toBe("object");

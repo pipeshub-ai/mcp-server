@@ -2,7 +2,7 @@
 
 Permissioned search and cited answers over your workplace sources (Slack, Drive, Gmail, Jira, Confluence, and more), from inside Cursor. The plugin adds:
 
-- the `pipeshub` MCP server (PipesHub's remote server at the URL you enter on install, signed in with OAuth),
+- the `pipeshub` MCP server (PipesHub's remote server at the URL you set under **Configure**, signed in with OAuth),
 - `pipeshub-docs`, the PipesHub documentation search server,
 - the `pipeshub` skill, and the `ask` and `setup` commands.
 
