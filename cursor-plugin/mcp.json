@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "pipeshub": {
-      "url": "https://app.pipeshub.com/mcp",
+      "url": "${PIPESHUB_MCP_URL}",
       "headers": {
         "X-PipesHub-Channel": "cursor-plugin"
       }
