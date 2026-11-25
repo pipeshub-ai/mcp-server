@@ -192,6 +192,8 @@ describe("plugin manifests", () => {
     expect(watch).toContain("`PIPESHUB_BASE_URL='<baseUrl>' pipeshub index --watch`");
     expect(watch).toContain("`PIPESHUB_BASE_URL='<baseUrl>' npx -y @pipeshub-ai/standalone index --watch`");
     expect(watch).toContain("If a path was given, put it after `index` in either form, quoted the same way as in step 2");
+    // PowerShell has no `VAR=value cmd` form
+    expect(watch).toContain("`$env:PIPESHUB_BASE_URL = '<baseUrl>'; pipeshub index --watch`");
   });
 
   test("Codex installs the repository root as a portable plugin from the Claude marketplace file", () => {
