@@ -31,7 +31,7 @@ async function listRecords(
   limit: number,
   signal: AbortSignal,
   indexingStatus?: readonly string[],
-): Promise<{ ok: true; records: object[] } | { ok: false; result: CallToolResult }> {
+): Promise<{ ok: true; records: object[]; preparing: boolean } | { ok: false; result: CallToolResult }> {
   const r = await knowledgeHubCollectionRecords(
     client,
     kbId,
@@ -41,11 +41,13 @@ async function listRecords(
   if (!r.ok) return { ok: false, result: errorResult(`Indexing status: ${r.error.message}`) };
   const httpErr = await httpErrorResult(r.value, "Indexing status");
   if (httpErr) return { ok: false, result: httpErr };
-  const body = await readJson<{ items?: Node[] }>(r.value, "Indexing status");
+  const body = await readJson<{ items?: Node[]; preparing?: boolean }>(r.value, "Indexing status");
   if (!body.ok) return { ok: false, result: body.result };
   const items = (body.value.items ?? []).filter((n) => n.isInternal !== true);
   return {
     ok: true,
+    // The server's copy of the source is not finished: an empty page that names nothing.
+    preparing: body.value.preparing === true,
     records: items.map((n) => ({
       recordId: n.id,
       name: n.name,
@@ -135,17 +137,21 @@ AUTO_INDEX_OFF and SKIPPED count in \`total\` only.`,
     if (!failed.ok) return failed.result;
     const { total, byStatus } = stats.stats;
     const pendingCount = sum(byStatus, PENDING);
+    const preparing = pending.preparing || failed.preparing;
     return jsonResult({
       // Nothing stored is not done: a crawl stores its first page some time after it
       // starts, and while it runs it may store more after these are indexed.
       done: total > 0 && pendingCount === 0 && !syncing,
       ...(syncing ? { syncing: true } : {}),
+      ...(preparing ? { preparing: true } : {}),
       total,
       pendingCount,
       failedCount: sum(byStatus, FAILED),
       pending: pending.records,
       failed: failed.records,
-      ...(total === 0 ? { note: "No records yet: an upload or a crawl may still be adding them. Keep polling." } : {}),
+      ...(preparing
+        ? { note: "The source is still being prepared, so its records cannot be named yet. Ask again in a moment." }
+        : total === 0 ? { note: "No records yet: an upload or a crawl may still be adding them. Keep polling." } : {}),
     });
   },
 };
