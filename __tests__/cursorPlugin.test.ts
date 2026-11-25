@@ -33,6 +33,11 @@ test("cursor plugin matches the marketplace, package version and Cursor's valida
 
   const servers = json(`${dir}/mcp.json`).mcpServers;
   expect(Object.keys(servers)).toEqual(["pipeshub", "pipeshub-docs"]);
+  // The plugin uses the remote server over OAuth (Cursor self-registers via DCR), so no
+  // credential, command or token belongs in it.
+  expect(servers.pipeshub.url).toBe("https://app.pipeshub.com/mcp");
+  expect(servers.pipeshub.command).toBeUndefined();
+  expect(JSON.stringify(servers)).not.toMatch(/token|bearer|authorization/i);
 
   const files = [
     ...readdirSync(join(root, dir, "commands")).map((f) => `${dir}/commands/${f}`),
