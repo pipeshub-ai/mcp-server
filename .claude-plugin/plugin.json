@@ -7,6 +7,7 @@
     "url": "https://www.pipeshub.com"
   },
   "homepage": "https://docs.pipeshub.com/for-agents",
+  "privacyPolicyUrl": "https://www.pipeshub.com/privacy-policy",
   "repository": "https://github.com/pipeshub-ai/mcp-server",
   "license": "Apache-2.0",
   "keywords": ["mcp", "pipeshub", "workplace-search", "rag", "knowledge"],
