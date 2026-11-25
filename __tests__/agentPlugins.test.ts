@@ -188,8 +188,9 @@ describe("plugin manifests", () => {
 
   test("/pipeshub:index's watch hint keeps the indexed path, quoted the same way", () => {
     const watch = read("commands/index.md").split("\n").find((l) => l.includes("index --watch")) ?? "";
-    expect(watch).toContain("`pipeshub index --watch`");
-    expect(watch).toContain("`npx -y @pipeshub-ai/standalone index --watch`");
+    // Both watch forms pin the origin checked in step 1, as step 2's upload does.
+    expect(watch).toContain("`PIPESHUB_BASE_URL='<baseUrl>' pipeshub index --watch`");
+    expect(watch).toContain("`PIPESHUB_BASE_URL='<baseUrl>' npx -y @pipeshub-ai/standalone index --watch`");
     expect(watch).toContain("If a path was given, put it after `index` in either form, quoted the same way as in step 2");
   });
 
