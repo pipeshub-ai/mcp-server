@@ -21,7 +21,6 @@ import { tool$pipeshubConnectSource } from "../src/mcp-server/tools/pipeshubConn
 import { tool$pipeshubPreviewRecord } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
 import { tool$pipeshubShowCitations } from "../src/mcp-server/tools/pipeshubShowCitations.js";
 import { GetAllUsersRequest$zodSchema } from "../src/models/getallusersop.js";
-import { GetAllUserGroupsRequest$zodSchema } from "../src/models/getallusergroupsop.js";
 import { GetUserTeamsRequest$zodSchema } from "../src/models/getuserteamsop.js";
 import { PaginationInfo$zodSchema } from "../src/models/paginationinfo.js";
 import { CompactPaginationInfo$zodSchema } from "../src/models/compactpaginationinfo.js";
@@ -159,22 +158,19 @@ describe("tool descriptions", () => {
     expect(desc).toContain("empty");
     const search = argSchema("pipeshub_directory").properties?.search?.description
       ?? "";
-    expect(search).toContain("list_groups");
+    expect(search).toContain("list_users");
     expect(search).toContain("list_my_teams");
   });
 
   test("directory list defaults and next-page flags come from the SDK schemas", () => {
     const usersLimit = GetAllUsersRequest$zodSchema.parse({}).limit;
-    const groupsLimit = GetAllUserGroupsRequest$zodSchema.parse({}).limit;
     const teamsLimit = GetUserTeamsRequest$zodSchema.parse({}).limit;
     expect(typeof usersLimit).toBe("number");
-    expect(typeof groupsLimit).toBe("number");
     expect(typeof teamsLimit).toBe("number");
 
     const limit = argSchema("pipeshub_directory").properties?.limit?.description
       ?? "";
     expect(limit).toContain(`${usersLimit} users`);
-    expect(limit).toContain(`${groupsLimit} groups`);
     expect(limit).toContain(`${teamsLimit} teams`);
 
     const userPageKeys = Object.keys(

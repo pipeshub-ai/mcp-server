@@ -1,7 +1,7 @@
 {
   "name": "pipeshub",
   "displayName": "PipesHub",
-  "version": "4.10.0",
+  "version": "4.11.0",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, Confluence, and 50+ workplace sources, from inside Cursor.",
   "author": {
     "name": "PipesHub"
@@ -16,5 +16,18 @@
     "rag",
     "knowledge"
   ],
-  "logo": "assets/logo.svg"
+  "logo": "assets/logo.svg",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "PIPESHUB_MCP_URL": {
+        "type": "string",
+        "title": "PipesHub MCP URL",
+        "description": "<pipeshub-instanceurl>/mcp"
+      }
+    },
+    "required": [
+      "PIPESHUB_MCP_URL"
+    ]
+  }
 }

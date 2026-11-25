@@ -22,9 +22,8 @@ const TOOL_SCOPES: Readonly<Record<string, readonly string[]>> = {
   pipeshub_get_record_content: ["connector:read"],
   // GET /knowledgeBase/stream/record/:id (kb:read).
   pipeshub_download_record: ["kb:read"],
-  // GET /users, /users/:id (user:read), /userGroups (usergroup:read),
-  // /teams/user/teams (team:read): one per action.
-  pipeshub_directory: ["user:read", "usergroup:read", "team:read"],
+  // GET /users, /users/:id (user:read), /teams/user/teams (team:read).
+  pipeshub_directory: ["user:read", "team:read"],
   // POST /knowledgeBase (kb:write).
   pipeshub_create_collection: ["kb:write"],
   // POST /knowledgeBase/:kbId/upload (kb:upload).

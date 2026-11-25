@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "mcp",
-  "version": "4.10.0",
+  "version": "4.11.0",
   "description": "Permissioned search and cited answers over Slack, Drive, Gmail, Jira, and 50+ workplace sources.",
   "long_description": "Permissioned search and cited answers over your company's Slack, Google Drive, Gmail, Jira, Confluence, SharePoint, and 50+ other sources, with the signed-in user's permissions.\n\nSet `instance_url` to your PipesHub origin (PipesHub Cloud: `https://app.pipeshub.com`) and paste a personal access token into `bearer_auth`. It acts as you, so results follow your permissions. Start with `pipeshub_sources`, then `pipeshub_search` and `pipeshub_get_record_content`; cite `recordId` / `webUrl`. Tool reference: https://github.com/pipeshub-ai/mcp-server/blob/main/TOOLS.md",
   "author": {
@@ -76,7 +76,7 @@
     },
     {
       "name": "pipeshub_directory",
-      "description": "Look up people, groups, and teams in PipesHub. Five actions — pick\n`action`. Not for documents or files: that is `pipeshub_search`.\n\n- `whoami` — the caller's id, email, full name. Use before `get_user`\n  on yourself. Errors if the credential is expired or revoked.\n- `list_users` — page org users; `search` matches name or email.\n- `get_user` — full `User` for one `userId`.\n- `list_groups` — org groups with `userCount`; `search` matches name.\n- `list_my_teams` — teams the caller is on, with `canEdit` /\n  `canDelete` / `canManageMembers`; `search` matches name.\n\nOmit `page`/`limit` for the first page (`page` 1). No match is an\nempty `users`/`groups`/`teams` array, not an error.\n`pagination.hasNextPage` (teams: `hasNext`) says whether to request\nthe next page."
+      "description": "Look up people and teams in PipesHub. Four actions — pick\n`action`. Not for documents or files: that is `pipeshub_search`.\n\n- `whoami` — the caller's id, email, full name. Use before `get_user`\n  on yourself. Errors if the credential is expired or revoked.\n- `list_users` — page org users; `search` matches name or email.\n- `get_user` — full `User` for one `userId`.\n- `list_my_teams` — teams the caller is on, with `canEdit` /\n  `canDelete` / `canManageMembers`; `search` matches name.\n\nOmit `page`/`limit` for the first page (`page` 1). No match is an\nempty `users`/`teams` array, not an error.\n`pagination.hasNextPage` (teams: `hasNext`) says whether to request\nthe next page."
     },
     {
       "name": "pipeshub_create_collection",

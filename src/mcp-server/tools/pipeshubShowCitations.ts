@@ -2,7 +2,7 @@ import * as z from "zod";
 import { connectorGetRecordContent } from "../../funcs/connectorGetRecordContent.js";
 import { headerField } from "./pipeshubGetRecordContent.js";
 import { PipeshubCore } from "../../core.js";
-import { CiteLocation, decodeCite } from "../cite.js";
+import { CiteLocation, decodeCiteLoosely } from "../cite.js";
 import {
   CITATION_VIEWER_DATA_KEY,
   citationViewerToolMeta,
@@ -12,7 +12,9 @@ import { errorResult, readJson } from "./_helpers.js";
 
 const args = {
   citations: z.array(z.object({
-    cite: z.string().min(1).max(120).describe(
+    // Room for what agents send by mistake (a link, a padded code): such a
+    // cite is skipped or read loosely, not a refused call.
+    cite: z.string().min(1).max(300).describe(
       "The passage's `cite`, copied exactly from the result that gave it.",
     ),
     quote: z.string().max(500).optional().describe(
@@ -89,41 +91,54 @@ It shows no answer: write the full answer after it.`,
   },
   args,
   tool: async (client, args, ctx) => {
-    const located: CiteLocation[] = [];
-    const bad: number[] = [];
-    args.citations.forEach((c, i) => {
-      const loc = decodeCite(c.cite);
-      if (loc) located.push(loc);
-      else bad.push(i + 1);
-    });
-    if (bad.length > 0) {
-      return errorResult(
-        `Citation ${bad.join(", ")}: not a \`cite\` code. Copy each \`cite\` `
-          + "exactly from the result that gave it.",
-      );
-    }
-
-    const ids = [...new Set(located.map((l) => l.recordId))];
+    // Each citation the agent sent, read as exactly as it allows. One it got
+    // wrong costs that citation, not the card: the others still show.
+    const decoded = args.citations.map((c) => decodeCiteLoosely(c.cite));
+    const ids = [...new Set(decoded.flatMap((d) => (d ? [d.location.recordId] : [])))];
     const infos = new Map(await Promise.all(ids.map(async (id) =>
       [id, await recordInfo(client, id, ctx.signal)] as const
     )));
-    const citations = located.map((loc, i) => ({
+    const kept: Array<{ location: CiteLocation; quote: string }> = [];
+    const skipped: number[] = [];
+    decoded.forEach((d, i) => {
+      // A loosely read cite names only a record id, which may be made up:
+      // it stays only when that record could be read.
+      if (d && (d.exact || infos.get(d.location.recordId)?.recordName !== undefined)) {
+        kept.push({ location: d.location, quote: args.citations[i]!.quote ?? "" });
+      } else {
+        skipped.push(i + 1);
+      }
+    });
+    if (kept.length === 0) {
+      return errorResult(
+        `Citation ${skipped.join(", ")}: not a \`cite\` code. Copy each \`cite\` `
+          + "exactly from the result that gave it: a search passage's `cite`, or the "
+          + "`Cite:` line that ends a record or thread read.",
+      );
+    }
+
+    const citations = kept.map(({ location, quote }, i) => ({
       number: i + 1,
       kind: "passage",
-      ...loc,
-      ...infos.get(loc.recordId),
-      recordName: infos.get(loc.recordId)?.recordName ?? "Source",
-      text: args.citations[i]!.quote ?? "",
+      ...location,
+      ...infos.get(location.recordId),
+      recordName: infos.get(location.recordId)?.recordName ?? "Source",
+      text: quote,
     }));
+    const records = new Set(kept.map((k) => k.location.recordId)).size;
     const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
     return {
       content: [{
         type: "text",
         // Clients without the viewer get only this text: name each source.
         text: `Shown to the user: ${plural(citations.length, "citation")} from `
-          + `${plural(ids.length, "record")}, without your answer. Now write the full `
+          + `${plural(records, "record")}, without your answer. Now write the full `
           + `answer, citing these as [1]…[${citations.length}]:\n`
-          + citations.map((c) => `[${c.number}] ${sourceLine(c)}`).join("\n"),
+          + citations.map((c) => `[${c.number}] ${sourceLine(c)}`).join("\n")
+          + (skipped.length > 0
+            ? `\nNot shown: your citation ${skipped.join(", ")}, not a \`cite\` from a result. `
+              + "Number the answer's citations as listed above."
+            : ""),
       }],
       _meta: { [CITATION_VIEWER_DATA_KEY]: { citations } },
     };

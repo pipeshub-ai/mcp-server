@@ -5,7 +5,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
 import { PipeshubCore } from "../src/core.js";
 import { HTTPClient } from "../src/lib/http.js";
-import { decodeCite, encodeCite, SHOW_CITATIONS_HINT, withoutCitations } from "../src/mcp-server/cite.js";
+import { decodeCite, decodeCiteLoosely, encodeCite, SHOW_CITATIONS_HINT, threadCiteLine, withoutCitations } from "../src/mcp-server/cite.js";
 import { CITATION_VIEWER_URI, clearAppsMemory } from "../src/mcp-server/citation-viewer.js";
 import { createConsoleLogger } from "../src/mcp-server/console-logger.js";
 import { SHOW_CITATIONS_STEP } from "../src/mcp-server/instructions.js";
@@ -19,6 +19,7 @@ import {
   tool$pipeshubPreviewRecord,
 } from "../src/mcp-server/tools/pipeshubPreviewRecord.js";
 import { tool$pipeshubShowCitations } from "../src/mcp-server/tools/pipeshubShowCitations.js";
+import { visibleCitations } from "../src/mcp-app/collapse.js";
 
 // The citation viewer is the MCP Apps view a host such as Claude shows after
 // an answer: the model calls `pipeshub_show_citations` with the cite codes of
@@ -170,6 +171,14 @@ describe("a client without MCP Apps views", () => {
     expect(JSON.parse(out[0]!)).toEqual({ records: [{ recordId: RID, passages: [{ text: "x" }] }] });
     expect(out[1]).toBe(`Record ID: ${RID}\n\nbody`);
   });
+
+  test("a thread read loses its Cite line and reminder too", () => {
+    const thread = `<record>\nRecord ID: ${RID}\n[0] hi\n</record>\n\nRead: the whole thread (1 record).\n`
+      + threadCiteLine([RID]) + SHOW_CITATIONS_HINT;
+    const [out] = withoutCitations({ content: [{ type: "text", text: thread }] }).content;
+    expect((out as { text: string }).text)
+      .toBe(`<record>\nRecord ID: ${RID}\n[0] hi\n</record>\n\nRead: the whole thread (1 record).`);
+  });
 });
 
 describe("cite codes", () => {
@@ -220,6 +229,82 @@ describe("cite codes", () => {
     `${"a".repeat(65)}....`,
   ])("rejects %p", (cite) => {
     expect(decodeCite(cite)).toBeUndefined();
+  });
+
+  test("read loosely, an exact cite decodes as before", () => {
+    expect(decodeCiteLoosely(`${RID}.1.2..144_171_906_321`)).toEqual({
+      location: decodeCite(`${RID}.1.2..144_171_906_321`)!, exact: true,
+    });
+    // Wrappers agents add are not part of the code.
+    expect(decodeCiteLoosely(` \`${RID}..7...n\` `)).toEqual({
+      location: { recordId: RID, blockNum: [7], previewRenderable: false }, exact: true,
+    });
+    expect(decodeCiteLoosely(`cite: ${RID}..7...n`)?.exact).toBe(true);
+    // Wrappers around the whole `Cite: …`, or around the code after the prefix.
+    expect(decodeCiteLoosely(`\`Cite: ${RID}..7...n\``)?.exact).toBe(true);
+    expect(decodeCiteLoosely(`Cite: \`${RID}..7...n\``)?.exact).toBe(true);
+  });
+
+  test.each([
+    [`${RID}....n`, { recordId: RID, previewRenderable: false }],
+    [`${RID}......n`, { recordId: RID, previewRenderable: false }],
+    [`${RID}..7..n`, { recordId: RID, previewRenderable: false }],
+    [`${RID}.1.2`, { recordId: RID }],
+    [RID, { recordId: RID }],
+    ["6ae460ea0b29ff7670d82c0b.43", { recordId: "6ae460ea0b29ff7670d82c0b" }],
+  ])("read loosely, %p stands for its whole record", (cite, location) => {
+    expect(decodeCiteLoosely(cite)).toEqual({ location, exact: false });
+  });
+
+  test.each([
+    "[1]",
+    "QE-12",
+    "rec-1",
+    `x${RID}`,
+    `https://productnest.slack.com/archives/C0B3U348DNU/p1795089495075859`,
+  ])("read loosely, %p is still not a cite", (cite) => {
+    expect(decodeCiteLoosely(cite)).toBeUndefined();
+  });
+
+  // Seen on Claude with a real Slack thread: given `R..k...n` to fill in, it
+  // sent `R..1...1` for every message. The line now spells each code out.
+  test("a thread read's Cite line spells out each message's code, and each decodes", () => {
+    const content = `<record>\nRecord ID: ${RID}\n[text_section #0]\n[0] **Ana**: one\n\n[1] **Bo**: two\n</record>\n`
+      + "<record>\nRecord ID: 6ae460ea0b29ff7670d82c0b\n[0] **Cy**: three\n</record>";
+    const line = threadCiteLine([RID, "6ae460ea0b29ff7670d82c0b", RID], content)!;
+    expect(line).toBe(
+      "Cite: each message by its own code, copied whole (it ends in the letter n): "
+        + `record ${RID}: [0] ${RID}..0...n, [1] ${RID}..1...n; `
+        + "record 6ae460ea0b29ff7670d82c0b: [0] 6ae460ea0b29ff7670d82c0b..0...n. ",
+    );
+    expect(decodeCite(`${RID}..1...n`)).toEqual({ recordId: RID, blockNum: [1], previewRenderable: false });
+    expect(threadCiteLine([])).toBeUndefined();
+    expect(threadCiteLine(["../etc/passwd"])).toBeUndefined();
+  });
+
+  test("a record whose messages the text does not number gets the rule, with the letter n named", () => {
+    expect(threadCiteLine([RID])).toBe(
+      "Cite: each message by its own code, copied whole (it ends in the letter n): "
+        + `record ${RID}: message [k] is ${RID}..k...n with the number for k and the letter n kept last `
+        + `(so [0] is ${RID}..0...n). `,
+    );
+  });
+
+  test("a long thread lists codes up to the cap, then names the rule for the rest", () => {
+    const many = (id: string, n: number) => `Record ID: ${id}\n` + Array.from({ length: n }, (_, i) => `[${i}] m${i}\n`).join("");
+    const other = "6ae460ea0b29ff7670d82c0b";
+    const line = threadCiteLine([RID, other], `${many(RID, 50)}${many(other, 20)}`)!;
+    expect(line).toContain(`[49] ${RID}..49...n`);
+    expect(line).toContain(`record ${other}: message [k] is ${other}..k...n`);
+    expect(line).not.toContain(`[0] ${other}..0...n,`);
+  });
+
+  test("read loosely, a thread code whose letter n became a number keeps its message", () => {
+    expect(decodeCiteLoosely(`${RID}..1...1`)).toEqual({
+      location: { recordId: RID, blockNum: [1], previewRenderable: false }, exact: false,
+    });
+    expect(decodeCiteLoosely(`${RID}..12...12`)?.location.blockNum).toEqual([12]);
+    expect(decodeCiteLoosely(`${RID}..0...1`)?.location.blockNum).toEqual([0]);
   });
 
   test("search passages and chat citations carry their cite", () => {
@@ -297,14 +382,54 @@ describe("pipeshub_show_citations", () => {
     expect((out._meta as any)["pipeshub/citations"].citations[0].recordName).toBe("Source");
   });
 
-  test("a made-up cite is an error that names it, and nothing is fetched", async () => {
+  test("when every cite is made up, it is an error that names them, and nothing is fetched", async () => {
     const reads: string[] = [];
     const out = await tool$pipeshubShowCitations.tool(client(reads), {
-      citations: [{ cite: `${RID}.1...` }, { cite: "[1]" }],
+      citations: [{ cite: "[1]" }, { cite: "https://productnest.slack.com/archives/C0B3U348DNU/p1795089495075859" }],
     }, ctx());
     expect(out.isError).toBe(true);
-    expect((out.content[0] as any).text).toContain("Citation 2");
+    expect((out.content[0] as any).text).toContain("Citation 1, 2");
     expect(reads).toEqual([]);
+  });
+
+  // Seen on Claude: one answer's six cites were all off, and the card was an
+  // error instead of sources. A bad cite now costs only itself.
+  test("a made-up cite among good ones is left out and named; the rest are shown, renumbered", async () => {
+    const out = await tool$pipeshubShowCitations.tool(client([]), {
+      citations: [{ cite: `${RID}.1...` }, { cite: "[1]" }, { cite: `${RID}.4.15..`, quote: "q" }],
+    }, ctx());
+    expect(out.isError).toBeUndefined();
+    const text = (out.content[0] as any).text as string;
+    expect(text).toContain("Shown to the user: 2 citations from 1 record");
+    expect(text).toContain("[2] Contoso-Pentest-Report.pdf, page 4");
+    expect(text).toContain("Not shown: your citation 2,");
+    const data = (out._meta as any)["pipeshub/citations"].citations;
+    expect(data.map((c: any) => [c.number, c.pageNum?.[0], c.text])).toEqual([[1, 1, ""], [2, 4, "q"]]);
+  });
+
+  test("a mangled cite of a real record shows that record", async () => {
+    const reads: string[] = [];
+    const out = await tool$pipeshubShowCitations.tool(client(reads), {
+      // One dot short of `.....n`, then the bare record id.
+      citations: [{ cite: `${RID}....n` }, { cite: RID }],
+    }, ctx());
+    expect(out.isError).toBeUndefined();
+    expect(reads).toEqual([`/api/v1/connectors/record/${RID}/content`]);
+    const data = (out._meta as any)["pipeshub/citations"].citations;
+    expect(data).toHaveLength(2);
+    expect(data[0]).toMatchObject({ recordId: RID, recordName: "Contoso-Pentest-Report.pdf", previewRenderable: false });
+    expect(data[0].blockNum).toBeUndefined();
+    expect(data[1]).toMatchObject({ recordId: RID, recordName: "Contoso-Pentest-Report.pdf" });
+  });
+
+  test("a mangled cite of a record that cannot be read is left out, not shown as \"Source\"", async () => {
+    const out = await tool$pipeshubShowCitations.tool(client([], 404), {
+      citations: [{ cite: `${RID}.1...` }, { cite: `${RID}..1....n` }],
+    }, ctx());
+    const data = (out._meta as any)["pipeshub/citations"].citations;
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ number: 1, recordName: "Source", pageNum: [1] });
+    expect((out.content[0] as any).text).toContain("Not shown: your citation 2,");
   });
 });
 
@@ -388,5 +513,23 @@ describe("pipeshub_preview_record", () => {
   test("a refused record is an error, not an empty file", async () => {
     const out = await tool$pipeshubPreviewRecord.tool(client(new Uint8Array(0), 403), { recordId: "r1", offset: 0 }, ctx());
     expect(out.isError).toBe(true);
+  });
+});
+
+describe("citations card: the first few, then +N more", () => {
+  const list = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
+
+  test("lists the first three of a long answer's citations, with a +N more link", () => {
+    expect(visibleCitations(list(19), false)).toEqual({ shown: [1, 2, 3], toggle: "+16 more" });
+  });
+
+  test("lists every citation once opened, with a link back", () => {
+    expect(visibleCitations(list(19), true)).toEqual({ shown: list(19), toggle: "Show fewer" });
+  });
+
+  test("lists four citations in full rather than hide one behind a link", () => {
+    expect(visibleCitations(list(4), false)).toEqual({ shown: list(4) });
+    expect(visibleCitations(list(5), false)).toEqual({ shown: [1, 2, 3], toggle: "+2 more" });
+    expect(visibleCitations(list(0), false)).toEqual({ shown: [] });
   });
 });

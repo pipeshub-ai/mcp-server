@@ -1,6 +1,6 @@
 # PipesHub MCP Tools
 
-Reference for the tools exposed by the PipesHub MCP server. These tools let an AI client (Cursor, Claude Code, Gemini CLI, Claude.ai, LibreChat, etc.) talk to PipesHub — search and chat over the org's indexed documents, look up people and groups, and download files.
+Reference for the tools exposed by the PipesHub MCP server. These tools let an AI client (Cursor, Claude Code, Gemini CLI, Claude.ai, LibreChat, etc.) talk to PipesHub — search and chat over the org's indexed documents, look up people and teams, and download files.
 
 The server exposes hand-written tools that cover the common PipesHub workflows. Each one wraps several lower-level API calls so the LLM gets a single, well-shaped response.
 
@@ -126,7 +126,7 @@ Four operations on records, selected by `mode`.
 | `identifiers` | string \| string[] | conditional | Required when `mode` is `lookup`. A URL, issue key, or external ID — or up to 10 of them. |
 | `connectorName` | string | no | `lookup` only. Hint that prioritises resolution order (e.g. `JIRA`, `GOOGLE_DRIVE`). Cannot widen beyond accessible connectors. |
 
-**`mode: "content"`** (default) — the only way to read one record's full text. Use it for any task that depends on the complete document (summarize, extract all of something, verify a mention, translate, review, compare docs). Prefer it over `pipeshub_download_record` when you need what the record *says* rather than the original file bytes. Returns a metadata header (title, source, key fields such as a ticket's or PR's status and its merge or resolution date, Web URL, pre-generated summary, and on newer servers the records it names or is named by, with their type and status) followed by the parsed text, up to `maxChars` characters. A longer record comes back in parts. Each part ends with a `Read:` line saying which blocks were shown, of how many, and, while anything is left, a `Next:` line naming the exact call that reads on (`startBlock`). To read the whole record, follow `Next:` until a part ends with no `Next:` line; its `Read:` line then says the whole record, or the end of it, was read, and names any block that could not be returned. For a question about part of a long record, pass `query` to get the relevant passages first; the `Read:` line then lists the block ranges shown and offers the call that reads the record in order instead. To pull a few facts out of a long record for less context, pass `query` with `extract: true`: PipesHub's reader model reads the record (up to 120,000 characters, the most relevant parts first when it is longer) and returns the passages that answer the query, then a `Read:` line saying what they came from and the tokens the reader used, and the call that reads the record itself. If the reader model cannot be reached, the usual read comes back with a line saying so. Read without `extract` to list or count everything in a record. Against a PipesHub server from before paged reads, the whole record comes back in one string with no `Read:` line. `No record found` does not mean the record does not exist: on servers from before the not-indexed change it is also the answer for a record that exists but whose content is not indexed yet. Newer servers answer that case with the record's metadata and a `Not indexed:` paragraph naming its status, and keep `No record found` for an indexed record whose stored content could not be loaded. A record that does not exist, or that you may not read, is a `403`; the error says "Not found" and does not point at the credential. A read of a record with text ends with a `Cite:` line, the record's own cite for `pipeshub_show_citations`; a `thread` read has none, because its messages are separate records.
+**`mode: "content"`** (default) — the only way to read one record's full text. Use it for any task that depends on the complete document (summarize, extract all of something, verify a mention, translate, review, compare docs). Prefer it over `pipeshub_download_record` when you need what the record *says* rather than the original file bytes. Returns a metadata header (title, source, key fields such as a ticket's or PR's status and its merge or resolution date, Web URL, pre-generated summary, and on newer servers the records it names or is named by, with their type and status) followed by the parsed text, up to `maxChars` characters. A longer record comes back in parts. Each part ends with a `Read:` line saying which blocks were shown, of how many, and, while anything is left, a `Next:` line naming the exact call that reads on (`startBlock`). To read the whole record, follow `Next:` until a part ends with no `Next:` line; its `Read:` line then says the whole record, or the end of it, was read, and names any block that could not be returned. For a question about part of a long record, pass `query` to get the relevant passages first; the `Read:` line then lists the block ranges shown and offers the call that reads the record in order instead. To pull a few facts out of a long record for less context, pass `query` with `extract: true`: PipesHub's reader model reads the record (up to 120,000 characters, the most relevant parts first when it is longer) and returns the passages that answer the query, then a `Read:` line saying what they came from and the tokens the reader used, and the call that reads the record itself. If the reader model cannot be reached, the usual read comes back with a line saying so. Read without `extract` to list or count everything in a record. Against a PipesHub server from before paged reads, the whole record comes back in one string with no `Read:` line. `No record found` does not mean the record does not exist: on servers from before the not-indexed change it is also the answer for a record that exists but whose content is not indexed yet. Newer servers answer that case with the record's metadata and a `Not indexed:` paragraph naming its status, and keep `No record found` for an indexed record whose stored content could not be loaded. A record that does not exist, or that you may not read, is a `403`; the error says "Not found" and does not point at the credential. A read of a record with text ends with a `Cite:` line, the record's own cite for `pipeshub_show_citations`. A `thread` read ends with one too, listing each message's own code: its messages are separate records, each showing its messages as numbered blocks (`[0]`, `[1]`, …), so message `[k]` of record `R` is `R..k...n`, ending in the letter n (spelled out per message, up to 60 codes; past that, the rule per record).
 
 > One record is not always the whole conversation. A Slack record is one burst of messages; thread replies are separate records, and `Reply Count: N` in the text means those replies are not included. Read them with `mode: "thread"`. GitHub pull request records include diffs and changed files, and can be far larger than a client's tool-output limit; they come back in parts.
 
@@ -146,24 +146,23 @@ Pass `depth: 2` or `3` to see several levels in one call — an epic's stories *
 
 ### `pipeshub_directory`
 
-Look up people, groups, and teams in PipesHub. One tool with five `action`s. Not for documents or files — that is `pipeshub_search`.
+Look up people and teams in PipesHub. One tool with four `action`s. Not for documents or files — that is `pipeshub_search`.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `action` | enum | yes | One of `whoami`, `list_users`, `get_user`, `list_groups`, `list_my_teams`. |
+| `action` | enum | yes | One of `whoami`, `list_users`, `get_user`, `list_my_teams`. |
 | `userId` | string | conditional | Required when `action` is `get_user`. 24-char ObjectId. From `whoami` or a `list_users` hit. |
 | `page` | number | no | 1-based page for `list_*`. Omit for page 1. |
 | `limit` | number (1–100) | no | Items per page for `list_*`. Omit for the per-action SDK default. |
-| `search` | string | no | Substring match on `list_users` (name / email), `list_groups` (name), and `list_my_teams` (name). |
+| `search` | string | no | Substring match on `list_users` (name / email) and `list_my_teams` (name). |
 
 **Actions:**
 - `whoami` — the authenticated user's identity. Errors if the credential is expired or revoked. No other args.
 - `list_users` — paginated list of org users.
 - `get_user` — full profile for one user (requires `userId`).
-- `list_groups` — paginated list of user groups, with `userCount`.
 - `list_my_teams` — teams the caller belongs to, with `canEdit` / `canDelete` / `canManageMembers` flags.
 
-`list_*` returns an empty `users` / `groups` / `teams` array when nothing matches — that is not an error. `pagination.hasNextPage` (teams: `hasNext`) says whether to request the next page.
+`list_*` returns an empty `users` / `teams` array when nothing matches — that is not an error. `pagination.hasNextPage` (teams: `hasNext`) says whether to request the next page.
 
 ---
 
@@ -203,7 +202,7 @@ Show the user the sources of an answer. The agent calls it once, last, after wri
 |---|---|---|---|
 | `citations` | `{ cite, quote? }[]` (1–30) | yes | `cite` copied from a search passage or a chat citation; `quote` (up to 500 characters), the passage text the answer relied on. |
 
-**Cite codes.** Every `pipeshub_search` passage and `pipeshub_chat` citation carries a `cite`: where the passage is, in one string, about 60 characters: `<recordId>.<page>.<block>.<sheet>.<x0>_<y0>_<x1>_<y1>`, any field after the record id possibly empty, the box in thousandths of the page. The code carries the location itself, so the server keeps nothing between calls. A code that does not parse is refused with the citation's number.
+**Cite codes.** Every `pipeshub_search` passage and `pipeshub_chat` citation carries a `cite`: where the passage is, in one string, about 60 characters: `<recordId>.<page>.<block>.<sheet>.<x0>_<y0>_<x1>_<y1>`, any field after the record id possibly empty, the box in thousandths of the page. The code carries the location itself, so the server keeps nothing between calls. A code an agent copied with a slip (a dot added or dropped, backticks around it, the record id alone) still names its record, and stands for the whole record once that record is read; a thread message's code whose closing `n` became a number (`R..1...1`) still names message 1. A citation that is not a code, or whose loosely read code names a record PipesHub cannot read, is left out and named in the result, and the rest are shown, numbered as listed; an exact code still shows when its record cannot be read, as "Source". Only a call with no usable citation at all is an error.
 
 **Response:** one line (`Showing 3 citations from 2 records.`). The tool reads each cited record's name, type and link once.
 

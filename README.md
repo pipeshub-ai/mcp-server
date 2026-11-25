@@ -12,7 +12,7 @@ PipesHub exposes a remote MCP endpoint over **Streamable HTTP** at `/mcp`. MCP C
 >
 > **Claude Code plugin:** `/plugin marketplace add pipeshub-ai/mcp-server`, then `/plugin install pipeshub@pipeshub`, adds the MCP server, the skill, and the `/pipeshub:ask`, `/pipeshub:setup` and `/pipeshub:index` commands. It connects to `${PIPESHUB_MCP_URL:-https://app.pipeshub.com/mcp}` with `Authorization: Bearer ${PIPESHUB_MCP_TOKEN}`; export both in your shell (self-hosted: set the URL to `https://<your-instance>/mcp`), then restart Claude Code. `/pipeshub:setup local` runs PipesHub on this computer instead (`pipeshub init --local`), and `/pipeshub:index` indexes the current repository (`pipeshub index`); both need the local runtime (`npx @pipeshub-ai/standalone init --local`) and say so when it is missing.
 
-> **Cursor plugin:** a Cursor team admin imports this repository as a team marketplace (Import from Repo; `.cursor-plugin/marketplace.json`, plugin in [`cursor-plugin/`](./cursor-plugin/README.md)) to add the local MCP server, the docs search server, the skill, and the `ask`, `setup` and `index` commands. Sign in once with `pipeshub login`; no token goes in the config.
+> **Cursor plugin:** a Cursor team admin imports this repository as a team marketplace (Import from Repo; `.cursor-plugin/marketplace.json`, plugin in [`cursor-plugin/`](./cursor-plugin/README.md)) to add PipesHub's remote MCP server, the docs search server, the skill, and the `ask`, `setup` and `index` commands. The server needs its URL, `<pipeshub-instanceurl>/mcp`: the team admin sets it in the dashboard; on an individual install Cursor does not ask, so open Customize → PipesHub → **Configure**, enter **PipesHub MCP URL**, and click **Save**. Then click **Authenticate** on the `pipeshub` server and sign in with OAuth; no token goes in the config. Self-hosted: see the [plugin README](./cursor-plugin/README.md#self-hosted).
 
 > **Codex plugin:** `codex plugin marketplace add pipeshub-ai/mcp-server`, then `codex plugin add pipeshub@pipeshub`, installs the skill and the `pipeshub` MCP server from the listing files (`plugin.json`, `mcp.json`; `http://localhost:3000/mcp`). For PipesHub Cloud or a company instance, `pipeshub mcp install --client codex` adds a `pipeshub` entry to `~/.codex/config.toml`, which takes the place of the plugin's.
 >
@@ -58,7 +58,7 @@ The `/.well-known/oauth-protected-resource/mcp` discovery endpoint lists the sco
 | `kb:read`, `connector:read`, `config:read` | `pipeshub_sources`, `pipeshub_get_record_content`, `pipeshub_download_record`, `pipeshub_indexing_status` |
 | `kb:write`, `kb:upload` | `pipeshub_create_collection`, `pipeshub_upload` |
 | `connector:write`, `connector:sync` | `pipeshub_add_web_source` |
-| `user:read`, `team:read`, `usergroup:read` | `pipeshub_directory` |
+| `user:read`, `team:read` | `pipeshub_directory` |
 | `code:read` | The `pipeshub_code_*` tools |
 
 Discovery also lists `offline_access`. It is not a tool scope: it lets the client get a refresh token, so it stays signed in instead of signing in again when its access token expires.

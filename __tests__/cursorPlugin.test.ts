@@ -33,6 +33,26 @@ test("cursor plugin matches the marketplace, package version and Cursor's valida
 
   const servers = json(`${dir}/mcp.json`).mcpServers;
   expect(Object.keys(servers)).toEqual(["pipeshub", "pipeshub-docs"]);
+  // The plugin uses the remote server over OAuth (Cursor self-registers via DCR), so no
+  // credential, command or token belongs in it.
+  // The URL is a required variable set under Configure (no default), with <pipeshub-instanceurl>/mcp as the hint.
+  expect(servers.pipeshub.url).toBe("${PIPESHUB_MCP_URL}");
+  const vars = plugin.variables;
+  expect(vars.type).toBe("object");
+  expect(vars.required).toEqual(["PIPESHUB_MCP_URL"]);
+  expect(vars.properties.PIPESHUB_MCP_URL.default).toBeUndefined();
+  expect(vars.properties.PIPESHUB_MCP_URL.description).toContain("<pipeshub-instanceurl>/mcp");
+  // Cursor accepts only these JSON Schema keywords in `variables`.
+  const allowed = new Set(["type", "title", "description", "default", "enum", "const", "properties", "required", "items"]);
+  for (const prop of Object.values(vars.properties) as Record<string, unknown>[]) {
+    for (const k of Object.keys(prop)) expect(allowed.has(k), k).toBe(true);
+  }
+  // Every ${VAR} in mcp.json is a declared variable (Cursor does not expand ${env:...} here).
+  for (const [, name] of JSON.stringify(servers).matchAll(/\$\{([^}]+)\}/g)) {
+    expect(Object.keys(vars.properties)).toContain(name);
+  }
+  expect(servers.pipeshub.command).toBeUndefined();
+  expect(JSON.stringify(servers)).not.toMatch(/token|bearer|authorization/i);
 
   const files = [
     ...readdirSync(join(root, dir, "commands")).map((f) => `${dir}/commands/${f}`),

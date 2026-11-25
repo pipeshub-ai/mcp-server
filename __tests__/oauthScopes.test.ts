@@ -17,7 +17,7 @@ const logger = createConsoleLogger("error");
 const TOOL_SCOPES = [
   "semantic:write", "conversation:chat", "agent:read",
   "kb:read", "kb:write", "kb:upload", "connector:read", "connector:write",
-  "connector:sync", "user:read", "team:read", "usergroup:read",
+  "connector:sync", "user:read", "team:read",
 ];
 
 async function connect(deps: Omit<Parameters<typeof createMCPServer>[0], "logger"> = {}) {
@@ -81,6 +81,11 @@ describe("grantedOAuthScopes", () => {
     const client = await connect({ grantedOAuthScopes: ["kb:read", "semantic:write", "connector:read", "agent:read"] });
     expect(client.getInstructions()).not.toContain("pipeshub_chat");
     expect((await client.listTools()).tools.map((t) => t.name)).not.toContain("pipeshub_agents");
+  });
+
+  test("the directory needs no usergroup:read", async () => {
+    expect(requiredOAuthScopes("pipeshub_directory")).toEqual(["user:read", "team:read"]);
+    expect(await listed({ grantedOAuthScopes: ["user:read", "team:read"] })).toContain("pipeshub_directory");
   });
 
   test("a token that can chat but not act still gets chat", async () => {
