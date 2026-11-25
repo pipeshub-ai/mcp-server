@@ -15,6 +15,6 @@ Get the `pipeshub` MCP server in this plugin working. Never ask the user to past
    ```
 
    Their instance must allow dynamic client registration. PipesHub v1.1.0 and older have it off unless the operator sets `PIPESHUB_ENABLE_DCR=true`; later releases have it on unless `PIPESHUB_ENABLE_DCR=false`. If it is off (Connect fails with 403 `dynamic client registration is disabled`), use the static OAuth app setup in https://docs.pipeshub.com/for-agents.md instead.
-5. No PipesHub account yet: sign up at https://app.pipeshub.com/?ref=cursor-plugin, or run PipesHub on this computer: `npx @pipeshub-ai/standalone init --local --client cursor` (needs Docker) starts it, signs in, and indexes this repository; then reload the window. If npm reports that package as not found, the local runtime is not available yet: self-host with https://docs.pipeshub.com/for-agents-local-demo.md instead.
+5. No PipesHub account yet: sign up at https://app.pipeshub.com/?ref=cursor-plugin, or run PipesHub on this computer with Docker (https://docs.pipeshub.com/for-agents-local-demo.md) and set its `/mcp` URL as in step 2.
 
 Full guide: https://docs.pipeshub.com/for-agents.md
